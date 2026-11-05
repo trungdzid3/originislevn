@@ -1,7 +1,9 @@
 package com.originisle.android.ui
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,12 +58,16 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
     var query by remember { mutableStateOf("") }
     // 0 = all, 1 = on only, 2 = off only.
     var filter by remember { mutableIntStateOf(0) }
+    var showSystem by remember { mutableStateOf(prefs.getBoolean("apps_show_system", false)) }
     val ignored = remember {
         mutableStateListOf<String>().apply { addAll(prefs.getStringSet("cast_ignored_apps", emptySet()).orEmpty()) }
     }
+    // Icons are decoded per visible row (hundreds with system apps on), kept here while scrolling.
+    val iconCache = remember { HashMap<String, ImageBitmap?>() }
 
-    LaunchedEffect(Unit) {
-        apps = withContext(Dispatchers.IO) { loadApps(context) }
+    LaunchedEffect(showSystem) {
+        loading = true
+        apps = withContext(Dispatchers.IO) { loadApps(context, showSystem, ignored.toSet()) }
         loading = false
     }
 
@@ -99,6 +106,14 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
                     listOf("Tất cả", "Đang bật", "Đã tắt"), filter, { filter = it },
                     track = IsleColors.Surface, height = 40.dp,
                 )
+                GroupCard {
+                    ToggleRow(
+                        IsleIcons.Grid, IsleColors.TileGray, "Ứng dụng hệ thống", showSystem,
+                        subtitle = "Hiển thị cả các ứng dụng và dịch vụ không có biểu tượng",
+                    ) {
+                        showSystem = it; prefs.edit().putBoolean("apps_show_system", it).apply()
+                    }
+                }
                 Text(
                     "Tắt những ứng dụng bạn không muốn hiển thị trên đảo. Tin nhắn văn bản thông thường đã được lọc tự động, nên cuộc gọi vẫn sẽ hiển thị ngay cả khi tắt tin nhắn.",
                     modifier = Modifier.padding(horizontal = 4.dp),
@@ -121,7 +136,7 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
             }
         }
 
-        groups.forEach { (letter, items) ->
+        if (!loading) groups.forEach { (letter, items) ->
             item(key = "letter-$letter") {
                 SectionLabel(letter.toString(), Modifier.padding(top = 12.dp, bottom = 8.dp))
             }
@@ -142,7 +157,7 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))) {
-                            app.icon?.let { Image(it, null, Modifier.size(36.dp)) }
+                            AppIcon(context, app, iconCache)
                         }
                         Text(
                             app.label,
@@ -192,18 +207,35 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
     }
 }
 
-private data class AppEntry(val pkg: String, val label: String, val icon: ImageBitmap?)
+private data class AppEntry(val pkg: String, val label: String, val info: ApplicationInfo)
 
-private fun loadApps(context: Context): List<AppEntry> {
+@Composable
+private fun AppIcon(context: Context, app: AppEntry, cache: HashMap<String, ImageBitmap?>) {
+    val icon by produceState(cache[app.pkg], app.pkg) {
+        if (app.pkg !in cache) {
+            cache[app.pkg] = withContext(Dispatchers.IO) {
+                runCatching { context.packageManager.getApplicationIcon(app.info).toBitmap(72, 72).asImageBitmap() }.getOrNull()
+            }
+        }
+        value = cache[app.pkg]
+    }
+    icon?.let { Image(it, null, Modifier.size(36.dp)) }
+}
+
+private fun loadApps(context: Context, includeSystem: Boolean, alsoInclude: Set<String>): List<AppEntry> {
     val pm = context.packageManager
+    val launchable = listOf(Intent.CATEGORY_LAUNCHER, Intent.CATEGORY_INFO).flatMapTo(HashSet()) { category ->
+        pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(category), 0).map { it.activityInfo.packageName }
+    }
     return pm.getInstalledApplications(0)
-        .filter { pm.getLaunchIntentForPackage(it.packageName) != null && it.packageName != context.packageName }
-        .map { info ->
-            AppEntry(
-                pkg = info.packageName,
-                label = pm.getApplicationLabel(info).toString(),
-                icon = runCatching { pm.getApplicationIcon(info).toBitmap(72, 72).asImageBitmap() }.getOrNull(),
-            )
+        .mapNotNull { info ->
+            val pkg = info.packageName
+            if (pkg == context.packageName) return@mapNotNull null
+            val shown = pkg in launchable || pkg in alsoInclude
+            if (!shown && !(includeSystem && info.enabled && !info.isResourceOverlay)) return@mapNotNull null
+            val label = pm.getApplicationLabel(info).toString()
+            if (!shown && label == pkg) return@mapNotNull null
+            AppEntry(pkg = pkg, label = label, info = info)
         }
         .sortedBy { it.label.lowercase() }
 }

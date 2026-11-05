@@ -25,6 +25,9 @@ object ChargingCard {
     private const val COLOR_FLASH_CHARGE = "#00D1A0" // Xanh ngọc FlashCharge
     private const val COLOR_ELECTRIC_BLUE = "#2B66FF" // Vivo Origin Electric Blue
     private const val COLOR_FULL = "#00D084"
+    private const val COLOR_FLASH_TRACK = "#4C00D1A0"
+    private const val COLOR_BLUE_TRACK = "#4C2B66FF"
+    private const val COLOR_FULL_TRACK = "#4C00D084"
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -88,7 +91,7 @@ object ChargingCard {
             else -> "Đang sạc pin"
         }
 
-        val text = if (remaining > 0) "$level% · Còn ${formatRemaining(remaining)} đến khi đầy" else "$level%"
+        val text = if (remaining > 0) "Còn ${formatRemaining(remaining)} đến khi đầy" else "$level%"
         val bolt = Icon.createWithResource(context, R.drawable.ic_charging)
         val click = PendingIntent.getActivity(
             context, ID, Intent(Intent.ACTION_POWER_USAGE_SUMMARY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -96,6 +99,7 @@ object ChargingCard {
         )
 
         val activeColor = if (full) COLOR_FULL else if (isAcCharging) COLOR_FLASH_CHARGE else COLOR_ELECTRIC_BLUE
+        val activeTrackColor = if (full) COLOR_FULL_TRACK else if (isAcCharging) COLOR_FLASH_TRACK else COLOR_BLUE_TRACK
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -103,15 +107,19 @@ object ChargingCard {
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-            putExtra("oi_progress", level)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_show_right_icon", false)
+            putExtra("oi_right_content", "$level%")
+            putExtra("status_chip_text", "$level%")
+            putExtra("oi_card_ring", level)
             putExtra("title", title)
             putExtra("text", text)
-            putExtra("oi_left_content", "$level%")
+            putExtra("oi_left_content", "")
             putExtra("oi_left_icon", bolt)
             putExtra("oi_large_icon", bolt)
             putExtra("icon_res", R.drawable.ic_charging)
             putExtra("oi_fg_color", activeColor)
+            putExtra("oi_bg_color", activeTrackColor)
             if (glow) {
                 putExtra("oi_light_color", activeColor)
                 putExtra("oi_force_show", true)

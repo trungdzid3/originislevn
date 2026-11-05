@@ -16,6 +16,7 @@ import android.util.Log
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.originisle.android.R
+import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
 import com.originisle.android.ui.PREFS_NAME
 import java.util.concurrent.ConcurrentHashMap
@@ -34,9 +35,16 @@ class PlaygroundService : Service() {
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_CANCEL = "ACTION_CANCEL"
+        const val ACTION_REJECTED = "ACTION_REJECTED"
         // Just brings the foreground service up (no card) so the process — and the notification
         // listener living in it — stays alive for background casts.
         const val ACTION_KEEPALIVE = "ACTION_KEEPALIVE"
+
+        private val FANCY_TEMPLATES = setOf(
+            OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL,
+            OriginIslandConstants.TEMPLATE_BUTTONS,
+            OriginIslandConstants.TEMPLATE_DRIVING_NAVI,
+        )
 
         /** Start/keep the foreground service alive. Safe to call from a foreground context. */
         fun keepAlive(context: Context) {
@@ -66,6 +74,8 @@ class PlaygroundService : Service() {
     private val activeIds = linkedSetOf<Int>()
     private val originScenes = HashMap<Int, String>()
     private val originChangeRecord = HashMap<Int, Int>()
+    private val lastPosts = HashMap<Int, Intent>()
+    private val plainIds = HashSet<Int>()
 
     // Pending auto-dismiss timers, keyed by card id — only ever holds entries for non-live cards
     // (see readAndPost); a live card's id is simply never added here.
@@ -97,6 +107,7 @@ class PlaygroundService : Service() {
             when (intent?.action) {
                 ACTION_START -> readAndPost(intent)
                 ACTION_CANCEL -> cancelNotification(intent)
+                ACTION_REJECTED -> onRejected(intent.getIntExtra("id", -1))
                 ACTION_STOP -> stopEverything()
                 ACTION_KEEPALIVE -> Unit // ensureForeground() above is all that's needed
             }
@@ -179,6 +190,8 @@ class PlaygroundService : Service() {
     private fun readAndPost(intent: Intent) {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
+        lastPosts[id] = intent
+        val plain = id in plainIds
 
         val scene = intent.getStringExtra("oi_scene").orEmptyOr("NAVIGATION")
         val title = intent.getStringExtra("title").orEmpty()
@@ -188,6 +201,7 @@ class PlaygroundService : Service() {
         val statusChip = intent.getStringExtra("status_chip_text").orEmpty()
 
         val template = intent.getIntExtra("oi_template", 0)
+            .let { if (plain && it in FANCY_TEMPLATES) OriginIslandConstants.TEMPLATE_BASE else it }
         val rightTemplate = intent.getIntExtra("oi_right_template", 0)
 
         val extra1 = intent.getStringExtra("oi_extra1").orEmpty()
@@ -256,11 +270,12 @@ class PlaygroundService : Service() {
         val isOngoing = intent.getBooleanExtra("is_ongoing", false)
 
         // Actions -> OriginActions.
-        val actions = intent.getParcelableArrayListExtra("actions", Notification.Action::class.java)
+        val sourcePkg = intent.getStringExtra("source_pkg")
+        val actions = if (plain) emptyList() else intent.getParcelableArrayListExtra("actions", Notification.Action::class.java)
             ?.map { a ->
                 OriginIslandBuilder.OriginAction(
                     title = a.title?.toString().orEmpty(),
-                    icon = a.getIcon(),
+                    icon = a.getIcon()?.ownedBy(sourcePkg),
                     pendingIntent = a.actionIntent,
                 )
             } ?: emptyList()
@@ -271,7 +286,7 @@ class PlaygroundService : Service() {
 
         val leftDoubleLine = intent.getStringArrayListExtra("oi_left_doubleline") ?: emptyList()
         val rightDoubleLine = intent.getStringArrayListExtra("oi_right_doubleline") ?: emptyList()
-        val buttonTitles = intent.getStringArrayListExtra("oi_button_titles") ?: emptyList()
+        val buttonTitles = if (plain) emptyList() else intent.getStringArrayListExtra("oi_button_titles") ?: emptyList()
 
         // capsule / right-island chip text: prefer explicit chip, else right content.
         val chip = statusChip.ifBlank { rightContent }
@@ -339,6 +354,8 @@ class PlaygroundService : Service() {
                 activeIds.remove(prevInScene)
                 originChangeRecord.remove(prevInScene)
                 originScenes.remove(prevInScene)
+                lastPosts.remove(prevInScene)
+                plainIds.remove(prevInScene)
             }
             sceneCurrentId[scene] = id
         }
@@ -439,7 +456,30 @@ class PlaygroundService : Service() {
         }
         activeIds.remove(id)
         originChangeRecord.remove(id)
+        lastPosts.remove(id)
+        plainIds.remove(id)
         activeCardIds = activeIds.toSet()
+    }
+
+    private fun onRejected(id: Int) {
+        val last = lastPosts[id] ?: return
+        val app = last.getStringExtra("source_app").orEmpty().ifBlank { "Origin Isle" }
+        val title = last.getStringExtra("title").orEmpty()
+        val simpler = last.getIntExtra("oi_template", 0) in FANCY_TEMPLATES ||
+            last.hasExtra("actions") || last.hasExtra("oi_button_titles")
+        if (id in plainIds || !simpler) {
+            CastLog.add(app, title, "bị Đảo từ chối", false)
+            return
+        }
+        plainIds.add(id)
+        CastLog.add(app, title, "bị Đảo từ chối — hiển thị dạng thẻ cơ bản", true)
+        readAndPost(last)
+    }
+
+    private fun Icon.ownedBy(pkg: String?): Icon? = when {
+        type != Icon.TYPE_RESOURCE || !resPackage.isNullOrEmpty() -> this
+        pkg.isNullOrEmpty() -> null
+        else -> Icon.createWithResource(pkg, resId)
     }
 
     private fun stopEverything() {
@@ -452,6 +492,8 @@ class PlaygroundService : Service() {
         originScenes.clear()
         originChangeRecord.clear()
         sceneCurrentId.clear()
+        lastPosts.clear()
+        plainIds.clear()
         val ids = activeIds.toList()
         activeIds.clear()
         activeCardIds = emptySet()

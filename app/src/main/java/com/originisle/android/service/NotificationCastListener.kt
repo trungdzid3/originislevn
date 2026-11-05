@@ -763,6 +763,13 @@ class NotificationCastListener : NotificationListenerService() {
         if (sbn.notification.extras.get("SUPERX_VALUE")?.toString() != "false") return
         Log.w(TAG, "vivo rejected a SuperX card (id=${sbn.id}) — cancelling its shade fallback")
         getSystemService(NotificationManager::class.java)?.cancel(sbn.id)
+        runCatching {
+            startService(
+                Intent(this, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_REJECTED)
+                    .putExtra("id", sbn.id),
+            )
+        }
     }
 
     private fun isRecapOrHighlights(sbn: StatusBarNotification): Boolean {
