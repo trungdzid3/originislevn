@@ -7,11 +7,12 @@ import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
 import com.originisle.android.R
+import com.originisle.android.bank.BankTransaction
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 
 /**
- * Apple-Pay-style payment card for the OriginIsland.
+ * Apple-Pay-style payment card and Vietnam Bank transaction card for the OriginIsland.
  *
  * A payment notification (Google Wallet, Google Pay, Revolut, PayPal, a bank, …) is re-cast as a
  * short two-phase animation, mirroring how Apple shows a tap-to-pay:
@@ -20,9 +21,10 @@ import com.originisle.android.island.PlaygroundService
  *  2. **Done** — a green success tick overlays the icon, the amount shows big, the pill turns into a
  *     green "✓" capsule and the island edge glows green. Auto-dismisses a few seconds later.
  *
- * All of this rides on [com.originisle.android.island.OriginIslandBuilder]/[PlaygroundService]: the
- * tick is `iconStatusType` SUCCESS, the spinner is `generatingStatus`, and the glow is the
- * light-effect colour.
+ * For Vietnam Bank transactions:
+ *  - Income (tiền vào): Emerald teal color (#00D084), title "+<Số tiền>", subtitle "Tiền vào · <Ngân hàng>".
+ *  - Expense (tiền ra): Coral red color (#FF5247), title "-<Số tiền>", subtitle "Tiền ra · <Ngân hàng>".
+ *  - Displays transaction description directly on the card.
  */
 object PaymentCard {
 
@@ -30,13 +32,17 @@ object PaymentCard {
     private const val GREEN = "#FF34C759"
     private const val WHITE = "#FFFFFFFF"
 
+    /** Vietnam Bank transaction theme colors. */
+    const val COLOR_INCOME = "#00D084"
+    const val COLOR_EXPENSE = "#FF5247"
+
     private const val PROCESS_MS = 850L   // spinner phase
-    private const val HOLD_MS = 6000L     // how long "Done" stays before auto-dismiss
+    private const val HOLD_MS = 6000L     // how long "Hoàn tất" stays before auto-dismiss
 
     private val handler = Handler(Looper.getMainLooper())
 
     /**
-     * Show the payment animation for [id].
+     * Show the standard tap-to-pay payment animation for [id].
      *
      * @param amount pre-extracted amount string (e.g. "€12.90"); may be blank.
      * @param merchant merchant / payee, or a short description.
@@ -56,9 +62,9 @@ object PaymentCard {
         // Phase 1 — processing (spinner).
         startService(
             app, id,
-            title = "Processing…",
+            title = "Đang xử lý…",
             content = amount.ifBlank { merchant },
-            subtext = "Paid with $appLabel",
+            subtext = "Thanh toán qua $appLabel",
             appIcon = appIcon,
             clickResp = clickResp,
             generating = 1,
@@ -71,9 +77,9 @@ object PaymentCard {
         handler.postDelayed({
             startService(
                 app, id,
-                title = amount.ifBlank { "Paid" },
+                title = amount.ifBlank { "Thành công" },
                 content = merchant,
-                subtext = "Paid with $appLabel",
+                subtext = "Thanh toán qua $appLabel",
                 appIcon = appIcon,
                 clickResp = clickResp,
                 generating = 0,
@@ -94,6 +100,100 @@ object PaymentCard {
         }, PROCESS_MS + HOLD_MS)
     }
 
+    /**
+     * Post a Vietnam bank transaction (biến động số dư) to OriginIsland.
+     *
+     * - Income: emerald teal accent (#00D084), title "+<Số tiền>", subtitle "Tiền vào · <Ngân hàng>".
+     * - Expense: coral red accent (#FF5247), title "-<Số tiền>", subtitle "Tiền ra · <Ngân hàng>".
+     * - Displays transaction description on the card content area.
+     */
+    fun postBankTransaction(
+        context: Context,
+        id: Int,
+        appIcon: Icon?,
+        transaction: BankTransaction,
+        clickResp: PendingIntent?,
+    ) {
+        val app = context.applicationContext
+        val isIncome = transaction.isIncome
+        val accentColor = if (isIncome) COLOR_INCOME else COLOR_EXPENSE
+
+        // Ensure title is formatted as "+<Số tiền>" or "-<Số tiền>"
+        val rawAmountClean = transaction.formattedAmount.trim()
+            .replace(Regex("""^[+-]\s*"""), "")
+            .trim()
+        val title = if (isIncome) "+$rawAmountClean" else "-$rawAmountClean"
+
+        val subtitle = if (isIncome) {
+            "Tiền vào · ${transaction.bankName}"
+        } else {
+            "Tiền ra · ${transaction.bankName}"
+        }
+
+        val content = transaction.description.ifBlank {
+            if (isIncome) "Nhận tiền" else "Giao dịch thành công"
+        }
+
+        val chip = if (isIncome) "+" else "-"
+
+        startService(
+            app, id,
+            title = title,
+            content = content,
+            subtext = subtitle,
+            appIcon = appIcon,
+            clickResp = clickResp,
+            generating = 0,
+            iconStatus = if (isIncome) OriginIslandConstants.ICON_STATUS_SUCCESS else -1,
+            rightTemplate = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT,
+            chip = chip,
+            bgColor = accentColor,
+            lightColor = accentColor,
+            fgColor = WHITE,
+        )
+
+        // Auto-dismiss
+        handler.postDelayed({
+            app.startService(
+                Intent(app, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+        }, HOLD_MS)
+    }
+
+    /** Overload to accept BankTransaction directly in [post]. */
+    fun post(
+        context: Context,
+        id: Int,
+        appIcon: Icon?,
+        transaction: BankTransaction,
+        clickResp: PendingIntent?,
+    ) = postBankTransaction(context, id, appIcon, transaction, clickResp)
+
+    /** Overload to post bank transaction with individual fields. */
+    fun post(
+        context: Context,
+        id: Int,
+        appIcon: Icon?,
+        amount: String,
+        description: String,
+        bankName: String,
+        isIncome: Boolean,
+        clickResp: PendingIntent?,
+    ) = postBankTransaction(
+        context, id, appIcon,
+        BankTransaction(
+            rawAmount = amount,
+            formattedAmount = amount,
+            isIncome = isIncome,
+            description = description,
+            bankName = bankName
+        ),
+        clickResp
+    )
+
     private fun startService(
         context: Context,
         id: Int,
@@ -106,6 +206,9 @@ object PaymentCard {
         iconStatus: Int,
         rightTemplate: Int,
         chip: String,
+        bgColor: String = GREEN,
+        lightColor: String = GREEN,
+        fgColor: String = if (chip == "✓") WHITE else GREEN,
     ) {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -129,10 +232,10 @@ object PaymentCard {
             putExtra("icon_res", R.drawable.ic_payment)
             putExtra("oi_generating_status", generating)
             putExtra("oi_icon_status_type", iconStatus)
-            // Green success accent: chip fill, chip text and the island edge glow.
-            putExtra("oi_bg_color", GREEN)
-            putExtra("oi_fg_color", if (chip == "✓") WHITE else GREEN)
-            putExtra("oi_light_color", GREEN)
+            // Accent colors: chip fill, chip text and the island edge glow.
+            putExtra("oi_bg_color", bgColor)
+            putExtra("oi_fg_color", fgColor)
+            putExtra("oi_light_color", lightColor)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
             clickResp?.let { putExtra("click_resp", it) }

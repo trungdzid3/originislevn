@@ -132,7 +132,7 @@ class PlaygroundService : Service() {
 
     /** Matches the listener's own gate — either card source keeps the service worth running. */
     private fun isCastingEnabled(): Boolean = getSharedPreferences(PREFS_NAME, 0).let {
-        it.getBoolean("cast_notifications", false) || it.getBoolean("cast_media_sessions", false)
+        it.getBoolean("cast_notifications", true) || it.getBoolean("cast_media_sessions", false)
     }
 
     /** [flags] picks between arming (FLAG_UPDATE_CURRENT) and looking one up (FLAG_NO_CREATE). */
@@ -162,7 +162,7 @@ class PlaygroundService : Service() {
         createNotificationChannel(CHANNEL_ID)
         val n = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Origin Isle")
-            .setContentText("Casting to OriginIsland")
+            .setContentText("Đang hiển thị trên Đảo Origin")
             // A fully transparent small icon: OriginOS force-shows foreground-service icons in the
             // status bar even at IMPORTANCE_MIN, so we make the icon invisible. The entry still shows
             // (with text) in the expanded notification panel; only the status-bar glyph disappears.
@@ -228,7 +228,7 @@ class PlaygroundService : Service() {
         // Surfaces the card appears on: lockscreen|statusbar|AOD — NOT the plain notification-shade
         // bit (1). The SuperX post is a real, HIGH-importance notification under Origin Isle's own
         // identity; including the notification bit made it ALSO show as a duplicate shade entry
-        // ("Origin Isle: Starting navigation" etc, mirroring whatever the source app's text was),
+        // ("Origin Isle: Bắt đầu điều hướng" etc, mirroring whatever the source app's text was),
         // on top of the island rendering. Dropping it should leave the island/lockscreen/AOD intact.
         //
         // The LOCKSCREEN bit specifically is NOT a per-card decision — it's owned centrally by the
@@ -472,7 +472,7 @@ class PlaygroundService : Service() {
         // background, and Android 14 forbids starting a foreground service from the background — so
         // if this service stopped, the next real cast could not restart it and casting would break.
         // Keeping it alive (on an IMPORTANCE_MIN, icon-less channel) is the cost of reliable casting.
-        // Use the "Stop all cards" button (ACTION_STOP) to shut it down fully.
+        // Use the "Dừng tất cả thẻ" button (ACTION_STOP) to shut it down fully.
     }
 
     private fun stopEverything() {
@@ -505,7 +505,7 @@ class PlaygroundService : Service() {
     private fun createNotificationChannel(channelId: String) {
         if (notificationManager.getNotificationChannel(channelId) != null) return
         val isIsland = channelId == ORIGIN_CHANNEL_ID
-        val name = if (isIsland) "OriginIsland" else "Background keep-alive"
+        val name = if (isIsland) "OriginIsland" else "Duy trì chạy ngầm"
         // Island channel must be HIGH (4) like the original — LOW gets minimised and never reaches
         // the island. The keep-alive channel is NONE (blocked) so its foreground-service notification
         // is suppressed entirely — the service keeps running with no status-bar icon.

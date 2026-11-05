@@ -7,6 +7,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
@@ -17,22 +18,12 @@ import android.provider.Settings
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
-import com.originisle.android.ui.PREFS_NAME
+import java.util.Locale
 
 /**
- * The iPhone's camera / microphone indicator: while an app uses the camera the island shows a
- * green dot, while one records audio an orange dot. It disappears when they're released.
- *
- * Both signals are public and need no permission: camera availability from [CameraManager] and
- * active recordings from [AudioManager]. Neither says WHICH app — Android hides that from normal
- * apps — so the card doesn't either.
- *
- *  - Face unlock opens the camera while the phone is locked; a camera opened while locked is
- *    ignored until it's closed again.
- *  - A call keeps the mic open the whole time and already has its own card, so the mic dot stays
- *    off while the phone is in a call (including VoIP).
- *  - The flashlight holds a camera too ([FlashlightCard] has its own card), so a camera whose torch
- *    is on doesn't count.
+ * Chỉ báo quyền riêng tư (Camera / Micro):
+ * - Camera: Màu đỏ, khung tròn (Circle).
+ * - Micro: Màu xanh lá, khung hơi vuông bo góc (Squircle / Rounded Rectangle).
  */
 object PrivacyCard {
 
@@ -43,8 +34,10 @@ object PrivacyCard {
     private const val SHOW_AFTER_MS = 800L
     /** …and off this long before it goes — enough to ride out a front/back camera switch. */
     private const val HIDE_AFTER_MS = 300L
-    private const val GREEN = 0xFF34C759.toInt()
-    private const val ORANGE = 0xFFFF9F0A.toInt()
+
+    // Màu chỉ báo: Camera màu đỏ, Micro màu xanh lá
+    private const val COLOR_CAMERA_RED = 0xFFFF3B30.toInt()
+    private const val COLOR_MIC_GREEN = 0xFF34C759.toInt()
 
     private enum class Shown { NONE, CAMERA, MIC, BOTH }
 
@@ -96,8 +89,6 @@ object PrivacyCard {
             runCatching { audio.addOnModeChangedListener(ctx.mainExecutor, modeListener) }
             micInUse = audio.activeRecordingConfigurations.any { !it.isClientSilenced }
         }
-        // Registering replays the cameras that are already open; treat those as a baseline the same
-        // way, so whatever is in use right now shows (except face unlock, as above).
         scheduleUpdate()
     }
 
@@ -134,8 +125,8 @@ object PrivacyCard {
 
     private fun wanted(): Shown {
         val context = app ?: return Shown.NONE
-        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
-        val enabled = prefs.getBoolean("cast_notifications", false) && prefs.getBoolean("cast_privacy_dot", true)
+        val prefs = context.getSharedPreferences("experimental_prefs", 0)
+        val enabled = prefs.getBoolean("cast_notifications", true) && prefs.getBoolean("cast_privacy_dot", true)
         val camera = camerasInUse.any { it !in camerasOpenedLocked && !FlashlightCard.isTorchOn(it) }
         val mode = context.getSystemService(AudioManager::class.java)?.mode ?: AudioManager.MODE_NORMAL
         val inCall = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION ||
@@ -152,13 +143,26 @@ object PrivacyCard {
     }
 
     private fun show(context: Context, what: Shown) {
+        val isVi = Locale.getDefault().language == "vi"
         val (title, text, glyph) = when (what) {
-            Shown.CAMERA -> Triple("Camera in use", "An app is using your camera", R.drawable.ic_camera)
-            Shown.MIC -> Triple("Microphone in use", "An app is using your microphone", R.drawable.ic_mic)
-            else -> Triple("Camera and microphone in use", "An app is using your camera and microphone", R.drawable.ic_camera)
+            Shown.CAMERA -> Triple(
+                if (isVi) "Đang dùng Camera" else "Camera in use",
+                if (isVi) "Một ứng dụng đang sử dụng Camera" else "An app is using the camera",
+                R.drawable.ic_camera,
+            )
+            Shown.MIC -> Triple(
+                if (isVi) "Đang dùng Micro" else "Microphone in use",
+                if (isVi) "Một ứng dụng đang sử dụng Micro" else "An app is using the microphone",
+                R.drawable.ic_mic,
+            )
+            else -> Triple(
+                if (isVi) "Đang dùng Camera & Micro" else "Camera & Mic in use",
+                if (isVi) "Một ứng dụng đang sử dụng Camera & Micro" else "An app is using camera & microphone",
+                R.drawable.ic_camera,
+            )
         }
-        // Like the iPhone: green when the camera is on (it usually brings the mic along), orange for mic only.
-        val color = if (what == Shown.MIC) ORANGE else GREEN
+
+        val indicator = indicatorDot(what)
         val icon = Icon.createWithResource(context, glyph)
         val click = PendingIntent.getActivity(
             context, ID, Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -167,16 +171,13 @@ object PrivacyCard {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
-            // Live: it goes when the camera/mic is released, not after "Hide after".
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("title", title)
             putExtra("text", text)
-            // Pill: just the coloured dot left of the camera, nothing right of it (a transparent
-            // icon-only slot) — the iPhone's indicator. The glyph stays on the expanded card.
             putExtra("oi_left_content", "")
-            putExtra("oi_left_icon", dot(color))
+            putExtra("oi_left_icon", indicator)
             putExtra("oi_large_icon", icon)
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
             putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_transparent))
@@ -198,13 +199,30 @@ object PrivacyCard {
     }
 
     /**
-     * A small filled dot centred in a transparent square. A bitmap, not a tinted resource, so the
-     * island keeps its colour; padded so it reads as a dot rather than filling the icon slot.
+     * Chỉ báo thị giác trên viên nang Đảo:
+     * - Camera (hoặc Camera & Mic): Màu đỏ, khung tròn (Circle).
+     * - Micro: Màu xanh lá, khung hơi vuông bo góc (Squircle / Rounded Rectangle).
      */
-    private fun dot(color: Int): Icon {
+    private fun indicatorDot(what: Shown): Icon {
         val size = 48
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        Canvas(bitmap).drawCircle(size / 2f, size / 2f, size * 0.22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        if (what == Shown.MIC) {
+            // Micro: Màu xanh lá, khung hơi vuông bo góc
+            paint.color = COLOR_MIC_GREEN
+            val half = size * 0.22f
+            val cx = size / 2f
+            val cy = size / 2f
+            val cornerRadius = size * 0.07f // Bo góc nhẹ cho hình hơi vuông
+            val rect = RectF(cx - half, cy - half, cx + half, cy + half)
+            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint)
+        } else {
+            // Camera hoặc cả hai: Màu đỏ, khung tròn
+            paint.color = COLOR_CAMERA_RED
+            canvas.drawCircle(size / 2f, size / 2f, size * 0.22f, paint)
+        }
         return Icon.createWithBitmap(bitmap)
     }
 }

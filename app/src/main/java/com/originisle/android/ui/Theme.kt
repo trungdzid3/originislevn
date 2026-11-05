@@ -17,56 +17,63 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 import com.originisle.android.R
 
-/** The redesign's palette: near-black ground, grouped grey cards, one blue accent. */
+/**
+ * Bảng màu & Thiết kế theo chuẩn Vivo OriginOS 6 (Atomic Design System).
+ * Đặc trưng: Nền Obsidian sâu, thẻ Atomic Card bo tròn siêu elip với viền mảnh hairline bán trong suốt.
+ */
 object IsleColors {
-    val Background = Color(0xFF0B0B0D)
-    val Surface = Color(0xFF1A1A1E)
-    /** Dividers, idle chips, segmented-control track. */
-    val SurfaceHigh = Color(0xFF26262B)
-    /** Selected segment. */
-    val SurfaceHigher = Color(0xFF3E3E46)
-    val Menu = Color(0xFF26262C)
+    val Background = Color(0xFF000000)
+    val Surface = Color(0xFF17181C)
+    val SurfaceHigh = Color(0xFF22242A)
+    val SurfaceHigher = Color(0xFF2C2E35)
+    val Menu = Color(0xFF1C1E24)
 
-    val Text = Color(0xFFF4F4F6)
-    val TextSecondary = Color(0xFF8E8E96)
-    val TextTertiary = Color(0xFFA1A1AA)
-    val TextChip = Color(0xFFD4D4DA)
-    val Chevron = Color(0xFF6E6E78)
+    // Viền hairline siêu mảnh chuẩn OriginOS 6
+    val BorderHairline = Color(0x1FFFFFFF)
+    val BorderActive = Color(0x382A67FF)
 
-    val Accent = Color(0xFF3A63F0)
-    val AccentText = Color(0xFF8FA8FF)
-    val SwitchOff = Color(0xFF3A3A40)
-    val Danger = Color(0xFFFF8A7A)
+    val Text = Color(0xFFF6F7FA)
+    val TextSecondary = Color(0xFF8B8E99)
+    val TextTertiary = Color(0xFF6B6E7A)
+    val TextChip = Color(0xFFD5D7DF)
+    val Chevron = Color(0xFF60636E)
 
-    val Good = Color(0xFF34C77B)
-    val GoodText = Color(0xFF5BD99A)
-    val GoodBg = Color(0xFF14261C)
-    val GoodButton = Color(0xFF1D3527)
-    val GoodSubtle = Color(0xFF9CCBB0)
-    val GoodIconBg = Color(0xFF173524)
+    // Vivo OriginOS 6 Teal / Cyan Mint accent
+    val Accent = Color(0xFF00BFA5)
+    val GlowAccent = Color(0xFF33DFCB)
+    val AccentText = Color(0xFF00D2B8)
+    val SwitchOff = Color(0xFF2C2D35)
+    val Danger = Color(0xFFFF5247)
 
-    val Bad = Color(0xFFFF6B5E)
-    val BadText = Color(0xFFFF8A7A)
-    val BadBg = Color(0xFF2A1715)
-    val BadButton = Color(0xFF3A1F1C)
-    val BadSubtle = Color(0xFFD9A49C)
+    val Good = Color(0xFF00D084)
+    val GoodText = Color(0xFF33DE9E)
+    val GoodBg = Color(0xFF0E2218)
+    val GoodButton = Color(0xFF153324)
+    val GoodSubtle = Color(0xFF8CD8B8)
+    val GoodIconBg = Color(0xFF122C1F)
 
-    val Warn = Color(0xFFFFB35C)
-    val WarnBg = Color(0xFF2B2114)
+    val Bad = Color(0xFFFF5247)
+    val BadText = Color(0xFFFF7A73)
+    val BadBg = Color(0xFF261211)
+    val BadButton = Color(0xFF381A18)
+    val BadSubtle = Color(0xFFD49390)
 
-    val CastTagBg =Color(0xFF1F2A4D)
-    val CastTagFg = Color(0xFF9DB4FF)
-    val PreviewBg = Color(0xFF1E2335)
-    val PreviewLabel = Color(0xFF8C94B4)
+    val Warn = Color(0xFFFF9F2E)
+    val WarnBg = Color(0xFF261A0C)
 
-    // Icon tiles in settings rows.
-    val TileBlue = Color(0xFF3A63F0)
-    val TileOrange = Color(0xFFF2683C)
-    val TileTeal = Color(0xFF2BA8C4)
-    val TilePurple = Color(0xFF7B5CFF)
-    val TileGreen = Color(0xFF20A36B)
-    val TileAmber = Color(0xFFE0A21B)
-    val TileGray = Color(0xFF4A4A55)
+    val CastTagBg = Color(0xFF1A2645)
+    val CastTagFg = Color(0xFF8EABFF)
+    val PreviewBg = Color(0xFF0D0F16)
+    val PreviewLabel = Color(0xFF8E95AA)
+
+    // Biểu tượng thẻ chức năng (OriginOS Atomic Tile Colors)
+    val TileBlue = Color(0xFF00BFA5)
+    val TileOrange = Color(0xFF00BFA5)
+    val TileTeal = Color(0xFF00BFA5)
+    val TilePurple = Color(0xFF00BFA5)
+    val TileGreen = Color(0xFF00BFA5)
+    val TileAmber = Color(0xFF00BFA5)
+    val TileGray = Color(0xFF454854)
 }
 
 @OptIn(ExperimentalTextApi::class)
@@ -99,9 +106,6 @@ private val IsleTypography = Typography().run {
     )
 }
 
-/**
- * Origin Isle is dark-mode
- */
 private val OriginIsleColorScheme = darkColorScheme(
     primary = IsleColors.Accent,
     onPrimary = Color.White,

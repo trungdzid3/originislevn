@@ -1,6 +1,7 @@
 package com.originisle.android.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -140,7 +141,15 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(GroupRadius)).background(IsleColors.Surface),
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(GroupRadius))
+            .background(IsleColors.Surface)
+            .border(
+                width = 0.8.dp,
+                color = IsleColors.BorderHairline,
+                shape = RoundedCornerShape(GroupRadius),
+            ),
         content = content,
     )
 }
@@ -162,11 +171,11 @@ fun GroupDivider(inset: Dp = 62.dp) {
 }
 
 @Composable
-fun IconTile(icon: ImageVector, color: Color, size: Dp = 32.dp) {
+fun IconTile(icon: ImageVector, color: Color, size: Dp = 26.dp) {
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(10.dp)).background(color),
+        Modifier.size(size),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, Modifier.size(18.dp), tint = Color.White) }
+    ) { Icon(icon, null, Modifier.size(24.dp), tint = color) }
 }
 
 /** Icon tile + title (+ subtitle) + trailing content. Clickable when [onClick] is set. */

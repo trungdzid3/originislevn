@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Origin Isle</string>
-    <string name="channel_name">OriginIsland</string>
-    <string name="channel_desc">Channel for OriginIsland live updates</string>
-    <string name="keepalive_accessibility_desc">Keeps Origin Isle running in the background so notifications keep casting to the island — without a status-bar icon. It reads nothing: no screen content, no text, no events are captured.</string>
+    <string name="channel_name">Origin Island</string>
+    <string name="channel_desc">Kênh thông báo trực tiếp của Origin Isle</string>
+    <string name="keepalive_accessibility_desc">Giúp Origin Isle duy trì chạy ngầm để chuyển tiếp thông báo lên đảo linh hoạt — hoàn toàn không hiển thị biểu tượng trên thanh trạng thái. Ứng dụng không đọc nội dung màn hình, không lưu văn bản hay theo dõi bất kỳ thao tác nào của bạn.</string>
 </resources>

@@ -63,7 +63,7 @@ object MessageCard {
 
         // Group chats keep just the sender on the pill (the group is the card's title).
         val top = msg.sender
-        val subtext = if (msg.count > 1) "$appLabel · ${msg.count} new messages" else appLabel
+        val subtext = if (msg.count > 1) "$appLabel · ${msg.count} tin nhắn mới" else appLabel
 
         val buttons = if (context.getSharedPreferences(PREFS_NAME, 0).getBoolean("cast_show_actions", true)) {
             GenericCard.usableActions(n)
@@ -131,14 +131,14 @@ object MessageCard {
             val text = last.text?.toString()?.trim().orEmpty().ifBlank { body }
             // A message count of 1 per notification is normal; apps that stack several unread
             // messages into one notification put them all in `messages`.
-            return Message(sender, text.ifBlank { "New message" }, group, avatar, style.messages.size)
+            return Message(sender, text.ifBlank { "Tin nhắn mới" }, group, avatar, style.messages.size)
         }
 
         // Not MessagingStyle (X, Snapchat, Instagram activity, most non-chat apps): title is who /
         // what, text is the message.
         return Message(
             sender = title.ifBlank { appLabel },
-            text = body.ifBlank { title }.ifBlank { "New notification" },
+            text = body.ifBlank { title }.ifBlank { "Thông báo mới" },
             group = null,
             avatar = largeIcon,
             count = 1,

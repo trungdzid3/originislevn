@@ -36,7 +36,7 @@ object MediaCard {
             .ifBlank { appLabel(context, sbn.packageName) }
 
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)?.trim().orEmpty()
-            .ifBlank { "Now playing" }
+            .ifBlank { "Đang phát nhạc" }
         // Some apps/browsers never report a PlaybackState at all (playbackState == null), which made
         // the wave never show for them even while actually playing. Treat missing state as "trust the
         // notification's own ongoing flag" instead of defaulting to false. Buffering/connecting also
@@ -62,9 +62,9 @@ object MediaCard {
         val chip = if (showChrono && n.`when` > 0) {
             formatElapsed(abs(System.currentTimeMillis() - n.`when`) / 1000)
         } else if (playing) {
-            "Playing"
+            "Đang phát"
         } else {
-            // Paused pill is icon-only — no "Paused" text, no source-app icon standing in for it.
+            // Paused pill is icon-only — no "Tạm dừng" text, no source-app icon standing in for it.
             // A single space, not "": OriginIslandBuilder's capsule content is always populated
             // unconditionally, and a genuinely empty value risks the same silent-rejection behaviour
             // documented for empty notification title/text (already worked around elsewhere in

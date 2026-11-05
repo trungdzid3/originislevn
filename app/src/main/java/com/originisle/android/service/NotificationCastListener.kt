@@ -31,6 +31,11 @@ import com.originisle.android.cards.NavigationCard
 import com.originisle.android.cards.OtpCard
 import com.originisle.android.cards.PaymentCard
 import com.originisle.android.cards.PrivacyCard
+import com.originisle.android.cards.RideCard
+import com.originisle.android.cards.DownloadCard
+import com.originisle.android.download.DownloadDetector
+import com.originisle.android.bank.VietnamBankDetector
+import com.originisle.android.ride.VietnamRideDetector
 import com.originisle.android.cards.SportsCard
 import com.originisle.android.cards.fallbackClickIntent
 import com.originisle.android.island.PlaygroundService
@@ -181,7 +186,7 @@ class NotificationCastListener : NotificationListenerService() {
          * doesn't set the category.
          *
          * Waze is deliberately NOT here. Its only notification is a `CLOSE_WAZE_CHANNEL`
-         * foreground-service notice — title "Waze", text "Running. Tap to open.", one "Switch off"
+         * foreground-service notice — title "Waze", text "Đang hoạt động. Chạm để mở.", one "Tắt"
          * action — with no subText, no large icon, no `shortCriticalText` and all three RemoteViews
          * slots null (verified against `dumpsys notification --noredact`). It carries no turn data
          * to build a card from, and it is byte-identical whether Waze is navigating or merely open,
@@ -200,29 +205,30 @@ class NotificationCastListener : NotificationListenerService() {
         /** Wallet / bank / money apps whose notifications are treated as payments (Apple-Pay card). */
         private val PAYMENT_APPS = setOf(
             "com.google.android.apps.walletnfcrel",     // Google Wallet
-            "com.google.android.apps.nbu.paisa.user",   // Google Pay
-            "com.revolut.revolut",                      // Revolut
             "com.paypal.android.p2pmobile",             // PayPal
-            "com.wise.android", "com.transferwise.android", // Wise
-            "de.number26.android", "com.n26.n26",       // N26
-            "com.monzo.emma",                           // Monzo
-            "com.starlingbank.android",                 // Starling
-            "fr.lydia.android",                         // Lydia
-            "com.getcurve.mobile",                      // Curve
-            "com.klarna.mobile",                        // Klarna
-            "co.mona.android",                          // Crypto.com
+            // Ngan hang & Vi dien tu Viet Nam
+            "com.VCB",                                  // Vietcombank
+            "vn.com.techcombank.bb.app",                // Techcombank
+            "com.mbmobile",                             // MB Bank
+            "com.vnpay.bidv",                           // BIDV
+            "com.mservice.momopay",                     // MoMo
+            "vn.com.vng.zalopay",                       // ZaloPay
+            "com.zing.zalo",                            // Zalo
+            "vn.com.vpbank.neo",                        // VPBank NEO
+            "com.acb.mobile",                           // ACB ONE
         )
 
         /** Payment verbs — any app whose notification pairs one of these with an amount is a payment. */
         private val PAYMENT_WORDS = listOf(
             "paid", "payment", "you sent", "you received", "charged", "purchase",
             "transaction", "debited", "credited", "receipt", "spent", "approved",
-            "bezahlt", "payé", "reçu", "pago", "pagamento", "betaling",
+            "thanh toán", "chuyển tiền", "chuyển khoản", "nhận được", "biến động số dư",
+            "giao dịch", "số dư", "thẻ", "tiền vào", "tiền ra",
         )
 
         /** "€12.90", "12,90 €", "$5", "£3.20", "EUR 40" … first match is used as the amount. */
         private val AMOUNT = Regex(
-            """(?:[€$£¥]|\b(?:EUR|USD|GBP|CHF)\b)\s?\d[\d.,]*|\d[\d.,]*\s?(?:[€$£¥]|\b(?:EUR|USD|GBP|CHF)\b)""",
+            """(?:[€$£¥đ]|\b(?:EUR|USD|GBP|CHF|VND|VNĐ)\b)\s?\d[\d.,]*|\d[\d.,]*\s?(?:[€$£¥đ]|\b(?:EUR|USD|GBP|CHF|VND|VNĐ)\b)""",
             RegexOption.IGNORE_CASE,
         )
     }
@@ -269,7 +275,7 @@ class NotificationCastListener : NotificationListenerService() {
         override fun run() {
             try {
                 val prefs = getSharedPreferences(PREFS, 0)
-                val castNotifs = prefs.getBoolean("cast_notifications", false)
+                val castNotifs = prefs.getBoolean("cast_notifications", true)
                 val castMedia = prefs.getBoolean("cast_media_sessions", false)
                 activeNotifications?.forEach { sbn ->
                     val extras = sbn.notification.extras
@@ -306,7 +312,7 @@ class NotificationCastListener : NotificationListenerService() {
         super.onListenerConnected()
         instance = this
         connectedAt = System.currentTimeMillis()
-        if (getSharedPreferences(PREFS, 0).getBoolean("cast_notifications", false)) {
+        if (getSharedPreferences(PREFS, 0).getBoolean("cast_notifications", true)) {
             runCatching { PlaygroundService.keepAlive(this) }
         }
         reload()
@@ -403,7 +409,7 @@ class NotificationCastListener : NotificationListenerService() {
 
     private fun reload() {
         val prefs = getSharedPreferences(PREFS, 0)
-        val enabled = prefs.getBoolean("cast_notifications", false)
+        val enabled = prefs.getBoolean("cast_notifications", true)
         val apps = prefs.getStringSet("cast_enabled_apps", null)
         activeNotifications?.forEach { sbn ->
             val eligible = apps == null || sbn.packageName in apps
@@ -412,77 +418,85 @@ class NotificationCastListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName == packageName) {
+        try {
+            if (sbn.packageName == packageName) {
             cleanUpRejectedSuperX(sbn)
             return
         }
-        // Skip framework/system notifications (USB-debug banner, system UI, etc.) — noise on the island.
-        if (sbn.packageName in SYSTEM_PKGS) return
-        // A group summary ("3 new messages") stays active alongside the individual notifications it
-        // summarizes — casting both means the same event shows up on the island twice (Gmail is the
-        // common case). The individual notifications carry the actual content, so skip the summary.
-        if ((sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
-            log(sbn, "skipped — group summary", false); return
-        }
+
         val prefs = getSharedPreferences(PREFS, 0)
-
-        // Per-app exclusion: never cast apps the user explicitly turned off in the Apps tab, for
-        // ANY card type — this must run before the media-session branch below, not just the plain
-        // one, or a disabled app's media sessions (e.g. YouTube video playback) still slip through.
-        if (!isAppEnabled(prefs, sbn.packageName)) {
-            log(sbn, "skipped — app turned off in Apps tab", false); return
-        }
-
-        val castNotifs = prefs.getBoolean("cast_notifications", false)
-        val castMedia = prefs.getBoolean("cast_media_sessions", false)
-        if (!castNotifs && !castMedia) { log(sbn, "skipped — casting is off", false); return }
-
         val n = sbn.notification
         val extras = n.extras
-        val token = extras.getParcelable(NotificationCompat.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
         val template = extras.getString(NotificationCompat.EXTRA_TEMPLATE)
         val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
             template == "android.app.Notification\$CallStyle"
 
-        // Media sessions get the dedicated media path. If the notification has no session token
-        // (some players, e.g. Firefox playing a video, omit it), fall back to matching an active
-        // MediaSessionManager session by package name — ongoing only, so an app's ordinary
-        // notifications (e.g. an X DM while a video plays) aren't mistaken for its player.
-        // Resolved even with media casting off: otherwise the player notification falls through
-        // below and gets cast as a generic "ongoing" card anyway.
+        // Ưu tiên quét OTP trước tất cả bộ lọc hệ thống.
+        // Trên Vivo OriginOS 6, tính năng Verification Reminder có thể do gói hệ thống (SYSTEM_PKGS) phát ra.
+        if (!isCall && prefs.getBoolean("cast_otp", true)) {
+            OtpDetector.find(notificationText(sbn))?.let { code ->
+                if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
+                    log(sbn, "bỏ qua — thông tin chưa thay đổi", false)
+                    return
+                }
+                OtpCard.post(applicationContext, sbn, code, appLabel(sbn.packageName))
+                log(sbn, "hiển thị — mã OTP / đăng nhập", true)
+                return
+            }
+        }
+
+        // Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
+        if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
+            val dlInfo = DownloadDetector.parse(sbn)
+            if (dlInfo != null) {
+                log(sbn, "hiển thị — tiến độ tải xuống", true)
+                DownloadCard.post(applicationContext, dlInfo, sbn)
+                return
+            }
+        }
+
+        // Bỏ qua thông báo hệ thống thông thường nếu không phải tiến trình tải xuống
+        if (sbn.packageName in SYSTEM_PKGS && !DownloadDetector.isDownload(sbn)) return
+
+        // A group summary ("3 new messages") stays active alongside the individual notifications it
+        // summarizes — casting both means the same event shows up on the island twice (Gmail is the
+        // common case). The individual notifications carry the actual content, so skip the summary.
+        if ((sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            log(sbn, "bỏ qua — tóm tắt nhóm", false); return
+        }
+
+        // Per-app exclusion: never cast apps the user explicitly turned off in the Apps tab
+        if (!isAppEnabled(prefs, sbn.packageName)) {
+            log(sbn, "bỏ qua — ứng dụng đã bị tắt", false); return
+        }
+
+        val castNotifs = prefs.getBoolean("cast_notifications", true)
+        val castMedia = prefs.getBoolean("cast_media_sessions", false)
+        if (!castNotifs && !castMedia) { log(sbn, "bỏ qua — tính năng truyền thông báo đang tắt", false); return }
+
+        val token = extras.getParcelable(NotificationCompat.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
+
+        // Media sessions get the dedicated media path.
         if (!isCall) {
             val isOngoingNotif = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
             val controller = token?.let { MediaController(this, it) }
                 ?: if (isOngoingNotif) findMediaControllerFallback(sbn.packageName) else null
             if (controller != null) {
-                if (!castMedia) { log(sbn, "skipped — media, media casting off", false); return }
-                log(sbn, "cast — media player", true)
+                if (!castMedia) { log(sbn, "bỏ qua — trình phát nhạc đang tắt", false); return }
+                log(sbn, "hiển thị — trình phát nhạc", true)
                 MediaCard.post(applicationContext, sbn, controller)
                 return
             }
         }
-        if (!castNotifs) { log(sbn, "skipped — media only, notifications off", false); return }
-
-        // Login / verification codes: ahead of payments (a bank's "code to confirm your €12 payment"
-        // is a code, not a receipt) and of the plain-message filter, which would otherwise drop it.
-        if (!isCall && prefs.getBoolean("cast_otp", true)) {
-            OtpDetector.find(notificationText(sbn))?.let { code ->
-                if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
-                    log(sbn, "skipped — duplicate delivery, unchanged", false); return
-                }
-                OtpCard.post(applicationContext, sbn, code, appLabel(sbn.packageName))
-                log(sbn, "cast — login code", true)
-                return
-            }
-        }
+        if (!castNotifs) { log(sbn, "bỏ qua — chỉ nhạc, thông báo đang tắt", false); return }
 
         // Quiet hours / Do Not Disturb: only what someone is actively waiting on gets through —
         // calls, navigation and timers/alarms here; media and login codes were handled above.
         val isOngoingNow = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
         if (QuietHours.isActive(prefs, currentInterruptionFilter) &&
-            !isCall && !isNavigation(sbn, isOngoingNow) && !isTimer(sbn)
+            !isCall && !isNavigation(sbn, isOngoingNow) && !isTimer(sbn) && !DownloadDetector.isDownload(sbn)
         ) {
-            log(sbn, "skipped — quiet hours", false); return
+            log(sbn, "bỏ qua — giờ yên tĩnh", false); return
         }
 
         // Score apps: if the notification parses as a match, post a football card with crests.
@@ -495,17 +509,43 @@ class NotificationCastListener : NotificationListenerService() {
             // generic message-cast setting is off), so it displays nothing rather than falling
             // through to a plain-message card.
             if (isRecapOrHighlights(sbn)) { log(sbn, "skipped — recap/highlights, not live", false); return }
-            if (handleScore(sbn)) { log(sbn, "cast — live score", true); return }
+            if (handleScore(sbn)) { log(sbn, "hiển thị — tỷ số thể thao", true); return }
         }
 
-        // Payments (Wallet, Revolut, PayPal, banks, …) -> Apple-Pay-style success card. This runs
-        // BEFORE the "plain message" filter below, because a payment receipt isn't ongoing and has
-        // no progress bar, so it would otherwise be dropped.
+        // Vietnam Ride & Delivery (Grab, Be, Xanh SM, ShopeeFood)
+        if (VietnamRideDetector.isSupported(sbn.packageName)) {
+            val rideInfo = VietnamRideDetector.parse(sbn)
+            if (rideInfo != null) {
+                log(sbn, "hiển thị — chuyến đi / giao hàng", true)
+                RideCard.post(applicationContext, rideInfo, sbn.id)
+                return
+            }
+        }
+
+        // Ngân hàng Việt Nam (biến động số dư: cộng/trừ tiền, Vietcombank, Techcombank, MB, MoMo,...)
+        val bankTx = VietnamBankDetector.parse(sbn)
+        if (bankTx != null) {
+            if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
+                log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
+            }
+            val id = IconCache.castIdFor(sbn)
+            val appIcon = runCatching {
+                val ai = packageManager.getApplicationInfo(sbn.packageName, 0)
+                Icon.createWithResource(sbn.packageName, ai.icon)
+            }.getOrNull()
+            val click = sbn.notification.contentIntent ?: fallbackClickIntent(applicationContext, sbn.packageName)
+            PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)
+            val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
+            log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
+            return
+        }
+
+        // Payments quốc tế (Wallet, Revolut, PayPal, …) -> Apple-Pay-style success card.
         detectPayment(sbn)?.let {
             if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
-                log(sbn, "skipped — duplicate delivery, unchanged", false); return
+                log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
             }
-            castPayment(sbn, it); log(sbn, "cast — payment", true); return
+            castPayment(sbn, it); log(sbn, "hiển thị — biến động số dư", true); return
         }
 
         val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
@@ -514,7 +554,7 @@ class NotificationCastListener : NotificationListenerService() {
 
         // Turn-by-turn navigation -> vivo's own driving card (template 9) instead of the generic one.
         if (isNavigation(sbn, isOngoing)) {
-            log(sbn, "cast — navigation", true)
+            log(sbn, "hiển thị — điều hướng", true)
             NavigationCard.post(applicationContext, sbn)
             return
         }
@@ -527,10 +567,10 @@ class NotificationCastListener : NotificationListenerService() {
         val wasLive = IconCache.castIdFor(sbn) in PlaygroundService.activeCardIds
         if (!isLive && !wasLive) {
             val includeMessages = prefs.getBoolean("cast_include_messages", false)
-            if (!includeMessages) { log(sbn, "skipped — plain message (not a live card)", false); return }
+            if (!includeMessages) { log(sbn, "bỏ qua — tin nhắn thông thường", false); return }
 
             val ignoreSilent = prefs.getBoolean("cast_ignore_silent", true)
-            if (ignoreSilent && isSilent(sbn)) { log(sbn, "skipped — silent notification", false); return }
+            if (ignoreSilent && isSilent(sbn)) { log(sbn, "bỏ qua — thông báo im lặng", false); return }
         }
 
         val kind = when {
@@ -540,9 +580,9 @@ class NotificationCastListener : NotificationListenerService() {
             else -> "message"
         }
         if (kind == "message" && lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
-            log(sbn, "skipped — duplicate delivery, unchanged", false); return
+            log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
         }
-        log(sbn, "cast — $kind", true)
+        log(sbn, "hiển thị — $kind", true)
         if (kind == "message") {
             // A message card that can't be built must never take the listener down with it (a
             // crash here repeats on every reconnect): fall back to the plain generic card.
@@ -553,6 +593,9 @@ class NotificationCastListener : NotificationListenerService() {
                 }
         } else {
             GenericCard.post(applicationContext, sbn, isLive)
+        }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Loi onNotificationPosted", t)
         }
     }
 
@@ -590,12 +633,41 @@ class NotificationCastListener : NotificationListenerService() {
             extras.getBoolean(NotificationCompat.EXTRA_CHRONOMETER_COUNT_DOWN, false)
     }
 
-    /** Title + text + big text, as one string to search. */
+    /** Title + text + big text + sub text + messages + ticker + extras, as one comprehensive string to search. */
     private fun notificationText(sbn: StatusBarNotification): String {
-        val extras = sbn.notification.extras
-        return listOf(
-            NotificationCompat.EXTRA_TITLE, NotificationCompat.EXTRA_TEXT, NotificationCompat.EXTRA_BIG_TEXT,
-        ).joinToString(" \n ") { extras.getCharSequence(it)?.toString().orEmpty() }
+        val n = sbn.notification
+        val extras = n.extras
+        val base = listOf(
+            NotificationCompat.EXTRA_TITLE,
+            NotificationCompat.EXTRA_TEXT,
+            NotificationCompat.EXTRA_BIG_TEXT,
+            NotificationCompat.EXTRA_SUB_TEXT,
+            NotificationCompat.EXTRA_SUMMARY_TEXT,
+            NotificationCompat.EXTRA_INFO_TEXT,
+        ).mapNotNull { key ->
+            runCatching { extras.getCharSequence(key)?.toString() }.getOrNull()
+        }
+
+        val ticker = listOfNotNull(runCatching { n.tickerText?.toString() }.getOrNull())
+
+        val messagingMessages = runCatching {
+            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
+                ?.messages?.mapNotNull { it.text?.toString() }
+        }.getOrNull().orEmpty()
+
+        val extraTexts = runCatching {
+            extras.keySet().mapNotNull { k ->
+                val v = extras.get(k)
+                if (v is CharSequence) v.toString() else null
+            }
+        }.getOrNull().orEmpty()
+
+        val channelText = listOfNotNull(n.channelId)
+        val allParts = (base + ticker + messagingMessages + channelText + extraTexts)
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        return allParts.joinToString(" \n ")
     }
 
     /**

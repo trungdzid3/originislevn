@@ -12,35 +12,79 @@ import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 
 /**
- * The in-app tester catalog: one ready-made card per supported OriginIsland type, plus the new
- * live football score. Each entry fires an `oi_*` intent at [PlaygroundService] exactly the way a
- * real cast would, so it exercises the same path end-to-end.
+ * Danh mục thẻ mẫu thử nghiệm trên Đảo Origin.
  */
 object IslandSamples {
 
     val all: List<OriginSample> = listOf(
         OriginSample(
-            "Football score", "Scoreboard · ARS 1 – 1 MAN · 65' (generic badges)",
-            IslandPreview(R.drawable.ic_soccer, "", IslandPreview.Right.Score(1, 1)),
+            "Gọi xe", "Tài xế đang đến đón · 3 phút",
+            IslandPreview(R.drawable.ic_alert, "Chuyến đi", IslandPreview.Right.Capsule("3 phút")),
         ) { ctx ->
-            // Sample uses a generic ball on both sides instead of fetching real crests.
-            val ball = Icon.createWithResource(ctx, R.drawable.ic_soccer)
-            SportsCard.post(
-                ctx, home = "ARS", homeScore = 1, away = "MAN", awayScore = 1, clock = "65'",
-                homeLogo = ball, awayLogo = ball,
+            start(ctx, 40004) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
+                putExtra("title", "Tài xế đang đến")
+                putExtra("text", "VinFast VF8 · Trắng · 29A-888.88")
+                putExtra("oi_left_content", "Chuyến đi")
+                putExtra("status_chip_text", "3 phút")
+                putExtra("icon_res", R.drawable.ic_alert)
+            }
+        },
+        OriginSample(
+            "Giao đồ ăn", "Tài xế đang giao đơn món · 12 phút",
+            IslandPreview(R.drawable.ic_alert, "Giao hàng", IslandPreview.Right.Capsule("12 phút")),
+        ) { ctx ->
+            start(ctx, 40003) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
+                putExtra("title", "Đang giao hàng")
+                putExtra("text", "Đơn hàng sắp đến nơi")
+                putExtra("oi_left_content", "Giao hàng")
+                putExtra("status_chip_text", "12 phút")
+                putExtra("icon_res", R.drawable.ic_alert)
+            }
+        },
+        OriginSample(
+            "Biến động số dư", "Thông báo cộng tiền ngân hàng",
+            IslandPreview(R.drawable.ic_payment, "+500.000 đ", IslandPreview.Right.Success),
+        ) { ctx ->
+            PaymentCard.post(
+                context = ctx, id = 40002, appIcon = null,
+                amount = "+500.000 đ", merchant = "Vietcombank", appLabel = "VCB Digibank",
+                clickResp = openApp(ctx),
             )
         },
         OriginSample(
-            "App download", "Progress card + island ring · 75%",
-            IslandPreview(R.drawable.ic_download, "Downloading", IslandPreview.Right.Progress(0.75f)),
+            "Điều hướng", "Chỉ đường lái xe · Quãng đường & Thời gian",
+            IslandPreview(R.drawable.ic_navigation, "350 m", IslandPreview.Right.Capsule("12 phút")),
+        ) { ctx ->
+            start(ctx, 40011) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_DRIVING_NAVI)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
+                putExtra("title", "350 m")
+                putExtra("text", "Đường Nguyễn Huệ")
+                putExtra("oi_nav_msg", "12 phút · 4,5 km · 14:32")
+                putExtra("oi_nav_assist", "Đi làn bên trái")
+                putExtra("oi_left_content", "350 m")
+                putExtra("status_chip_text", "12 phút")
+                putExtra("icon_res", R.drawable.ic_navigation)
+            }
+        },
+        OriginSample(
+            "Tải xuống", "Thanh tiến trình tải tệp · 75%",
+            IslandPreview(R.drawable.ic_download, "Đang tải", IslandPreview.Right.Progress(0.75f)),
         ) { ctx ->
             start(ctx, 40001) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-                putExtra("title", "Downloading")
-                putExtra("text", "app-release.apk")
-                putExtra("oi_left_content", "Downloading")
+                putExtra("title", "Đang tải xuống")
+                putExtra("text", "ban-cap-nhat-moi.apk")
+                putExtra("oi_left_content", "Đang tải")
                 putExtra("show_progress", true)
                 putExtra("progress", 75)
                 putExtra("progress_max", 100)
@@ -49,73 +93,16 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Payment", "Apple-style: Processing… → Paid ✓ (green tick + glow)",
-            IslandPreview(R.drawable.ic_payment, "€42.00", IslandPreview.Right.Success),
-        ) { ctx ->
-            PaymentCard.post(
-                context = ctx, id = 40002, appIcon = null,
-                amount = "€42.00", merchant = "Café de Flore", appLabel = "Google Wallet",
-                clickResp = openApp(ctx),
-            )
-        },
-        OriginSample(
-            "Food delivery", "TAKEOUT · base card + capsule ETA",
-            IslandPreview(R.drawable.ic_alert, "Delivery", IslandPreview.Right.Capsule("12 min")),
-        ) { ctx ->
-            start(ctx, 40003) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("title", "Courier on the way")
-                putExtra("text", "Your order arrives soon")
-                putExtra("oi_left_content", "Delivery")
-                putExtra("status_chip_text", "12 min")
-                putExtra("icon_res", R.drawable.ic_alert)
-            }
-        },
-        OriginSample(
-            "Ride hailing", "TAXI · driver arriving",
-            IslandPreview(R.drawable.ic_alert, "Ride", IslandPreview.Right.Capsule("3 min")),
-        ) { ctx ->
-            start(ctx, 40004) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("title", "Driver arriving")
-                putExtra("text", "Toyota Prius · 白 · AB-123-CD")
-                putExtra("oi_left_content", "Ride")
-                putExtra("status_chip_text", "3 min")
-                putExtra("icon_res", R.drawable.ic_alert)
-            }
-        },
-        OriginSample(
-            "Flight boarding", "FLIGHT · symmetric route card",
-            IslandPreview(R.drawable.ic_alert, "CDG → FCO", IslandPreview.Right.Capsule("Gate K21")),
-        ) { ctx ->
-            start(ctx, 40005) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("title", "AF1980")
-                putExtra("text", "Boarding")
-                putExtra("oi_extra1", "CDG"); putExtra("oi_extra2", "12:40")
-                putExtra("oi_extra3", "FCO"); putExtra("oi_extra4", "14:55")
-                putExtra("oi_left_content", "CDG → FCO")
-                putExtra("status_chip_text", "Gate K21")
-                putExtra("icon_res", R.drawable.ic_alert)
-            }
-        },
-        OriginSample(
-            "Countdown timer", "TIMER · progress 40%",
-            IslandPreview(R.drawable.ic_timer, "Timer", IslandPreview.Right.Progress(0.4f)),
+            "Hẹn giờ", "Đồng hồ đếm ngược · 40%",
+            IslandPreview(R.drawable.ic_timer, "Hẹn giờ", IslandPreview.Right.Progress(0.4f)),
         ) { ctx ->
             start(ctx, 40006) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-                putExtra("title", "Timer")
-                putExtra("text", "6:00 remaining")
-                putExtra("oi_left_content", "Timer")
+                putExtra("title", "Hẹn giờ")
+                putExtra("text", "Còn lại 6:00")
+                putExtra("oi_left_content", "Hẹn giờ")
                 putExtra("show_progress", true)
                 putExtra("progress", 40)
                 putExtra("progress_max", 100)
@@ -124,126 +111,102 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Loading", "Loading-dots right island",
-            IslandPreview(R.drawable.ic_alert, "Working", IslandPreview.Right.Loading),
-        ) { ctx ->
-            start(ctx, 40007) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_LOADING)
-                putExtra("title", "Working…")
-                putExtra("text", "Please wait")
-                putExtra("oi_left_content", "Working")
-                putExtra("icon_res", R.drawable.ic_alert)
-            }
-        },
-        OriginSample(
-            "Music player", "Wave island · media card",
-            IslandPreview(R.drawable.ic_media_play, "Midnight City", IslandPreview.Right.Wave),
+            "Trình phát nhạc", "Thẻ âm nhạc · Sóng âm thanh đảo",
+            IslandPreview(R.drawable.ic_media_play, "Tiến Quân Ca", IslandPreview.Right.Wave),
         ) { ctx ->
             start(ctx, 40008) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
-                putExtra("title", "Midnight City")
-                putExtra("text", "M83")
-                putExtra("oi_left_content", "Midnight City")
+                putExtra("title", "Tiến Quân Ca")
+                putExtra("text", "Nhạc sĩ Văn Cao")
+                putExtra("oi_left_content", "Đang phát")
                 putExtra("oi_wave_state", 1)
                 putExtra("status_chip_text", "♪")
                 putExtra("icon_res", R.drawable.ic_media_play)
             }
         },
         OriginSample(
-            "Message", "Chat · avatar + sender left, message right",
-            IslandPreview(R.drawable.ic_avatar, "Sarah", IslandPreview.Right.Text("Are we still on for tonight? 🍕")),
+            "Cuộc gọi đến", "Cuộc gọi thoại · Nút Từ chối / Trả lời",
+            IslandPreview(R.drawable.ic_call, "", IslandPreview.Right.Text("Minh Tuấn")),
         ) { ctx ->
-            // The same extras MessageCard sends for a real chat notification.
+            start(ctx, 40009) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+                putExtra("oi_show_right_icon", false)
+                putExtra("title", "Minh Tuấn")
+                putExtra("text", "Cuộc gọi đến")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "Minh Tuấn")
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Trả lời"))
+                putExtra("click_resp", openApp(ctx))
+                putExtra("icon_res", R.drawable.ic_call)
+            }
+        },
+        OriginSample(
+            "Tin nhắn", "Tin nhắn văn bản · Xem trước nội dung",
+            IslandPreview(R.drawable.ic_avatar, "Thu Hà", IslandPreview.Right.Text("Tối nay gặp nhau nhé?")),
+        ) { ctx ->
             start(ctx, 40013) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("title", "Sarah")
-                putExtra("text", "Are we still on for tonight? 🍕")
-                putExtra("subtext", "WhatsApp · 2 new messages")
-                putExtra("oi_left_content", "Sarah")
+                putExtra("title", "Thu Hà")
+                putExtra("text", "Tối nay gặp nhau nhé?")
+                putExtra("subtext", "Zalo · 2 tin nhắn mới")
+                putExtra("oi_left_content", "Thu Hà")
                 Icon.createWithResource(ctx, R.drawable.ic_avatar).let {
                     putExtra("oi_left_icon", it)
                     putExtra("oi_large_icon", it)
                 }
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
                 putExtra("oi_show_right_icon", false)
-                putExtra("oi_right_content", "Are we still on for tonight? 🍕")
-                putExtra("status_chip_text", "Are we still on for tonight? 🍕")
+                putExtra("oi_right_content", "Tối nay gặp nhau nhé?")
+                putExtra("status_chip_text", "Tối nay gặp nhau nhé?")
                 putExtra("icon_res", R.drawable.ic_chat)
             }
         },
         OriginSample(
-            "Incoming call", "VOIPCALL · Decline / Answer buttons",
-            IslandPreview(R.drawable.ic_call, "", IslandPreview.Right.Text("John")),
+            "Chuyến bay", "Thẻ thông tin lộ trình bay",
+            IslandPreview(R.drawable.ic_alert, "HAN → SGN", IslandPreview.Right.Capsule("Cửa 12")),
         ) { ctx ->
-            start(ctx, 40009) {
+            start(ctx, 40005) {
                 putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-                // Same pill as a real call cast: icon on the left, the caller's name right of the camera.
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_show_right_icon", false)
-                putExtra("title", "John")
-                putExtra("text", "WhatsApp voice call")
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "John")
-                putStringArrayListExtra("oi_button_titles", arrayListOf("Decline", "Answer"))
-                putExtra("click_resp", openApp(ctx))
-                putExtra("icon_res", R.drawable.ic_call)
-            }
-        },
-        OriginSample(
-            "Driving navigation", "Driving-navi template · maneuver + street + ETA",
-            IslandPreview(R.drawable.ic_navigation, "350 m", IslandPreview.Right.Capsule("12 min")),
-        ) { ctx ->
-            // The template the real NavigationCard posts. Unproven on hardware: if nothing appears,
-            // OriginOS rejected template 9 and the Cast tab's navigation toggle should stay off.
-            start(ctx, 40011) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_DRIVING_NAVI)
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("title", "350 m")
-                putExtra("text", "Rue de Rivoli")
-                putExtra("oi_nav_msg", "12 min · 4,5 km · 14:32")
-                putExtra("oi_nav_assist", "Keep left")
-                putExtra("oi_left_content", "350 m")
-                putExtra("status_chip_text", "12 min")
-                putExtra("icon_res", R.drawable.ic_navigation)
+                putExtra("title", "VN215")
+                putExtra("text", "Đang lên máy bay")
+                putExtra("oi_extra1", "HAN"); putExtra("oi_extra2", "12:40")
+                putExtra("oi_extra3", "SGN"); putExtra("oi_extra4", "14:55")
+                putExtra("oi_left_content", "HAN → SGN")
+                putExtra("status_chip_text", "Cửa 12")
+                putExtra("icon_res", R.drawable.ic_alert)
             }
         },
         OriginSample(
-            "Navigation message", "Navigation template · nav icon + single message line",
-            IslandPreview(R.drawable.ic_navigation, "Turn right", IslandPreview.Right.Capsule("2 min")),
-        ) { ctx ->
-            start(ctx, 40012) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_NAVIGATION)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("title", "Turn right")
-                putExtra("text", "onto Quai des Tuileries")
-                putExtra("oi_nav_msg", "Turn right onto Quai des Tuileries · 2 min")
-                putExtra("oi_left_content", "Turn right")
-                putExtra("status_chip_text", "2 min")
-                putExtra("icon_res", R.drawable.ic_navigation)
-            }
-        },
-        OriginSample(
-            "Two buttons", "Buttons template · Deny / Receive",
-            IslandPreview(R.drawable.ic_alert, "Share", IslandPreview.Right.None),
+            "Chia sẻ tệp", "Chia sẻ nhanh · Từ chối / Chấp nhận",
+            IslandPreview(R.drawable.ic_alert, "Chia sẻ", IslandPreview.Right.None),
         ) { ctx ->
             start(ctx, 40010) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-                putExtra("title", "Nearby share")
-                putExtra("text", "Pixel 9 wants to share a file")
-                putExtra("oi_left_content", "Share")
-                putStringArrayListExtra("oi_button_titles", arrayListOf("Deny", "Receive"))
+                putExtra("title", "Chia sẻ lân cận")
+                putExtra("text", "Thiết bị gửi một tệp hình ảnh")
+                putExtra("oi_left_content", "Chia sẻ")
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Chấp nhận"))
                 putExtra("click_resp", openApp(ctx))
                 putExtra("icon_res", R.drawable.ic_alert)
             }
+        },
+        OriginSample(
+            "Tỷ số thể thao", "Bảng tỷ số bóng đá trực tiếp · 65'",
+            IslandPreview(R.drawable.ic_soccer, "", IslandPreview.Right.Score(1, 1)),
+        ) { ctx ->
+            val ball = Icon.createWithResource(ctx, R.drawable.ic_soccer)
+            SportsCard.post(
+                ctx, home = "VN", homeScore = 1, away = "TL", awayScore = 1, clock = "65'",
+                homeLogo = ball, awayLogo = ball,
+            )
         },
     )
 
@@ -251,11 +214,7 @@ object IslandSamples {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
-            // vivo rejects a SuperX post with no content intent, so give every sample one.
-            // A sample's own configure() may overwrite this with a more specific intent.
             putExtra("click_resp", openApp(context))
-            // Force the island to actually take over the pill (football sets this; without it the
-            // card is accepted but not surfaced, so the sample looks like it "does nothing").
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
             configure()

@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.PersistableBundle
 import android.widget.Toast
 import com.originisle.android.cards.OtpCard
+import java.util.Locale
 
 /** Copies a login code from a tapped [OtpCard] to the clipboard, then takes the card down. */
 class CopyCodeReceiver : BroadcastReceiver() {
@@ -19,14 +20,18 @@ class CopyCodeReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val code = intent.getStringExtra(EXTRA_CODE) ?: return
-        val clip = ClipData.newPlainText("Login code", code).apply {
+        val isVi = Locale.getDefault().language == "vi"
+        val label = if (isVi) "Mã xác thực" else "Verification code"
+        val toastMsg = if (isVi) "Đã sao chép mã OTP" else "OTP code copied"
+
+        val clip = ClipData.newPlainText(label, code).apply {
             // Keeps the code out of the clipboard preview / keyboard clipboard history.
             description.extras = PersistableBundle().apply {
                 putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
             }
         }
         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(clip)
-        Toast.makeText(context, "Code copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
 
         val id = intent.getIntExtra("cast_id", -1)
         if (id != -1) OtpCard.cancel(context, id)

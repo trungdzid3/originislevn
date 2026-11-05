@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,13 +74,14 @@ fun HomeScreen(
     onOpenApps: () -> Unit,
     onOpenActivity: () -> Unit,
 ) {
-    var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", false)) }
+    var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
     var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", false)) }
     var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
     var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
     var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
     var autoDismissSec by remember { mutableStateOf(prefs.getInt("cast_auto_dismiss_seconds", 0)) }
     var otpOn by remember { mutableStateOf(prefs.getBoolean("cast_otp", true)) }
+    var downloadOn by remember { mutableStateOf(prefs.getBoolean("cast_downloads", true)) }
     var actionsOn by remember { mutableStateOf(prefs.getBoolean("cast_show_actions", true)) }
     var chargingOn by remember { mutableStateOf(prefs.getBoolean("cast_charging", true)) }
     var chargingKeep by remember { mutableStateOf(prefs.getBoolean("cast_charging_keep", false)) }
@@ -152,6 +155,32 @@ fun HomeScreen(
                         lineHeight = 38.sp,
                         color = IsleColors.Text,
                     )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(21.dp))
+                            .background(IsleColors.SurfaceHigh)
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                IsleIcons.Search,
+                                contentDescription = null,
+                                tint = IsleColors.TextSecondary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "Tìm kiếm tính năng, cài đặt...",
+                                color = IsleColors.TextSecondary,
+                                fontSize = 15.sp,
+                            )
+                        }
+                    }
                     StatusPill(connected, onClick = onOpenActivity)
                 }
                 Box {
@@ -163,22 +192,22 @@ fun HomeScreen(
                         shape = RoundedCornerShape(18.dp),
                         containerColor = IsleColors.Menu,
                     ) {
-                        MenuItem("Check for updates") {
+                        MenuItem("Kiểm tra cập nhật") {
                             menuOpen = false
                             coroutineScope.launch {
-                                updateStatus = "Checking…"
+                                updateStatus = "Đang kiểm tra…"
                                 updateStatus = when (val result = UpdateChecker.check(context)) {
                                     is UpdateChecker.Result.UpToDate ->
-                                        "You're on the latest version (v${result.current})."
+                                        "Bạn đang dùng phiên bản mới nhất (v${result.current})."
                                     is UpdateChecker.Result.UpdateAvailable -> {
                                         UpdateChecker.openRelease(context, result.url)
-                                        "Update available: v${result.latest} — opening GitHub…"
+                                        "Có bản cập nhật mới: v${result.latest} — Đang mở GitHub…"
                                     }
                                     is UpdateChecker.Result.Error -> result.message
                                 }
                             }
                         }
-                        MenuItem("Permissions") {
+                        MenuItem("Quyền ứng dụng") {
                             menuOpen = false
                             permissionsOpen = true
                         }
@@ -204,12 +233,12 @@ fun HomeScreen(
                 SampleTester(context)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PillButton(
-                        "Recast all", onClick = { recastAll(context) },
+                        "Hiện lại tất cả", onClick = { recastAll(context) },
                         modifier = Modifier.weight(1f), icon = IsleIcons.Refresh,
                         enabled = castOn || mediaOn,
                     )
                     PillButton(
-                        "Stop all", onClick = { stopAll(context) },
+                        "Dừng tất cả", onClick = { stopAll(context) },
                         modifier = Modifier.weight(1f), icon = IsleIcons.Stop, iconSize = 16.dp,
                         content = IsleColors.Danger,
                     )
@@ -219,9 +248,9 @@ fun HomeScreen(
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionLabel("Send to island")
+                SectionLabel("Hiện trên đảo")
                 GroupCard {
-                    ToggleRow(IsleIcons.Bell, IsleColors.TileBlue, "Notifications", castOn) {
+                    ToggleRow(IsleIcons.Bell, IsleColors.Accent, "Thông báo", castOn) {
                         castOn = it; prefs.edit().putBoolean("cast_notifications", it).apply()
                         if (it) PlaygroundService.keepAlive(context)
                         PrivacyCard.refresh()
@@ -230,8 +259,22 @@ fun HomeScreen(
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Music, IsleColors.TileOrange, "Media", mediaOn,
-                        subtitle = "Mimic OriginPlayer for media apps",
+                        IsleIcons.Download, IsleColors.Accent, "Tiến trình tải xuống", downloadOn,
+                        subtitle = "Chrome, Edge, Canary...",
+                    ) {
+                        downloadOn = it; prefs.edit().putBoolean("cast_downloads", it).apply()
+                    }
+                    GroupDivider()
+                    ToggleRow(
+                        IsleIcons.Key, IsleColors.Accent, "Mã xác thực OTP", otpOn,
+                        subtitle = "Tự động phát hiện mã xác minh (SMS)",
+                    ) {
+                        otpOn = it; prefs.edit().putBoolean("cast_otp", it).apply()
+                    }
+                    GroupDivider()
+                    ToggleRow(
+                        IsleIcons.Music, IsleColors.Accent, "Âm nhạc", mediaOn,
+                        subtitle = "Trình phát nhạc trên đảo",
                     ) {
                         mediaOn = it; prefs.edit().putBoolean("cast_media_sessions", it).apply()
                     }
@@ -244,11 +287,11 @@ fun HomeScreen(
                 Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionLabel("Notifications")
+                SectionLabel("Tùy chọn thông báo")
                 GroupCard {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SegmentedControl(
-                            listOf("Live only", "Everything"),
+                            listOf("Chỉ thẻ động", "Tất cả"),
                             selected = if (includeMessages) 1 else 0,
                             onSelect = {
                                 includeMessages = it == 1
@@ -256,8 +299,8 @@ fun HomeScreen(
                             },
                         )
                         Text(
-                            if (includeMessages) "Every notification, plain messages included."
-                            else "Only live cards — score, navigation, payment, etc.",
+                            if (includeMessages) "Tất cả thông báo, bao gồm tin nhắn văn bản thông thường."
+                            else "Chỉ thẻ động trực tiếp — gọi xe, giao hàng, thanh toán, tỷ số, v.v.",
                             modifier = Modifier.padding(horizontal = 4.dp),
                             fontSize = 13.sp,
                             color = IsleColors.TextSecondary,
@@ -265,12 +308,12 @@ fun HomeScreen(
                     }
                     if (includeMessages) {
                         GroupDivider()
-                        SettingRow(IsleIcons.Clock, IsleColors.TileTeal, "Hide after", subtitle = "Non live cards")
+                        SettingRow(IsleIcons.Clock, IsleColors.TileTeal, "Tự ẩn sau", subtitle = "Dành cho thẻ thông báo thường")
                         Row(
                             Modifier.padding(start = 62.dp, end = 16.dp, bottom = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            listOf(0 to "Never", 5 to "5s", 10 to "10s", 15 to "15s", 30 to "30s").forEach { (sec, label) ->
+                            listOf(0 to "Không ẩn", 5 to "5 giây", 10 to "10 giây", 15 to "15 giây", 30 to "30 giây").forEach { (sec, label) ->
                                 ChoiceChip(
                                     label,
                                     selected = autoDismissSec == sec,
@@ -285,8 +328,8 @@ fun HomeScreen(
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Headphones, IsleColors.TilePurple, "Earbuds", earbudsOn,
-                        subtitle = "Battery when they connect",
+                        IsleIcons.Headphones, IsleColors.TilePurple, "Tai nghe Bluetooth", earbudsOn,
+                        subtitle = "Hiện phần trăm pin khi kết nối",
                     ) {
                         prefs.edit().putBoolean("cast_earbuds", it).apply()
                         if (it && !EarbudsCard.hasPermission(context)) {
@@ -299,15 +342,15 @@ fun HomeScreen(
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Moon, IsleColors.TilePurple, "Skip silent", ignoreSilent,
-                        subtitle = "Ignore silenced notifications",
+                        IsleIcons.Moon, IsleColors.TilePurple, "Bỏ qua thông báo im lặng", ignoreSilent,
+                        subtitle = "Không hiển thị thông báo không có chuông/rung",
                     ) {
                         ignoreSilent = it; prefs.edit().putBoolean("cast_ignore_silent", it).apply()
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Lock, IsleColors.TileGreen, "Lock screen", lockscreenLiveCard,
-                        subtitle = "Live card on lockscreen",
+                        IsleIcons.Lock, IsleColors.TileGreen, "Màn hình khóa", lockscreenLiveCard,
+                        subtitle = "Hiển thị thẻ động trên màn hình khóa",
                     ) {
                         lockscreenLiveCard = it
                         prefs.edit().putBoolean("cast_lockscreen_live_card", it).apply()
@@ -321,25 +364,18 @@ fun HomeScreen(
                 Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionLabel("Cards")
+                SectionLabel("Các loại thẻ trên đảo")
                 GroupCard {
                     ToggleRow(
-                        IsleIcons.Key, IsleColors.TileBlue, "Login codes", otpOn,
-                        subtitle = "Show the code, tap to copy",
-                    ) {
-                        otpOn = it; prefs.edit().putBoolean("cast_otp", it).apply()
-                    }
-                    GroupDivider()
-                    ToggleRow(
-                        IsleIcons.Buttons, IsleColors.TileTeal, "Action buttons", actionsOn,
-                        subtitle = "The app's own buttons on the card",
+                        IsleIcons.Buttons, IsleColors.TileTeal, "Nút hành động", actionsOn,
+                        subtitle = "Hiển thị các nút thao tác của thông báo trên thẻ",
                     ) {
                         actionsOn = it; prefs.edit().putBoolean("cast_show_actions", it).apply()
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Bolt, IsleColors.TileGreen, "Charging", chargingOn,
-                        subtitle = "Battery card when you plug in",
+                        IsleIcons.Bolt, IsleColors.TileGreen, "Trạng thái sạc pin", chargingOn,
+                        subtitle = "Hiển thị thẻ pin khi cắm sạc",
                     ) {
                         chargingOn = it; prefs.edit().putBoolean("cast_charging", it).apply()
                         ChargingCard.onSettingsChanged(context)
@@ -349,7 +385,7 @@ fun HomeScreen(
                             Modifier.padding(start = 62.dp, end = 16.dp, bottom = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            listOf(false to "Briefly", true to "While charging").forEach { (keep, label) ->
+                            listOf(false to "Thoáng qua", true to "Suốt thời gian sạc").forEach { (keep, label) ->
                                 ChoiceChip(
                                     label,
                                     selected = chargingKeep == keep,
@@ -365,8 +401,8 @@ fun HomeScreen(
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Camera, IsleColors.TileAmber, "Camera & mic", privacyDotOn,
-                        subtitle = "Dot while they're in use",
+                        IsleIcons.Camera, IsleColors.TileAmber, "Chỉ báo Camera & Mic", privacyDotOn,
+                        subtitle = "Chấm màu khi đang dùng quyền riêng tư",
                     ) {
                         privacyDotOn = it; prefs.edit().putBoolean("cast_privacy_dot", it).apply()
                         PrivacyCard.refresh()
@@ -380,18 +416,18 @@ fun HomeScreen(
                 Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionLabel("Quiet hours")
+                SectionLabel("Giờ yên tĩnh")
                 GroupCard {
                     ToggleRow(
-                        IsleIcons.Moon, IsleColors.TilePurple, "Follow Do Not Disturb", quietDnd,
-                        subtitle = "Quiet while DND is on",
+                        IsleIcons.Moon, IsleColors.TilePurple, "Theo chế độ Không làm phiền", quietDnd,
+                        subtitle = "Tự động tắt đảo khi bật Không làm phiền",
                     ) {
                         quietDnd = it; prefs.edit().putBoolean("cast_quiet_dnd", it).apply()
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Clock, IsleColors.TileGray, "Schedule", quietSchedule,
-                        subtitle = "${QuietHours.format(quietStart)} – ${QuietHours.format(quietEnd)} every day",
+                        IsleIcons.Clock, IsleColors.TileGray, "Lịch đặt giờ", quietSchedule,
+                        subtitle = "${QuietHours.format(quietStart)} – ${QuietHours.format(quietEnd)} hàng ngày",
                     ) {
                         quietSchedule = it; prefs.edit().putBoolean("cast_quiet_schedule", it).apply()
                     }
@@ -401,7 +437,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             ChoiceChip(
-                                "From ${QuietHours.format(quietStart)}",
+                                "Từ ${QuietHours.format(quietStart)}",
                                 selected = false,
                                 onClick = {
                                     pickTime(context, quietStart) {
@@ -411,7 +447,7 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                             )
                             ChoiceChip(
-                                "To ${QuietHours.format(quietEnd)}",
+                                "Đến ${QuietHours.format(quietEnd)}",
                                 selected = false,
                                 onClick = {
                                     pickTime(context, quietEnd) {
@@ -424,7 +460,7 @@ fun HomeScreen(
                     }
                 }
                 Text(
-                    "While quiet, only calls, navigation, timers, login codes, media and charging show.",
+                    "Trong giờ yên tĩnh, chỉ có cuộc gọi, điều hướng, hẹn giờ, mã OTP, âm nhạc và sạc pin mới được hiển thị.",
                     modifier = Modifier.padding(horizontal = 4.dp),
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
@@ -436,12 +472,12 @@ fun HomeScreen(
         item {
             GroupCard {
                 NavRow(
-                    IsleIcons.Grid, IsleColors.TileAmber, "Apps",
-                    value = if (appsOff == 0) "All on" else "$appsOff off",
+                    IsleIcons.Grid, IsleColors.TileAmber, "Ứng dụng",
+                    value = if (appsOff == 0) "Đang bật tất cả" else "Đã tắt $appsOff",
                     onClick = onOpenApps,
                 )
                 GroupDivider()
-                NavRow(IsleIcons.Pulse, IsleColors.TileGray, "Activity", onClick = onOpenActivity)
+                NavRow(IsleIcons.Pulse, IsleColors.TileGray, "Nhật ký hoạt động", onClick = onOpenActivity)
             }
         }
     }
@@ -452,19 +488,24 @@ fun HomeScreen(
 private fun StatusPill(connected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
-            .height(32.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(34.dp)
+            .clip(RoundedCornerShape(17.dp))
             .background(if (connected) IsleColors.GoodBg else IsleColors.BadBg)
+            .border(
+                width = 0.8.dp,
+                color = if (connected) IsleColors.Good.copy(alpha = 0.3f) else IsleColors.Bad.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(17.dp),
+            )
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(if (connected) IsleColors.Good else IsleColors.Bad))
         Text(
-            if (connected) "Listening" else "Not listening",
+            if (connected) "Đảo OriginOS: Đang hoạt động" else "Đảo OriginOS: Chưa kết nối",
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             color = if (connected) IsleColors.GoodText else IsleColors.BadText,
         )
     }
@@ -504,6 +545,11 @@ private fun SampleTester(context: Context) {
                 .heightIn(min = 104.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(IsleColors.PreviewBg)
+                .border(
+                    width = 0.8.dp,
+                    color = IsleColors.BorderHairline,
+                    shape = RoundedCornerShape(20.dp),
+                )
                 .padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
@@ -538,7 +584,7 @@ private fun SampleTester(context: Context) {
             }
         }
         PillButton(
-            if (sentAt != 0L) "Sent" else "Send to island",
+            if (sentAt != 0L) "Đã gửi" else "Thử trên đảo",
             onClick = { sample.post(context); sentAt = System.currentTimeMillis() },
             modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
             icon = IsleIcons.Send,
@@ -574,15 +620,15 @@ private fun recastAll(context: Context) {
     if (listener == null) {
         val message = when (NotificationCastListener.forceRebind(context)) {
             NotificationCastListener.RebindResult.NO_ACCESS ->
-                "Notification access isn't granted — turn it on in Settings, then tap again."
+                "Chưa cấp quyền truy cập thông báo — vui lòng bật trong Cài đặt rồi thử lại."
             else ->
-                "Listener not connected — reconnecting now. Give it a few seconds, then tap again."
+                "Bộ lắng nghe chưa kết nối — đang kết nối lại. Vui lòng chờ vài giây rồi thử lại."
         }
         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
         return
     }
     val count = listener.recastAll()
     android.widget.Toast.makeText(
-        context, "Recast swept $count notifications.", android.widget.Toast.LENGTH_SHORT,
+        context, "Đã phát lại $count thông báo lên đảo.", android.widget.Toast.LENGTH_SHORT,
     ).show()
 }

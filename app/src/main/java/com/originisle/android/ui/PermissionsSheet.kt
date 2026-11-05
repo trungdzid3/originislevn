@@ -96,7 +96,7 @@ fun PermissionsSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "Permissions",
+                "Quyền ứng dụng",
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -104,34 +104,34 @@ fun PermissionsSheet(
             )
             GroupCard {
                 PermissionRow(
-                    IsleIcons.Bell, IsleColors.TileBlue, "Notification access",
-                    ok = listenerOk, status = if (listenerOk) "Granted" else "Not granted — required",
+                    IsleIcons.Bell, IsleColors.TileBlue, "Truy cập thông báo",
+                    ok = listenerOk, status = if (listenerOk) "Đã cấp" else "Chưa cấp — bắt buộc",
                 ) { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
                 GroupDivider()
                 PermissionRow(
-                    IsleIcons.Bell, IsleColors.TilePurple, "Origin Isle notifications",
-                    ok = postGranted, status = if (postGranted) "Allowed" else "Not allowed",
+                    IsleIcons.Bell, IsleColors.TilePurple, "Thông báo Origin Isle",
+                    ok = postGranted, status = if (postGranted) "Đã cho phép" else "Chưa cho phép",
                 ) {
                     if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 GroupDivider()
                 PermissionRow(
-                    IsleIcons.Battery, IsleColors.TileGreen, "Battery",
-                    ok = batteryOk, status = if (batteryOk) "Unrestricted" else "Restricted — OriginOS may kill it",
+                    IsleIcons.Battery, IsleColors.TileGreen, "Tối ưu hóa pin",
+                    ok = batteryOk, status = if (batteryOk) "Không giới hạn" else "Bị giới hạn — OriginOS có thể đóng app",
                 ) { requestIgnoreBattery(context) }
                 GroupDivider()
                 PermissionRow(
-                    IsleIcons.Heart, IsleColors.TileTeal, "Keep-alive",
+                    IsleIcons.Heart, IsleColors.TileTeal, "Duy trì chạy ngầm (Trợ năng)",
                     ok = keepAliveOk,
-                    status = if (keepAliveOk) "On — reconnects casting after a kill" else "Off — slower to recover after a kill",
-                    note = "Enable \"Origin Isle keep-alive\" under Accessibility. No status-bar icon; it reads nothing.",
+                    status = if (keepAliveOk) "Đã bật — tự phục hồi sau khi bị đóng" else "Đang tắt — khôi phục chậm hơn",
+                    note = "Bật \"Origin Isle keep-alive\" trong mục Trợ năng. Không hiện icon trạng thái, không đọc dữ liệu cá nhân.",
                 ) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
                 GroupDivider()
                 PermissionRow(
-                    IsleIcons.Power, IsleColors.TileAmber, "Autostart + Associated startup",
+                    IsleIcons.Power, IsleColors.TileAmber, "Tự khởi chạy & Khởi chạy liên kết",
                     ok = autoStartAck,
-                    status = if (autoStartAck) "Opened — can't be verified, check it's still on" else "Not confirmed",
-                    note = "Turn BOTH on, or closing the app from recents kills casting until you reboot.",
+                    status = if (autoStartAck) "Đã mở cài đặt — hãy đảm bảo đã bật cả hai" else "Chưa xác nhận",
+                    note = "Bật CẢ HAI mục, nếu không khi vuốt đóng đa nhiệm đảo sẽ dừng hoạt động cho đến khi khởi động lại máy.",
                 ) {
                     if (openAutoStartSettings(context)) {
                         autoStartAck = true
@@ -140,7 +140,7 @@ fun PermissionsSheet(
                 }
             }
             PillButton(
-                "Redo first-run setup",
+                "Thiết lập lại từ đầu",
                 onClick = onRedoSetup,
                 modifier = Modifier.fillMaxWidth(),
                 icon = IsleIcons.Refresh,
@@ -210,8 +210,8 @@ fun SetupAttentionBanner(onClick: () -> Unit) {
     ) {
         IconTile(IsleIcons.Shield, IsleColors.TileOrange)
         Column(Modifier.weight(1f)) {
-            Text("Setup needs attention", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text("Casting may not work", fontSize = 13.sp, color = IsleColors.Warn)
+            Text("Cài đặt cần lưu ý", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Đảo có thể không hoạt động ổn định", fontSize = 13.sp, color = IsleColors.Warn)
         }
         Icon(IsleIcons.ChevronRight, null, Modifier.size(18.dp), tint = IsleColors.Warn)
     }

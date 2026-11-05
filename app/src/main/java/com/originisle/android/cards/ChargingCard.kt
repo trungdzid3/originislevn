@@ -13,12 +13,8 @@ import com.originisle.android.island.PlaygroundService
 import com.originisle.android.ui.PREFS_NAME
 
 /**
- * Charging card: plug in and the island shows the battery level as a green ring with the time left
- * until full, then gets out of the way a few seconds later — or stays up for the whole charge when
- * "Keep while charging" is on. Reaching 100% while still plugged in shows a brief "Fully charged".
- *
- * Driven by ACTION_BATTERY_CHANGED, registered by the notification listener (which is what keeps
- * our process alive anyway); nothing here needs a permission.
+ * Charging card: Chuẩn hóa theo phong cách Vivo FlashCharge & Dynamic Glow của OriginOS 6.
+ * Khi cắm sạc, hiển thị thẻ Đảo Nguyên Tử với tiến trình sạc, thời gian dự kiến và hiệu ứng hào quang động.
  */
 object ChargingCard {
 
@@ -26,7 +22,9 @@ object ChargingCard {
     const val ID = 35001
 
     private const val BRIEF_MS = 6000L
-    private const val GREEN = "#FF34C759"
+    private const val COLOR_FLASH_CHARGE = "#00D1A0" // Xanh ngọc FlashCharge
+    private const val COLOR_ELECTRIC_BLUE = "#2B66FF" // Vivo Origin Electric Blue
+    private const val COLOR_FULL = "#00D084"
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -35,16 +33,19 @@ object ChargingCard {
     private var lastLevel = -1
     private var showing = false
     private var announcedFull = false
+    private var isAcCharging = false
 
     private var hideTask: Runnable? = null
 
     fun onBatteryChanged(context: Context, intent: Intent) {
         val app = context.applicationContext
         val prefs = app.getSharedPreferences(PREFS_NAME, 0)
-        val enabled = prefs.getBoolean("cast_notifications", false) && prefs.getBoolean("cast_charging", true)
+        val enabled = prefs.getBoolean("cast_notifications", true) && prefs.getBoolean("cast_charging", true)
         val keep = prefs.getBoolean("cast_charging_keep", false)
 
-        val nowPlugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+        val pluggedType = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        val nowPlugged = pluggedType != 0
+        isAcCharging = (pluggedType == BatteryManager.BATTERY_PLUGGED_AC)
         val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
         val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) * 100 / scale
         val full = level >= 100 ||
@@ -58,12 +59,12 @@ object ChargingCard {
             announcedFull = false
             if (showing) hide(app)
         } else if (was == false) {
-            // Just plugged in.
+            // Vừa cắm sạc
             announcedFull = full
             show(app, level, full, glow = true)
             if (!keep) hideLater(app)
         } else if (was == null) {
-            // Baseline after a (re)connect while already plugged in: only "keep" puts a card up.
+            // Kết nối lại dịch vụ khi đang cắm sạc
             announcedFull = full
             if (keep) show(app, level, full, glow = false)
         } else if (full && !announcedFull) {
@@ -80,18 +81,25 @@ object ChargingCard {
         showing = true
         val remaining = if (full) -1L
         else context.getSystemService(BatteryManager::class.java)?.computeChargeTimeRemaining() ?: -1L
-        val title = if (full) "Fully charged" else "Charging"
-        val text = if (remaining > 0) "$level% · ${formatRemaining(remaining)} until full" else "$level%"
+
+        val title = when {
+            full -> "Đã sạc đầy"
+            isAcCharging -> "Sạc siêu tốc FlashCharge"
+            else -> "Đang sạc pin"
+        }
+
+        val text = if (remaining > 0) "$level% · Còn ${formatRemaining(remaining)} đến khi đầy" else "$level%"
         val bolt = Icon.createWithResource(context, R.drawable.ic_charging)
         val click = PendingIntent.getActivity(
             context, ID, Intent(Intent.ACTION_POWER_USAGE_SUMMARY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        val activeColor = if (full) COLOR_FULL else if (isAcCharging) COLOR_FLASH_CHARGE else COLOR_ELECTRIC_BLUE
+
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
-            // Live: our own timers decide when it goes, not the "Hide after" setting.
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
@@ -103,9 +111,9 @@ object ChargingCard {
             putExtra("oi_left_icon", bolt)
             putExtra("oi_large_icon", bolt)
             putExtra("icon_res", R.drawable.ic_charging)
-            putExtra("oi_fg_color", GREEN)
+            putExtra("oi_fg_color", activeColor)
             if (glow) {
-                putExtra("oi_light_color", GREEN)
+                putExtra("oi_light_color", activeColor)
                 putExtra("oi_force_show", true)
             }
             putExtra("click_resp", click)
@@ -130,11 +138,10 @@ object ChargingCard {
         )
     }
 
-    /** Settings changed: take a card down that's no longer wanted, or put one up for "keep". */
     fun onSettingsChanged(context: Context) {
         val app = context.applicationContext
         val prefs = app.getSharedPreferences(PREFS_NAME, 0)
-        val enabled = prefs.getBoolean("cast_notifications", false) && prefs.getBoolean("cast_charging", true)
+        val enabled = prefs.getBoolean("cast_notifications", true) && prefs.getBoolean("cast_charging", true)
         val keep = prefs.getBoolean("cast_charging_keep", false)
         when {
             showing && (!enabled || !keep) -> hide(app)
@@ -142,15 +149,14 @@ object ChargingCard {
         }
     }
 
-    /** 4_800_000 -> "1 h 20 min", 2_100_000 -> "35 min". */
     private fun formatRemaining(ms: Long): String {
         val totalMin = ((ms + 59_999) / 60_000).toInt()
         val h = totalMin / 60
         val m = totalMin % 60
         return when {
-            h == 0 -> "$m min"
+            h == 0 -> "$m phút"
             m == 0 -> "$h h"
-            else -> "$h h $m min"
+            else -> "$h giờ $m phút"
         }
     }
 }

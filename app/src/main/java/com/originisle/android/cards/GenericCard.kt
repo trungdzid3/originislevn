@@ -26,7 +26,7 @@ object GenericCard {
      * @param isLive whether [NotificationCastListener] classified this as a live/persistent
      * notification (ongoing, call, or progress) rather than a one-off message — determines whether
      * the card is eligible for the auto-dismiss timer. Computed once by the caller so this doesn't
-     * re-derive its own, possibly-drifting definition of "live".
+     * re-derive its own, possibly-drifting definition of "trực tiếp".
      */
     fun post(context: Context, sbn: StatusBarNotification, isLive: Boolean) {
         val n = sbn.notification
@@ -45,7 +45,7 @@ object GenericCard {
         }.getOrDefault(sbn.packageName)
         // Some ongoing notifications (Maps' turn-by-turn among them) deliberately leave the title
         // empty and render their own custom view instead — falling back to the literal word
-        // "Notification" there read as if that were the actual message. The source app's own name
+        // "Thông báo" there read as if that were the actual message. The source app's own name
         // ("Maps") is a far more useful fallback.
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
             .ifBlank { appLabel }
@@ -62,7 +62,7 @@ object GenericCard {
         // both "2 min" and a journey progress bar — synthesising "43%" from the bar and ignoring the
         // OS's own string threw away the better text.
         val showChrono = extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false)
-        // A countdown (timer, "arriving in") ticks toward `when`; once it's passed, hold at 00:00
+        // A countdown (timer, "đến nơi sau") ticks toward `when`; once it's passed, hold at 00:00
         // instead of counting back up.
         val countDown = extras.getBoolean(NotificationCompat.EXTRA_CHRONOMETER_COUNT_DOWN, false)
         val percentText = if (hasProgress) "${progress * 100 / progressMax}%" else ""

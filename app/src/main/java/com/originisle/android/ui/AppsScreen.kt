@@ -80,10 +80,10 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = ScreenPadding) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                ScreenHeader("Apps", onBack) {
+                ScreenHeader("Ứng dụng", onBack) {
                     if (!loading && filtered.isNotEmpty()) {
                         PillButton(
-                            if (anyOff) "All on" else "All off",
+                            if (anyOff) "Bật tất cả" else "Tắt tất cả",
                             onClick = {
                                 if (anyOff) ignored.removeAll(filtered.map { it.pkg }.toSet())
                                 else filtered.forEach { if (it.pkg !in ignored) ignored.add(it.pkg) }
@@ -96,12 +96,11 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
                 }
                 SearchField(query, onChange = { query = it })
                 SegmentedControl(
-                    listOf("All", "On", "Off"), filter, { filter = it },
+                    listOf("Tất cả", "Đang bật", "Đã tắt"), filter, { filter = it },
                     track = IsleColors.Surface, height = 40.dp,
                 )
                 Text(
-                    "Turn OFF the apps you don't want cast. Plain chat texts are already filtered out, " +
-                        "so a messenger's calls still show even while its messages don't.",
+                    "Tắt những ứng dụng bạn không muốn hiển thị trên đảo. Tin nhắn văn bản thông thường đã được lọc tự động, nên cuộc gọi vẫn sẽ hiển thị ngay cả khi tắt tin nhắn.",
                     modifier = Modifier.padding(horizontal = 4.dp),
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
@@ -118,7 +117,7 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
             }
         } else if (filtered.isEmpty()) {
             item {
-                EmptyMessage(if (query.isNotBlank()) "No apps match \"$query\"." else "No apps")
+                EmptyMessage(if (query.isNotBlank()) "Không có ứng dụng nào khớp với \"$query\"." else "Không có ứng dụng nào")
             }
         }
 
@@ -174,19 +173,19 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
     ) {
         Icon(IsleIcons.Search, null, Modifier.size(18.dp), tint = IsleColors.TextSecondary)
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) Text("Search apps", fontSize = 16.sp, color = IsleColors.TextSecondary)
+            if (query.isEmpty()) Text("Tìm kiếm ứng dụng", fontSize = 16.sp, color = IsleColors.TextSecondary)
             BasicTextField(
                 value = query,
                 onValueChange = onChange,
                 singleLine = true,
                 textStyle = TextStyle(fontFamily = JakartaSans, fontSize = 16.sp, color = IsleColors.Text),
                 cursorBrush = SolidColor(IsleColors.Accent),
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Search apps" },
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Tìm kiếm ứng dụng" },
             )
         }
         if (query.isNotEmpty()) {
             CircleIconButton(
-                IsleIcons.Close, "Clear search", onClick = { onChange("") },
+                IsleIcons.Close, "Xóa tìm kiếm", onClick = { onChange("") },
                 background = IsleColors.Surface, tint = IsleColors.TextSecondary, iconSize = 18.dp,
             )
         }

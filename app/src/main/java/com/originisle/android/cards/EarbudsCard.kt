@@ -25,8 +25,8 @@ import com.originisle.android.ui.PREFS_NAME
  * AirPods pop-up — and once more when they drop to [LOW_LEVEL].
  *
  * Needs "Nearby devices" (BLUETOOTH_CONNECT) to receive the connection broadcasts and read the
- * name; the "Earbuds" switch asks for it. The battery comes from the headset itself (HFP/AVRCP);
- * buds that only report it to their own app just show "Connected".
+ * name; the "Tai nghe" switch asks for it. The battery comes from the headset itself (HFP/AVRCP);
+ * buds that only report it to their own app just show "Đã kết nối".
  */
 @SuppressLint("MissingPermission") // Every entry point checks [hasPermission] first.
 object EarbudsCard {
@@ -72,7 +72,7 @@ object EarbudsCard {
 
     private fun enabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
-        return prefs.getBoolean("cast_notifications", false) && prefs.getBoolean("cast_earbuds", false) &&
+        return prefs.getBoolean("cast_notifications", true) && prefs.getBoolean("cast_earbuds", false) &&
             hasPermission(context)
     }
 
@@ -172,7 +172,7 @@ object EarbudsCard {
 
     private fun show(context: Context, device: BluetoothDevice, level: Int, low: Boolean) {
         if (!enabled(context)) return
-        val name = runCatching { device.alias ?: device.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Headphones"
+        val name = runCatching { device.alias ?: device.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
         val known = level in 0..100
         val isLow = known && level <= LOW_LEVEL
         val glyph = if (isOverEar(device, name)) R.drawable.ic_headphones else R.drawable.ic_earbuds
@@ -189,9 +189,9 @@ object EarbudsCard {
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             // Laid out like OriginOS's own AirPods card (com.android.bluetooth VivoBatteryHelper):
-            // "Connected" over the device name, a battery ring with "N%" beside them; on the pill
+            // "Đã kết nối" over the device name, a battery ring with "N%" beside them; on the pill
             // the headphones alone left of the camera and the ring right of it.
-            putExtra("title", if (low) "Battery low" else "Connected")
+            putExtra("title", if (low) "Pin yếu" else "Đã kết nối")
             putExtra("text", name)
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", icon)
@@ -206,8 +206,8 @@ object EarbudsCard {
             } else {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_show_right_icon", false)
-                putExtra("oi_right_content", "Connected")
-                putExtra("status_chip_text", "Connected")
+                putExtra("oi_right_content", "Đã kết nối")
+                putExtra("status_chip_text", "Đã kết nối")
             }
             if (low) putExtra("oi_light_color", RED)
             putExtra("click_resp", click)

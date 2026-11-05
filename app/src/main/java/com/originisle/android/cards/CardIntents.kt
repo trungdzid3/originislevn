@@ -13,7 +13,7 @@ import com.originisle.android.MainActivity
  * notification has none, falls back to just launching the app. vivo requires every SuperX post to
  * carry a content intent or it silently rejects it; this is that fallback.
  */
-internal fun fallbackClickIntent(context: Context, pkg: String): PendingIntent {
+fun fallbackClickIntent(context: Context, pkg: String): PendingIntent {
     val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: Intent(context, MainActivity::class.java)
     return PendingIntent.getActivity(
         context, pkg.hashCode(), launch,
@@ -28,7 +28,7 @@ internal fun fallbackClickIntent(context: Context, pkg: String): PendingIntent {
  * full-resolution — and passing it as-is throws "Could not copy bitmap to parcel blob" and crashes,
  * which then crash-loops the whole listener since it re-casts on every reconnect.
  */
-internal fun shrinkForIcon(bitmap: Bitmap, maxDimension: Int = 200): Bitmap {
+fun shrinkForIcon(bitmap: Bitmap, maxDimension: Int = 200): Bitmap {
     val w = bitmap.width
     val h = bitmap.height
     if (w <= maxDimension && h <= maxDimension) return bitmap
@@ -42,7 +42,7 @@ internal fun shrinkForIcon(bitmap: Bitmap, maxDimension: Int = 200): Bitmap {
  * ones point into the source app where SystemUI may not be allowed to read them — so both are
  * rendered once and shrunk here. Resource icons are just a package + id and pass through untouched.
  */
-internal fun parcelSafeIcon(context: Context, icon: Icon?, maxDimension: Int = 144): Icon? {
+fun parcelSafeIcon(context: Context, icon: Icon?, maxDimension: Int = 144): Icon? {
     if (icon == null) return null
     if (icon.type == Icon.TYPE_RESOURCE) return icon
     return runCatching {

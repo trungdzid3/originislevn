@@ -13,10 +13,11 @@ import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.CopyCodeReceiver
 import com.originisle.android.service.IconCache
+import java.util.Locale
 
 /**
  * Login / verification code card: the code big on the card and in the pill, and tapping either
- * (or the "Copy" capsule) copies it — see [CopyCodeReceiver], which also takes the card down.
+ * (or the "Sao chép" / "Copy" capsule) copies it — see [CopyCodeReceiver], which also takes the card down.
  *
  * Shown even in "Live only" mode, where the plain message carrying it would otherwise be filtered
  * out; it's the one kind of message you're always waiting on.
@@ -35,6 +36,10 @@ object OtpCard {
             Icon.createWithResource(sbn.packageName, app.packageManager.getApplicationInfo(sbn.packageName, 0).icon)
         }.getOrNull()
 
+        val isVi = Locale.getDefault().language == "vi"
+        val copyLabel = if (isVi) "Sao chép" else "Copy"
+        val subtitle = if (isVi) "Mã OTP · $appLabel" else "OTP Code · $appLabel"
+
         val copy = PendingIntent.getBroadcast(
             app, id,
             Intent(app, CopyCodeReceiver::class.java)
@@ -43,7 +48,7 @@ object OtpCard {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val copyAction = Notification.Action.Builder(
-            Icon.createWithResource(app, R.drawable.ic_key), "Copy", copy,
+            Icon.createWithResource(app, R.mipmap.ic_launcher_round), copyLabel, copy,
         ).build()
 
         val intent = Intent(app, PlaygroundService::class.java).apply {
@@ -53,13 +58,13 @@ object OtpCard {
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
             putExtra("title", spaced(code))
-            putExtra("text", "Login code · $appLabel")
+            putExtra("text", subtitle)
             putExtra("source_app", appLabel)
             putExtra("source_pkg", sbn.packageName)
-            putExtra("oi_left_content", "")
-            putExtra("oi_right_content", code)
-            putExtra("status_chip_text", code)
-            putExtra("icon_res", R.drawable.ic_key)
+            putExtra("oi_left_content", "OTP")
+            putExtra("oi_right_content", spaced(code))
+            putExtra("status_chip_text", spaced(code))
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
             appIcon?.let {
                 putExtra("oi_left_icon", it)
                 putExtra("oi_large_icon", it)
@@ -67,7 +72,9 @@ object OtpCard {
             putParcelableArrayListExtra("actions", arrayListOf(copyAction))
             // The whole card copies: that's the one thing anyone tapping a code wants.
             putExtra("source_content_intent", copy)
+            putExtra("click_resp", copy)
             putExtra("oi_force_show", true)
+            putExtra("oi_dismiss_when_kill", true)
         }
         app.startService(intent)
 

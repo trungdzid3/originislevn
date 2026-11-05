@@ -73,7 +73,7 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
         item {
             Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Welcome to Origin Isle",
+                    "Chào mừng đến với Origin Isle",
                     fontSize = 34.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.7).sp,
@@ -81,7 +81,7 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                     color = IsleColors.Text,
                 )
                 Text(
-                    "A few permissions are needed before notifications can be cast to the island.",
+                    "Cần cấp một số quyền để có thể chuyển tiếp thông báo lên đảo linh hoạt.",
                     fontSize = 15.sp,
                     lineHeight = 21.sp,
                     color = IsleColors.TextTertiary,
@@ -93,8 +93,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 OnboardingRow(
                     icon = IsleIcons.Bell,
                     tile = IsleColors.TileBlue,
-                    title = "Notification access",
-                    description = "Required — lets Origin Isle read notifications so it can re-cast them.",
+                    title = "Truy cập thông báo",
+                    description = "Bắt buộc — cho phép Origin Isle đọc thông báo để hiển thị lên đảo.",
                     granted = notifGranted,
                     mandatory = true,
                 ) { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
@@ -102,8 +102,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 OnboardingRow(
                     icon = IsleIcons.Bell,
                     tile = IsleColors.TilePurple,
-                    title = "Allow notifications",
-                    description = "Lets Origin Isle show its own status notification.",
+                    title = "Cho phép thông báo",
+                    description = "Cho phép hiển thị thông báo trạng thái của ứng dụng.",
                     granted = postGranted,
                     mandatory = false,
                 ) {
@@ -113,9 +113,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 OnboardingRow(
                     icon = IsleIcons.Heart,
                     tile = IsleColors.TileTeal,
-                    title = "Keep-alive",
-                    description = "Reconnects casting when OriginOS restarts the app, instead of " +
-                        "waiting for you to open it.",
+                    title = "Duy trì chạy ngầm (Trợ năng)",
+                    description = "Tự động kết nối lại khi OriginOS khởi động lại ứng dụng thay vì chờ bạn mở thủ công.",
                     granted = accessOk,
                     mandatory = false,
                 ) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
@@ -123,8 +122,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 OnboardingRow(
                     icon = IsleIcons.Battery,
                     tile = IsleColors.TileGreen,
-                    title = "Battery unrestricted",
-                    description = "Stops OriginOS from killing the background caster to save power.",
+                    title = "Không hạn chế pin",
+                    description = "Ngăn OriginOS tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
                     granted = batteryOk,
                     mandatory = false,
                 ) { requestIgnoreBattery(context) }
@@ -132,9 +131,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 OnboardingRow(
                     icon = IsleIcons.Power,
                     tile = IsleColors.TileAmber,
-                    title = "Autostart + Associated startup",
-                    description = "Turn BOTH on. Without them, closing the app from recents kills " +
-                        "casting until you reboot.",
+                    title = "Tự khởi chạy & Khởi chạy liên kết",
+                    description = "Bật CẢ HAI mục. Nếu không, khi đóng app từ đa nhiệm đảo sẽ ngừng hoạt động cho đến khi khởi động lại máy.",
                     granted = autoStartAck,
                     mandatory = false,
                 ) {
@@ -149,7 +147,7 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
         }
         item {
             PillButton(
-                if (notifGranted) "Continue" else "Grant notification access to continue",
+                if (notifGranted) "Tiếp tục" else "Vui lòng cấp quyền thông báo để tiếp tục",
                 onClick = {
                     prefs.edit().putBoolean("onboarding_done", true).apply()
                     onDone()
@@ -190,7 +188,7 @@ private fun OnboardingRow(
                 )
                 if (mandatory) {
                     Text(
-                        "Required",
+                        "Bắt buộc",
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(IsleColors.CastTagBg)
@@ -204,7 +202,7 @@ private fun OnboardingRow(
             Text(description, fontSize = 13.sp, lineHeight = 18.sp, color = IsleColors.TextSecondary)
             if (!granted) {
                 PillButton(
-                    "Open settings",
+                    "Mở cài đặt",
                     onClick = onAction,
                     modifier = Modifier.padding(top = 8.dp),
                     container = IsleColors.SurfaceHigh,
@@ -221,7 +219,7 @@ private fun OnboardingRow(
             contentAlignment = Alignment.Center,
         ) {
             if (granted) {
-                Icon(IsleIcons.Check, "Granted", Modifier.size(14.dp), tint = IsleColors.GoodText)
+                Icon(IsleIcons.Check, "Đã cấp", Modifier.size(14.dp), tint = IsleColors.GoodText)
             }
         }
     }

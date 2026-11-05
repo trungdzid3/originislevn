@@ -30,7 +30,7 @@ object UpdateChecker {
     suspend fun check(context: Context): Result = withContext(Dispatchers.IO) {
         val current = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull() ?: return@withContext Result.Error("Unknown installed version")
+        }.getOrNull() ?: return@withContext Result.Error("Không rõ phiên bản đã cài đặt")
 
         try {
             val conn = (URL(LATEST_RELEASE_URL).openConnection() as HttpURLConnection).apply {
@@ -45,8 +45,8 @@ object UpdateChecker {
             val url = json.getString("html_url")
             if (isNewer(tag, current)) Result.UpdateAvailable(tag, url) else Result.UpToDate(current)
         } catch (e: Exception) {
-            Log.w(TAG, "update check failed: ${e.message}")
-            Result.Error("Couldn't check for updates")
+            Log.w(TAG, "Kiểm tra cập nhật thất bại: ${e.message}")
+            Result.Error("Không thể kiểm tra bản cập nhật")
         }
     }
 

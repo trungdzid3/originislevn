@@ -17,4 +17,9 @@ keystore.properties
 # Built release artifacts (upload to GitHub Releases, don't commit).
 /dist
 
+# Backups & Scan logs
+backups/
+scan_results.txt
+**/scan_results.txt
+
 .DS_Store

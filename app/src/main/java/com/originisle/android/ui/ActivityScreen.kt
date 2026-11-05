@@ -63,12 +63,12 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = ScreenPadding) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                ScreenHeader("Activity", onBack) {
-                    CircleIconButton(IsleIcons.Trash, "Clear log", onClick = { CastLog.clear() }, iconSize = 19.dp)
+                ScreenHeader("Nhật ký hoạt động", onBack) {
+                    CircleIconButton(IsleIcons.Trash, "Xóa nhật ký", onClick = { CastLog.clear() }, iconSize = 19.dp)
                 }
                 ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
                 SegmentedControl(
-                    listOf("All", "Shown", "Skipped"), filter, { filter = it },
+                    listOf("Tất cả", "Đã hiện", "Bỏ qua"), filter, { filter = it },
                     track = IsleColors.Surface, height = 40.dp,
                 )
             }
@@ -78,10 +78,9 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
                 Box(Modifier.clip(RoundedCornerShape(24.dp)).background(IsleColors.Surface)) {
                     EmptyMessage(
                         if (CastLog.entries.isEmpty()) {
-                            "Nothing yet. Trigger a notification (or tap Recast all) and it'll show here " +
-                                "with whether it was cast or skipped, and why."
+                            "Chưa có hoạt động nào. Khi có thông báo mới (hoặc bấm \"Hiện lại tất cả\"), dữ liệu sẽ xuất hiện tại đây kèm lý do được phát hay bị bỏ qua."
                         } else {
-                            "Nothing here."
+                            "Không có dữ liệu."
                         },
                     )
                 }
@@ -114,23 +113,23 @@ private fun ListenerCard(connected: Boolean, now: Long, onReconnect: () -> Unit)
         ) { Box(Modifier.size(12.dp).clip(CircleShape).background(dot)) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                if (connected) "Listening" else "Not listening",
+                if (connected) "Đang hoạt động" else "Chưa kết nối",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = IsleColors.Text,
             )
             val subtle = if (connected) IsleColors.GoodSubtle else IsleColors.BadSubtle
             Text(
-                "Connected ${agoText(NotificationCastListener.connectedAt, now)}",
+                "Đã kết nối ${agoText(NotificationCastListener.connectedAt, now)}",
                 fontSize = 13.sp, color = subtle,
             )
             Text(
-                "Last event ${agoText(NotificationCastListener.lastEventAt, now)}",
+                "Sự kiện gần nhất: ${agoText(NotificationCastListener.lastEventAt, now)}",
                 fontSize = 13.sp, color = subtle,
             )
         }
         CircleIconButton(
-            IsleIcons.Refresh, "Reconnect", onReconnect,
+            IsleIcons.Refresh, "Kết nối lại", onReconnect,
             background = if (connected) IsleColors.GoodButton else IsleColors.BadButton,
             tint = if (connected) IsleColors.GoodText else IsleColors.BadText,
             iconSize = 18.dp,
@@ -154,7 +153,7 @@ private fun LogRow(e: CastLog.Entry) {
         ) {
             Icon(
                 if (e.cast) IsleIcons.Check else IsleIcons.Dash,
-                if (e.cast) "Cast" else "Skipped",
+                if (e.cast) "Đã hiện" else "Bỏ qua",
                 Modifier.size(16.dp),
                 tint = if (e.cast) IsleColors.GoodText else IsleColors.TextSecondary,
             )
@@ -202,13 +201,13 @@ private fun reconnectListener(context: Context) {
     PlaygroundService.keepAlive(context)
     val message = when (NotificationCastListener.forceRebind(context)) {
         NotificationCastListener.RebindResult.REBINDING ->
-            "Rebinding listener… give it a few seconds."
+            "Đang kết nối lại bộ lắng nghe… vui lòng chờ vài giây."
         NotificationCastListener.RebindResult.ALREADY_CONNECTED ->
-            "Listener is already connected."
+            "Bộ lắng nghe thông báo đã được kết nối."
         NotificationCastListener.RebindResult.NO_ACCESS ->
-            "Notification access isn't granted — turn it on in Settings first."
+            "Chưa cấp quyền truy cập thông báo — vui lòng bật trong Cài đặt."
         NotificationCastListener.RebindResult.FAILED ->
-            "Couldn't rebind. Reboot, or toggle notification access off and on."
+            "Không thể kết nối lại. Hãy khởi động lại máy hoặc tắt/bật lại quyền thông báo."
     }
     android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
 }
@@ -217,12 +216,12 @@ private fun clockText(ts: Long): String =
     SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(ts))
 
 private fun agoText(ts: Long, now: Long): String {
-    if (ts <= 0L) return "never"
+    if (ts <= 0L) return "chưa từng"
     val s = ((now - ts) / 1000).coerceAtLeast(0)
     return when {
-        s < 2 -> "just now"
-        s < 60 -> "${s}s ago"
-        s < 3600 -> "${s / 60}m ago"
-        else -> "${s / 3600}h ago"
+        s < 2 -> "vừa xong"
+        s < 60 -> "${s} giây trước"
+        s < 3600 -> "${s / 60} phút trước"
+        else -> "${s / 3600} giờ trước"
     }
 }

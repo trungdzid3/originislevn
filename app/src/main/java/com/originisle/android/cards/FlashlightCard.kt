@@ -15,7 +15,7 @@ import com.originisle.android.service.TorchOffReceiver
 import com.originisle.android.ui.PREFS_NAME
 
 /**
- * Flashlight on: a torch on the island for as long as it's lit; tapping the card (or "Turn off")
+ * Flashlight on: a torch on the island for as long as it's lit; tapping the card (or "Tắt đèn pin")
  * switches it off. [CameraManager]'s torch callback and setTorchMode need no permission.
  */
 object FlashlightCard {
@@ -72,7 +72,7 @@ object FlashlightCard {
 
     private fun update() {
         val context = app ?: return
-        val enabled = context.getSharedPreferences(PREFS_NAME, 0).getBoolean("cast_notifications", false)
+        val enabled = context.getSharedPreferences(PREFS_NAME, 0).getBoolean("cast_notifications", true)
         val on = enabled && torchesOn.isNotEmpty()
         if (on == showing) return
         showing = on
@@ -85,15 +85,15 @@ object FlashlightCard {
             context, ID, Intent(context, TorchOffReceiver::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val offAction = Notification.Action.Builder(icon, "Turn off", off).build()
+        val offAction = Notification.Action.Builder(icon, "Tắt đèn pin", off).build()
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            putExtra("title", "Flashlight on")
-            putExtra("text", "Tap to turn it off")
+            putExtra("title", "Đèn pin đang bật")
+            putExtra("text", "Chạm để tắt đèn pin")
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", icon)
             putExtra("oi_large_icon", icon)
