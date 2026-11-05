@@ -16,9 +16,14 @@ import kotlin.math.abs
 
 object QuickShareCard {
 
+    private const val TEMPLATE_ISLAND_TEXT_SWAP = OriginIslandConstants.TEMPLATE_PRIORITY_INFO // 1
+    private const val TEMPLATE_RIGHT_ISLAND_NONE = 0
+
     private val handler = Handler(Looper.getMainLooper())
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
+
+    fun post(context: Context, sbn: StatusBarNotification, info: QuickShareInfo) = post(context, info, sbn)
 
     fun post(context: Context, info: QuickShareInfo, sbn: StatusBarNotification) {
         val id = IconCache.castIdFor(sbn)
@@ -44,76 +49,94 @@ object QuickShareCard {
             lastProgressMap[id] = info.progress
         }
 
-        IconCache.activeSmallIcons.remove(id)
-        val clickPi = info.contentIntent
-            ?: sbn.notification.contentIntent
-            ?: fallbackClickIntent(context, sbn.packageName)
+        val n = sbn.notification
+        // Quản lý Icon chuẩn Resource theo GenericCard:
+        n.smallIcon?.let { IconCache.activeSmallIcons[id] = it } ?: IconCache.activeSmallIcons.remove(id)
+        val largeIcon: Icon? = try {
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(sbn.packageName, 0)
+            if (appInfo.icon != 0) Icon.createWithResource(sbn.packageName, appInfo.icon)
+            else n.getLargeIcon()
+        } catch (_: Throwable) {
+            n.getLargeIcon()
+        }
+        if (largeIcon != null) {
+            IconCache.activeLargeIcons[id] = largeIcon
+        } else {
+            IconCache.activeLargeIcons.remove(id)
+        }
 
-        val fallbackIcon = Icon.createWithResource(context, R.mipmap.ic_launcher_round)
-        val appIcon = IconCache.safeAppIcon(context, sbn.packageName) ?: fallbackIcon
+        val clickPi = info.contentIntent
+            ?: n.contentIntent
+            ?: fallbackClickIntent(context, sbn.packageName)
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("title", info.title)
-            putExtra("text", info.text)
-            if (!info.speedText.isNullOrBlank()) {
-                putExtra("subtext", "Tốc độ: ${info.speedText}")
-            }
             putExtra("source_pkg", sbn.packageName)
-
-            // Đặt icon
-            putExtra("oi_large_icon", appIcon)
-            putExtra("oi_left_icon", appIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("source_content_intent", clickPi)
+            putExtra("click_resp", clickPi)
+            putExtra("oi_force_show", true)
+            putExtra("is_high_priority", true)
+            putExtra("oi_dismiss_when_kill", true)
 
-            // Cấu hình SuperX chuẩn Vivo OriginOS 6
-            if (info.isRequest) {
-                // Trạng thái yêu cầu nhận tệp (REQUEST)
-                val template = if (info.actions.size >= 2) {
-                    OriginIslandConstants.TEMPLATE_BUTTONS // 8
-                } else {
-                    OriginIslandConstants.TEMPLATE_BASE // 4
+            // Cấu hình SuperX chuẩn Vivo OriginOS 6 theo GenericCard
+            when {
+                info.isRequest -> {
+                    // Trạng thái yêu cầu nhận tệp (REQUEST)
+                    val template = if (info.actions.size >= 2) {
+                        OriginIslandConstants.TEMPLATE_BUTTONS // 8
+                    } else {
+                        OriginIslandConstants.TEMPLATE_BASE // 4
+                    }
+                    putExtra("oi_template", template)
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+                    putExtra("status_chip_text", "Nhận tệp")
+                    putExtra("oi_left_content", "")
+                    putExtra("oi_right_content", "Nhận tệp")
+                    putExtra("oi_island_show_time", 15)
+                    putExtra("is_ongoing", true)
+                    putExtra("title", info.title)
+                    putExtra("text", info.text)
+                    if (info.actions.isNotEmpty()) {
+                        putParcelableArrayListExtra("actions", ArrayList(info.actions))
+                    }
                 }
-                putExtra("oi_template", template)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                putExtra("status_chip_text", "Nhận tệp")
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "Nhận tệp")
-                putExtra("oi_island_show_time", 15)
-                putExtra("oi_force_show", true)
-                putExtra("is_high_priority", true)
-                putExtra("oi_dismiss_when_kill", true)
-                putExtra("is_ongoing", true)
-                if (info.actions.isNotEmpty()) {
-                    putParcelableArrayListExtra("actions", ArrayList(info.actions))
+                info.isFinished -> {
+                    // Trạng thái hoàn tất truyền tệp
+                    putExtra("oi_template", TEMPLATE_ISLAND_TEXT_SWAP) // 1
+                    putExtra("oi_right_template", TEMPLATE_RIGHT_ISLAND_NONE) // 0
+                    putExtra("oi_left_content", "Xong")
+                    putExtra("oi_right_content", "Quick Share")
+                    putExtra("title", "Quick Share · Hoàn tất")
+                    putExtra("text", info.text.ifBlank { "Đã hoàn tất truyền tệp" })
+                    putExtra("is_ongoing", false)
                 }
-            } else {
-                // Trạng thái đang truyền/nhận tệp (PROGRESS)
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-                putExtra("oi_card_ring", info.progress.coerceIn(0, 100))
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-                putExtra("status_chip_text", "${info.progress}%")
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "${info.progress}%")
-
-                putExtra("show_progress", true)
-                putExtra("progress", info.progress.coerceIn(0, 100))
-                putExtra("progress_max", 100)
-
-                putExtra("oi_force_show", true)
-                putExtra("is_high_priority", true)
-                putExtra("oi_dismiss_when_kill", true)
-                putExtra("is_ongoing", !info.isFinished)
-
-                if (info.actions.isNotEmpty()) {
-                    putParcelableArrayListExtra("actions", ArrayList(info.actions))
+                else -> {
+                    // Trạng thái đang truyền/kết nối tệp (PROGRESS / INDETERMINATE)
+                    val pct = if (info.isIndeterminate) 10 else info.progress.coerceIn(1, 99)
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
+                    putExtra("oi_progress", pct)
+                    putExtra("show_progress", true)
+                    putExtra("progress", pct)
+                    putExtra("progress_max", 100)
+                    if (info.isIndeterminate) putExtra("progress_indeterminate", true)
+                    putExtra("oi_left_content", if (info.isIndeterminate) "Chia sẻ" else "${pct}%")
+                    putExtra("oi_right_content", "")
+                    putExtra("title", "Quick Share · ${if (info.isIndeterminate) "Đang kết nối" else "$pct%"}")
+                    putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
+                    if (!info.speedText.isNullOrBlank()) {
+                        putExtra("subtext", "Tốc độ: ${info.speedText}")
+                    }
+                    putExtra("is_ongoing", true)
+                    if (info.actions.isNotEmpty()) {
+                        putParcelableArrayListExtra("actions", ArrayList(info.actions))
+                    }
                 }
             }
-
-            putExtra("click_resp", clickPi)
-            putExtra("source_content_intent", clickPi)
         }
 
         context.startService(intent)

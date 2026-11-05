@@ -119,7 +119,6 @@ fun HomeScreen(
     var earbudsOn by remember {
         mutableStateOf(prefs.getBoolean("cast_earbuds", true) && EarbudsCard.hasPermission(context))
     }
-    var smartScreenshotOn by remember { mutableStateOf(prefs.getBoolean("cast_smart_screenshot", true)) }
 
     val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         earbudsOn = granted
@@ -489,8 +488,8 @@ fun HomeScreen(
                     }
                     GroupDivider()
                     ToggleRow(
-                        IsleIcons.Headphones, IsleColors.Accent, "Tai nghe Bluetooth (OriginOS 7)", earbudsOn,
-                        subtitle = "Viễn trắc pin chi tiết (Tai Trái, Tai Phải và Hộp sạc ⚡)",
+                        IsleIcons.Headphones, IsleColors.Accent, "Tai nghe Bluetooth", earbudsOn,
+                        subtitle = "Hiển thị trực tiếp mức pin Tai trái, Tai phải và Hộp sạc thật trên OriginOS 6",
                     ) {
                         prefs.edit().putBoolean("cast_earbuds", it).apply()
                         if (it && !EarbudsCard.hasPermission(context)) {
@@ -499,13 +498,6 @@ fun HomeScreen(
                             earbudsOn = it
                             EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
                         }
-                    }
-                    GroupDivider()
-                    ToggleRow(
-                        IsleIcons.Scan, IsleColors.Accent, "Bóc tách ảnh chụp màn hình (OriginOS 7)", smartScreenshotOn,
-                        subtitle = "Tự động trích xuất vé máy bay, vé tàu, mã lấy đồ ăn/bưu kiện ghim lên Đảo",
-                    ) {
-                        smartScreenshotOn = it; prefs.edit().putBoolean("cast_smart_screenshot", it).apply()
                     }
                     GroupDivider()
                     ToggleRow(

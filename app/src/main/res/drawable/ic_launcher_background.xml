@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vivo OriginOS 6 Adaptive Icon Background: 135° Linear Gradient with Top-Left Soft Dome Light -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Primary 135-degree Linear Gradient from Vivo Electric Blue (#2555FF) to Origin Cyan-Blue (#0099FF) -->
+    <path
+        android:pathData="M 0,0 H 108 V 108 H 0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108">
+                <item android:color="#2555FF" android:offset="0.0" />
+                <item android:color="#0099FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- OriginOS 6 Soft Ambient Dome Light Glow (Top-Left Radial Accent) -->
+    <path
+        android:pathData="M 0,0 H 108 V 108 H 0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="28"
+                android:centerY="24"
+                android:gradientRadius="76">
+                <item android:color="#4DFFFFFF" android:offset="0.0" />
+                <item android:color="#1AFFFFFF" android:offset="0.45" />
+                <item android:color="#00FFFFFF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

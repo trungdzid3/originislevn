@@ -2,6 +2,7 @@ package com.originisle.android.quickshare
 
 import android.app.Notification
 import android.app.PendingIntent
+import android.content.Context
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import java.util.regex.Pattern
@@ -26,6 +27,9 @@ object QuickShareDetector {
         "com.google.android.gms",
         "com.google.android.apps.sharing",
         "com.vivo.easyshare",
+        "com.vivo.share",
+        "com.bbk.share",
+        "com.android.bluetooth",
         "com.samsung.android.app.share",
     )
 
@@ -41,7 +45,11 @@ object QuickShareDetector {
 
     fun isQuickShare(sbn: StatusBarNotification): Boolean {
         val pkg = sbn.packageName
-        if (pkg !in QUICK_SHARE_PACKAGES && !pkg.contains("easyshare") && !pkg.contains("quickshare")) {
+        if (pkg !in QUICK_SHARE_PACKAGES &&
+            !pkg.contains("easyshare") &&
+            !pkg.contains("quickshare") &&
+            !pkg.contains("share")
+        ) {
             return false
         }
 
@@ -54,29 +62,38 @@ object QuickShareDetector {
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val allText = "$title $text $bigText $subText".lowercase()
 
+        val isChannelMatch = channelId.contains("nearby") ||
+            channelId.contains("nearby_sharing") ||
+            channelId.contains("sharing") ||
+            channelId.contains("quick_share") ||
+            channelId.contains("quickshare") ||
+            channelId.contains("fast_pair")
+
+        val isTextMatch = allText.contains("quick share") ||
+            allText.contains("chia sẻ nhanh") ||
+            allText.contains("chia sẻ lân cận") ||
+            allText.contains("nearby share") ||
+            allText.contains("đang gửi") ||
+            allText.contains("đang nhận") ||
+            allText.contains("sending") ||
+            allText.contains("receiving") ||
+            allText.contains("đã nhận") ||
+            allText.contains("đã gửi") ||
+            allText.contains("đã chia sẻ")
+
         return when (pkg) {
-            "com.google.android.gms" -> {
-                val isChannelMatch = channelId.contains("nearby") ||
-                    channelId.contains("sharing") ||
-                    channelId.contains("quick_share") ||
-                    channelId.contains("quickshare")
-                val isTextMatch = allText.contains("quick share") ||
-                    allText.contains("chia sẻ lân cận") ||
-                    allText.contains("nearby share") ||
-                    allText.contains("chia sẻ nhanh")
-                isChannelMatch || isTextMatch
-            }
+            "com.google.android.gms" -> isChannelMatch || isTextMatch
+            "com.android.bluetooth" -> isChannelMatch || isTextMatch || allText.contains("bluetooth") || allText.contains("chia sẻ") || allText.contains("tệp") || allText.contains("file")
             "com.google.android.apps.sharing",
             "com.vivo.easyshare",
+            "com.vivo.share",
+            "com.bbk.share",
             "com.samsung.android.app.share" -> true
-            else -> {
-                allText.contains("quick share") ||
-                    allText.contains("easyshare") ||
-                    allText.contains("nearby share") ||
-                    allText.contains("chia sẻ")
-            }
+            else -> isChannelMatch || isTextMatch || allText.contains("quick share") || allText.contains("easyshare") || allText.contains("chia sẻ")
         }
     }
+
+    fun detect(sbn: StatusBarNotification, context: Context? = null): QuickShareInfo? = parse(sbn)
 
     fun parse(sbn: StatusBarNotification): QuickShareInfo? {
         if (!isQuickShare(sbn)) return null
@@ -122,7 +139,7 @@ object QuickShareDetector {
         // 2. Progress & Finished detection
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val curr = extras.getInt(NotificationCompat.EXTRA_PROGRESS, 0)
-        val isIndeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
+        var isIndeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
 
         var progress = if (max > 0) {
             (curr * 100 / max).coerceIn(0, 100)
@@ -146,6 +163,20 @@ object QuickShareDetector {
             allTextLower.contains("received") ||
             allTextLower.contains("thành công") ||
             allTextLower.contains("đã chia sẻ")
+
+        // Nếu indeterminate hoặc đang kết nối chờ xác nhận, gán indeterminate = true, progress = 10
+        val isConnectingOrWaiting = isRequest ||
+            allTextLower.contains("đang kết nối") ||
+            allTextLower.contains("connecting") ||
+            allTextLower.contains("chờ xác nhận") ||
+            allTextLower.contains("waiting") ||
+            allTextLower.contains("chuẩn bị") ||
+            allTextLower.contains("preparing")
+
+        if (!isFinished && (isIndeterminate || (isConnectingOrWaiting && max <= 0) || (progress <= 0 && !isFinished))) {
+            isIndeterminate = true
+            if (progress <= 0) progress = 10
+        }
 
         // 3. Speed detection
         val sm = SPEED_PATTERN.matcher(allCombined)

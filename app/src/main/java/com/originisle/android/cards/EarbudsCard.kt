@@ -3,8 +3,12 @@ package com.originisle.android.cards
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothHeadset
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -16,6 +20,7 @@ import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
@@ -24,11 +29,12 @@ import com.originisle.android.service.IconCache
 import com.originisle.android.ui.PREFS_NAME
 
 /**
- * Viễn trắc tai nghe Bluetooth chuẩn OriginOS:
+ * Viễn trắc tai nghe Bluetooth chuẩn OriginOS 6:
  * - Tự động nhận diện tai nghe TWS khi kết nối hoặc mở nắp hộp sạc.
  * - Trích xuất viễn trắc mức pin đa thành phần: Tai Trái (L), Tai Phải (R), và Hộp sạc (Case),
  *   kèm trạng thái sạc (tia sét ⚡).
- * - Hiển thị viễn trắc sống động tức thì lên Đảo Origin.
+ * - Bóc tách pin thật từ thông báo Google Fast Pair / Vivo TWS hoặc AT Command HFP Vendor (+IPHONEACCEV).
+ * - Hiển thị viễn trắc 2 dòng ngắn gọn không bị cắt chữ trên Đảo Origin.
  */
 @SuppressLint("MissingPermission")
 object EarbudsCard {
@@ -47,6 +53,16 @@ object EarbudsCard {
 
     private const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
     private const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
+
+    // AT Command HFP Vendor-Specific Constants
+    private const val ACTION_VENDOR_SPECIFIC_HEADSET_EVENT =
+        "android.bluetooth.headset.action.VENDOR_SPECIFIC_HEADSET_EVENT"
+    private const val EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD =
+        "android.bluetooth.headset.extra.VENDOR_SPECIFIC_HEADSET_EVENT_CMD"
+    private const val EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD_TYPE =
+        "android.bluetooth.headset.extra.VENDOR_SPECIFIC_HEADSET_EVENT_CMD_TYPE"
+    private const val EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS =
+        "android.bluetooth.headset.extra.VENDOR_SPECIFIC_HEADSET_EVENT_ARGS"
 
     // Metadata keys chuẩn Android AOSP cho tai nghe TWS
     private const val METADATA_UNTHETHERED_LEFT_BATTERY = 10
@@ -118,6 +134,10 @@ object EarbudsCard {
             addAction("com.vivo.bluetooth.BATTERY_LEVEL_CHANGED")
             addAction("com.google.android.gms.nearby.fastpair.ACTION_BATTERY_UPDATE")
             addAction("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
+            // HFP Vendor-Specific AT Command (+IPHONEACCEV)
+            addAction(ACTION_VENDOR_SPECIFIC_HEADSET_EVENT)
+            addCategory("android.bluetooth.headset.intent.category.companyid.76")
+            addCategory(Intent.CATEGORY_DEFAULT)
         }
         runCatching { ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED) }
     }
@@ -146,7 +166,7 @@ object EarbudsCard {
                 ?: showingAddress
             if (!address.isNullOrBlank()) {
                 device = runCatching {
-                    val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                    val adapter = BluetoothAdapter.getDefaultAdapter()
                     adapter?.getRemoteDevice(address)
                 }.getOrNull()
             }
@@ -164,7 +184,7 @@ object EarbudsCard {
                     pending.remove(address)
                     val telemetry = readTelemetry(device, intent)
                     deviceTelemetry[address] = telemetry
-                    show(context, device, telemetry, low = false)
+                    show(context, device, null, telemetry, low = false)
                 }
                 pending[address] = task
                 handler.postDelayed(task, BATTERY_WAIT_MS)
@@ -175,6 +195,24 @@ object EarbudsCard {
                 warnedLow -= address
                 if (showingAddress == address) hide(context)
             }
+            ACTION_VENDOR_SPECIFIC_HEADSET_EVENT -> {
+                val cmd = intent.getStringExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD)
+                if (cmd == "+IPHONEACCEV") {
+                    val rawArgs = intent.getSerializableExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*>
+                        ?: (intent.getParcelableArrayExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*>)
+                    val parsed = parseIPhoneAccEv(rawArgs)
+                    if (parsed != null) {
+                        val current = deviceTelemetry[address] ?: EarbudsTelemetry()
+                        val updated = current.copy(
+                            main = parsed.first,
+                            isLeftCharging = if (parsed.second) true else current.isLeftCharging,
+                            isRightCharging = if (parsed.second) true else current.isRightCharging,
+                        )
+                        deviceTelemetry[address] = updated
+                        show(context, device, null, updated, low = (updated.effectiveLevel in 0..LOW_LEVEL))
+                    }
+                }
+            }
             else -> {
                 // Pin thay đổi (BATTERY_LEVEL_CHANGED hoặc intent viễn trắc)
                 val updated = readTelemetry(device, intent)
@@ -184,16 +222,44 @@ object EarbudsCard {
                 when {
                     pending.containsKey(address) -> {
                         pending.remove(address)?.let(handler::removeCallbacks)
-                        show(context, device, updated, low = false)
+                        show(context, device, null, updated, low = false)
                     }
-                    showingAddress == address -> show(context, device, updated, low = eff in 0..LOW_LEVEL)
+                    showingAddress == address -> show(context, device, null, updated, low = eff in 0..LOW_LEVEL)
                     eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && address !in warnedLow -> {
                         warnedLow += address
-                        show(context, device, updated, low = true)
+                        show(context, device, null, updated, low = true)
                     }
                 }
             }
         }
+    }
+
+    private fun parseIPhoneAccEv(args: Array<*>?): Pair<Int, Boolean>? {
+        if (args == null || args.size < 2) return null
+        var battery = -1
+        var charging = false
+        var i = 0
+        if (args.size % 2 != 0) {
+            i = 1 // Phần tử đầu là số lượng chỉ số
+        }
+        while (i + 1 < args.size) {
+            val key = (args[i] as? Number)?.toInt() ?: (args[i] as? String)?.toIntOrNull()
+            val value = (args[i + 1] as? Number)?.toInt() ?: (args[i + 1] as? String)?.toIntOrNull()
+            if (key != null && value != null) {
+                when (key) {
+                    1 -> {
+                        // Key 1 = Battery level (0..9 -> 10%..100%)
+                        battery = ((value + 1) * 10).coerceIn(0, 100)
+                    }
+                    2 -> {
+                        // Key 2 = Dock/Charging (0 = false, 1 = true)
+                        charging = (value == 1)
+                    }
+                }
+            }
+            i += 2
+        }
+        return if (battery in 0..100) Pair(battery, charging) else null
     }
 
     fun parseMetadataInt(bytes: ByteArray?): Int? {
@@ -431,6 +497,146 @@ object EarbudsCard {
         )
     }
 
+    /**
+     * Bóc tách thông số pin Trái, Phải, Hộp sạc thật từ thông báo hệ thống (Fast Pair, Vivo TWS, Bluetooth).
+     */
+    fun tryParseBatteryFromNotification(context: Context, sbn: StatusBarNotification): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
+        if (!prefs.getBoolean("cast_earbuds", true)) return false
+
+        val extras = sbn.notification.extras ?: return false
+        val title = extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
+        val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
+        val subText = extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
+        val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+        val fullText = "$title | $text | $subText | $bigText"
+
+        val pkg = sbn.packageName
+        val isTwsPkg = pkg in setOf(
+            "com.google.android.gms",
+            "com.vivo.tws",
+            "com.vivo.earphone",
+            "com.android.bluetooth",
+            "com.vivo.audiofx",
+            "com.google.android.apps.wearables.maestro.companion",
+            "com.samsung.accessory.neobeanmgr",
+            "com.samsung.accessory.atticmgr",
+        )
+        val hasKeyword = listOf(
+            "earbuds", "tws", "airpods", "buds", "tai nghe", "hộp sạc", "charging case", "headset", "freebuds",
+        ).any { fullText.contains(it, ignoreCase = true) }
+
+        if (!isTwsPkg && !hasKeyword) return false
+        if (!fullText.contains("%")) return false
+
+        val leftRegex = Regex("""(?:L|Left|Trái|Tai trái)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        val rightRegex = Regex("""(?:R|Right|Phải|Tai phải)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        val caseRegex = Regex("""(?:Case|Box|C|Hộp|Hộp sạc|Dock)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        val mainRegex = Regex("""(?:pin|battery|tai nghe)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+
+        val left = leftRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        val right = rightRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        val case = caseRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        var main = mainRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+
+        if (left !in 0..100 && right !in 0..100 && case !in 0..100 && main !in 0..100) {
+            val anyPct = Regex("""(\d{1,3})\s*%""").find(fullText)?.groupValues?.get(1)?.toIntOrNull()
+            if (anyPct != null && anyPct in 0..100) {
+                main = anyPct
+            } else {
+                return false
+            }
+        }
+
+        val isCharging = fullText.contains("⚡") || fullText.contains("đang sạc", ignoreCase = true) || fullText.contains("charging", ignoreCase = true)
+        val isLeftCharging = isCharging && (fullText.contains("L") || fullText.contains("Trái"))
+        val isRightCharging = isCharging && (fullText.contains("R") || fullText.contains("Phải"))
+        val isCaseCharging = isCharging && (fullText.contains("Case") || fullText.contains("Hộp") || fullText.contains("Box"))
+
+        val telemetry = EarbudsTelemetry(
+            main = main,
+            left = left,
+            right = right,
+            case = case,
+            isLeftCharging = isLeftCharging,
+            isRightCharging = isRightCharging,
+            isCaseCharging = isCaseCharging,
+        )
+
+        var devName = title.ifBlank { "Tai nghe TWS" }
+            .replace(Regex("""\s*\(?\d{1,3}%\)?"""), "")
+            .trim()
+        if (devName.isBlank() || devName.equals("Bluetooth", ignoreCase = true)) {
+            devName = "Tai nghe Bluetooth"
+        }
+
+        show(
+            context = context,
+            device = null,
+            customName = devName,
+            telemetry = telemetry,
+            low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
+        )
+        return true
+    }
+
+    /**
+     * Quét và lấy viễn trắc thiết bị tai nghe thật đang kết nối ngay lập tức.
+     */
+    fun pollConnectedDeviceNow(context: Context): Boolean {
+        if (!hasPermission(context)) return false
+        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return false
+        val adapter = bluetoothManager.adapter ?: return false
+        if (!adapter.isEnabled) return false
+
+        // 1. Kiểm tra qua getConnectedDevices của BluetoothManager (HEADSET & A2DP)
+        val connectedFromManager = runCatching {
+            val list = mutableListOf<BluetoothDevice>()
+            list.addAll(bluetoothManager.getConnectedDevices(BluetoothProfile.HEADSET))
+            list.addAll(bluetoothManager.getConnectedDevices(BluetoothProfile.A2DP))
+            list.distinctBy { it.address }
+        }.getOrDefault(emptyList())
+
+        // 2. Kiểm tra qua bondedDevices và reflection isConnected()
+        val connectedDevices = if (connectedFromManager.isNotEmpty()) {
+            connectedFromManager
+        } else {
+            runCatching {
+                val bonded = adapter.bondedDevices ?: emptySet()
+                val isConnectedMethod = BluetoothDevice::class.java.getMethod("isConnected")
+                bonded.filter { dev ->
+                    isAudio(dev) && (isConnectedMethod.invoke(dev) as? Boolean == true)
+                }
+            }.getOrDefault(emptyList())
+        }
+
+        val targetDevice = connectedDevices.firstOrNull { isAudio(it) } ?: connectedDevices.firstOrNull()
+        if (targetDevice != null) {
+            val address = targetDevice.address
+            val cached = deviceTelemetry[address]
+            val batteryLevel = batteryOf(targetDevice)
+            val telemetry = if (cached != null && cached.effectiveLevel in 0..100) {
+                cached
+            } else {
+                val read = readTelemetry(targetDevice, null)
+                if (read.effectiveLevel in 0..100) read
+                else if (batteryLevel in 0..100) read.copy(main = batteryLevel)
+                else read
+            }
+            deviceTelemetry[address] = telemetry
+            show(
+                context = context,
+                device = targetDevice,
+                customName = null,
+                telemetry = telemetry,
+                low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
+            )
+            return true
+        }
+
+        return false
+    }
+
     private fun isAudio(device: BluetoothDevice): Boolean =
         runCatching { device.bluetoothClass?.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO }
             .getOrDefault(false)
@@ -463,13 +669,21 @@ object EarbudsCard {
         }
     }
 
-    private fun show(context: Context, device: BluetoothDevice, telemetry: EarbudsTelemetry, low: Boolean) {
-        if (!enabled(context)) return
-        val name = runCatching { device.alias ?: device.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
-        val level = telemetry.effectiveLevel
-        val known = level in 0..100
-        val isLow = known && level <= LOW_LEVEL
-        val glyph = if (isOverEar(device, name)) R.drawable.ic_headphones else R.drawable.ic_earbuds
+    private fun show(
+        context: Context,
+        device: BluetoothDevice?,
+        customName: String? = null,
+        telemetry: EarbudsTelemetry,
+        low: Boolean,
+    ) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
+        if (!prefs.getBoolean("cast_earbuds", true)) return
+
+        val name = customName ?: runCatching { device?.alias ?: device?.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
+        val effectivePct = telemetry.effectiveLevel
+        val known = effectivePct in 0..100
+        val isLow = known && effectivePct <= LOW_LEVEL
+        val glyph = if (device != null && isOverEar(device, name)) R.drawable.ic_headphones else R.drawable.ic_earbuds
         val safeIcon = createSafeIcon(context, glyph)
         IconCache.activeSmallIcons.remove(ID)
 
@@ -478,38 +692,33 @@ object EarbudsCard {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        // Tạo chuỗi mô tả viễn trắc đa thành phần cho thẻ mở rộng (3 phân vùng L / R / Case)
-        val details = if (telemetry.left in 0..100 || telemetry.right in 0..100) {
-            val parts = mutableListOf<String>()
-            if (telemetry.left in 0..100) {
-                parts.add("Tai Trái: ${telemetry.left}%" + if (telemetry.isLeftCharging) " ⚡" else "")
-            }
-            if (telemetry.right in 0..100) {
-                parts.add("Tai Phải: ${telemetry.right}%" + if (telemetry.isRightCharging) " ⚡" else "")
-            }
-            if (telemetry.case in 0..100) {
-                parts.add("Hộp sạc: ${telemetry.case}%" + if (telemetry.isCaseCharging) " ⚡" else "")
-            }
-            parts.joinToString("   |   ")
-        } else if (telemetry.case in 0..100) {
-            "Tai nghe: Trong hộp   |   Hộp sạc: ${telemetry.case}%" + if (telemetry.isCaseCharging) " ⚡" else ""
-        } else if (known) {
-            "Tai nghe: $level%   |   Hộp sạc: Sẵn sàng"
+        // Dòng 1: oi_title (Nếu có Hộp sạc thật thì hiện tên + Hộp sạc)
+        val displayTitle = if (telemetry.case in 1..100) {
+            "${name.take(16)} · Hộp: ${telemetry.case}%${if (telemetry.isCaseCharging) "⚡" else ""}"
+        } else {
+            name.take(24)
+        }
+
+        // Dòng 2: oi_text (Ngắn gọn 1 dòng không bị cắt chữ ...)
+        val displayText = if (telemetry.left in 0..100 && telemetry.right in 0..100) {
+            val lText = "${telemetry.left}%${if (telemetry.isLeftCharging) "⚡" else ""}"
+            val rText = "${telemetry.right}%${if (telemetry.isRightCharging) "⚡" else ""}"
+            "Trái (L): $lText   ·   Phải (R): $rText"
+        } else if (telemetry.left in 0..100) {
+            val lText = "${telemetry.left}%${if (telemetry.isLeftCharging) "⚡" else ""}"
+            "Trái (L): $lText · Đang kết nối âm thanh"
+        } else if (telemetry.right in 0..100) {
+            val rText = "${telemetry.right}%${if (telemetry.isRightCharging) "⚡" else ""}"
+            "Phải (R): $rText · Đang kết nối âm thanh"
+        } else if (telemetry.main in 0..100) {
+            "Pin tai nghe: ${telemetry.main}% · Đang kết nối âm thanh"
         } else {
             "Tai nghe Bluetooth · Đã kết nối"
         }
 
-        // Tạo nội dung viên thuốc thu gọn (Capsule pill)
-        val pillStatus = when {
-            telemetry.left in 0..100 && telemetry.right in 0..100 -> {
-                "L ${telemetry.left}% · R ${telemetry.right}%"
-            }
-            telemetry.left in 0..100 -> "L ${telemetry.left}%"
-            telemetry.right in 0..100 -> "R ${telemetry.right}%"
-            telemetry.case in 0..100 -> "Hộp ${telemetry.case}%"
-            known -> "$level%"
-            else -> "Đã kết nối"
-        }
+        // Nội dung thu gọn
+        val leftContent = if (known) "${effectivePct}%" else "Tai nghe"
+        val pillStatus = if (known) "${effectivePct}%" else "Đã kết nối"
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -517,25 +726,19 @@ object EarbudsCard {
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            putExtra("title", if (low) "Pin yếu · $name" else name)
-            putExtra("text", details)
+            putExtra("title", if (low) "Pin yếu · $displayTitle" else displayTitle)
+            putExtra("text", displayText)
             putExtra("subtext", "Tai nghe Bluetooth · Đã kết nối")
-            putExtra("oi_left_content", "")
+            putExtra("oi_left_content", leftContent)
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("oi_right_content", pillStatus)
+            putExtra("oi_right_content", "")
             putExtra("status_chip_text", pillStatus)
-            putExtra("oi_card_ring", if (known) level else 100)
 
-            if (telemetry.hasDetails) {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                putExtra("oi_fg_color", if (isLow) RED else GREEN)
-                putExtra("oi_bg_color", if (isLow) RED_TRACK else GREEN_TRACK)
-            } else if (known) {
+            if (known) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-                putExtra("oi_progress", level)
-                putExtra("oi_card_ring", level)
+                putExtra("oi_progress", effectivePct)
                 putExtra("oi_fg_color", if (isLow) RED else GREEN)
                 putExtra("oi_bg_color", if (isLow) RED_TRACK else GREEN_TRACK)
             } else {
@@ -550,7 +753,7 @@ object EarbudsCard {
         }
 
         context.startService(intent)
-        showingAddress = device.address
+        showingAddress = device?.address ?: "notification_tws"
         hideTask?.let(handler::removeCallbacks)
         hideTask = Runnable { hide(context) }.also { handler.postDelayed(it, SHOW_MS) }
     }

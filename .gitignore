@@ -16,6 +16,7 @@ keystore.properties
 
 # Built release artifacts (upload to GitHub Releases, don't commit).
 /dist
+*.apk
 
 # Backups & Scan logs
 backups/
