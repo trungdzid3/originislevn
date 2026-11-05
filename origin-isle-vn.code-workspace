@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "name": "Origin Isle VN",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.encoding": "utf8",
+    "files.eol": "\n",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  }
+}
