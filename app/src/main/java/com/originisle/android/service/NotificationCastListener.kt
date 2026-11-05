@@ -33,6 +33,8 @@ import com.originisle.android.cards.PaymentCard
 import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.cards.RideCard
 import com.originisle.android.cards.DownloadCard
+import com.originisle.android.cards.QuickShareCard
+import com.originisle.android.quickshare.QuickShareDetector
 import com.originisle.android.download.DownloadDetector
 import com.originisle.android.bank.VietnamBankDetector
 import com.originisle.android.ride.VietnamRideDetector
@@ -483,7 +485,18 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
-            // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
+            // 3) Quick Share (Google Play Services, Google Quick Share, Vivo EasyShare, Samsung Quick Share)
+            if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
+                val qsInfo = QuickShareDetector.parse(sbn)
+                if (qsInfo != null) {
+                    QuickShareCard.post(applicationContext, qsInfo, sbn)
+                    val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
+                    log(sbn, "hiển thị — Quick Share $mode", true)
+                    return
+                }
+            }
+
+            // 4) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
             if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
                 val dlInfo = DownloadDetector.parse(sbn)
                 if (dlInfo != null) {
@@ -494,7 +507,7 @@ class NotificationCastListener : NotificationListenerService() {
             }
 
             // Bỏ qua thông báo hệ thống thông thường nếu không phải tiến trình tải xuống
-            if (sbn.packageName in SYSTEM_PKGS && !DownloadDetector.isDownload(sbn)) return
+            if (sbn.packageName in SYSTEM_PKGS && !DownloadDetector.isDownload(sbn) && !QuickShareDetector.isQuickShare(sbn)) return
 
         // A group summary ("3 new messages") stays active alongside the individual notifications it
         // summarizes — casting both means the same event shows up on the island twice (Gmail is the
@@ -532,7 +545,7 @@ class NotificationCastListener : NotificationListenerService() {
         // calls, navigation and timers/alarms here; media and login codes were handled above.
         val isOngoingNow = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
         if (QuietHours.isActive(prefs, currentInterruptionFilter) &&
-            !isCall && !isNavigation(sbn, isOngoingNow) && !isTimer(sbn) && !DownloadDetector.isDownload(sbn)
+            !isCall && !isNavigation(sbn, isOngoingNow) && !isTimer(sbn) && !DownloadDetector.isDownload(sbn) && !QuickShareDetector.isQuickShare(sbn)
         ) {
             log(sbn, "bỏ qua — giờ yên tĩnh", false); return
         }
@@ -889,6 +902,9 @@ class NotificationCastListener : NotificationListenerService() {
         }
 
         val id = IconCache.castIdFor(sbn)
+        if (QuickShareDetector.isQuickShare(sbn)) {
+            QuickShareCard.clear(id)
+        }
         IconCache.clear(id)
         lastMatchIcons.remove(id)
         startService(

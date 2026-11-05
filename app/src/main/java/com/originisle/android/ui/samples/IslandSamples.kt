@@ -60,16 +60,15 @@ object IslandSamples {
         },
         OriginSample(
             "Mã OTP", "Mã xác thực SMS FPT Long Châu · 490 603",
-            IslandPreview(R.drawable.ic_alert, "MÃ OTP", IslandPreview.Right.Text("490 603")),
+            IslandPreview(R.drawable.ic_alert, "MÃ OTP", IslandPreview.Right.Capsule("490 603")),
         ) { ctx ->
             start(ctx, 40015) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_show_right_icon", false)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
                 putExtra("oi_left_content", "MÃ OTP")
-                putExtra("oi_right_content", "490603")
-                putExtra("status_chip_text", "490603")
+                putExtra("oi_right_content", "490 603")
+                putExtra("status_chip_text", "490 603")
                 putExtra("oi_fg_color", "#00E5FF")
                 putExtra("title", "490 603")
                 putExtra("text", "Mã xác thực · FPT Long Châu")
@@ -300,6 +299,38 @@ object IslandSamples {
                 putExtra("icon_res", R.drawable.ic_earbuds)
             }
         },
+        OriginSample(
+            "Quick Share (Yêu cầu nhận tệp)", "Galaxy S24 Ultra · Tai_lieu_2026.pdf (15 MB)",
+            IslandPreview(R.drawable.ic_download, "Quick Share", IslandPreview.Right.None),
+        ) { ctx ->
+            start(ctx, 40031) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+                putExtra("title", "Galaxy S24 Ultra")
+                putExtra("text", "Tai_lieu_2026.pdf (15 MB)")
+                putExtra("oi_left_content", "Quick Share")
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Chấp nhận"))
+                putExtra("icon_res", R.drawable.ic_download)
+            }
+        },
+        OriginSample(
+            "Quick Share (Đang nhận)", "Ảnh_chụp_origin.heic · 65% · 4.2 MB/s",
+            IslandPreview(R.drawable.ic_download, "Quick Share", IslandPreview.Right.Progress(0.65f)),
+        ) { ctx ->
+            start(ctx, 40032) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
+                putExtra("title", "Quick Share")
+                putExtra("text", "Ảnh_chụp_origin.heic · 65% · 4.2 MB/s")
+                putExtra("oi_left_content", "Quick Share")
+                putExtra("show_progress", true)
+                putExtra("progress", 65)
+                putExtra("progress_max", 100)
+                putExtra("status_chip_text", "65%")
+                putExtra("icon_res", R.drawable.ic_download)
+            }
+        },
     )
 
     private fun start(context: Context, id: Int, configure: Intent.() -> Unit) {
@@ -309,6 +340,8 @@ object IslandSamples {
             putExtra("click_resp", openApp(context))
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
+            putExtra("oi_show_notify", false)
+            putExtra("oi_island_show_time", 15)
             configure()
         }
         context.startService(intent)
