@@ -145,13 +145,14 @@ object PaymentCard {
             clickResp = clickResp,
             generating = 0,
             iconStatus = if (isIncome) OriginIslandConstants.ICON_STATUS_SUCCESS else -1,
-            rightTemplate = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT,
+            rightTemplate = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON,
             chip = rawAmountClean,
             bgColor = accentColor,
             lightColor = accentColor,
-            fgColor = WHITE,
+            fgColor = accentColor,
             leftContent = transaction.bankName,
             rightContent = rawAmountClean,
+            showRightIcon = false,
         )
 
         // Auto-dismiss
@@ -213,6 +214,7 @@ object PaymentCard {
         fgColor: String = if (chip == "✓") WHITE else GREEN,
         leftContent: String? = null,
         rightContent: String? = null,
+        showRightIcon: Boolean = true,
     ) {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -226,6 +228,7 @@ object PaymentCard {
             putExtra("oi_left_content", leftContent ?: title)
             putExtra("oi_right_content", rightContent ?: chip)
             putExtra("status_chip_text", chip)
+            putExtra("oi_show_right_icon", showRightIcon)
             // Small notification/status icon must always be a mipmap (ic_launcher_round).
             // Clear from activeSmallIcons to ensure PlaygroundService never picks a vector XML from another notification.
             IconCache.activeSmallIcons.remove(id)

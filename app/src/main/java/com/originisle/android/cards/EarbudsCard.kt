@@ -73,11 +73,11 @@ object EarbudsCard {
     ) {
         val hasDetails: Boolean get() = (left in 0..100 || right in 0..100 || case in 0..100)
         val effectiveLevel: Int get() = when {
-            main in 0..100 -> main
             left in 0..100 && right in 0..100 -> (left + right) / 2
             left in 0..100 -> left
             right in 0..100 -> right
             case in 0..100 -> case
+            main in 0..100 -> main
             else -> -1
         }
     }
@@ -137,7 +137,21 @@ object EarbudsCard {
 
     private fun handle(intent: Intent) {
         val context = app ?: return
-        val device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java) ?: return
+        var device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+        if (device == null) {
+            val address = intent.getStringExtra("address")
+                ?: intent.getStringExtra("device_address")
+                ?: intent.getStringExtra("mac")
+                ?: intent.getStringExtra("BLUETOOTH_DEVICE_ADDRESS")
+                ?: showingAddress
+            if (!address.isNullOrBlank()) {
+                device = runCatching {
+                    val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                    adapter?.getRemoteDevice(address)
+                }.getOrNull()
+            }
+        }
+        if (device == null) return
         if (!isAudio(device)) return
         val address = device.address
 
@@ -182,6 +196,22 @@ object EarbudsCard {
         }
     }
 
+    fun parseMetadataInt(bytes: ByteArray?): Int? {
+        if (bytes == null || bytes.isEmpty()) return null
+        val ascii = runCatching { String(bytes).trim().toIntOrNull() }.getOrNull()
+        if (ascii != null && ascii in 0..100) return ascii
+        val binary = bytes[0].toInt() and 0xFF
+        return binary.takeIf { it in 0..100 }
+    }
+
+    fun parseMetadataBoolean(bytes: ByteArray?): Boolean {
+        if (bytes == null || bytes.isEmpty()) return false
+        val s = runCatching { String(bytes).trim().lowercase() }.getOrDefault("")
+        if (s == "true" || s == "1") return true
+        if (s == "false" || s == "0") return false
+        return bytes[0].toInt() != 0
+    }
+
     private fun extractBattery(bundle: android.os.Bundle?, vararg keys: String): Int {
         if (bundle == null) return -1
         for (k in keys) {
@@ -189,7 +219,7 @@ object EarbudsCard {
             val num = when (v) {
                 is Number -> v.toInt()
                 is String -> v.trim().toIntOrNull()
-                is ByteArray -> if (v.isNotEmpty()) v[0].toInt() and 0xFF else null
+                is ByteArray -> parseMetadataInt(v)
                 else -> null
             }
             if (num != null && num in 0..100) return num
@@ -215,7 +245,7 @@ object EarbudsCard {
                 val num = when (v) {
                     is Number -> v.toInt()
                     is String -> v.trim().toIntOrNull()
-                    is ByteArray -> if (v.isNotEmpty()) v[0].toInt() and 0xFF else null
+                    is ByteArray -> parseMetadataInt(v)
                     else -> null
                 }
                 if (num != null && num in 0..100) return num
@@ -235,6 +265,7 @@ object EarbudsCard {
                     val s = v.trim().lowercase()
                     if (s == "true" || s == "1" || s == "charging") return true
                 }
+                is ByteArray -> if (parseMetadataBoolean(v)) return true
             }
         }
         return false
@@ -260,6 +291,7 @@ object EarbudsCard {
                             val s = v.trim().lowercase()
                             if (s == "true" || s == "1" || s == "charging") return true
                         }
+                        is ByteArray -> if (parseMetadataBoolean(v)) return true
                     }
                 }
             }
@@ -287,7 +319,7 @@ object EarbudsCard {
             extras,
             "android.bluetooth.device.extra.BATTERY_LEVEL_LEFT",
             "left_battery", "battery_left", "left_level", "batteryLevelLeft",
-            "KEY_BATTERY_LEFT", "leftBattery", "left",
+            "KEY_BATTERY_LEFT", "leftBattery", "vivo_battery_left", "left",
         )
         if (left !in 0..100) {
             left = scanKeysForBattery(
@@ -302,7 +334,7 @@ object EarbudsCard {
             extras,
             "android.bluetooth.device.extra.BATTERY_LEVEL_RIGHT",
             "right_battery", "battery_right", "right_level", "batteryLevelRight",
-            "KEY_BATTERY_RIGHT", "rightBattery", "right",
+            "KEY_BATTERY_RIGHT", "rightBattery", "vivo_battery_right", "right",
         )
         if (right !in 0..100) {
             right = scanKeysForBattery(
@@ -318,7 +350,8 @@ object EarbudsCard {
             "android.bluetooth.device.extra.BATTERY_LEVEL_CASE",
             "case_battery", "box_battery", "battery_case", "battery_box",
             "case_level", "box_level", "batteryLevelCase", "batteryLevelBox",
-            "KEY_BATTERY_CASE", "KEY_BATTERY_BOX", "caseBattery", "boxBattery", "case", "box", "dock",
+            "KEY_BATTERY_CASE", "KEY_BATTERY_BOX", "caseBattery", "boxBattery",
+            "vivo_battery_case", "vivo_battery_box", "case", "box", "dock",
         )
         if (case !in 0..100) {
             case = scanKeysForBattery(
@@ -333,6 +366,7 @@ object EarbudsCard {
             extras,
             "android.bluetooth.device.extra.CHARGE_STATUS_LEFT",
             "left_charge", "charge_left", "left_charging", "is_left_charging",
+            "charge_status_left", "vivo_charge_left",
         )
         if (!leftCharging) {
             leftCharging = scanKeysForCharging(
@@ -346,6 +380,7 @@ object EarbudsCard {
             extras,
             "android.bluetooth.device.extra.CHARGE_STATUS_RIGHT",
             "right_charge", "charge_right", "right_charging", "is_right_charging",
+            "charge_status_right", "vivo_charge_right",
         )
         if (!rightCharging) {
             rightCharging = scanKeysForCharging(
@@ -360,6 +395,7 @@ object EarbudsCard {
             "android.bluetooth.device.extra.CHARGE_STATUS_CASE",
             "case_charge", "box_charge", "charge_case", "charge_box",
             "case_charging", "box_charging", "is_case_charging",
+            "charge_status_case", "charge_status_box", "vivo_charge_case",
         )
         if (!caseCharging) {
             caseCharging = scanKeysForCharging(
@@ -372,17 +408,17 @@ object EarbudsCard {
         // 6. Đọc metadata qua reflection chuẩn Android AOSP nếu intent không mang đủ
         runCatching {
             val getMetaMethod = BluetoothDevice::class.java.getMethod("getMetadata", Int::class.javaPrimitiveType)
-            fun getMetaString(key: Int): String? = (getMetaMethod.invoke(device, key) as? ByteArray)?.let { String(it).trim() }
+            fun getMetaBytes(key: Int): ByteArray? = getMetaMethod.invoke(device, key) as? ByteArray
 
-            if (left !in 0..100) left = getMetaString(METADATA_UNTHETHERED_LEFT_BATTERY)?.toIntOrNull() ?: -1
-            if (right !in 0..100) right = getMetaString(METADATA_UNTHETHERED_RIGHT_BATTERY)?.toIntOrNull() ?: -1
-            if (case !in 0..100) case = getMetaString(METADATA_UNTHETHERED_CASE_BATTERY)?.toIntOrNull() ?: -1
-            if (main !in 0..100) main = getMetaString(METADATA_MAIN_BATTERY)?.toIntOrNull() ?: -1
+            if (left !in 0..100) left = parseMetadataInt(getMetaBytes(METADATA_UNTHETHERED_LEFT_BATTERY)) ?: -1
+            if (right !in 0..100) right = parseMetadataInt(getMetaBytes(METADATA_UNTHETHERED_RIGHT_BATTERY)) ?: -1
+            if (case !in 0..100) case = parseMetadataInt(getMetaBytes(METADATA_UNTHETHERED_CASE_BATTERY)) ?: -1
+            if (main !in 0..100) main = parseMetadataInt(getMetaBytes(METADATA_MAIN_BATTERY)) ?: -1
 
-            if (!leftCharging) leftCharging = getMetaString(METADATA_UNTHETHERED_LEFT_CHARGING).toBoolean()
-            if (!rightCharging) rightCharging = getMetaString(METADATA_UNTHETHERED_RIGHT_CHARGING).toBoolean()
-            if (!caseCharging) caseCharging = getMetaString(METADATA_UNTHETHERED_CASE_CHARGING).toBoolean()
-        }
+            if (!leftCharging) leftCharging = parseMetadataBoolean(getMetaBytes(METADATA_UNTHETHERED_LEFT_CHARGING))
+            if (!rightCharging) rightCharging = parseMetadataBoolean(getMetaBytes(METADATA_UNTHETHERED_RIGHT_CHARGING))
+            if (!caseCharging) caseCharging = parseMetadataBoolean(getMetaBytes(METADATA_UNTHETHERED_CASE_CHARGING))
+        }.onFailure { Log.w(TAG, "getMetadata reflection failed", it) }
 
         return EarbudsTelemetry(
             main = main,
@@ -456,8 +492,7 @@ object EarbudsCard {
             }
             parts.joinToString("   |   ")
         } else if (telemetry.case in 0..100) {
-            val earbudInfo = if (known) "$level%" else "Trong hộp"
-            "Tai nghe: $earbudInfo   |   Hộp sạc: ${telemetry.case}%" + if (telemetry.isCaseCharging) " ⚡" else ""
+            "Tai nghe: Trong hộp   |   Hộp sạc: ${telemetry.case}%" + if (telemetry.isCaseCharging) " ⚡" else ""
         } else if (known) {
             "Tai nghe: $level%   |   Hộp sạc: Sẵn sàng"
         } else {
@@ -467,15 +502,11 @@ object EarbudsCard {
         // Tạo nội dung viên thuốc thu gọn (Capsule pill)
         val pillStatus = when {
             telemetry.left in 0..100 && telemetry.right in 0..100 -> {
-                if (telemetry.case in 0..100) {
-                    "L ${telemetry.left}% · R ${telemetry.right}% · Box ${telemetry.case}%"
-                } else {
-                    "L ${telemetry.left}% · R ${telemetry.right}%"
-                }
+                "L ${telemetry.left}% · R ${telemetry.right}%"
             }
             telemetry.left in 0..100 -> "L ${telemetry.left}%"
             telemetry.right in 0..100 -> "R ${telemetry.right}%"
-            telemetry.case in 0..100 -> "Box ${telemetry.case}%"
+            telemetry.case in 0..100 -> "Hộp ${telemetry.case}%"
             known -> "$level%"
             else -> "Đã kết nối"
         }

@@ -60,6 +60,7 @@ import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
 import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.island.PlaygroundService
+import com.originisle.android.log.CastLog
 import com.originisle.android.service.NotificationCastListener
 import com.originisle.android.service.QuietHours
 import com.originisle.android.ui.samples.IslandSamples
@@ -158,6 +159,7 @@ fun HomeScreen(
 
     var connected by remember { mutableStateOf(NotificationCastListener.instance != null) }
     LaunchedEffect(Unit) {
+        CastLog.ensureLoaded(context)
         while (true) {
             connected = NotificationCastListener.instance != null
             delay(1000)
@@ -262,9 +264,27 @@ fun HomeScreen(
             }
         }
 
-        // Cảnh báo nếu quyền listener hoặc pin bị OriginOS hạn chế
-        if (!listenerOk || !batteryOk) {
-            item { SetupAttentionBanner(onClick = { permissionsOpen = true }) }
+        // Cảnh báo nếu quyền listener hoặc pin bị OriginOS hạn chế, hoặc khi NotificationCastListener chưa liên kết
+        if (!connected || !listenerOk || !batteryOk) {
+            item {
+                VivoOriginAttentionBanner(
+                    connected = connected,
+                    listenerOk = listenerOk,
+                    batteryOk = batteryOk,
+                    onOpenPermissions = { permissionsOpen = true },
+                    onOpenSettings = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    },
+                    onReconnect = {
+                        recastAll(context)
+                    },
+                )
+            }
         }
 
         // 2. THẺ CHỌN CHẾ ĐỘ SÁNG / TỐI (Phone Mockups chuẩn Screenshot 2)
@@ -986,4 +1006,91 @@ private fun recastAll(context: Context) {
     android.widget.Toast.makeText(
         context, "Đã phát lại $count thông báo lên đảo.", android.widget.Toast.LENGTH_SHORT,
     ).show()
+}
+
+@Composable
+private fun VivoOriginAttentionBanner(
+    connected: Boolean,
+    listenerOk: Boolean,
+    batteryOk: Boolean,
+    onOpenPermissions: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onReconnect: () -> Unit,
+) {
+    val isRed = !connected || !listenerOk
+    val bg = if (isRed) IsleColors.BadBg else IsleColors.WarnBg
+    val borderCol = if (isRed) IsleColors.Bad.copy(alpha = 0.5f) else IsleColors.Warn.copy(alpha = 0.5f)
+    val textCol = if (isRed) IsleColors.BadText else IsleColors.Warn
+    val iconTileCol = if (isRed) IsleColors.Bad else IsleColors.TileOrange
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(bg)
+            .border(1.dp, borderCol, RoundedCornerShape(22.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClick = onOpenPermissions),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconTile(IsleIcons.Shield, iconTileCol)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (!connected) "Dịch vụ thông báo chưa kết nối" else "Cài đặt cần lưu ý trên Vivo OriginOS",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IsleColors.Text,
+                )
+                Text(
+                    if (!listenerOk) {
+                        "Chưa cấp quyền Truy cập thông báo"
+                    } else if (!connected) {
+                        "Dịch vụ bị OriginOS chặn hoặc cần mở khóa Cài đặt bị hạn chế"
+                    } else {
+                        "Cần tắt hạn chế pin để chạy nền ổn định"
+                    },
+                    fontSize = 13.sp,
+                    color = textCol,
+                )
+            }
+            Icon(IsleIcons.ChevronRight, null, Modifier.size(18.dp), tint = textCol)
+        }
+
+        if (!connected) {
+            Text(
+                "Để khắc phục trên OriginOS: Vào Cài đặt ứng dụng -> dấu 3 chấm góc trên -> Cho phép cài đặt bị hạn chế (Restricted Settings) & bật Tự khởi chạy.",
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = IsleColors.TextSecondary,
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PillButton(
+                    text = "Cài đặt ứng dụng",
+                    onClick = onOpenSettings,
+                    modifier = Modifier.weight(1f),
+                    container = IsleColors.SurfaceHigh,
+                    content = IsleColors.Text,
+                    height = 36.dp,
+                )
+                PillButton(
+                    text = "Thử kết nối lại",
+                    onClick = onReconnect,
+                    modifier = Modifier.weight(1f),
+                    icon = IsleIcons.Refresh,
+                    container = if (isRed) IsleColors.Bad else IsleColors.Accent,
+                    content = Color.White,
+                    height = 36.dp,
+                )
+            }
+        }
+    }
 }

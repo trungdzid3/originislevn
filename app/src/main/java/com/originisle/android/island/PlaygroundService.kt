@@ -416,11 +416,13 @@ class PlaygroundService : Service() {
         val buttonTitles = intent.getStringArrayListExtra("oi_button_titles") ?: emptyList()
 
         // capsule / right-island chip text: prefer explicit chip, else right content.
+        // Chỉ gắn chỉ số deck trên action button "[ ⟲ Đổi tác vụ ($displayIndex/$deckCount) ]".
+        // Tuyệt đối không tự tiện ghép "· $displayIndex/$deckCount ❯" vào baseChip vì sẽ làm tràn capsule SuperX trên OriginOS!
         val baseChip = statusChip.ifBlank { rightContent }
         val chip = when {
-            deckCount >= 2 && baseChip.isNotBlank() -> "$baseChip · $displayIndex/$deckCount ❯"
+            baseChip.isNotBlank() -> baseChip
             deckCount >= 2 -> "$displayIndex/$deckCount ❯"
-            else -> baseChip
+            else -> ""
         }
 
         val changeRecord = ((originChangeRecord[id] ?: 0) + 1).also { originChangeRecord[id] = it }
@@ -431,7 +433,7 @@ class PlaygroundService : Service() {
             title = title,
             content = text,
             leftContent = leftContent,
-            rightContent = chip,
+            rightContent = if (rightContent.isNotBlank()) rightContent else chip,
             extra1 = extra1, extra2 = extra2, extra3 = extra3, extra4 = extra4,
             rightTemplate = rightTemplate,
             defaultIcon = baseIcon,
@@ -607,13 +609,18 @@ class PlaygroundService : Service() {
         activeDeck.removeAll { it.id == id }
 
         val scene = originScenes.remove(id) ?: intent.getStringExtra("oi_scene")
-        if (scene != null) {
-            endOrigin(id, scene)
+        val isCurrentlyActiveInScene = (scene != null && sceneCurrentId[scene] == id)
+
+        if (isCurrentlyActiveInScene) {
+            endOrigin(id, scene!!)
             sceneCurrentId.remove(scene)
             mainHandler.postDelayed({
                 notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
             }, 350L)
         } else {
+            runCatching {
+                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
+            }
             notificationManager.cancel(id)
         }
         activeIds.remove(id)

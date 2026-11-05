@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vivo OriginOS 7 Atomic Dynamic Island Logo Foreground -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. OriginOS 7 Aura Neon Glow - Layer 3 (Deep Teal Ambient Halo) -->
+    <path
+        android:pathData="M 39,36 H 69 A 18 18 0 0 1 87 54 A 18 18 0 0 1 69 72 H 39 A 18 18 0 0 1 21 54 A 18 18 0 0 1 39 36 Z"
+        android:strokeWidth="8"
+        android:strokeColor="#00696E"
+        android:strokeAlpha="0.18" />
+
+    <!-- 2. OriginOS 7 Aura Neon Glow - Layer 2 (Emerald Cyan Aura Ring) -->
+    <path
+        android:pathData="M 39,39 H 69 A 15 15 0 0 1 84 54 A 15 15 0 0 1 69 69 H 39 A 15 15 0 0 1 24 54 A 15 15 0 0 1 39 39 Z"
+        android:strokeWidth="4"
+        android:strokeColor="#00BFA5"
+        android:strokeAlpha="0.32" />
+
+    <!-- 3. OriginOS 7 Aura Neon Glow - Layer 1 (Electric Cyan Focus Halo) -->
+    <path
+        android:pathData="M 39,41 H 69 A 13 13 0 0 1 82 54 A 13 13 0 0 1 69 67 H 39 A 13 13 0 0 1 26 54 A 13 13 0 0 1 39 41 Z"
+        android:strokeWidth="2"
+        android:strokeColor="#00E5FF"
+        android:strokeAlpha="0.55" />
+
+    <!-- 4. Dynamic Capsule Island - Obsidian Tech Surface -->
+    <path
+        android:pathData="M 39,42 H 69 A 12 12 0 0 1 81 54 A 12 12 0 0 1 69 66 H 39 A 12 12 0 0 1 27 54 A 12 12 0 0 1 39 42 Z"
+        android:fillColor="#101822" />
+
+    <!-- 5. Dynamic Capsule Island - Precision Neon Rim -->
+    <path
+        android:pathData="M 39,42 H 69 A 12 12 0 0 1 81 54 A 12 12 0 0 1 69 66 H 39 A 12 12 0 0 1 27 54 A 12 12 0 0 1 39 42 Z"
+        android:strokeWidth="1.25"
+        android:strokeColor="#00E5FF"
+        android:strokeAlpha="0.90" />
+
+    <!-- 6. Atomic Glass Reflection Rim -->
+    <path
+        android:pathData="M 39,43 H 69"
+        android:strokeWidth="1.0"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.35"
+        android:strokeLineCap="round" />
+
+    <!-- 7. Telemetry Dot Outer Pulse Halo -->
+    <path
+        android:pathData="M 36,54 m -4,0 a 4,4 0 1,0 8,0 a 4,4 0 1,0 -8,0"
+        android:fillColor="#00E5FF"
+        android:fillAlpha="0.25" />
+
+    <!-- 8. Telemetry Dot Glowing Core -->
+    <path
+        android:pathData="M 36,54 m -2.2,0 a 2.2,2.2 0 1,0 4.4,0 a 2.2,2.2 0 1,0 -4.4,0"
+        android:fillColor="#00E5FF" />
+
+    <!-- 9. Telemetry Dot Quantum Center -->
+    <path
+        android:pathData="M 36,54 m -1.0,0 a 1.0,1.0 0 1,0 2.0,0 a 1.0,1.0 0 1,0 -2.0,0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 10. Multitask Quantum Waveform Bars -->
+    <path
+        android:pathData="M 45.5,51 V 57"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00BFA5"
+        android:strokeAlpha="0.80"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 50.5,48 V 60"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeAlpha="0.92"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 55.5,46 V 62"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeAlpha="1.0"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 60.5,48.5 V 59.5"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeAlpha="0.92"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 65.5,51 V 57"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00BFA5"
+        android:strokeAlpha="0.80"
+        android:strokeLineCap="round" />
+
+    <!-- 11. Interactive Expansion Indicator Chevron -->
+    <path
+        android:pathData="M 70.5,51.5 L 73.5,54 L 70.5,56.5"
+        android:strokeWidth="1.6"
+        android:strokeColor="#00E5FF"
+        android:strokeAlpha="0.85"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- 12. Atomic Quantum Orbital Satellites -->
+    <path
+        android:pathData="M 77,37 m -1.4,0 a 1.4,1.4 0 1,0 2.8,0 a 1.4,1.4 0 1,0 -2.8,0"
+        android:fillColor="#00E5FF"
+        android:fillAlpha="0.75" />
+    <path
+        android:pathData="M 31,71 m -1.4,0 a 1.4,1.4 0 1,0 2.8,0 a 1.4,1.4 0 1,0 -2.8,0"
+        android:fillColor="#00BFA5"
+        android:fillAlpha="0.75" />
+
+</vector>
