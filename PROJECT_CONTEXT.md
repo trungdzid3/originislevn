@@ -19,6 +19,10 @@ origin-isle-vn/
 │       ├── main/java/com/originisle/android/
 │       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS
 │       │   ├── cards/                # 14 loại thẻ giao diện Đảo Origin
+│       │   │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động
+│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống có action buttons
+│       │   │   ├── EarbudsCard.kt    # Tai nghe & vòng đeo thông minh Galaxy Fit 3
+│       │   │   └── QuickShareCard.kt # Quick Share có action buttons & tích xanh
 │       │   ├── download/             # Nhận diện tiến trình tải xuống & actions
 │       │   ├── island/               # Service SuperX, builder, constants
 │       │   ├── log/                  # Nhật ký hoạt động bền vững (CastLog)
@@ -56,14 +60,13 @@ origin-isle-vn/
   - `Icon.ownedBy` (L415-419): Gán package sở hữu cho icon tránh lỗi trên một số ROM Vivo.
   - `postSuperX` (L426-458): Đóng gói notification gửi tới Vivo SystemUI.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - `onNotificationPosted` (L424-621): Cổng tiếp nhận thông báo theo thứ tự ưu tiên: Ngân hàng -> Quick Share -> Tải xuống -> OTP -> Nhạc -> Gọi xe -> Google Wallet -> Điều hướng -> Thông báo thường.
-  - `onNotificationRemoved` (L884-970): Bắt sự kiện gỡ thông báo: với Tải xuống và Quick Share, kiểm tra tiến độ lần cuối để hiển thị hoạt ảnh Hoàn tất (tích xanh lá 3.5s) hoặc Đã hủy (X đỏ 2.5s) thay vì ngắt phụt làm đảo tắt ngấm.
+  - `onNotificationPosted` (L424-650): Cổng tiếp nhận thông báo: Ngân hàng -> Quick Share -> Tải xuống -> Samsung Wearable / Fit 3 -> OTP -> Nhạc -> Gọi xe -> Google Wallet -> Điều hướng -> Thông báo thường.
+  - `onNotificationRemoved` (L900-1070): Bắt sự kiện gỡ thông báo: với Tải xuống và Quick Share, hiển thị hoạt ảnh Hoàn tất (tích xanh lá 3.5s) hoặc Đã hủy (X đỏ 2.5s) thay vì ngắt phụt làm đảo tắt ngấm.
 - `Cards` (`app/src/main/java/com/originisle/android/cards/`):
-  - `DownloadCard.kt` & `QuickShareCard.kt`: Hiển thị logo app nguồn thực tế bên trái, vòng tròn tiến độ % quanh camera bên phải; mở rộng hiển thị các nút thao tác Tạm dừng / Hủy / Tiếp tục (`TEMPLATE_BUTTONS`); khi xong hiện viền sáng xanh lá + tích xanh; khi hủy hiện viền đỏ + X đỏ tối giản chữ.
-  - `GenericCard.kt` (L31-215): Thẻ chung & helper `shownActions`.
-  - `ChargingCard.kt` (L80-132): Thẻ sạc pin với `%` bên phải camera và `oi_card_ring`.
-  - `PaymentCard.kt` (L52-170): Apple Pay style cho Google Wallet & biến động số dư ngân hàng VN.
-  - `OtpCard.kt`, `EarbudsCard.kt`, `RideCard.kt`, `NavigationCard.kt`.
+  - `EarbudsCard.kt`: Hỗ trợ cả tai nghe TWS & thiết bị đeo thông minh (Galaxy Fit 3, Galaxy Watch,...), lắng nghe 8 Broadcasts Samsung, quét BLE GATT profile 7, máy trạng thái Kết nối (xanh lá 5s) / Mất kết nối (debounce 1.5s, thẻ đỏ 3s), bố cục pin co giãn tự động 1-2-3 thành phần với `TEMPLATE_BUTTONS`.
+  - `BatteryCanvasRenderer.kt`: Bộ vẽ Canvas tạo icon viên pin động (xanh/vàng/đỏ theo %) kèm tia sét sạc.
+  - `DownloadCard.kt` & `QuickShareCard.kt`: Logo app nguồn bên trái, vòng tròn tiến độ % camera bên phải; mở rộng có nút Tạm dừng / Hủy / Tiếp tục (`TEMPLATE_BUTTONS`); xong hiện viền sáng xanh lá + tích xanh; hủy hiện viền đỏ + X đỏ tối giản chữ.
+  - `GenericCard.kt`, `ChargingCard.kt`, `PaymentCard.kt`, `OtpCard.kt`, `RideCard.kt`, `NavigationCard.kt`.
 - `AppsScreen.kt` (`app/src/main/java/com/originisle/android/ui/AppsScreen.kt`):
   - `AppsScreen` (L52-175): Quản lý bật/tắt thông báo từng ứng dụng.
   - `AppIcon` (L213-223): Tải biểu tượng bất đồng bộ kèm bộ đệm cache.
@@ -75,4 +78,4 @@ origin-isle-vn/
 - **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.0.5-debug.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Đang chờ kết quả phản biện và bản kế hoạch chiến lược từ **Gemini 4 Argon** cho hạng mục: Hỗ trợ kết nối Galaxy Fit 3 & Cải tổ thẻ pin đa thành phần co giãn tự động cho Earbuds/Wearables.
+- Toàn bộ tính năng đã được triển khai, kiểm thử đơn vị và biên dịch thành công 100%.

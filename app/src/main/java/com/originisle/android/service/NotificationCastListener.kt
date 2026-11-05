@@ -173,6 +173,15 @@ class NotificationCastListener : NotificationListenerService() {
             "com.vivo.smartmultiwindow",
         )
 
+        /** Ứng dụng quản lý thiết bị đeo & đồng hồ thông minh Samsung (Fit 3, Galaxy Watch, Buds). */
+        private val WEARABLE_SAMSUNG_PKGS = setOf(
+            "com.samsung.wearable.fit3plugin",
+            "com.samsung.android.app.watchmanager",
+            "com.samsung.accessory",
+            "com.samsung.accessory.neobeanmgr",
+            "com.samsung.accessory.atticmgr",
+        )
+
         /** Score apps whose live-match notifications get parsed into a football card with crests. */
         private val SCORE_APPS = setOf(
             "com.google.android.googlequicksearchbox", // Google (favourite-team live scores)
@@ -500,6 +509,56 @@ class NotificationCastListener : NotificationListenerService() {
                     val outcome = "hiển thị — mã OTP: $code ($sender)"
                     lastOutcome[sbn.key] = outcome
                     CastLog.add(sender, title.ifBlank { "OTP" }, outcome, true)
+                    return
+                }
+            }
+
+            // 5) Thiết bị đeo thông minh & phụ kiện Samsung (Galaxy Fit 3, Galaxy Watch, Galaxy Buds)
+            if (prefs.getBoolean("cast_earbuds", true) && (sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
+                    sbn.packageName.contains("fit3", ignoreCase = true) ||
+                    sbn.packageName.contains("watchmanager", ignoreCase = true))
+            ) {
+                val fullText = notificationText(sbn)
+                val rawTitle = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+                val rawText = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+                val channelId = sbn.notification.channelId?.lowercase().orEmpty()
+                val hay = "$rawTitle $rawText $channelId $fullText".lowercase()
+
+                val devName = when {
+                    rawTitle.isNotBlank() && !rawTitle.equals("Samsung", ignoreCase = true) && !rawTitle.equals("Galaxy Wearable", ignoreCase = true) -> rawTitle
+                    rawText.isNotBlank() && rawText.length < 30 -> rawText
+                    sbn.packageName.contains("fit3", ignoreCase = true) -> "Galaxy Fit 3"
+                    sbn.packageName.contains("watch", ignoreCase = true) -> "Galaxy Watch"
+                    else -> appLabel(sbn.packageName)
+                }
+
+                val pctRegex = Regex("""(\d{1,3})\s*%""")
+                val batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
+
+                val isConnect = listOf("đã kết nối", "connected", "kết nối thành công").any { hay.contains(it) }
+                val isDisconnect = listOf("đã ngắt", "disconnected", "mất kết nối", "không thể kết nối").any { hay.contains(it) }
+                val hasBattery = batteryPct != -1 || listOf("%", "pin", "battery").any { hay.contains(it) }
+
+                val isWearableDevice = sbn.packageName.contains("fit3", ignoreCase = true) ||
+                    sbn.packageName.contains("watch", ignoreCase = true) ||
+                    devName.contains("Fit", ignoreCase = true) ||
+                    devName.contains("Watch", ignoreCase = true) ||
+                    devName.contains("Band", ignoreCase = true)
+
+                var handled = false
+                if (isConnect) {
+                    EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
+                    handled = true
+                } else if (isDisconnect) {
+                    EarbudsCard.onDeviceDisconnected(applicationContext, devName, isWearable = isWearableDevice)
+                    handled = true
+                } else if (hasBattery && batteryPct != -1) {
+                    EarbudsCard.onBatteryUpdated(applicationContext, devName, EarbudsCard.EarbudsTelemetry(main = batteryPct), isWearable = isWearableDevice)
+                    handled = true
+                }
+
+                if (handled) {
+                    log(sbn, "hiển thị — thiết bị đeo thông minh", true)
                     return
                 }
             }

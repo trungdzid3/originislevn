@@ -1,30 +1,24 @@
-# DANH SÁCH CÔNG VIỆC NÂNG CẤP HOẠT ẢNH TẢI XUỐNG & QUICK SHARE (CHÍNH XÁC THEO VIDEO DEMO)
+# KẾ HOẠCH TRIỂN KHAI HỖ TRỢ GALAXY FIT 3 & THẺ PIN ĐA THÀNH PHẦN CO GIÃN THÍCH ỨNG
 
 [CONTRACT LOCKED]
-- DownloadInfo:
-  - `val isCanceled: Boolean = false`
-  - `val actions: List<Notification.Action> = emptyList()`
-- QuickShareInfo:
-  - `val isCanceled: Boolean = false`
-  - `val actions: List<Notification.Action> = emptyList()`
-- Quy ước Animation Thành công:
-  - `oi_light_color = "#00D084"`
-  - `oi_icon_status_type = OriginIslandConstants.ICON_STATUS_SUCCESS` (0)
-  - `oi_right_template = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (6) với text `✓`
-  - Tự động hủy sau 3.5 giây (3500ms).
-- Quy ước Animation Thất bại / Hủy:
-  - `oi_light_color = "#FF5247"`
-  - `oi_icon_status_type = OriginIslandConstants.ICON_STATUS_FAIL` (1)
-  - `oi_right_template = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (6) với text `✕`
-  - Tiêu đề ngắn gọn: "Đã hủy" / "✕" (tối giản chữ)
-  - Tự động hủy sau 2.5 giây (2500ms).
-- Quy ước Đang tải / Đang truyền:
-  - Icon bên trái: Logo app thực tế của nguồn đang tải (`oi_left_icon` = app icon, `oi_large_icon` = app icon).
-  - Bên phải: Vòng tròn tiến độ camera (`TEMPLATE_RIGHT_ISLAND_PROGRESS = 2`, `oi_progress = pct`, `show_progress = true`).
-  - Mở rộng: Nếu có action buttons (`actions.isNotEmpty()`), dùng `TEMPLATE_BUTTONS` (8) cho phép Hủy / Tạm dừng / Tiếp tục; nếu không có actions thì dùng `TEMPLATE_BASE` (4) với `oi_card_ring = pct`.
+- Phân loại thiết bị (`DeviceCategory`):
+  - `EARBUDS_TWS`: Tai nghe không dây 2 bên + Hộp sạc.
+  - `HEADPHONES`: Tai nghe chụp tai / 1 thành phần âm thanh.
+  - `SMARTBAND_WATCH`: Vòng đeo tay / Đồng hồ thông minh (Galaxy Fit 3 `SM-R390`, Galaxy Watch, Mi Band,...).
+- Cấu trúc dữ liệu thành phần pin (`BatterySlot`):
+  - `label: String` ("L", "R", "Hộp sạc", "Galaxy Fit 3")
+  - `level: Int` (0..100)
+  - `isCharging: Boolean`
+- Thuật toán Co giãn Thích ứng (Adaptive Layout Algorithm) khi chạm mở rộng:
+  - `slots.size == 3` (Đủ L + R + Hộp sạc): Dùng `TEMPLATE_BUTTONS (8)` chia 3 cột đều nhau (33.3% x 3), mỗi cột gồm `DynamicBatteryIcon` + `"L · 95%"`, `"R · 100%"`, `"Hộp · 80%"`.
+  - `slots.size == 2` (Ví dụ chỉ có `R` và `Hộp sạc` như ảnh mẫu `heobeos plus`, hoặc `L` + `R`): Tự động loại bỏ thành phần trống, co giãn 2 thành phần còn lại sang 2 bên cân xứng 50% - 50% qua `TEMPLATE_BUTTONS (8)` với icon viên pin riêng biệt.
+  - `slots.size == 1` (Chỉ có Galaxy Fit 3 hoặc 1 tai nghe đơn): Co giãn về 1 ô trung tâm 100% kèm vòng tròn tiến độ `oi_card_ring = level`.
+- Kịch bản Kết nối & Mất kết nối:
+  - Khi kết nối (`CONNECTED`): Viên thuốc hiện icon thiết bị + `%` pin + vòng tiến độ xanh lá `#00D084`, giữ 5s.
+  - Khi mất kết nối (`DISCONNECTED` sau debounce 1.5s): Viên thuốc phát sáng viền đỏ `#FF5247`, icon gạch chéo/dấu `✕` (`ICON_STATUS_FAIL = 1`), tiêu đề `"$name · Mất kết nối"`, giữ 3s rồi tự đóng.
 
 [SUBAGENT TASKS]
-- [x] Task 1: Nâng cấp `DownloadDetector.kt` và `DownloadInfo.kt` (bóc tách action buttons, phát hiện isCanceled/isFailed) | [Agent: Subagent-DownloadDetector] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/download/DownloadInfo.kt, app/src/main/java/com/originisle/android/download/DownloadDetector.kt]
-- [x] Task 2: Nâng cấp `DownloadCard.kt` (logo app nguồn bên trái, vòng tròn tiến độ bên phải, mở rộng có nút Tạm dừng/Hủy, tích xanh khi xong, X đỏ khi hủy/lỗi) | [Agent: Subagent-DownloadCard] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/DownloadCard.kt]
-- [x] Task 3: Nâng cấp `QuickShareDetector.kt`, `QuickShareCard.kt` và `NotificationCastListener.kt` (tương tự Download: tích xanh lá khi xong, X đỏ khi hủy/lỗi, nút mở rộng, chống tắt ngấm khi notification bị gỡ) | [Agent: Subagent-QuickShare] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/quickshare/QuickShareDetector.kt, app/src/main/java/com/originisle/android/cards/QuickShareCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
+- [x] Task 1: Xây dựng bộ vẽ `BatteryCanvasRenderer.kt` (vẽ icon viên pin ngang màu xanh/vàng/đỏ theo % + tia sét sạc và icon đồng hồ/vòng đeo tay Galaxy Fit 3) | [Agent: Subagent-BatteryRenderer] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/BatteryCanvasRenderer.kt, app/src/main/res/drawable/ic_smartband.xml]
+- [x] Task 2: Nâng cấp `EarbudsCard.kt` (mở khóa lọc `WEARABLE`/BLE GATT cho Galaxy Fit 3, lắng nghe Samsung Broadcasts, máy trạng thái Kết nối/Mất kết nối, và thuật toán co giãn bố cục 1-2-3 thành phần pin) | [Agent: Subagent-EarbudsWearable] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/EarbudsCard.kt]
+- [x] Task 3: Cập nhật `NotificationCastListener.kt` (bắt thông báo trạng thái kết nối & pin từ `com.samsung.wearable.fit3plugin` / `com.samsung.android.app.watchmanager` chuyển tiếp sang `EarbudsCard`) | [Agent: Subagent-CastListenerWearable] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
 - [x] Task 4: Kiểm tra QA, biên dịch APK `1.0.5`, cập nhật `PROJECT_CONTEXT.md` và đồng bộ Git | [Agent: Lead-Orchestrator] | [Skill: android-cli] | [Locked Files: PROJECT_CONTEXT.md, task.md]
