@@ -448,12 +448,27 @@ class NotificationCastListener : NotificationListenerService() {
             val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
                 template == "android.app.Notification\$CallStyle"
 
-            // --- Ưu tiên tuyệt đối: Ngân hàng -> OTP -> Tải xuống --------------------------
+            // --- Ưu tiên tuyệt đối: OTP -> Ngân hàng -> Tải xuống --------------------------
             // Ba loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
             // quiet hours, media…). Trên OriginOS chúng có thể đến từ gói hệ thống hoặc mang cờ
             // ongoing/progress nên nếu để sau các filter thì card bị nuốt mất.
 
-            // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
+            // 1) Mã OTP / đăng nhập (ưu tiên cao nhất). KHÔNG dùng lại time-guard: notification OTP
+            //    thường được update tại chỗ với cùng postTime, guard cũ sẽ chặn mất mã mới.
+            if (prefs.getBoolean("cast_otp", true)) {
+                OtpDetector.find(notificationText(sbn))?.let { code ->
+                    val title = sbn.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+                    val sender = title.ifBlank { appLabel(sbn.packageName) }
+                    OtpCard.post(applicationContext, sbn, code, sender)
+                    lastEventAt = System.currentTimeMillis()
+                    val outcome = "hiển thị — mã OTP: $code ($sender)"
+                    lastOutcome[sbn.key] = outcome
+                    CastLog.add(sender, title.ifBlank { "OTP" }, outcome, true)
+                    return
+                }
+            }
+
+            // 2) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
             val bankTx = VietnamBankDetector.parse(sbn)
             if (bankTx != null) {
 
@@ -465,16 +480,6 @@ class NotificationCastListener : NotificationListenerService() {
                 val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
                 log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
                 return
-            }
-
-            // 2) Mã OTP / đăng nhập. KHÔNG dùng lại time-guard: notification OTP thường được
-            //    update tại chỗ với cùng postTime, guard cũ sẽ chặn mất mã mới.
-            if (prefs.getBoolean("cast_otp", true)) {
-                OtpDetector.find(notificationText(sbn))?.let { code ->
-                    OtpCard.post(applicationContext, sbn, code, appLabel(sbn.packageName))
-                    log(sbn, "hiển thị — mã OTP / đăng nhập", true)
-                    return
-                }
             }
 
             // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)

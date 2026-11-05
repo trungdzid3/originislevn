@@ -122,6 +122,7 @@ object PaymentCard {
         // Ensure title is formatted as "+<Số tiền>" or "-<Số tiền>"
         val rawAmountClean = transaction.formattedAmount.trim()
             .replace(Regex("""^[+-]\s*"""), "")
+            .replace(Regex("""\s*[+-]$"""), "")
             .trim()
         val title = if (isIncome) "+$rawAmountClean" else "-$rawAmountClean"
 
@@ -135,8 +136,6 @@ object PaymentCard {
             if (isIncome) "Nhận tiền" else "Giao dịch thành công"
         }
 
-        val chip = if (isIncome) "+" else "-"
-
         startService(
             app, id,
             title = title,
@@ -147,10 +146,12 @@ object PaymentCard {
             generating = 0,
             iconStatus = if (isIncome) OriginIslandConstants.ICON_STATUS_SUCCESS else -1,
             rightTemplate = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT,
-            chip = chip,
+            chip = rawAmountClean,
             bgColor = accentColor,
             lightColor = accentColor,
             fgColor = WHITE,
+            leftContent = transaction.bankName,
+            rightContent = rawAmountClean,
         )
 
         // Auto-dismiss
@@ -210,6 +211,8 @@ object PaymentCard {
         bgColor: String = GREEN,
         lightColor: String = GREEN,
         fgColor: String = if (chip == "✓") WHITE else GREEN,
+        leftContent: String? = null,
+        rightContent: String? = null,
     ) {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -220,8 +223,8 @@ object PaymentCard {
             putExtra("title", title)
             putExtra("text", content)
             putExtra("subtext", subtext)
-            putExtra("oi_left_content", title)
-            putExtra("oi_right_content", chip)
+            putExtra("oi_left_content", leftContent ?: title)
+            putExtra("oi_right_content", rightContent ?: chip)
             putExtra("status_chip_text", chip)
             // Small notification/status icon must always be a mipmap (ic_launcher_round).
             // Clear from activeSmallIcons to ensure PlaygroundService never picks a vector XML from another notification.

@@ -251,20 +251,20 @@ fun NavRow(
 
 /**
  * OriginOS 6 Custom Switch (100% pixel-matched to Vivo OriginOS 6 physical switch):
- * - Track: soft pill (48.dp width x 16.dp height).
- *   ON: Soft pastel cyan/teal (#BAD8D9).
- *   OFF: Muted gray (#E2E5E8 in Light Mode / #2C2F36 in Dark Mode).
- * - Thumb: circular ring (28.dp diameter), overhangs track equally top & bottom by 6.dp.
+ * - Track: soft capsule pill (50.dp width x 22.dp height, RoundedCornerShape(11.dp)).
+ *   ON: Soft Pastel Cyan / Mint (#AFD3D2).
+ *   OFF: Light gray (#E2E5E8 in Light Mode / #2C2F36 in Dark Mode).
+ * - Thumb: circular ring (30.dp diameter), overhangs track equally top & bottom by 4.dp.
  *   Inner disk: Pure White (#FFFFFF).
- *   Outer border ring: 3.8.dp thick.
+ *   Outer border ring: 3.6.dp thick.
  *   ON: Deep rich Teal (#00696E).
  *   OFF: Slate gray (#8E9298 in Light Mode / #71767C in Dark Mode).
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
-    val trackWidth = 48.dp
-    val trackHeight = 16.dp
-    val thumbSize = 28.dp
+    val trackWidth = 50.dp
+    val trackHeight = 22.dp
+    val thumbSize = 30.dp
     val isDark = IsleColors.isDark
 
     val thumbOffset by androidx.compose.animation.core.animateDpAsState(
@@ -273,7 +273,7 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
         label = "thumbOffset",
     )
     val trackColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) Color(0xFFBAD8D9) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E5E8),
+        targetValue = if (checked) Color(0xFFAFD3D2) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E5E8),
         animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
         label = "trackColor",
     )
@@ -299,13 +299,13 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
             ),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // Track: soft rounded pill centered horizontally and vertically
+        // Track: soft rounded capsule centered horizontally and vertically
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
                 .height(trackHeight)
-                .clip(RoundedCornerShape(trackHeight / 2))
+                .clip(RoundedCornerShape(11.dp))
                 .background(trackColor)
         )
         // Thumb: pure white center with thick outer ring border that overhangs track
@@ -316,7 +316,7 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
                 .clip(CircleShape)
                 .background(Color.White)
                 .border(
-                    width = 3.8.dp,
+                    width = 3.6.dp,
                     color = ringColor,
                     shape = CircleShape,
                 )

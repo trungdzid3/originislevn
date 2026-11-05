@@ -22,7 +22,7 @@ object OtpDetector {
             """verification\s+reminder|verification\s+notice|verification\s+code|security\s+reminder|verification|""" +
             """nhắc\s+nhở\s+mã\s+xác\s+minh|nhac\s+nho\s+ma\s+xac\s+minh|""" +
             """tin\s+nhắn\s+xác\s+minh|tin\s+nhan\s+xac\s+minh|""" +
-            """mã\s+xác\s+minh|ma\s+xac\s+minh""" +
+            """mã\s+xác\s+minh|ma\s+xac\s+minh|mã\s+xác\s+thực|ma\s+xac\s+thuc|mã\s+xác\s+nhận|ma\s+xac\s+nhan""" +
             """)\b|验证码提醒|验证码""",
         RegexOption.IGNORE_CASE,
     )
@@ -36,6 +36,8 @@ object OtpDetector {
             // Vietnamese compound keywords (accented and unaccented)
             """mã\s+xác\s+minh|mã\s+xác\s+thực|mã\s+xác\s+nhận|mã\s+bảo\s+mật|mã\s+kích\s+hoạt|mã\s+otp|mã\s+đăng\s+nhập|mã\s+truy\s+cập|""" +
             """ma\s+xac\s+minh|ma\s+xac\s+thuc|ma\s+xac\s+nhan|ma\s+bao\s+mat|ma\s+kich\s+hoat|ma\s+otp|ma\s+dang\s+nhap|ma\s+truy\s+cap|""" +
+            """mã\s+xác\s+thực\s+otp|ma\s+xac\s+thuc\s+otp|mã\s+xác\s+nhận\s+otp|ma\s+xac\s+nhan\s+otp|""" +
+            """mã\s+giao\s+dịch|ma\s+giao\s+dich|mã\s+pin|ma\s+pin|""" +
             """mật\s+khẩu\s+tạm\s+thời|mat\s+khau\s+tam\s+thoi|mật\s+khẩu\s+dùng\s+một\s+lần|mat\s+khau\s+dung\s+mot\s+lan|""" +
             """xác\s+minh|xác\s+thực|xác\s+nhận|xac\s+minh|xac\s+thuc|xac\s+nhan|""" +
             // English phrases
@@ -53,20 +55,22 @@ object OtpDetector {
 
     /**
      * Biểu thức chính quy trực tiếp bắt mã OTP 4-8 chữ số:
-     * - Sau OTP / mã xác thực / mã xác minh / verification code kèm từ ngữ phụ ("của bạn là", "là", ":", v.v.)
-     * - Sau "là", "la", "is"
-     * - Sau "mã", "ma", "code", "otp", "pin" kèm dấu phân tách
-     * - Trước "là mã", "la ma", "là OTP"
+     * - Sau OTP / mã xác thực / mã xác nhận / mã xác minh kèm "của bạn là", "là", ":", v.v.
+     * - Sau mã giao dịch / mã bảo mật / mã đăng nhập / mã kích hoạt
+     * - Sau "otp", "code", "mã", "ma" kèm dấu phân tách
+     * - Trước "là mã", "la ma", "là OTP", "is code"
+     * - Từ khóa OTP/xác thực/xác nhận nằm trong cự ly 40 ký tự
      * - Dạng prefix G-123456, FB-123456
      * - Đóng trong ngoặc vuông [123456]
      */
     private val DIRECT_PATTERNS = listOf(
-        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)\bcode\s*[:：]?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)(?:\bOTP\b|\bmã\s*xác\s*thực\b|\bma\s*xac\s*thuc\b|\bmã\s*xác\s*minh\b|\bma\s*xac\s*minh\b|\bmã\s*xác\s*nhận\b|\bma\s*xac\s*nhan\b|\bmã\s*đăng\s*nhập\b|\bma\s*dang\s*nhap\b|\bverification\s*code\b|\bsecurity\s*code\b)[^\d]{0,45}?(?<!\d)(\d{4,8})(?!\d)"""),
-        Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)(?:\bmã\b|\bma\b|\bcode\b|\botp\b|\bpasscode\b|\bpin\b)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:mã|ma)\s*(?:giao\s*dịch|giao\s*dich|bảo\s*mật|bao\s*mat|đăng\s*nhập|dang\s*nhap|kích\s*hoạt|kich\s*hoat)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:otp|code|mã|ma)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?<!\d)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp)"""),
+        Regex("""(?i)\b(?:otp|mã\s*xác\s*thực|ma\s*xac\s*thuc|mã\s*xác\s*nhận|ma\s*xac\s*nhan|mã\s*xác\s*minh|ma\s*xac\s*minh|mã\s*đăng\s*nhập|ma\s*dang\s*nhap|mã\s*giao\s*dịch|ma\s*giao\s*dich|tin\s*nhắn\s*xác\s*minh|tin\s*nhan\s*xac\s*minh|verification\s*code|security\s*code)\b[^\d]{0,40}?([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)\bcode\s*[:：]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\[([0-9]{4,8})\]"""),
     )
@@ -90,9 +94,9 @@ object OtpDetector {
 
     private val PHONE_PREFIX = Regex(
         """(?U)\b(?:sđt|sdt|số\s+điện\s+thoại|so\s+dien\s+thoai|điện\s+thoại|dien\s+thoai|""" +
-            """liên\s+hệ|lien\s+he|tổng\s+đài|tong\s+dai|cskh|""" +
+            """liên\s+hệ(?:\s+qua)?|lien\s+he(?:\s+qua)?|tổng\s+đài|tong\s+dai|cskh|""" +
             """hotline|hỗ\s+trợ|ho\s+tro|tư\s+vấn|tu\s+van|""" +
-            """tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact|gọi|goi|call)\b.*$""",
+            """tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact|gọi|goi|call)\s*[:#.-]?\s*$""",
         RegexOption.IGNORE_CASE,
     )
 

@@ -10,6 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
@@ -18,10 +20,11 @@ import android.util.Log
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
+import com.originisle.android.service.IconCache
 import com.originisle.android.ui.PREFS_NAME
 
 /**
- * Viễn trắc tai nghe Bluetooth chuẩn OriginOS 7:
+ * Viễn trắc tai nghe Bluetooth chuẩn OriginOS:
  * - Tự động nhận diện tai nghe TWS khi kết nối hoặc mở nắp hộp sạc.
  * - Trích xuất viễn trắc mức pin đa thành phần: Tai Trái (L), Tai Phải (R), và Hộp sạc (Case),
  *   kèm trạng thái sạc (tia sét ⚡).
@@ -74,6 +77,7 @@ object EarbudsCard {
             left in 0..100 && right in 0..100 -> (left + right) / 2
             left in 0..100 -> left
             right in 0..100 -> right
+            case in 0..100 -> case
             else -> -1
         }
     }
@@ -107,10 +111,13 @@ object EarbudsCard {
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             addAction(ACTION_BATTERY_LEVEL_CHANGED)
-            // Lắng nghe thêm các broadcast mở rộng của Vivo / Google Fast Pair
+            // Lắng nghe thêm các broadcast mở rộng của Vivo / Google Fast Pair / AOSP
             addAction("android.bluetooth.headset.action.HF_INDICATORS_VALUE_CHANGED")
             addAction("vivo.intent.action.BLUETOOTH_BATTERY")
             addAction("com.vivo.upslide.BLUETOOTH_BATTERY")
+            addAction("com.vivo.bluetooth.BATTERY_LEVEL_CHANGED")
+            addAction("com.google.android.gms.nearby.fastpair.ACTION_BATTERY_UPDATE")
+            addAction("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
         }
         runCatching { ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED) }
     }
@@ -175,25 +182,194 @@ object EarbudsCard {
         }
     }
 
+    private fun extractBattery(bundle: android.os.Bundle?, vararg keys: String): Int {
+        if (bundle == null) return -1
+        for (k in keys) {
+            val v = bundle.get(k) ?: continue
+            val num = when (v) {
+                is Number -> v.toInt()
+                is String -> v.trim().toIntOrNull()
+                is ByteArray -> if (v.isNotEmpty()) v[0].toInt() and 0xFF else null
+                else -> null
+            }
+            if (num != null && num in 0..100) return num
+        }
+        return -1
+    }
+
+    private fun scanKeysForBattery(
+        bundle: android.os.Bundle?,
+        matchWords: List<String>,
+        excludeWords: List<String> = emptyList(),
+    ): Int {
+        if (bundle == null) return -1
+        val keys = runCatching { bundle.keySet() }.getOrNull() ?: return -1
+        for (key in keys) {
+            val lowerKey = key.lowercase()
+            if (excludeWords.any { lowerKey.contains(it) }) continue
+            if (matchWords.any { lowerKey.contains(it) }) {
+                if (lowerKey.contains("charg") || lowerKey.contains("state") || lowerKey.contains("status")) {
+                    if (!lowerKey.contains("battery") && !lowerKey.contains("level")) continue
+                }
+                val v = bundle.get(key)
+                val num = when (v) {
+                    is Number -> v.toInt()
+                    is String -> v.trim().toIntOrNull()
+                    is ByteArray -> if (v.isNotEmpty()) v[0].toInt() and 0xFF else null
+                    else -> null
+                }
+                if (num != null && num in 0..100) return num
+            }
+        }
+        return -1
+    }
+
+    private fun extractCharging(bundle: android.os.Bundle?, vararg keys: String): Boolean {
+        if (bundle == null) return false
+        for (k in keys) {
+            val v = bundle.get(k) ?: continue
+            when (v) {
+                is Boolean -> if (v) return true
+                is Number -> if (v.toInt() == 1) return true
+                is String -> {
+                    val s = v.trim().lowercase()
+                    if (s == "true" || s == "1" || s == "charging") return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun scanKeysForCharging(
+        bundle: android.os.Bundle?,
+        matchWords: List<String>,
+        excludeWords: List<String> = emptyList(),
+    ): Boolean {
+        if (bundle == null) return false
+        val keys = runCatching { bundle.keySet() }.getOrNull() ?: return false
+        for (key in keys) {
+            val lowerKey = key.lowercase()
+            if (excludeWords.any { lowerKey.contains(it) }) continue
+            if (matchWords.any { lowerKey.contains(it) }) {
+                if (lowerKey.contains("charg") || lowerKey.contains("charging")) {
+                    val v = bundle.get(key)
+                    when (v) {
+                        is Boolean -> if (v) return true
+                        is Number -> if (v.toInt() == 1) return true
+                        is String -> {
+                            val s = v.trim().lowercase()
+                            if (s == "true" || s == "1" || s == "charging") return true
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+
     /** Trích xuất viễn trắc chuyên sâu (L/R/Case) từ Metadata AOSP hoặc Intent Extras */
     private fun readTelemetry(device: BluetoothDevice, intent: Intent?): EarbudsTelemetry {
+        val extras = intent?.extras
+
+        // 1. Mức pin chính (Main / fallback)
         var main = intent?.getIntExtra(EXTRA_BATTERY_LEVEL, -1) ?: -1
+        if (main !in 0..100) {
+            main = extractBattery(
+                extras,
+                "battery_level", "battery", "level", "BATTERY_LEVEL",
+                "android.bluetooth.device.extra.BATTERY_LEVEL",
+            )
+        }
         if (main !in 0..100) main = batteryOf(device)
 
-        var left = intent?.getIntExtra("android.bluetooth.device.extra.BATTERY_LEVEL_LEFT", -1) ?: -1
-        if (left !in 0..100) left = intent?.getIntExtra("left_battery", -1) ?: -1
+        // 2. Mức pin Tai Trái (Left)
+        var left = extractBattery(
+            extras,
+            "android.bluetooth.device.extra.BATTERY_LEVEL_LEFT",
+            "left_battery", "battery_left", "left_level", "batteryLevelLeft",
+            "KEY_BATTERY_LEFT", "leftBattery", "left",
+        )
+        if (left !in 0..100) {
+            left = scanKeysForBattery(
+                extras,
+                listOf("left"),
+                listOf("charg", "state", "status", "right", "case", "box", "dock"),
+            )
+        }
 
-        var right = intent?.getIntExtra("android.bluetooth.device.extra.BATTERY_LEVEL_RIGHT", -1) ?: -1
-        if (right !in 0..100) right = intent?.getIntExtra("right_battery", -1) ?: -1
+        // 3. Mức pin Tai Phải (Right)
+        var right = extractBattery(
+            extras,
+            "android.bluetooth.device.extra.BATTERY_LEVEL_RIGHT",
+            "right_battery", "battery_right", "right_level", "batteryLevelRight",
+            "KEY_BATTERY_RIGHT", "rightBattery", "right",
+        )
+        if (right !in 0..100) {
+            right = scanKeysForBattery(
+                extras,
+                listOf("right"),
+                listOf("charg", "state", "status", "left", "case", "box", "dock"),
+            )
+        }
 
-        var case = intent?.getIntExtra("android.bluetooth.device.extra.BATTERY_LEVEL_CASE", -1) ?: -1
-        if (case !in 0..100) case = intent?.getIntExtra("case_battery", -1) ?: (intent?.getIntExtra("box_battery", -1) ?: -1)
+        // 4. Mức pin Hộp sạc (Case / Box / Dock)
+        var case = extractBattery(
+            extras,
+            "android.bluetooth.device.extra.BATTERY_LEVEL_CASE",
+            "case_battery", "box_battery", "battery_case", "battery_box",
+            "case_level", "box_level", "batteryLevelCase", "batteryLevelBox",
+            "KEY_BATTERY_CASE", "KEY_BATTERY_BOX", "caseBattery", "boxBattery", "case", "box", "dock",
+        )
+        if (case !in 0..100) {
+            case = scanKeysForBattery(
+                extras,
+                listOf("case", "box", "dock"),
+                listOf("charg", "state", "status", "left", "right"),
+            )
+        }
 
-        var leftCharging = false
-        var rightCharging = false
-        var caseCharging = false
+        // 5. Trạng thái sạc (Charging)
+        var leftCharging = extractCharging(
+            extras,
+            "android.bluetooth.device.extra.CHARGE_STATUS_LEFT",
+            "left_charge", "charge_left", "left_charging", "is_left_charging",
+        )
+        if (!leftCharging) {
+            leftCharging = scanKeysForCharging(
+                extras,
+                listOf("left"),
+                listOf("right", "case", "box", "dock"),
+            )
+        }
 
-        // Đọc metadata qua reflection chuẩn Android AOSP nếu intent không mang đủ
+        var rightCharging = extractCharging(
+            extras,
+            "android.bluetooth.device.extra.CHARGE_STATUS_RIGHT",
+            "right_charge", "charge_right", "right_charging", "is_right_charging",
+        )
+        if (!rightCharging) {
+            rightCharging = scanKeysForCharging(
+                extras,
+                listOf("right"),
+                listOf("left", "case", "box", "dock"),
+            )
+        }
+
+        var caseCharging = extractCharging(
+            extras,
+            "android.bluetooth.device.extra.CHARGE_STATUS_CASE",
+            "case_charge", "box_charge", "charge_case", "charge_box",
+            "case_charging", "box_charging", "is_case_charging",
+        )
+        if (!caseCharging) {
+            caseCharging = scanKeysForCharging(
+                extras,
+                listOf("case", "box", "dock"),
+                listOf("left", "right"),
+            )
+        }
+
+        // 6. Đọc metadata qua reflection chuẩn Android AOSP nếu intent không mang đủ
         runCatching {
             val getMetaMethod = BluetoothDevice::class.java.getMethod("getMetadata", Int::class.javaPrimitiveType)
             fun getMetaString(key: Int): String? = (getMetaMethod.invoke(device, key) as? ByteArray)?.let { String(it).trim() }
@@ -203,9 +379,9 @@ object EarbudsCard {
             if (case !in 0..100) case = getMetaString(METADATA_UNTHETHERED_CASE_BATTERY)?.toIntOrNull() ?: -1
             if (main !in 0..100) main = getMetaString(METADATA_MAIN_BATTERY)?.toIntOrNull() ?: -1
 
-            leftCharging = getMetaString(METADATA_UNTHETHERED_LEFT_CHARGING).toBoolean()
-            rightCharging = getMetaString(METADATA_UNTHETHERED_RIGHT_CHARGING).toBoolean()
-            caseCharging = getMetaString(METADATA_UNTHETHERED_CASE_CHARGING).toBoolean()
+            if (!leftCharging) leftCharging = getMetaString(METADATA_UNTHETHERED_LEFT_CHARGING).toBoolean()
+            if (!rightCharging) rightCharging = getMetaString(METADATA_UNTHETHERED_RIGHT_CHARGING).toBoolean()
+            if (!caseCharging) caseCharging = getMetaString(METADATA_UNTHETHERED_CASE_CHARGING).toBoolean()
         }
 
         return EarbudsTelemetry(
@@ -236,6 +412,21 @@ object EarbudsCard {
         BluetoothDevice::class.java.getMethod("getBatteryLevel").invoke(device) as Int
     }.getOrDefault(-1).takeIf { it in 0..100 } ?: -1
 
+    private fun createSafeIcon(context: Context, glyph: Int): Icon {
+        return runCatching {
+            val drawable = context.getDrawable(glyph) ?: return Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+            val w = drawable.intrinsicWidth.takeIf { it > 0 } ?: 96
+            val h = drawable.intrinsicHeight.takeIf { it > 0 } ?: 96
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            Icon.createWithBitmap(bitmap)
+        }.getOrElse {
+            Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        }
+    }
+
     private fun show(context: Context, device: BluetoothDevice, telemetry: EarbudsTelemetry, low: Boolean) {
         if (!enabled(context)) return
         val name = runCatching { device.alias ?: device.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
@@ -243,15 +434,16 @@ object EarbudsCard {
         val known = level in 0..100
         val isLow = known && level <= LOW_LEVEL
         val glyph = if (isOverEar(device, name)) R.drawable.ic_headphones else R.drawable.ic_earbuds
-        val icon = Icon.createWithResource(context, glyph)
+        val safeIcon = createSafeIcon(context, glyph)
+        IconCache.activeSmallIcons.remove(ID)
 
         val click = PendingIntent.getActivity(
             context, ID, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        // Tạo chuỗi mô tả viễn trắc đa thành phần cho thẻ mở rộng
-        val details = if (telemetry.hasDetails) {
+        // Tạo chuỗi mô tả viễn trắc đa thành phần cho thẻ mở rộng (3 phân vùng L / R / Case)
+        val details = if (telemetry.left in 0..100 || telemetry.right in 0..100) {
             val parts = mutableListOf<String>()
             if (telemetry.left in 0..100) {
                 parts.add("Tai Trái: ${telemetry.left}%" + if (telemetry.isLeftCharging) " ⚡" else "")
@@ -262,16 +454,28 @@ object EarbudsCard {
             if (telemetry.case in 0..100) {
                 parts.add("Hộp sạc: ${telemetry.case}%" + if (telemetry.isCaseCharging) " ⚡" else "")
             }
-            parts.joinToString("   ")
+            parts.joinToString("   |   ")
+        } else if (telemetry.case in 0..100) {
+            val earbudInfo = if (known) "$level%" else "Trong hộp"
+            "Tai nghe: $earbudInfo   |   Hộp sạc: ${telemetry.case}%" + if (telemetry.isCaseCharging) " ⚡" else ""
+        } else if (known) {
+            "Tai nghe: $level%   |   Hộp sạc: Sẵn sàng"
         } else {
-            name
+            "Tai nghe Bluetooth · Đã kết nối"
         }
 
         // Tạo nội dung viên thuốc thu gọn (Capsule pill)
         val pillStatus = when {
             telemetry.left in 0..100 && telemetry.right in 0..100 -> {
-                "L ${telemetry.left}% · R ${telemetry.right}%"
+                if (telemetry.case in 0..100) {
+                    "L ${telemetry.left}% · R ${telemetry.right}% · Box ${telemetry.case}%"
+                } else {
+                    "L ${telemetry.left}% · R ${telemetry.right}%"
+                }
             }
+            telemetry.left in 0..100 -> "L ${telemetry.left}%"
+            telemetry.right in 0..100 -> "R ${telemetry.right}%"
+            telemetry.case in 0..100 -> "Box ${telemetry.case}%"
             known -> "$level%"
             else -> "Đã kết nối"
         }
@@ -282,18 +486,19 @@ object EarbudsCard {
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            putExtra("title", if (low) "Pin yếu" else name)
+            putExtra("title", if (low) "Pin yếu · $name" else name)
             putExtra("text", details)
+            putExtra("subtext", "Tai nghe Bluetooth · Đã kết nối")
             putExtra("oi_left_content", "")
-            putExtra("oi_left_icon", icon)
-            putExtra("oi_large_icon", icon)
-            putExtra("icon_res", glyph)
+            putExtra("oi_left_icon", safeIcon)
+            putExtra("oi_large_icon", safeIcon)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("oi_right_content", pillStatus)
+            putExtra("status_chip_text", pillStatus)
+            putExtra("oi_card_ring", if (known) level else 100)
 
             if (telemetry.hasDetails) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                putExtra("oi_right_content", pillStatus)
-                putExtra("status_chip_text", pillStatus)
-                putExtra("oi_card_ring", level)
                 putExtra("oi_fg_color", if (isLow) RED else GREEN)
                 putExtra("oi_bg_color", if (isLow) RED_TRACK else GREEN_TRACK)
             } else if (known) {
@@ -305,8 +510,6 @@ object EarbudsCard {
             } else {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_show_right_icon", false)
-                putExtra("oi_right_content", "Đã kết nối")
-                putExtra("status_chip_text", "Đã kết nối")
             }
 
             if (low) putExtra("oi_light_color", RED)
@@ -325,6 +528,7 @@ object EarbudsCard {
         hideTask?.let(handler::removeCallbacks)
         hideTask = null
         showingAddress = null
+        IconCache.activeSmallIcons.remove(ID)
         context.startService(
             Intent(context, PlaygroundService::class.java)
                 .setAction(PlaygroundService.ACTION_CANCEL)

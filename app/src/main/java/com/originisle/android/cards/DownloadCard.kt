@@ -2,6 +2,7 @@ package com.originisle.android.cards
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.StatusBarNotification
@@ -22,6 +23,9 @@ object DownloadCard {
         val clickPi = info.contentIntent
             ?: sbn.notification.contentIntent
             ?: fallbackClickIntent(context, sbn.packageName)
+
+        val fallbackIcon = Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        val appIcon = IconCache.safeAppIcon(context, sbn.packageName) ?: fallbackIcon
 
         val chipText = when {
             info.isFinished -> "Xong ✓"
@@ -61,7 +65,9 @@ object DownloadCard {
             putExtra("show_progress", true)
             putExtra("progress", info.progress)
             putExtra("progress_max", 100)
-            putExtra("icon_res", R.drawable.ic_download)
+            putExtra("oi_large_icon", appIcon)
+            putExtra("oi_left_icon", appIcon)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
 
             putExtra("oi_force_show", true)      // Ép đảo hiển thị viên thuốc ngay lập tức
             putExtra("oi_dismiss_when_kill", true)
