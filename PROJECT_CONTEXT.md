@@ -2,38 +2,40 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 và OriginOS 7 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: **`1.0.2`** (mã bản dựng `versionCode = 10002`, tuân thủ chuẩn SemVer 2.0.0).
-- **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (v2.2.1).
-- **Cải tiến cốt lõi v1.0.2**:
-  1. **Hỗ trợ toàn diện Quick Share / Chia sẻ lân cận (`QuickShareDetector.kt` & `QuickShareCard.kt`)**:
-     - Nhận diện 4 nguồn: Google Play Services GMS (`com.google.android.gms`), Google Quick Share (`com.google.android.apps.sharing`), Vivo EasyShare (`com.vivo.easyshare`), Samsung Share (`com.samsung.android.app.share`).
-     - Hỗ trợ cả 2 trạng thái:
-       + **Yêu cầu nhận tệp**: Đảo hiển thị dạng `TEMPLATE_BUTTONS` (8) với 2 nút "Từ chối" và "Chấp nhận" tương tác trực tiếp.
-       + **Tiến trình truyền tệp**: Đảo hiển thị vòng xoay tiến độ dạng `TEMPLATE_PROGRESS_VISUAL` (2) quanh camera kèm % tiến độ và tốc độ truyền.
-     - Đặt cờ `oi_show_notify = false` để không tạo thông báo thừa trong khay hệ thống (Shade).
-  2. **Khắc phục triệt để lỗi thẻ mẫu Demo (`IslandSamples.kt`)**:
-     - Bổ sung `oi_show_notify = false` và `oi_island_show_time = 15` cho toàn bộ các hàm gọi thẻ mẫu thử nghiệm.
-     - Sửa mẫu thử OTP sang `TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (template 6) để không bị Vivo reject.
-     - Bổ sung 2 mẫu thử Quick Share (Yêu cầu nhận tệp & Đang nhận tệp).
-  3. **Ngăn chặn thông báo rác OTP / Tải xuống (`OtpCard.kt` & `DownloadCard.kt`)**:
-     - Đặt `oi_show_notify = false`: chặn OriginOS tạo thêm thông báo thường trong khay thông báo khi đảo hiển thị.
-     - Sử dụng `TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (6) cho OTP và `TEMPLATE_RIGHT_ISLAND_PROGRESS` (2) cho tải xuống, kèm `oi_force_show = true`.
+- **Phiên bản hiện tại**: **`1.0.3`** (mã bản dựng `versionCode = 10003`, tuân thủ chuẩn SemVer 2.0.0).
+- **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (v2.2.1 / commit `3fe129d`).
+- **Cải tiến cốt lõi v1.0.3 (Khôi phục chuẩn Lõi bản 0.0.1, OTP và Tải xuống bung Đảo 100%, Quick Share đầy đủ)**:
+  1. **Khôi phục hoàn toàn Lõi `PlaygroundService.kt` theo chuẩn gốc `3fe129d`**:
+     - Gỡ bỏ hàng đợi `activeDeck` và lệnh đóng `endOrigin` tức thì đối với các thông báo thực tế (nguyên nhân khiến Vivo đóng sập Đảo mới vừa gửi và đẩy rớt xuống khay thông báo).
+     - Chỉ thực hiện `endOrigin` khi chuyển đổi giữa các thẻ mẫu thử nghiệm (`id >= 40000`).
+     - Giữ `showNotify = true` mặc định cùng `displays = STATUSBAR | AOD` (chỉ hiển thị Đảo quanh camera, không kích hoạt bit thông báo khay).
+  2. **Chuẩn hóa thẻ OTP (`OtpCard.kt`)**:
+     - Khung cơ bản `TEMPLATE_BASE` (4) kết hợp viên nang `TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (6).
+     - Đặt `oi_left_content = ""` (để trống chữ bên trái để icon app hiển thị gọn gàng, tránh tràn giới hạn ký tự capsule khiến Vivo reject).
+     - Chạm vào Đảo tự động sao chép mã OTP vào Clipboard và đóng thẻ.
+  3. **Khôi phục thẻ Tải xuống (`DownloadCard.kt`) về chuẩn bản 0.0.1**:
+     - Chuyển từ `TEMPLATE_PROGRESS_VISUAL` (2) sang **`TEMPLATE_BASE` (4)** + **`TEMPLATE_RIGHT_ISLAND_PROGRESS` (2)** với vòng tròn phần trăm `oi_card_ring` và icon launcher mipmap an toàn (100% hiển thị trên OriginOS).
+  4. **Tích hợp Quick Share / Chia sẻ lân cận (`QuickShareCard.kt`)**:
+     - Hỗ trợ cả 2 trạng thái: Yêu cầu nhận tệp (nút Từ chối / Chấp nhận) và Tiến trình truyền tệp (vòng xoay tiến độ quanh camera kèm % và tốc độ MB/s).
+  5. **Sửa toàn diện các nút Thử nghiệm Demo (`IslandSamples.kt` & `ActivityScreen.kt`)**:
+     - Chuẩn hóa toàn bộ thẻ mẫu theo đúng thông số kỹ thuật SuperX của Vivo, bấm là bung Đảo ngay lập tức.
+     - Giữ nguyên vẹn bố cục thẻ Ngân hàng `PaymentCard.kt` (bên trái tên ngân hàng, bên phải số tiền).
 
 ## 2. Quy Định Xuất Bản Cố Định (Strict Policy)
 File APK thành phẩm xuất bản trực tiếp tại thư mục nguồn dự án:
-`C:\Users\Lenovo\.gemini\antigravity\scratch\origin-isle-vn\Dao-Origin-1.0.2-VN.apk`
+`C:\Users\Lenovo\.gemini\antigravity\scratch\origin-isle-vn\Dao-Origin-1.0.3-VN.apk`
 
 ## 3. Bản Đồ Code Trọng Yếu
-- `app/build.gradle.kts`: Cấu hình phiên bản (`versionCode = 10002`, `versionName = "1.0.2"`).
-- `app/src/main/java/com/originisle/android/quickshare/QuickShareDetector.kt`: Phát hiện thông báo chia sẻ Quick Share / Nearby Share.
-- `app/src/main/java/com/originisle/android/cards/QuickShareCard.kt`: Hiển thị Quick Share trên Đảo (trạng thái yêu cầu nhận tệp & tiến trình).
-- `app/src/main/java/com/originisle/android/cards/OtpCard.kt`: Thẻ OTP SuperX capsule template 6, chạm là copy, `oi_show_notify = false`.
-- `app/src/main/java/com/originisle/android/cards/DownloadCard.kt`: Thẻ tiến độ tải xuống kèm throttle chống spam Android rate-limit.
-- `app/src/main/java/com/originisle/android/cards/PaymentCard.kt`: Thẻ chuyển tiền ngân hàng (bên trái tên ngân hàng, bên phải số tiền).
-- `app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`: Động cơ lắng nghe ưu tiên: Ngân hàng -> OTP -> Quick Share -> Tải xuống.
-- `app/src/main/java/com/originisle/android/ui/samples/IslandSamples.kt`: Danh mục thẻ mẫu thử nghiệm chuẩn hóa SuperX không shade.
+- `app/build.gradle.kts`: Cấu hình phiên bản (`versionCode = 10003`, `versionName = "1.0.3"`).
+- `app/src/main/java/com/originisle/android/island/PlaygroundService.kt`: Lõi điều phối SuperX OriginOS chuẩn gốc 0.0.1.
+- `app/src/main/java/com/originisle/android/cards/OtpCard.kt`: Thẻ OTP SuperX capsule template 6, chạm là copy, `left_content = ""`.
+- `app/src/main/java/com/originisle/android/cards/DownloadCard.kt`: Thẻ tiến độ tải xuống template 4 + vòng tiến độ template 2 quanh camera.
+- `app/src/main/java/com/originisle/android/cards/QuickShareCard.kt`: Thẻ Quick Share (yêu cầu nhận tệp & tiến trình truyền).
+- `app/src/main/java/com/originisle/android/cards/PaymentCard.kt`: Thẻ biến động số dư ngân hàng (bên trái tên ngân hàng, bên phải số tiền).
+- `app/src/main/java/com/originisle/android/ui/samples/IslandSamples.kt`: Bộ thẻ mẫu thử nghiệm chuẩn hóa SuperX.
+- `app/src/main/java/com/originisle/android/ui/ActivityScreen.kt`: Màn hình Nhật ký hoạt động với các nút thử nghiệm trực tiếp.
 
 ## 4. Tình Trạng Hiện Tại
-- Biên dịch thành công: `BUILD SUCCESSFUL in 3m 43s`.
+- Biên dịch thành công: `BUILD SUCCESSFUL in 1m 37s`.
 - Chữ ký số: `apksigner verify` đạt `v2 scheme: true`.
-- File APK: `Dao-Origin-1.0.2-VN.apk` (65.8 MB, 69,037,354 bytes) sẵn sàng cài đặt.
+- File APK: `Dao-Origin-1.0.3-VN.apk` (65.8 MB, 69,037,354 bytes).

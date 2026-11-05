@@ -52,13 +52,7 @@ object DownloadCard {
         val fallbackIcon = Icon.createWithResource(context, R.mipmap.ic_launcher_round)
         val appIcon = IconCache.safeAppIcon(context, sbn.packageName) ?: fallbackIcon
 
-        val chipText = when {
-            info.isFinished -> "Xong ✓"
-            info.progress > 0 -> "${info.progress}%"
-            !info.speedText.isNullOrBlank() -> info.speedText
-            info.isIndeterminate && info.statusText.contains("cài đặt") -> "Cài đặt"
-            else -> "Đang tải"
-        }
+        val chipText = if (info.isFinished) "Xong ✓" else "${info.progress}%"
 
         val displayStatus = when {
             info.isFinished -> info.statusText
@@ -79,25 +73,21 @@ object DownloadCard {
             }
             putExtra("source_pkg", sbn.packageName)
 
-            // Cấu hình SuperX chuẩn OriginOS 6 cho thẻ tiến độ (giống 100% mẫu IslandSamples đang chạy mượt mà)
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+            putExtra("oi_card_ring", info.progress.coerceIn(0, 100))
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-            putExtra("status_chip_text", chipText)
-            val leftContent = if (info.isFinished) "Hoàn tất" else "Đang tải"
-            putExtra("oi_left_content", leftContent)
-            putExtra("oi_right_content", chipText)
+            putExtra("oi_left_content", "")
+            putExtra("status_chip_text", "${info.progress}%")
+            putExtra("oi_right_content", "${info.progress}%")
 
             putExtra("show_progress", true)
-            putExtra("progress", info.progress)
+            putExtra("progress", info.progress.coerceIn(0, 100))
             putExtra("progress_max", 100)
             putExtra("oi_large_icon", appIcon)
             putExtra("oi_left_icon", appIcon)
-            putExtra("icon_res", R.drawable.ic_download)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
 
-            // Chỉ hiển thị trên Đảo Origin, không tạo thêm thông báo mới trong khay thông báo
-            putExtra("oi_show_notify", false)
-            putExtra("oi_island_notify", true)
-            putExtra("oi_force_show", true)      // Ép đảo hiển thị viên thuốc ngay lập tức
+            putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("is_ongoing", !info.isFinished)

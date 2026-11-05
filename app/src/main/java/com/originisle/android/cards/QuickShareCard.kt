@@ -66,7 +66,7 @@ object QuickShareCard {
             // Đặt icon
             putExtra("oi_large_icon", appIcon)
             putExtra("oi_left_icon", appIcon)
-            putExtra("icon_res", R.drawable.ic_package)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
 
             // Cấu hình SuperX chuẩn Vivo OriginOS 6
             if (info.isRequest) {
@@ -78,12 +78,10 @@ object QuickShareCard {
                 }
                 putExtra("oi_template", template)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                putExtra("status_chip_text", "Nhận tệp?")
-                putExtra("oi_left_content", "Quick Share")
-                putExtra("oi_right_content", "Yêu cầu")
+                putExtra("status_chip_text", "Nhận tệp")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "Nhận tệp")
                 putExtra("oi_island_show_time", 15)
-                putExtra("oi_show_notify", false)
-                putExtra("oi_island_notify", true)
                 putExtra("oi_force_show", true)
                 putExtra("is_high_priority", true)
                 putExtra("oi_dismiss_when_kill", true)
@@ -93,26 +91,17 @@ object QuickShareCard {
                 }
             } else {
                 // Trạng thái đang truyền/nhận tệp (PROGRESS)
-                val chipText = when {
-                    info.isFinished -> "Xong ✓"
-                    info.progress > 0 -> "${info.progress}%"
-                    !info.speedText.isNullOrBlank() -> info.speedText
-                    else -> "Đang gửi"
-                }
-
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL) // 2
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                putExtra("oi_card_ring", info.progress.coerceIn(0, 100))
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-                putExtra("status_chip_text", chipText)
-                val leftContent = if (info.isFinished) "Hoàn tất" else "Quick Share"
-                putExtra("oi_left_content", leftContent)
-                putExtra("oi_right_content", chipText)
+                putExtra("status_chip_text", "${info.progress}%")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "${info.progress}%")
 
                 putExtra("show_progress", true)
-                putExtra("progress", info.progress)
+                putExtra("progress", info.progress.coerceIn(0, 100))
                 putExtra("progress_max", 100)
 
-                putExtra("oi_show_notify", false)
-                putExtra("oi_island_notify", true)
                 putExtra("oi_force_show", true)
                 putExtra("is_high_priority", true)
                 putExtra("oi_dismiss_when_kill", true)

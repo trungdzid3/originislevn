@@ -60,16 +60,15 @@ object IslandSamples {
         },
         OriginSample(
             "Mã OTP", "Mã xác thực SMS FPT Long Châu · 490 603",
-            IslandPreview(R.drawable.ic_alert, "MÃ OTP", IslandPreview.Right.Capsule("490 603")),
+            IslandPreview(R.mipmap.ic_launcher_round, "", IslandPreview.Right.Capsule("490603")),
         ) { ctx ->
             start(ctx, 40015) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("oi_left_content", "MÃ OTP")
-                putExtra("oi_right_content", "490 603")
-                putExtra("status_chip_text", "490 603")
-                putExtra("oi_fg_color", "#00E5FF")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "490603")
+                putExtra("status_chip_text", "490603")
                 putExtra("title", "490 603")
                 putExtra("text", "Mã xác thực · FPT Long Châu")
                 putExtra("source_app", "FPT Long Châu")
@@ -98,39 +97,43 @@ object IslandSamples {
         },
         OriginSample(
             "Tải xuống", "Thanh tiến trình tải tệp · 75%",
-            IslandPreview(R.drawable.ic_download, "Đang tải", IslandPreview.Right.Progress(0.75f)),
+            IslandPreview(R.drawable.ic_download, "", IslandPreview.Right.Progress(0.75f)),
         ) { ctx ->
             start(ctx, 40001) {
                 putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
                 putExtra("title", "Đang tải xuống")
                 putExtra("text", "ban-cap-nhat-moi.apk")
-                putExtra("oi_left_content", "Đang tải")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "75%")
                 putExtra("show_progress", true)
                 putExtra("progress", 75)
                 putExtra("progress_max", 100)
                 putExtra("status_chip_text", "75%")
+                putExtra("oi_card_ring", 75)
                 putExtra("is_high_priority", true)
-                putExtra("icon_res", R.drawable.ic_download)
+                putExtra("icon_res", R.mipmap.ic_launcher_round)
             }
         },
         OriginSample(
             "Hẹn giờ", "Đồng hồ đếm ngược · 40%",
-            IslandPreview(R.drawable.ic_timer, "Hẹn giờ", IslandPreview.Right.Progress(0.4f)),
+            IslandPreview(R.drawable.ic_timer, "", IslandPreview.Right.Progress(0.4f)),
         ) { ctx ->
             start(ctx, 40006) {
                 putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
                 putExtra("title", "Hẹn giờ")
                 putExtra("text", "Còn lại 6:00")
-                putExtra("oi_left_content", "Hẹn giờ")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "6:00")
                 putExtra("show_progress", true)
                 putExtra("progress", 40)
                 putExtra("progress_max", 100)
                 putExtra("status_chip_text", "6:00")
-                putExtra("icon_res", R.drawable.ic_timer)
+                putExtra("oi_card_ring", 40)
+                putExtra("icon_res", R.mipmap.ic_launcher_round)
             }
         },
         OriginSample(
@@ -249,38 +252,6 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Đa tác vụ Carousel", "Demo 2 tác vụ song song (Tải xuống + Đếm ngược) kèm nút đổi tác vụ",
-            IslandPreview(R.drawable.ic_download, "Đa tác vụ", IslandPreview.Right.Capsule("2 tác vụ")),
-        ) { ctx ->
-            start(ctx, 40021) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-                putExtra("title", "Đang tải xuống (1/2)")
-                putExtra("text", "OriginOS-6-Update.zip · 78%")
-                putExtra("oi_left_content", "Tải xuống")
-                putExtra("show_progress", true)
-                putExtra("progress", 78)
-                putExtra("progress_max", 100)
-                putExtra("status_chip_text", "78%")
-                putStringArrayListExtra("oi_button_titles", arrayListOf("Đổi tác vụ"))
-                putExtra("icon_res", R.drawable.ic_download)
-            }
-            start(ctx, 40022) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-                putExtra("title", "Hẹn giờ đếm ngược (2/2)")
-                putExtra("text", "Thời gian còn lại 04:30")
-                putExtra("oi_left_content", "Hẹn giờ")
-                putExtra("show_progress", true)
-                putExtra("progress", 45)
-                putExtra("progress_max", 100)
-                putExtra("status_chip_text", "04:30")
-                putExtra("icon_res", R.drawable.ic_timer)
-            }
-        },
-        OriginSample(
             "Tai nghe Vivo TWS 4", "Demo viễn trắc L 95% ⚡ / R 90% / Case 100% ⚡",
             IslandPreview(R.drawable.ic_earbuds, "Vivo TWS 4", IslandPreview.Right.Capsule("L 95% ⚡")),
         ) { ctx ->
@@ -301,34 +272,39 @@ object IslandSamples {
         },
         OriginSample(
             "Quick Share (Yêu cầu nhận tệp)", "Galaxy S24 Ultra · Tai_lieu_2026.pdf (15 MB)",
-            IslandPreview(R.drawable.ic_download, "Quick Share", IslandPreview.Right.None),
+            IslandPreview(R.drawable.ic_download, "", IslandPreview.Right.Capsule("Nhận tệp")),
         ) { ctx ->
             start(ctx, 40031) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
                 putExtra("title", "Galaxy S24 Ultra")
                 putExtra("text", "Tai_lieu_2026.pdf (15 MB)")
-                putExtra("oi_left_content", "Quick Share")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "Nhận tệp")
+                putExtra("status_chip_text", "Nhận tệp")
                 putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Chấp nhận"))
-                putExtra("icon_res", R.drawable.ic_download)
+                putExtra("icon_res", R.mipmap.ic_launcher_round)
             }
         },
         OriginSample(
             "Quick Share (Đang nhận)", "Ảnh_chụp_origin.heic · 65% · 4.2 MB/s",
-            IslandPreview(R.drawable.ic_download, "Quick Share", IslandPreview.Right.Progress(0.65f)),
+            IslandPreview(R.drawable.ic_download, "", IslandPreview.Right.Progress(0.65f)),
         ) { ctx ->
             start(ctx, 40032) {
                 putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
                 putExtra("title", "Quick Share")
                 putExtra("text", "Ảnh_chụp_origin.heic · 65% · 4.2 MB/s")
-                putExtra("oi_left_content", "Quick Share")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "65%")
                 putExtra("show_progress", true)
                 putExtra("progress", 65)
                 putExtra("progress_max", 100)
                 putExtra("status_chip_text", "65%")
-                putExtra("icon_res", R.drawable.ic_download)
+                putExtra("oi_card_ring", 65)
+                putExtra("icon_res", R.mipmap.ic_launcher_round)
             }
         },
     )
@@ -340,7 +316,6 @@ object IslandSamples {
             putExtra("click_resp", openApp(context))
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
-            putExtra("oi_show_notify", false)
             putExtra("oi_island_show_time", 15)
             configure()
         }

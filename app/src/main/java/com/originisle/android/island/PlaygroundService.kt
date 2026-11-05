@@ -21,19 +21,6 @@ import com.originisle.android.ui.PREFS_NAME
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Data session representation for Carousel & Deck Stacking multi-tasking.
- */
-data class CardSession(
-    val id: Int,
-    val scene: String,
-    val title: String,
-    val text: String,
-    val intent: Intent,
-    val isOngoing: Boolean,
-    val timestamp: Long,
-)
-
-/**
  * Posts, updates and ends OriginIsland "SuperX" cards.
  *
  * Callers drive it with an [Intent] full of `oi_*` extras (the same contract the original app
@@ -47,7 +34,6 @@ class PlaygroundService : Service() {
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_CANCEL = "ACTION_CANCEL"
-        const val ACTION_CYCLE_DECK = "ACTION_CYCLE_DECK"
         // Just brings the foreground service up (no card) so the process — and the notification
         // listener living in it — stays alive for background casts.
         const val ACTION_KEEPALIVE = "ACTION_KEEPALIVE"
@@ -80,9 +66,6 @@ class PlaygroundService : Service() {
     private val activeIds = linkedSetOf<Int>()
     private val originScenes = HashMap<Int, String>()
     private val originChangeRecord = HashMap<Int, Int>()
-    // Active sessions deck for Carousel & Deck Stacking multi-tasking (OPPO / Xiaomi style)
-    private val activeDeck = mutableListOf<CardSession>()
-    private var deckIndex = 0
 
     // Pending auto-dismiss timers, keyed by card id — only ever holds entries for non-live cards
     // (see readAndPost); a live card's id is simply never added here.
@@ -113,7 +96,6 @@ class PlaygroundService : Service() {
         try {
             when (intent?.action) {
                 ACTION_START -> readAndPost(intent)
-                ACTION_CYCLE_DECK -> cycleDeck()
                 ACTION_CANCEL -> cancelNotification(intent)
                 ACTION_STOP -> stopEverything()
                 ACTION_KEEPALIVE -> Unit // ensureForeground() above is all that's needed
@@ -191,75 +173,10 @@ class PlaygroundService : Service() {
         if (!isForegroundActive) stopSelf()
     }
 
-    // --- priority detection ------------------------------------------------------
-
-    private fun isHighPrioritySession(session: CardSession): Boolean {
-        return isHighPriority(
-            session.intent,
-            session.title,
-            session.text,
-            session.intent.getStringExtra("subtext").orEmpty(),
-            session.intent.getStringExtra("oi_left_content").orEmpty(),
-        )
-    }
-
-    private fun isHighPriority(
-        intent: Intent,
-        title: String,
-        text: String,
-        subtext: String,
-        leftContent: String,
-    ): Boolean {
-        if (intent.getBooleanExtra("is_high_priority", false)) return true
-
-        // 1. OTP detection
-        if (leftContent.contains("OTP", ignoreCase = true) ||
-            title.contains("OTP", ignoreCase = true) ||
-            text.contains("OTP", ignoreCase = true) ||
-            subtext.contains("OTP", ignoreCase = true)
-        ) {
-            return true
-        }
-
-        // 2. Payment & Bank transaction detection
-        if (subtext.contains("Tiền vào", ignoreCase = true) ||
-            subtext.contains("Tiền ra", ignoreCase = true) ||
-            text.contains("Giao dịch", ignoreCase = true) ||
-            text.contains("Nhận tiền", ignoreCase = true) ||
-            title.contains("VND", ignoreCase = true) ||
-            title.matches(Regex("""^[+-]\s*[\d.,]+\s*(?:đ|VND|k|K|USD|\$|€)?""")) ||
-            intent.getStringExtra("oi_bg_color")?.equals("#00D084", ignoreCase = true) == true ||
-            intent.getStringExtra("oi_bg_color")?.equals("#FF5247", ignoreCase = true) == true
-        ) {
-            return true
-        }
-
-        // 3. Incoming Call detection
-        if (text.contains("cuộc gọi", ignoreCase = true) ||
-            text.contains("incoming call", ignoreCase = true) ||
-            text.contains("đang gọi", ignoreCase = true) ||
-            title.contains("cuộc gọi", ignoreCase = true) ||
-            subtext.contains("cuộc gọi", ignoreCase = true)
-        ) {
-            return true
-        }
-
-        // 4. Download & Progress detection: Ưu tiên đưa thẻ tiến độ lên đầu đảo ngay khi tải tệp
-        if (intent.getBooleanExtra("show_progress", false) ||
-            intent.getIntExtra("oi_template", 0) == OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL ||
-            leftContent.contains("tải", ignoreCase = true) ||
-            title.contains("tải", ignoreCase = true)
-        ) {
-            return true
-        }
-
-        return false
-    }
-
     // --- posting -----------------------------------------------------------------
 
     /** Read the `oi_*` extras contract off [intent] and post/refresh a SuperX card. */
-    private fun readAndPost(intent: Intent, isCycle: Boolean = false) {
+    private fun readAndPost(intent: Intent) {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
 
@@ -338,52 +255,8 @@ class PlaygroundService : Service() {
 
         val isOngoing = intent.getBooleanExtra("is_ongoing", false)
 
-        // Carousel & Deck Stacking session management
-        val session = CardSession(
-            id = id,
-            scene = scene,
-            title = title,
-            text = text,
-            intent = Intent(intent),
-            isOngoing = isOngoing,
-            timestamp = System.currentTimeMillis(),
-        )
-        val isHigh = isHighPriority(intent, title, text, subtext.orEmpty(), leftContent)
-
-        if (!isCycle) {
-            val existingIdx = activeDeck.indexOfFirst { it.id == id }
-            if (existingIdx >= 0) {
-                if (isHigh && existingIdx != 0) {
-                    activeDeck.removeAt(existingIdx)
-                    activeDeck.add(0, session)
-                    deckIndex = 0
-                } else {
-                    activeDeck[existingIdx] = session
-                    if (existingIdx != 0) {
-                        // Background task updated in deck without stealing focus from head card
-                        return
-                    }
-                }
-            } else {
-                val headIsHigh = activeDeck.isNotEmpty() && isHighPrioritySession(activeDeck.first())
-                if (isHigh || activeDeck.isEmpty() || !headIsHigh) {
-                    activeDeck.add(0, session)
-                    deckIndex = 0
-                } else {
-                    // Head is high priority (OTP, Payment, Call); add normal card behind it
-                    activeDeck.add(session)
-                    val head = activeDeck.first()
-                    readAndPost(head.intent, isCycle = true)
-                    return
-                }
-            }
-        }
-
-        val deckCount = activeDeck.size
-        val displayIndex = if (deckCount > 0) (deckIndex % deckCount) + 1 else 1
-
         // Actions -> OriginActions.
-        val rawActions = intent.getParcelableArrayListExtra("actions", Notification.Action::class.java)
+        val actions = intent.getParcelableArrayListExtra("actions", Notification.Action::class.java)
             ?.map { a ->
                 OriginIslandBuilder.OriginAction(
                     title = a.title?.toString().orEmpty(),
@@ -391,30 +264,6 @@ class PlaygroundService : Service() {
                     pendingIntent = a.actionIntent,
                 )
             } ?: emptyList()
-
-        val actions = if (deckCount >= 2) {
-            val cycleIntent = Intent(this, PlaygroundService::class.java).apply {
-                action = ACTION_CYCLE_DECK
-            }
-            val cyclePendingIntent = PendingIntent.getService(
-                this,
-                8888,
-                cycleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            val cycleAction = OriginIslandBuilder.OriginAction(
-                title = "[ ⟲ Đổi tác vụ ($displayIndex/$deckCount) ]",
-                icon = null,
-                pendingIntent = cyclePendingIntent,
-            )
-            if (rawActions.size >= 3) {
-                rawActions.take(2) + cycleAction
-            } else {
-                rawActions + cycleAction
-            }
-        } else {
-            rawActions
-        }
 
         val clickResp: PendingIntent? =
             intent.getParcelableExtra("source_content_intent", PendingIntent::class.java)
@@ -425,14 +274,7 @@ class PlaygroundService : Service() {
         val buttonTitles = intent.getStringArrayListExtra("oi_button_titles") ?: emptyList()
 
         // capsule / right-island chip text: prefer explicit chip, else right content.
-        // Chỉ gắn chỉ số deck trên action button "[ ⟲ Đổi tác vụ ($displayIndex/$deckCount) ]".
-        // Tuyệt đối không tự tiện ghép "· $displayIndex/$deckCount ❯" vào baseChip vì sẽ làm tràn capsule SuperX trên OriginOS!
-        val baseChip = statusChip.ifBlank { rightContent }
-        val chip = when {
-            baseChip.isNotBlank() -> baseChip
-            deckCount >= 2 -> "$displayIndex/$deckCount ❯"
-            else -> ""
-        }
+        val chip = statusChip.ifBlank { rightContent }
 
         val changeRecord = ((originChangeRecord[id] ?: 0) + 1).also { originChangeRecord[id] = it }
 
@@ -490,24 +332,19 @@ class PlaygroundService : Service() {
 
         val sourceApp = intent.getStringExtra("source_app").orEmpty()
 
-        // Triệt để giải quyết xung đột scene trên Vivo OriginOS 6:
-        // Khi đăng thẻ mới hoặc chuyển thẻ trong scene NAVIGATION, nếu prevInScene != null && prevInScene != id,
-        // luôn gọi endOrigin(prevInScene, scene) trước khi postSuperX(id, ...) để giải phóng slot daemon,
-        // ngăn chặn 100% tình trạng Vivo reject SuperX post (SUPERX_VALUE = false).
-        val prevInScene = sceneCurrentId[scene]
-        if (prevInScene != null && prevInScene != id) {
-            endOrigin(prevInScene, scene)
-            runCatching {
-                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, prevInScene)
+        if (id >= 40000) {
+            val prevInScene = sceneCurrentId[scene]
+            if (prevInScene != null && prevInScene != id && prevInScene >= 40000) {
+                endOrigin(prevInScene, scene)
+                activeIds.remove(prevInScene)
+                originChangeRecord.remove(prevInScene)
+                originScenes.remove(prevInScene)
             }
-            originScenes.remove(prevInScene)
-            originChangeRecord.remove(prevInScene)
+            sceneCurrentId[scene] = id
         }
-        sceneCurrentId[scene] = id
-
         activeIds.add(id)
         originScenes[id] = scene
-        activeCardIds = activeDeck.map { it.id }.toSet().ifEmpty { activeIds.toSet() }
+        activeCardIds = activeIds.toSet()
         postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle)
 
         // Auto-dismiss: only for non-live cards (isOngoing is the same live/persistent flag the
@@ -531,7 +368,7 @@ class PlaygroundService : Service() {
     /**
      * Post the SuperX card exactly the way the original did: a HIGH-importance channel, real
      * title/text (NOT empty), no `setSilent`. On vivo a low-importance/silent/empty notification
-     * is minimised and the island never renders it — that was the bug.
+     * is minimised and the island never reaches the island — that was the bug.
      */
     private fun postSuperX(
         id: Int,
@@ -568,28 +405,6 @@ class PlaygroundService : Service() {
         notificationManager.notify(OriginIslandConstants.SUPERX_TAG, id, builder.build())
     }
 
-    // --- carousel cycling --------------------------------------------------------
-
-    private fun cycleDeck() {
-        if (activeDeck.size < 2) return
-        val oldHead = activeDeck.removeAt(0)
-        activeDeck.add(oldHead)
-        deckIndex = (deckIndex + 1) % activeDeck.size
-
-        endOrigin(oldHead.id, oldHead.scene)
-        sceneCurrentId.remove(oldHead.scene)
-        runCatching {
-            notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, oldHead.id)
-        }
-        originScenes.remove(oldHead.id)
-        originChangeRecord.remove(oldHead.id)
-
-        val nextHead = activeDeck.firstOrNull() ?: return
-        mainHandler.postDelayed({
-            readAndPost(nextHead.intent, isCycle = true)
-        }, 150L)
-    }
-
     // --- ending ------------------------------------------------------------------
 
     private fun endOrigin(id: Int, scene: String) {
@@ -613,43 +428,18 @@ class PlaygroundService : Service() {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
-
-        val wasHead = activeDeck.firstOrNull()?.id == id
-        activeDeck.removeAll { it.id == id }
-
         val scene = originScenes.remove(id) ?: intent.getStringExtra("oi_scene")
-        val isCurrentlyActiveInScene = (scene != null && sceneCurrentId[scene] == id)
-
-        if (isCurrentlyActiveInScene) {
-            endOrigin(id, scene!!)
-            sceneCurrentId.remove(scene)
+        if (scene != null) {
+            endOrigin(id, scene)
             mainHandler.postDelayed({
                 notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
             }, 350L)
         } else {
-            runCatching {
-                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
-            }
             notificationManager.cancel(id)
         }
         activeIds.remove(id)
         originChangeRecord.remove(id)
-        activeCardIds = activeDeck.map { it.id }.toSet()
-
-        if (activeDeck.isNotEmpty()) {
-            if (wasHead) {
-                deckIndex = 0
-                val nextCard = activeDeck.first()
-                mainHandler.postDelayed({
-                    readAndPost(nextCard.intent, isCycle = true)
-                }, 150L)
-            } else {
-                val currentHead = activeDeck.first()
-                readAndPost(currentHead.intent, isCycle = true)
-            }
-        } else {
-            deckIndex = 0
-        }
+        activeCardIds = activeIds.toSet()
     }
 
     private fun stopEverything() {
@@ -662,8 +452,6 @@ class PlaygroundService : Service() {
         originScenes.clear()
         originChangeRecord.clear()
         sceneCurrentId.clear()
-        activeDeck.clear()
-        deckIndex = 0
         val ids = activeIds.toList()
         activeIds.clear()
         activeCardIds = emptySet()
