@@ -136,6 +136,9 @@ object PaymentCard {
             if (isIncome) "Nhận tiền" else "Giao dịch thành công"
         }
 
+        // Bố cục đảo chuẩn theo yêu cầu:
+        // - Bên trái viên nang: Chỉ hiện tên ngân hàng (leftContent = transaction.bankName)
+        // - Bên phải viên nang: Hiện số tiền chuyển khoản (rightContent = title), không còn dấu '+' capsule riêng
         startService(
             app, id,
             title = title,
@@ -146,12 +149,12 @@ object PaymentCard {
             generating = 0,
             iconStatus = if (isIncome) OriginIslandConstants.ICON_STATUS_SUCCESS else -1,
             rightTemplate = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON,
-            chip = rawAmountClean,
+            chip = title,
             bgColor = accentColor,
             lightColor = accentColor,
             fgColor = accentColor,
             leftContent = transaction.bankName,
-            rightContent = rawAmountClean,
+            rightContent = title,
             showRightIcon = false,
         )
 

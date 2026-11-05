@@ -448,15 +448,30 @@ class NotificationCastListener : NotificationListenerService() {
             val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
                 template == "android.app.Notification\$CallStyle"
 
-            // --- Ưu tiên tuyệt đối: OTP -> Ngân hàng -> Tải xuống --------------------------
+            // --- Ưu tiên tuyệt đối: Ngân hàng -> OTP -> Tải xuống --------------------------
             // Ba loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
             // quiet hours, media…). Trên OriginOS chúng có thể đến từ gói hệ thống hoặc mang cờ
             // ongoing/progress nên nếu để sau các filter thì card bị nuốt mất.
 
-            // 1) Mã OTP / đăng nhập (ưu tiên cao nhất). KHÔNG dùng lại time-guard: notification OTP
-            //    thường được update tại chỗ với cùng postTime, guard cũ sẽ chặn mất mã mới.
+            // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
+            //    Phải kiểm tra đầu tiên để không bị bộ lọc OTP bắt nhầm mã giao dịch/số tài khoản.
+            val bankTx = VietnamBankDetector.parse(sbn)
+            if (bankTx != null && prefs.getBoolean("cast_vietnam_banks", true)) {
+                val id = IconCache.castIdFor(sbn)
+                val appIcon = IconCache.safeAppIcon(applicationContext, sbn.packageName)
+                val click = sbn.notification.contentIntent
+                    ?: fallbackClickIntent(applicationContext, sbn.packageName)
+                PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)
+                val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
+                log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
+                return
+            }
+
+            // 2) Mã OTP / đăng nhập. Bóc tách cả từ khóa SMS và action "Sao chép mã" / "Copy code".
+            //    KHÔNG dùng lại time-guard: notification OTP thường được update tại chỗ với cùng postTime.
             if (prefs.getBoolean("cast_otp", true)) {
-                OtpDetector.find(notificationText(sbn))?.let { code ->
+                val actionTitles = sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
+                OtpDetector.find(notificationText(sbn), actionTitles)?.let { code ->
                     val title = sbn.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
                     val sender = title.ifBlank { appLabel(sbn.packageName) }
                     OtpCard.post(applicationContext, sbn, code, sender)
@@ -466,20 +481,6 @@ class NotificationCastListener : NotificationListenerService() {
                     CastLog.add(sender, title.ifBlank { "OTP" }, outcome, true)
                     return
                 }
-            }
-
-            // 2) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
-            val bankTx = VietnamBankDetector.parse(sbn)
-            if (bankTx != null) {
-
-                val id = IconCache.castIdFor(sbn)
-                val appIcon = IconCache.safeAppIcon(applicationContext, sbn.packageName)
-                val click = sbn.notification.contentIntent
-                    ?: fallbackClickIntent(applicationContext, sbn.packageName)
-                PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)
-                val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
-                log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
-                return
             }
 
             // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)

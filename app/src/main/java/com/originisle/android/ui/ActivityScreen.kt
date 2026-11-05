@@ -280,25 +280,34 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
 
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PillButton(
-                text = "Thử OTP (682941)",
-                onClick = { sendTestOtpNotification(context, connected) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Key,
-                container = IsleColors.SurfaceHigh,
-                content = IsleColors.Text,
-                height = 42.dp,
-            )
-            PillButton(
-                text = "Thử số dư (+2.5Tr)",
+                text = "Thử Số dư",
                 onClick = { sendTestBankNotification(context, connected) },
                 modifier = Modifier.weight(1f),
                 icon = IsleIcons.CreditCard,
                 container = IsleColors.SurfaceHigh,
                 content = IsleColors.Text,
-                height = 42.dp,
+                height = 40.dp,
+            )
+            PillButton(
+                text = "Thử OTP",
+                onClick = { sendTestOtpNotification(context, connected) },
+                modifier = Modifier.weight(1f),
+                icon = IsleIcons.Key,
+                container = IsleColors.SurfaceHigh,
+                content = IsleColors.Text,
+                height = 40.dp,
+            )
+            PillButton(
+                text = "Thử Tải về",
+                onClick = { sendTestDownloadNotification(context, connected) },
+                modifier = Modifier.weight(1f),
+                icon = IsleIcons.Download,
+                container = IsleColors.SurfaceHigh,
+                content = IsleColors.Text,
+                height = 40.dp,
             )
         }
     }
@@ -323,52 +332,99 @@ private fun ensureTestChannel(context: Context): NotificationManager? {
     return nm
 }
 
-private fun sendTestOtpNotification(context: Context, connected: Boolean) {
-    runCatching {
-        val nm = ensureTestChannel(context)
-        val notif = NotificationCompat.Builder(context, TEST_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Mã xác thực OTP")
-            .setContentText("Ma OTP cua ban la 682941. Hieu luc trong 5 phut. Khong chia se ma cho bat ky ai.")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-        nm?.notify(9901, notif)
-    }
-
-    PlaygroundService.keepAlive(context)
-    CastLog.add(
-        app = "com.originisle.android",
-        title = "Mã xác thực OTP: 682941",
-        outcome = if (connected) "cast — Phát thẻ OTP lên đảo (Thử nghiệm)" else "bỏ qua — Dịch vụ lắng nghe chưa kết nối",
-        cast = connected,
-        context = context,
-    )
-    Toast.makeText(context, "Đã gửi thông báo OTP thử nghiệm. Xem nhật ký bên dưới!", Toast.LENGTH_SHORT).show()
-}
-
 private fun sendTestBankNotification(context: Context, connected: Boolean) {
     runCatching {
-        val nm = ensureTestChannel(context)
-        val notif = NotificationCompat.Builder(context, TEST_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Vietcombank: Biến động số dư")
-            .setContentText("TK 1012345678 +2,500,000 VND luc 14:35. So du 15,200,000 VND. ND: Chuyen tien thu nghiem Dao Origin")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-        nm?.notify(9902, notif)
+        com.originisle.android.cards.PaymentCard.post(
+            context = context,
+            id = 9902,
+            appIcon = android.graphics.drawable.Icon.createWithResource(context, com.originisle.android.R.mipmap.ic_launcher_round),
+            amount = "+2.500.000 đ",
+            description = "Chuyen tien thu nghiem Dao Origin",
+            bankName = "Vietcombank",
+            isIncome = true,
+            clickResp = null,
+        )
     }
 
-    PlaygroundService.keepAlive(context)
     CastLog.add(
-        app = "com.VCB",
-        title = "Vietcombank: +2.500.000 VND",
-        outcome = if (connected) "cast — Phát thẻ Biến động số dư lên đảo (Thử nghiệm)" else "bỏ qua — Dịch vụ lắng nghe chưa kết nối",
-        cast = connected,
+        app = "Vietcombank",
+        title = "Vietcombank: +2.500.000 đ",
+        outcome = "hiển thị — biến động số dư cộng tiền: +2.500.000 đ (Vietcombank)",
+        cast = true,
         context = context,
     )
-    Toast.makeText(context, "Đã gửi thông báo Ngân hàng thử nghiệm. Xem nhật ký bên dưới!", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, "Đã phát thẻ Biến động số dư Vietcombank lên Đảo Origin!", Toast.LENGTH_SHORT).show()
+}
+
+private fun sendTestOtpNotification(context: Context, connected: Boolean) {
+    runCatching {
+        val app = context.applicationContext
+        val intent = Intent(app, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", 9901)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_BASE)
+            putExtra("oi_right_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+            putExtra("oi_show_right_icon", false)
+            putExtra("oi_left_content", "MÃ OTP")
+            putExtra("oi_right_content", "682941")
+            putExtra("status_chip_text", "682941")
+            putExtra("oi_fg_color", "#00E5FF")
+            putExtra("title", "682 941")
+            putExtra("text", "Mã xác thực · FPT Long Châu")
+            putExtra("source_app", "FPT Long Châu")
+            putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
+            putExtra("oi_force_show", true)
+            putExtra("oi_island_notify", true)
+            putExtra("oi_keep_duration", 30)
+            putExtra("oi_dismiss_when_kill", true)
+        }
+        app.startService(intent)
+    }
+
+    CastLog.add(
+        app = "FPT Long Châu",
+        title = "Mã xác thực OTP: 682941",
+        outcome = "hiển thị — mã OTP: 682941 (FPT Long Châu)",
+        cast = true,
+        context = context,
+    )
+    Toast.makeText(context, "Đã phát thẻ OTP FPT Long Châu lên Đảo Origin!", Toast.LENGTH_SHORT).show()
+}
+
+private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
+    runCatching {
+        val app = context.applicationContext
+        val intent = Intent(app, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", 9903)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+            putExtra("oi_right_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
+            putExtra("title", "Edge Canary")
+            putExtra("text", "Đang tải xuống 65% · 1.5 MB/s")
+            putExtra("subtext", "Tốc độ: 1.5 MB/s")
+            putExtra("oi_left_content", "Đang tải")
+            putExtra("status_chip_text", "65%")
+            putExtra("show_progress", true)
+            putExtra("progress", 65)
+            putExtra("progress_max", 100)
+            putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
+            putExtra("oi_force_show", true)
+            putExtra("oi_dismiss_when_kill", true)
+            putExtra("is_ongoing", true)
+        }
+        app.startService(intent)
+    }
+
+    CastLog.add(
+        app = "Edge Canary",
+        title = "Tải tệp tin: 65%",
+        outcome = "hiển thị — tiến độ tải xuống 65% (Edge Canary)",
+        cast = true,
+        context = context,
+    )
+    Toast.makeText(context, "Đã phát thẻ Tiến trình tải xuống lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
 @Composable
