@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,6 +30,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -247,25 +250,78 @@ fun NavRow(
 }
 
 /**
- * OriginOS 6 Switch:
- * ON: Track = Teal (#00BFA5), Thumb = Pure White (#FFFFFF)
- * OFF: Track = #2C2D35 (Dark) / #D1D5DB (Light), Thumb = Pure White (#FFFFFF)
+ * OriginOS 6 Custom Switch (100% pixel-matched to Vivo OriginOS 6 physical switch):
+ * - Track: soft pill (48.dp width x 16.dp height).
+ *   ON: Soft pastel cyan/teal (#BAD8D9).
+ *   OFF: Muted gray (#E2E5E8 in Light Mode / #2C2F36 in Dark Mode).
+ * - Thumb: circular ring (28.dp diameter), overhangs track equally top & bottom by 6.dp.
+ *   Inner disk: Pure White (#FFFFFF).
+ *   Outer border ring: 3.8.dp thick.
+ *   ON: Deep rich Teal (#00696E).
+ *   OFF: Slate gray (#8E9298 in Light Mode / #71767C in Dark Mode).
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
-    Switch(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        modifier = modifier,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = Color.White,
-            checkedTrackColor = IsleColors.Accent,
-            checkedBorderColor = Color.Transparent,
-            uncheckedThumbColor = Color.White,
-            uncheckedTrackColor = IsleColors.SwitchOff,
-            uncheckedBorderColor = Color.Transparent,
-        ),
+    val trackWidth = 48.dp
+    val trackHeight = 16.dp
+    val thumbSize = 28.dp
+    val isDark = IsleColors.isDark
+
+    val thumbOffset by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (checked) trackWidth - thumbSize else 0.dp,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        label = "thumbOffset",
     )
+    val trackColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (checked) Color(0xFFBAD8D9) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E5E8),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        label = "trackColor",
+    )
+    val ringColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (checked) Color(0xFF00696E) else if (isDark) Color(0xFF71767C) else Color(0xFF8E9298),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        label = "ringColor",
+    )
+
+    Box(
+        modifier = modifier
+            .width(trackWidth)
+            .height(thumbSize)
+            .then(
+                if (onCheckedChange != null) {
+                    Modifier.clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Switch,
+                        onClick = { onCheckedChange(!checked) },
+                    )
+                } else Modifier
+            ),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        // Track: soft rounded pill centered horizontally and vertically
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(trackHeight)
+                .clip(RoundedCornerShape(trackHeight / 2))
+                .background(trackColor)
+        )
+        // Thumb: pure white center with thick outer ring border that overhangs track
+        Box(
+            modifier = Modifier
+                .offset(x = thumbOffset)
+                .size(thumbSize)
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(
+                    width = 3.8.dp,
+                    color = ringColor,
+                    shape = CircleShape,
+                )
+        )
+    }
 }
 
 /** Segmented control styled for OriginOS 6. */

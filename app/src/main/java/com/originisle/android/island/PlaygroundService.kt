@@ -363,18 +363,11 @@ class PlaygroundService : Service() {
         // scene này (prevInScene != null && prevInScene != id), kết thúc thẻ cũ bằng endOrigin trước để
         // Vivo SuperX không bị xung đột hoặc bỏ rơi thẻ mới.
         val prevInScene = sceneCurrentId[scene]
-        if (scene == "NAVIGATION" && prevInScene != null && prevInScene != id) {
+        if (id >= 40000 && prevInScene != null && prevInScene != id && prevInScene >= 40000) {
             endOrigin(prevInScene, scene)
             activeIds.remove(prevInScene)
             originChangeRecord.remove(prevInScene)
             originScenes.remove(prevInScene)
-        } else if (id >= 40000) {
-            if (prevInScene != null && prevInScene != id && prevInScene >= 40000) {
-                endOrigin(prevInScene, scene)
-                activeIds.remove(prevInScene)
-                originChangeRecord.remove(prevInScene)
-                originScenes.remove(prevInScene)
-            }
         }
         sceneCurrentId[scene] = id
 

@@ -27,8 +27,16 @@ object DownloadDetector {
         "com.vivo.browser",
         "com.brave.browser",
         "org.mozilla.firefox",
+        "org.mozilla.firefox_beta",
+        "org.mozilla.fenix",
         "com.opera.browser",
+        "com.opera.mini.native",
+        "com.opera.touch",
         "com.coccoc.trinhduyet",
+        "com.sec.android.app.sbrowser",
+        "com.sec.android.app.sbrowser.beta",
+        "com.duckduckgo.mobile.android",
+        "mark.via.gp",
     )
 
     private val PERCENT_PATTERN = Pattern.compile("(\\d{1,3})\\s*%")
@@ -36,8 +44,16 @@ object DownloadDetector {
         "(\\d+(?:[.,]\\d+)?)\\s*(?:MB|GB|KB|kB|M|G|K)?\\s*/\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:MB|GB|KB|kB|M|G|K)",
         Pattern.CASE_INSENSITIVE
     )
+    private val SINGLE_SIZE_PATTERN = Pattern.compile(
+        "(\\d+(?:[.,]\\d+)?)\\s*(?:MB|GB|KB|kB)",
+        Pattern.CASE_INSENSITIVE
+    )
     private val SPEED_PATTERN = Pattern.compile(
         "(\\d+(?:[.,]\\d+)?\\s*(?:KB/s|MB/s|GB/s|kB/s|kb/s|mb/s))",
+        Pattern.CASE_INSENSITIVE
+    )
+    private val FILE_EXT_PATTERN = Pattern.compile(
+        "\\.(?:apk|zip|rar|7z|tar|gz|bin|iso|pdf|mp4|mkv|exe|dmg|docx|xlsx)\\b",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -54,7 +70,13 @@ object DownloadDetector {
         // 2. Kiểm tra category chuẩn
         if (n.category == Notification.CATEGORY_PROGRESS) return true
 
-        // 3. Kiểm tra nội dung text
+        // 3. Kiểm tra kênh thông báo (Channel ID): Chrome/Edge/PlayStore luôn dùng channel có chữ download
+        val channelId = n.channelId?.lowercase().orEmpty()
+        if (channelId.contains("download") || channelId.contains("tai_xuong") || channelId.contains("tải")) {
+            return true
+        }
+
+        // 4. Kiểm tra nội dung text
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
         val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
@@ -72,22 +94,26 @@ object DownloadDetector {
             allText.contains("pending") ||
             allText.contains("đã tải xong") ||
             allText.contains("đã cài đặt") ||
-            allText.contains("installed")
+            allText.contains("installed") ||
+            allText.contains("hoàn tất tải")
 
         if (hasDownloadKeywords) return true
 
-        // 4. Nếu từ gói tải xuống/trình duyệt và có dấu hiệu tiến trình (% hoặc size hoặc tốc độ)
+        // 5. Nếu từ gói tải xuống/trình duyệt và có dấu hiệu tiến trình (% hoặc size hoặc tốc độ hoặc đuôi file)
         val isDownloadPackage = pkg in DOWNLOAD_PACKAGES ||
             pkg.startsWith("com.microsoft.emmx") ||
             pkg.startsWith("com.android.chrome") ||
             pkg.startsWith("com.chrome") ||
             pkg == "com.android.vending" ||
-            pkg.startsWith("com.android.providers.downloads")
+            pkg.startsWith("com.android.providers.downloads") ||
+            pkg.contains("browser")
 
         if (isDownloadPackage) {
             if (PERCENT_PATTERN.matcher(allText).find()) return true
             if (SIZE_PATTERN.matcher(allText).find()) return true
             if (SPEED_PATTERN.matcher(allText).find()) return true
+            if (FILE_EXT_PATTERN.matcher(allText).find()) return true
+            if (SINGLE_SIZE_PATTERN.matcher(allText).find()) return true
         }
 
         return false
@@ -183,10 +209,10 @@ object DownloadDetector {
         val displayTitle = when {
             title.isNotBlank() && !title.lowercase().contains("cửa hàng") && !title.lowercase().contains("play store") && !title.lowercase().contains("download") -> title
             text.isNotBlank() && !text.lowercase().contains("đang tải") && !text.lowercase().contains("downloading") -> text
-            else -> when (pkg) {
-                "com.android.vending" -> "Cửa hàng Google Play"
-                "com.android.chrome" -> "Tải tệp Chrome"
-                "com.microsoft.emmx" -> "Tải tệp Edge"
+            else -> when {
+                pkg == "com.android.vending" -> "Cửa hàng Google Play"
+                pkg.contains("chrome") -> "Tải tệp Chrome"
+                pkg.contains("emmx") -> "Tải tệp Edge"
                 else -> "Đang tải xuống"
             }
         }

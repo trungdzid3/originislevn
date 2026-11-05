@@ -441,10 +441,7 @@ class NotificationCastListener : NotificationListenerService() {
             if (bankTx != null) {
 
                 val id = IconCache.castIdFor(sbn)
-                val appIcon = runCatching {
-                    val ai = packageManager.getApplicationInfo(sbn.packageName, 0)
-                    Icon.createWithResource(sbn.packageName, ai.icon)
-                }.getOrNull()
+                val appIcon = IconCache.safeAppIcon(applicationContext, sbn.packageName)
                 val click = sbn.notification.contentIntent
                     ?: fallbackClickIntent(applicationContext, sbn.packageName)
                 PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)

@@ -247,18 +247,31 @@ val JakartaSans = FontFamily(
     jakarta(FontWeight.ExtraBold),
 )
 
-private fun TextStyle.jakarta() = copy(fontFamily = JakartaSans)
+/**
+ * Vivo Sans system font family: Automatically loads Vivo's official system font "vivo-sans"
+ * on Vivo OriginOS devices, falling back gracefully to Jakarta Sans on other systems.
+ */
+val VivoSans: FontFamily = runCatching {
+    val vivoTypeface = android.graphics.Typeface.create("vivo-sans", android.graphics.Typeface.NORMAL)
+    if (vivoTypeface != android.graphics.Typeface.DEFAULT) {
+        FontFamily(androidx.compose.ui.text.font.Typeface(vivoTypeface))
+    } else {
+        JakartaSans
+    }
+}.getOrElse { JakartaSans }
+
+private fun TextStyle.originFont() = copy(fontFamily = VivoSans)
 
 private val IsleTypography = Typography().run {
     copy(
-        displayLarge = displayLarge.jakarta(), displayMedium = displayMedium.jakarta(),
-        displaySmall = displaySmall.jakarta(), headlineLarge = headlineLarge.jakarta(),
-        headlineMedium = headlineMedium.jakarta(), headlineSmall = headlineSmall.jakarta(),
-        titleLarge = titleLarge.jakarta(), titleMedium = titleMedium.jakarta(),
-        titleSmall = titleSmall.jakarta(), bodyLarge = bodyLarge.jakarta(),
-        bodyMedium = bodyMedium.jakarta(), bodySmall = bodySmall.jakarta(),
-        labelLarge = labelLarge.jakarta(), labelMedium = labelMedium.jakarta(),
-        labelSmall = labelSmall.jakarta(),
+        displayLarge = displayLarge.originFont(), displayMedium = displayMedium.originFont(),
+        displaySmall = displaySmall.originFont(), headlineLarge = headlineLarge.originFont(),
+        headlineMedium = headlineMedium.originFont(), headlineSmall = headlineSmall.originFont(),
+        titleLarge = titleLarge.originFont(), titleMedium = titleMedium.originFont(),
+        titleSmall = titleSmall.originFont(), bodyLarge = bodyLarge.originFont(),
+        bodyMedium = bodyMedium.originFont(), bodySmall = bodySmall.originFont(),
+        labelLarge = labelLarge.originFont(), labelMedium = labelMedium.originFont(),
+        labelSmall = labelSmall.originFont(),
     )
 }
 

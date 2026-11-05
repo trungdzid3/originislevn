@@ -1,9 +1,12 @@
 package com.originisle.android.service
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.Icon
 import android.media.session.MediaController
 import android.service.notification.StatusBarNotification
+import com.originisle.android.R
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -29,5 +32,26 @@ object IconCache {
         activeSmallIcons.remove(id)
         activeLargeIcons.remove(id)
         activeLargeBitmaps.remove(id)
+    }
+
+    /**
+     * Safely resolve an application's icon as a standalone pure Bitmap Icon.
+     * Prevents Vivo SuperX / OriginOS SystemUI from throwing cross-package
+     * Resources$NotFoundException or SecurityException when unparceling notifications.
+     */
+    fun safeAppIcon(context: Context, packageName: String): Icon {
+        return runCatching {
+            val pm = context.packageManager
+            val drawable = pm.getApplicationIcon(packageName)
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceIn(48, 144) else 96
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceIn(48, 144) else 96
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            Icon.createWithBitmap(bitmap)
+        }.getOrElse {
+            Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        }
     }
 }

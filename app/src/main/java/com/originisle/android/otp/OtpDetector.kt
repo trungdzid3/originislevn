@@ -61,6 +61,8 @@ object OtpDetector {
      * - Đóng trong ngoặc vuông [123456]
      */
     private val DIRECT_PATTERNS = listOf(
+        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)\bcode\s*[:：]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:\bOTP\b|\bmã\s*xác\s*thực\b|\bma\s*xac\s*thuc\b|\bmã\s*xác\s*minh\b|\bma\s*xac\s*minh\b|\bmã\s*xác\s*nhận\b|\bma\s*xac\s*nhan\b|\bmã\s*đăng\s*nhập\b|\bma\s*dang\s*nhap\b|\bverification\s*code\b|\bsecurity\s*code\b)[^\d]{0,45}?(?<!\d)(\d{4,8})(?!\d)"""),
         Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:\bmã\b|\bma\b|\bcode\b|\botp\b|\bpasscode\b|\bpin\b)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),

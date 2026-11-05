@@ -32,9 +32,8 @@ object OtpCard {
     fun post(context: Context, sbn: StatusBarNotification, code: String, appLabel: String) {
         val app = context.applicationContext
         val id = IconCache.castIdFor(sbn)
-        val appIcon = runCatching {
-            Icon.createWithResource(sbn.packageName, app.packageManager.getApplicationInfo(sbn.packageName, 0).icon)
-        }.getOrNull()
+        IconCache.activeSmallIcons.remove(id)
+        val appIcon = IconCache.safeAppIcon(app, sbn.packageName)
 
         val isVi = Locale.getDefault().language == "vi"
         val copyLabel = if (isVi) "Sao chép" else "Copy"

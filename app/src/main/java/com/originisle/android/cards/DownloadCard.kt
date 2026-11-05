@@ -19,7 +19,8 @@ object DownloadCard {
     fun post(context: Context, info: DownloadInfo, sbn: StatusBarNotification) {
         val id = IconCache.castIdFor(sbn)
 
-        val icon = Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        IconCache.activeSmallIcons.remove(id)
+        val icon = IconCache.safeAppIcon(context, sbn.packageName)
         val clickPi = info.contentIntent
             ?: sbn.notification.contentIntent
             ?: fallbackClickIntent(context, sbn.packageName)
@@ -62,7 +63,7 @@ object DownloadCard {
             putExtra("show_progress", true)
             putExtra("progress", info.progress)
             putExtra("progress_max", 100)
-            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("icon_res", R.drawable.ic_download)
 
             putExtra("oi_left_icon", icon)
             putExtra("oi_large_icon", icon)
