@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Earbuds card only, asked for by its switch: connection broadcasts and the device name. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
         android:name=".OriginIsleApp"

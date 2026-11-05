@@ -321,17 +321,34 @@ class NotificationCastListener : NotificationListenerService() {
         startSystemCards()
     }
 
-    /** Cards fed by the system rather than by notifications: camera/mic, flashlight, earbuds. */
+    private var screenshotObserver: com.originisle.android.smart.ScreenshotObserver? = null
+
+    /** Cards fed by the system rather than by notifications: camera/mic, flashlight, earbuds, AI screenshot. */
     private fun startSystemCards() {
         runCatching { FlashlightCard.start(this) }.onFailure { Log.e(TAG, "flashlight card failed", it) }
         runCatching { PrivacyCard.start(this) }.onFailure { Log.e(TAG, "privacy card failed", it) }
         runCatching { EarbudsCard.start(this) }.onFailure { Log.e(TAG, "earbuds card failed", it) }
+        runCatching {
+            if (screenshotObserver == null) {
+                val obs = com.originisle.android.smart.ScreenshotObserver(applicationContext)
+                contentResolver.registerContentObserver(
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    true,
+                    obs
+                )
+                screenshotObserver = obs
+            }
+        }.onFailure { Log.e(TAG, "screenshot observer failed", it) }
     }
 
     private fun stopSystemCards() {
         runCatching { PrivacyCard.stop() }
         runCatching { FlashlightCard.stop() }
         runCatching { EarbudsCard.stop() }
+        screenshotObserver?.let {
+            runCatching { contentResolver.unregisterContentObserver(it) }
+            screenshotObserver = null
+        }
     }
 
     /** Feeds [ChargingCard]. Registered while bound — the bound listener is what keeps us alive anyway. */

@@ -19,7 +19,7 @@ import java.net.URL
 object UpdateChecker {
     private const val TAG = "UpdateChecker"
     private const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/fvhde/origin-isle/releases/latest"
+        "https://api.github.com/repos/trungdzid3/originislevn/releases/latest"
 
     sealed class Result {
         data class UpToDate(val current: String) : Result()

@@ -208,6 +208,42 @@ object IslandSamples {
                 homeLogo = ball, awayLogo = ball,
             )
         },
+        OriginSample(
+            "Vé máy bay (OriginOS 7)", "Chuyến bay VN 152 · HAN ✈ SGN · Cửa 12",
+            IslandPreview(R.drawable.ic_flight, "Vé bay", IslandPreview.Right.Capsule("VN 152")),
+        ) { ctx ->
+            start(ctx, 40011) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
+                putExtra("title", "VN 152 · HAN ✈ SGN")
+                putExtra("text", "Giờ bay: 14:30 · Cửa: 12 · Ghế: 15A")
+                putExtra("subtext", "Vé máy bay · Vietnam Airlines")
+                putExtra("oi_left_content", "Vé bay")
+                putExtra("oi_right_content", "VN 152")
+                putExtra("status_chip_text", "VN 152")
+                putExtra("icon_res", R.drawable.ic_flight)
+            }
+        },
+        OriginSample(
+            "Tai nghe TWS (OriginOS 7)", "Viễn trắc pin chi tiết · L: 95% · R: 90% · Hộp: 100%",
+            IslandPreview(R.drawable.ic_earbuds, "", IslandPreview.Right.Capsule("L 95% · R 90%")),
+        ) { ctx ->
+            start(ctx, 40012) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
+                putExtra("title", "Vivo TWS 4 Pro")
+                putExtra("text", "Tai Trái: 95% ⚡   Tai Phải: 90%   Hộp sạc: 100% ⚡")
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "L 95% · R 90%")
+                putExtra("status_chip_text", "L 95% · R 90%")
+                putExtra("oi_card_ring", 95)
+                putExtra("oi_fg_color", "#FF29E683")
+                putExtra("oi_bg_color", "#4C29E683")
+                putExtra("icon_res", R.drawable.ic_earbuds)
+            }
+        },
     )
 
     private fun start(context: Context, id: Int, configure: Intent.() -> Unit) {

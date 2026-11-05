@@ -2,7 +2,6 @@ package com.originisle.android.cards
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.StatusBarNotification
@@ -20,7 +19,6 @@ object DownloadCard {
         val id = IconCache.castIdFor(sbn)
 
         IconCache.activeSmallIcons.remove(id)
-        val icon = IconCache.safeAppIcon(context, sbn.packageName)
         val clickPi = info.contentIntent
             ?: sbn.notification.contentIntent
             ?: fallbackClickIntent(context, sbn.packageName)
@@ -52,7 +50,7 @@ object DownloadCard {
             }
             putExtra("source_pkg", sbn.packageName)
 
-            // Cấu hình SuperX chuẩn OriginOS 6 cho thẻ tiến độ (giống IslandSamples đang chạy được)
+            // Cấu hình SuperX chuẩn OriginOS 6 cho thẻ tiến độ (giống 100% mẫu IslandSamples đang chạy mượt mà)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
             putExtra("status_chip_text", chipText)
@@ -65,10 +63,8 @@ object DownloadCard {
             putExtra("progress_max", 100)
             putExtra("icon_res", R.drawable.ic_download)
 
-            putExtra("oi_left_icon", icon)
-            putExtra("oi_large_icon", icon)
-            putExtra("oi_fg_color", "#FF2B66FF") // Vivo Origin Blue
             putExtra("oi_force_show", true)      // Ép đảo hiển thị viên thuốc ngay lập tức
+            putExtra("oi_dismiss_when_kill", true)
             putExtra("is_ongoing", !info.isFinished)
             putExtra("click_resp", clickPi)
             putExtra("source_content_intent", clickPi)
