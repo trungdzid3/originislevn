@@ -55,27 +55,30 @@ object OtpCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-            putExtra("oi_show_right_icon", false)
-            putExtra("oi_left_content", "MÃ OTP")
-            putExtra("oi_right_content", code)
-            putExtra("status_chip_text", code)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6: Hiện viên nang chứa mã số rõ ràng trên đảo
+            putExtra("oi_left_content", appLabel.ifBlank { "MÃ OTP" })
+            putExtra("oi_right_content", spaced(code))
+            putExtra("status_chip_text", spaced(code))
             putExtra("oi_fg_color", "#00E5FF") // Màu Cyan neon nổi bật
-            putExtra("title", spaced(code))
-            putExtra("text", subtitle)
+            putExtra("title", "Mã OTP: ${spaced(code)}")
+            putExtra("text", "Chạm vào đảo để sao chép mã · $appLabel")
             putExtra("source_app", appLabel)
             putExtra("source_pkg", sbn.packageName)
-            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("icon_res", R.drawable.ic_key)
             appIcon?.let {
                 putExtra("oi_left_icon", it)
                 putExtra("oi_large_icon", it)
             }
-            putParcelableArrayListExtra("actions", arrayListOf(copyAction))
-            // The whole card copies: that's the one thing anyone tapping a code wants.
+            // Không hiển thị thêm thông báo thừa trong khay thông báo (Notification Shade)
+            // Chỉ hiển thị trực tiếp lên Đảo Origin (Island / Capsule quanh camera)
+            putExtra("oi_show_notify", false)
+            putExtra("oi_island_notify", true)
+            putExtra("oi_island_show_time", 15) // Bung to đảo trong 15 giây để người dùng nhìn rõ mã OTP
+            putExtra("oi_force_show", true)
+            putExtra("is_high_priority", true)
+            // Chạm vào bất kỳ vị trí nào trên đảo sẽ copy mã ngay lập tức
             putExtra("source_content_intent", copy)
             putExtra("click_resp", copy)
-            putExtra("oi_force_show", true)
-            putExtra("oi_island_notify", true)
             putExtra("oi_keep_duration", 30)
             putExtra("oi_dismiss_when_kill", true)
         }

@@ -85,17 +85,20 @@ object DownloadCard {
             putExtra("status_chip_text", chipText)
             val leftContent = if (info.isFinished) "Hoàn tất" else "Đang tải"
             putExtra("oi_left_content", leftContent)
-            // XÓA BỎ: putExtra("oi_right_content", chipText) vì right_template = 2 là thanh tiến độ tròn,
-            // gửi oi_right_content gây mâu thuẫn bundle khiến SuperX reject đảo!
+            putExtra("oi_right_content", chipText)
 
             putExtra("show_progress", true)
             putExtra("progress", info.progress)
             putExtra("progress_max", 100)
             putExtra("oi_large_icon", appIcon)
             putExtra("oi_left_icon", appIcon)
-            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("icon_res", R.drawable.ic_download)
 
+            // Chỉ hiển thị trên Đảo Origin, không tạo thêm thông báo mới trong khay thông báo
+            putExtra("oi_show_notify", false)
+            putExtra("oi_island_notify", true)
             putExtra("oi_force_show", true)      // Ép đảo hiển thị viên thuốc ngay lập tức
+            putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("is_ongoing", !info.isFinished)
             putExtra("click_resp", clickPi)
