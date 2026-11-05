@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.0.5` (mã bản dựng `versionCode = 10006`, chuẩn SemVer 2.0.0).
+- **Phiên bản hiện tại**: `1.0.6` (mã bản dựng `versionCode = 10007`, chuẩn SemVer 2.0.0).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -51,7 +51,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.0.5-debug.apk    # File APK xuất bản duy nhất
+└── OriginIsle-VN-v1.0.6-debug.apk    # File APK xuất bản duy nhất
 ```
 
 ## 3. Bản Đồ Code (Code Map)
@@ -77,7 +77,7 @@ origin-isle-vn/
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
 - **ApplicationId cố định**: Bắt buộc giữ `com.autonavi.minimap` trong `app/build.gradle.kts` để qua whitelist của Vivo Origin Island.
 - **Tài nguyên Small Icon**: Mọi thông báo gửi tới Vivo SuperX phải sử dụng mipmap resource (`R.mipmap.ic_launcher_round`), không được dùng vector XML hoặc adaptive mipmap trong Compose painterResource.
-- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.0.5-debug.apk`.
+- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.0.6-debug.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
 - Toàn bộ tính năng đã được triển khai, kiểm thử đơn vị và biên dịch thành công 100%.
