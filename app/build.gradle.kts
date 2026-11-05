@@ -55,7 +55,11 @@ android {
             )
             // Falls back to unsigned when no keystore.properties is present (e.g. a fresh clone),
             // so `assembleRelease` never hard-fails on a missing local secret.
-            if (keystorePropsFile.exists()) signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (keystorePropsFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
