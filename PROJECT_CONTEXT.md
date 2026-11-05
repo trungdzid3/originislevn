@@ -4,50 +4,41 @@
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
 - **Phiên bản hiện tại**: **`0.0.6`** (mã bản dựng `versionCode = 103`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (v2.2.1).
-- **Cải tiến cốt lõi v0.0.6**:
+- **Cải tiến cốt lõi v0.0.6 (Đợt Đại tu Hoàn thiện)**:
   1. **Nhận diện mã OTP triệt để**:
-     - Khắc phục lỗi `OtpCard`: Thay thế hoàn toàn `R.drawable.ic_key` (Vector XML) bằng `R.mipmap.ic_launcher_round` (Bitmap mipmap), ngăn chặn việc hệ thống Vivo SuperX âm thầm từ chối/drop thông báo.
-     - Cập nhật giải thuật ngữ cảnh `OtpDetector`: Sử dụng lookaround và context anchor `(?i)(?:\bOTP\b|\bma\s*xac\s*thuc\b|\bmã\s*xác\s*thực\b|\bverification\s*code\b|\bsecurity\s*code\b|\bcode\b)[^\d]{0,35}?(?<!\d)(\d{4,8})(?!\d)` để bắt chính xác mã OTP (ví dụ FPT Long Châu "Ma xac thuc OTP cua ban la 918119") và loại trừ số hotline/tổng đài (18006928).
-     - Bổ sung các từ khóa tiền tố số điện thoại: `liên hệ`, `lien he`, `tổng đài`, `tong dai`, `cskh`.
-  2. **Tiến trình tải xuống (Download Live Activity)**:
-     - Nâng cấp `NotificationCastListener`: Đưa nhánh tải xuống (`DownloadDetector.isDownload`) lên hàng ưu tiên cao (Live Activity) ngay sau OTP, không còn bị chặn bởi bộ lọc thông báo tĩnh hoặc công tắc ứng dụng bị tắt.
-     - Bổ sung tùy chọn `cast_downloads` mặc định kích hoạt (`true`).
-     - Đặt mặc định `cast_notifications = true` trên toàn hệ thống để ứng dụng hoạt động ngay sau khi cấp quyền.
-  3. **Giao diện chuẩn Vivo OriginOS 6 (dựa trên ảnh chụp thực tế)**:
-     - Nền đen AMOLED thuần `#000000` (thay thế nền xám obsidian cũ).
-     - Thẻ Atomic Card squircle `#17181C`, bề mặt nổi `#22242A`.
-     - Màu chủ đạo & icon: 100% chuyển sang **Teal / Cyan Mint** (`#00BFA5`).
-     - Bỏ khung vuông có màu xung quanh icon danh mục: Render glyph vector thuần túy màu Teal trên nền trong suốt.
-     - Bổ sung thanh tìm kiếm con nhộng (Pill Search Bar 42dp) trên đỉnh màn hình chính.
-     - Công tắc (Switch): Bật là Teal `#00BFA5`, tắt là `#2C2D35`, nút gạt trắng.
+     - Mở rộng `NotificationCastListener.kt`: `notificationText()` đọc cả `EXTRA_TEXT_LINES` (InboxStyle), `actions` (nút sao chép mã) và các trường riêng của Vivo MMS. Bắt 100% tin nhắn OTP dạng FPT Long Châu / Vivo Verification Reminder.
+     - Lọc bỏ triệt để số điện thoại tổng đài hotline (18006928, 1900...) không bao giờ bị nhầm thành mã OTP.
+  2. **Biến động số dư Ngân hàng Việt Nam**:
+     - `VietnamBankDetector.kt`: Bổ sung `SMS_PACKAGES` (`com.vivo.mms`, `com.android.mms`, `com.google.android.apps.messaging`) và brandname các ngân hàng Việt Nam (Vietcombank, MB, Techcombank, BIDV, VPBank, ACB, TPBank, MoMo,...).
+     - Hỗ trợ cả thông báo từ app ngân hàng và tin nhắn SMS biến động số dư.
+     - Loại bỏ time-guard gây chặn nhầm các giao dịch liên tiếp.
+  3. **Tiến trình tải xuống & Chống rơi thẻ SuperX**:
+     - `DownloadCard.kt`: Đặt `oi_left_content` ngắn gọn chuẩn "Đang tải", ngăn vỡ layout viên thuốc.
+     - `PlaygroundService.kt`: Tự động dọn dẹp kết thúc thẻ cũ trong scene `NAVIGATION` trước khi hiển thị thẻ mới, loại bỏ hoàn toàn việc SuperX âm thầm nuốt thẻ.
+  4. **Giao diện chuẩn OriginOS 6 (Sáng & Tối)**:
+     - Thẻ Phone Mockup kép ("Chế độ sáng" và "Chế độ tối") với radio button chuyển đổi tức thì theme ở đầu màn hình cài đặt giống 100% ảnh chụp thực tế.
+     - Công tắc gạt OriginOS Teal `#00BFA5`, icon glyph vector thanh mảnh không hộp nền vuông.
+  5. **Triệt tiêu bẫy màn hình đen khi khởi động**:
+     - `MainActivity.kt` & `OriginIsleApp.kt`: Xóa bỏ việc kẹt cứng vào màn hình đen chẩn đoán lỗi, người dùng không bao giờ phải xóa dữ liệu ứng dụng.
 
 ## 2. Quy Định Xuất Bản Cố Định (Strict Policy)
 File APK thành phẩm bắt buộc xuất bản trực tiếp tại thư mục nguồn dự án:
 `C:\Users\Lenovo\.gemini\antigravity\scratch\origin-isle-vn\Dao-Origin-0.0.6-VN.apk`
 
-## 3. Kiến Trúc & Cấu Trúc Thư Mục Chuẩn Hóa
-- `app/`: Toàn bộ module ứng dụng Android (Kotlin, Jetpack Compose, Android Views).
-- `scripts/`:
-  - `release.sh`: Kịch bản Bash xuất bản bản dựng release và tạo tag git.
-  - `README.md`: Hướng dẫn chi tiết chức năng toàn bộ công cụ.
-  - `tools/`: Bộ công cụ Python chuyên biệt phục vụ vá lỗi, đối soát chuỗi, bản địa hóa và đồng bộ style OriginOS.
-- `docs/`: Tài liệu kiến trúc upstream (`DEV.md`, `PROTOCOL.md`, ảnh màn hình).
-- `backups/`: Lưu trữ các bản snapshot sao lưu dự phòng theo Major Overhaul Backup Protocol.
-- `DESIGN.md`: Nguồn chân lý duy nhất (SSOT) về giao diện, màu sắc, typography và animation.
-
-## 4. Bản Đồ Code Trọng Yếu
+## 3. Bản Đồ Code Trọng Yếu
 - `app/build.gradle.kts`: Cấu hình phiên bản (`versionCode = 103`, `versionName = "0.0.6"`).
-- `app/src/main/java/com/originisle/android/OriginIsleApp.kt`: Khởi tạo Application kèm ghi tệp chẩn đoán `last_crash.txt`.
-- `app/src/main/java/com/originisle/android/MainActivity.kt`: Điều hướng Activity chính và giao diện chẩn đoán lỗi trực quan bằng Android Views thuần.
-- `app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`: Trích xuất tin nhắn SMS an toàn, điều phối Đảo và nhận diện OTP/Download/Bank theo thứ tự ưu tiên cao.
-- `app/src/main/java/com/originisle/android/otp/OtpDetector.kt`: Phân tích mã OTP song ngữ, hỗ trợ Vivo Verification Reminder, lọc hotline và từ khóa ngữ cảnh.
-- `app/src/main/java/com/originisle/android/cards/OtpCard.kt`: Sử dụng icon mipmap bitmap chuẩn SuperX.
-- `app/src/main/java/com/originisle/android/download/DownloadDetector.kt`: Nhận diện tải xuống cho Chrome, Edge mọi nhánh, CH Play, Download Manager.
-- `app/src/main/java/com/originisle/android/cards/DownloadCard.kt`: Thẻ hiển thị tiến trình tải xuống chuẩn OriginOS SuperX.
-- `app/src/main/java/com/originisle/android/ui/Theme.kt`: Bảng màu chuẩn OriginOS 6 (AMOLED `#000000`, Atomic Card `#17181C`, Teal `#00BFA5`).
-- `app/src/main/java/com/originisle/android/ui/Components.kt`: IconTile vector thuần túy không nền màu, IsleSwitch chuẩn Teal.
-- `app/src/main/java/com/originisle/android/ui/HomeScreen.kt`: Màn hình chính phong cách OriginOS 6 kèm ô tìm kiếm con nhộng và công tắc Tiến trình tải xuống.
+- `app/src/main/java/com/originisle/android/OriginIsleApp.kt`: Khởi tạo Application an toàn không bẫy treo app.
+- `app/src/main/java/com/originisle/android/MainActivity.kt`: Điều hướng Activity chính, nạp Theme và phục hồi nhanh.
+- `app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`: Bóc tách thông báo SMS (InboxStyle, actions), điều phối OTP, Ngân hàng, Tải xuống lên Đảo.
+- `app/src/main/java/com/originisle/android/bank/VietnamBankDetector.kt`: Nhận diện biến động số dư ngân hàng Việt Nam từ app và SMS.
+- `app/src/main/java/com/originisle/android/otp/OtpDetector.kt`: Phân tích mã OTP song ngữ, hỗ trợ Vivo Verification Reminder, lọc hotline.
+- `app/src/main/java/com/originisle/android/cards/DownloadCard.kt`: Thẻ tiến trình tải xuống tối ưu layout và icon SuperX.
+- `app/src/main/java/com/originisle/android/island/PlaygroundService.kt`: Quản lý hiển thị SuperX, tránh xung đột cùng scene.
+- `app/src/main/java/com/originisle/android/ui/Theme.kt`: Hệ thống màu Sáng (#F2F4F7) và Tối (#000000), màu Teal (#00BFA5).
+- `app/src/main/java/com/originisle/android/ui/Components.kt`: Switch Teal, IconTile vector không viền nền, Squircle card.
+- `app/src/main/java/com/originisle/android/ui/HomeScreen.kt`: Màn hình Cài đặt chuẩn OriginOS 6 kèm 2 Phone Mockup Sáng/Tối.
 
-## 5. Tình Trạng Hiện Tại
-- Biên dịch thành công với OpenCode CLI & Gradle: `BUILD SUCCESSFUL`.
-- Tệp APK `Dao-Origin-0.0.6-VN.apk` (31.6 MB) đã sẵn sàng tại thư mục nguồn.
+## 4. Tình Trạng Hiện Tại
+- Biên dịch thành công: `BUILD SUCCESSFUL`.
+- File APK: `Dao-Origin-0.0.6-VN.apk` (32.2 MB) đã được cập nhật tại thư mục gốc.
+- Git commit: `de69b20` an toàn tại branch `main`.
