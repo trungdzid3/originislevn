@@ -1072,7 +1072,7 @@ object EarbudsCard {
     }
 
     /**
-     * Hiển thị thẻ Mất kết nối Bluetooth với icon dấu X đỏ, text '✕', viền đỏ #FF5247.
+     * Hiển thị thẻ Mất kết nối Bluetooth với icon huy hiệu tròn đỏ chứa dấu X trắng (vivo icon-only 103), viền đỏ #FF5247.
      * Tự động đóng sau 3000ms.
      */
     fun showDisconnected(context: Context, name: String, isWearable: Boolean = false) {
@@ -1089,6 +1089,8 @@ object EarbudsCard {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        val redCrossIcon = BatteryCanvasRenderer.createRedCrossCircleIcon(context)
+
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
@@ -1102,10 +1104,11 @@ object EarbudsCard {
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("oi_right_content", "✕")
-            putExtra("status_chip_text", "✕")
+            putExtra("oi_right_icon", redCrossIcon)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_right_content", "") // chế độ icon-only 103 của vivo
+            putExtra("status_chip_text", "")
             putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1 - dấu X đỏ
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
             putExtra("oi_light_color", RED)
             putExtra("oi_bg_color", RED)
             putExtra("oi_fg_color", RED)

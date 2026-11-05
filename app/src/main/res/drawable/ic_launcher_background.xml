@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Vivo OriginOS 6 Adaptive Icon Background: 135° Linear Gradient with Top-Left Soft Dome Light -->
+<!-- Vivo OriginOS 6 Adaptive Icon Background: Cosmic Space Blue with G2 Ambient Radial Dome Light -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -7,7 +7,7 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Primary 135-degree Linear Gradient from Vivo Electric Blue (#2555FF) to Origin Cyan-Blue (#0099FF) -->
+    <!-- 1. Primary 135-degree Linear Gradient: Sapphire Blue (#2555FF / #1A36A0) to Deep Space Navy (#0A1538) -->
     <path
         android:pathData="M 0,0 H 108 V 108 H 0 Z">
         <aapt:attr name="android:fillColor">
@@ -18,23 +18,40 @@
                 android:endX="108"
                 android:endY="108">
                 <item android:color="#2555FF" android:offset="0.0" />
-                <item android:color="#0099FF" android:offset="1.0" />
+                <item android:color="#1A36A0" android:offset="0.45" />
+                <item android:color="#0A1538" android:offset="1.0" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- OriginOS 6 Soft Ambient Dome Light Glow (Top-Left Radial Accent) -->
+    <!-- 2. OriginOS 6 Soft Ambient Dome Light Glow (Top-Left Radial Accent) -->
     <path
         android:pathData="M 0,0 H 108 V 108 H 0 Z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="radial"
-                android:centerX="28"
-                android:centerY="24"
-                android:gradientRadius="76">
-                <item android:color="#4DFFFFFF" android:offset="0.0" />
-                <item android:color="#1AFFFFFF" android:offset="0.45" />
-                <item android:color="#00FFFFFF" android:offset="1.0" />
+                android:centerX="26"
+                android:centerY="22"
+                android:gradientRadius="78">
+                <item android:color="#59FFFFFF" android:offset="0.0" />
+                <item android:color="#20FFFFFF" android:offset="0.42" />
+                <item android:color="#00FFFFFF" android:offset="0.88" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 3. Bottom-Right Cosmic Nebula Glow (Dynamic Neon Cyan / Emerald Accent) -->
+    <path
+        android:pathData="M 0,0 H 108 V 108 H 0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="84"
+                android:centerY="86"
+                android:gradientRadius="66">
+                <item android:color="#3600E5FF" android:offset="0.0" />
+                <item android:color="#1200D084" android:offset="0.50" />
+                <item android:color="#000A1538" android:offset="1.0" />
             </gradient>
         </aapt:attr>
     </path>

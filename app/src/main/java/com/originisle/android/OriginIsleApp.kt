@@ -47,5 +47,9 @@ class OriginIsleApp : Application() {
         runCatching {
             NotificationCastListener.ensureEnabled(this)
         }.onFailure { Log.e("OriginIsleApp", "Loi NotificationCastListener.ensureEnabled", it) }
+
+        runCatching {
+            com.originisle.android.cards.RingerModeCard.register(this)
+        }.onFailure { Log.e("OriginIsleApp", "Loi RingerModeCard.register", it) }
     }
 }

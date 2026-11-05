@@ -18,11 +18,12 @@ origin-isle-vn/
 │   └── src/
 │       ├── main/java/com/originisle/android/
 │       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS
-│       │   ├── cards/                # 14 loại thẻ giao diện Đảo Origin
-│       │   │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động
-│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống có action buttons
-│       │   │   ├── EarbudsCard.kt    # Tai nghe & vòng đeo thông minh Galaxy Fit 3
-│       │   │   └── QuickShareCard.kt # Quick Share có action buttons & tích xanh
+│       │   ├── cards/                # 15 loại thẻ giao diện Đảo Origin
+│       │   │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
+│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống có icon bắt đầu & action buttons
+│       │   │   ├── EarbudsCard.kt    # Tai nghe & vòng đeo Galaxy Fit 3 (X đỏ khi ngắt)
+│       │   │   ├── QuickShareCard.kt # Quick Share có action buttons & tích xanh
+│       │   │   └── RingerModeCard.kt # Chế độ Chuông / Rung / Im lặng OriginOS 6
 │       │   ├── download/             # Nhận diện tiến trình tải xuống & actions
 │       │   ├── island/               # Service SuperX, builder, constants
 │       │   ├── log/                  # Nhật ký hoạt động bền vững (CastLog)
@@ -61,11 +62,12 @@ origin-isle-vn/
   - `postSuperX` (L426-458): Đóng gói notification gửi tới Vivo SystemUI.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
   - `onNotificationPosted` (L424-650): Cổng tiếp nhận thông báo: Ngân hàng -> Quick Share -> Tải xuống -> Samsung Wearable / Fit 3 -> OTP -> Nhạc -> Gọi xe -> Google Wallet -> Điều hướng -> Thông báo thường.
-  - `onNotificationRemoved` (L900-1070): Bắt sự kiện gỡ thông báo: với Tải xuống và Quick Share, hiển thị hoạt ảnh Hoàn tất (tích xanh lá 3.5s) hoặc Đã hủy (X đỏ 2.5s) thay vì ngắt phụt làm đảo tắt ngấm.
+  - `onNotificationRemoved` (L900-1080): Bắt sự kiện gỡ thông báo: với Tải xuống và Quick Share, luôn duy trì `activeDownloadIds` để khi gỡ mà chưa xong thì chuyển sang hoạt ảnh Đã hủy (X đỏ 2.5s) thay vì ngắt phụt làm đảo tắt ngấm.
 - `Cards` (`app/src/main/java/com/originisle/android/cards/`):
-  - `EarbudsCard.kt`: Hỗ trợ cả tai nghe TWS & thiết bị đeo thông minh (Galaxy Fit 3, Galaxy Watch,...), lắng nghe 8 Broadcasts Samsung, quét BLE GATT profile 7, máy trạng thái Kết nối (xanh lá 5s) / Mất kết nối (debounce 1.5s, thẻ đỏ 3s), bố cục pin co giãn tự động 1-2-3 thành phần với `TEMPLATE_BUTTONS`.
-  - `BatteryCanvasRenderer.kt`: Bộ vẽ Canvas tạo icon viên pin động (xanh/vàng/đỏ theo %) kèm tia sét sạc.
-  - `DownloadCard.kt` & `QuickShareCard.kt`: Logo app nguồn bên trái, vòng tròn tiến độ % camera bên phải; mở rộng có nút Tạm dừng / Hủy / Tiếp tục (`TEMPLATE_BUTTONS`); xong hiện viền sáng xanh lá + tích xanh; hủy hiện viền đỏ + X đỏ tối giản chữ.
+  - `EarbudsCard.kt`: Hỗ trợ cả tai nghe TWS & thiết bị đeo thông minh (Galaxy Fit 3, Galaxy Watch,...), lắng nghe 8 Broadcasts Samsung, quét BLE GATT profile 7, máy trạng thái Kết nối (xanh lá 5s) / Mất kết nối (vòng tròn dấu X đỏ bên trong `createRedCrossCircleIcon`, template 4 icon-only, giữ 3s), bố cục pin co giãn tự động 1-2-3 thành phần với `TEMPLATE_BUTTONS`.
+  - `BatteryCanvasRenderer.kt`: Bộ vẽ Canvas tạo icon viên pin động (xanh/vàng/đỏ theo %) kèm tia sét sạc; tạo vòng tròn đỏ dấu X trắng (`createRedCrossCircleIcon`) và vòng tròn xanh dấu tích (`createGreenCheckCircleIcon`).
+  - `DownloadCard.kt` & `QuickShareCard.kt`: Biểu tượng tải xuống ban đầu `ic_download` khi bắt đầu, logo app nguồn bên trái và vòng tròn tiến độ % camera bên phải khi tải; mở rộng có nút Tạm dừng / Hủy / Tiếp tục (`TEMPLATE_BUTTONS`); xong hiện viền sáng xanh lá + tích xanh; hủy hiện viền đỏ + vòng tròn dấu X đỏ tối giản chữ.
+  - `RingerModeCard.kt`: Đón bắt `AudioManager.RINGER_MODE_CHANGED_ACTION`, hiển thị đảo thông báo khi đổi chế độ Chuông (vàng `#FCD535`), Rung (lam `#4A90E2`), Im lặng (đỏ `#FF5247`), tự đóng sau 2.5s.
   - `GenericCard.kt`, `ChargingCard.kt`, `PaymentCard.kt`, `OtpCard.kt`, `RideCard.kt`, `NavigationCard.kt`.
 - `AppsScreen.kt` (`app/src/main/java/com/originisle/android/ui/AppsScreen.kt`):
   - `AppsScreen` (L52-175): Quản lý bật/tắt thông báo từng ứng dụng.

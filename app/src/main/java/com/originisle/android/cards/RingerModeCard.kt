@@ -1,0 +1,351 @@
+package com.originisle.android.cards
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.drawable.Icon
+import android.media.AudioManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import com.originisle.android.island.OriginIslandConstants
+import com.originisle.android.island.PlaygroundService
+import com.originisle.android.ui.PREFS_NAME
+
+/**
+ * Thẻ thông báo Đảo Origin khi thay đổi chế độ Chuông / Rung / Im lặng (Ringer Mode Card).
+ * Tự động đồng bộ với phím bấm âm lượng / cần gạt chuông và hiển thị viên nang hào quang động.
+ */
+object RingerModeCard {
+
+    const val ID = 35008
+    private const val TAG = "RingerModeCard"
+
+    private const val COLOR_NORMAL = "#FCD535" // Vàng OriginOS
+    private const val COLOR_VIBRATE = "#4A90E2" // Lam sáng
+    private const val COLOR_SILENT = "#FF5247"  // Đỏ cảnh báo
+
+    private const val DEBOUNCE_DELAY_MS = 150L
+    private const val AUTO_DISMISS_MS = 2500L
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var lastMode: Int = -1
+    private var isRegistered = false
+
+    private var debounceTask: Runnable? = null
+    private var dismissTask: Runnable? = null
+
+    private val ringerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
+                val mode = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
+                onRingerModeChanged(context, mode)
+            }
+        }
+    }
+
+    /**
+     * Đăng ký lắng nghe broadcast thay đổi chế độ chuông hệ thống.
+     */
+    fun register(context: Context) {
+        if (isRegistered) return
+        val app = context.applicationContext
+        val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        lastMode = audioManager?.ringerMode ?: -1
+
+        val filter = IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                app.registerReceiver(ringerReceiver, filter)
+            }
+            isRegistered = true
+            Log.d(TAG, "Đã đăng ký RingerModeReceiver thành công (mode ban đầu: $lastMode)")
+        }.onFailure {
+            Log.e(TAG, "Lỗi đăng ký RingerModeReceiver", it)
+        }
+    }
+
+    /**
+     * Hủy đăng ký lắng nghe và dọn dẹp các tác vụ chạy ngầm.
+     */
+    fun unregister(context: Context) {
+        if (!isRegistered) return
+        val app = context.applicationContext
+        runCatching {
+            app.unregisterReceiver(ringerReceiver)
+        }.onFailure {
+            Log.e(TAG, "Lỗi hủy đăng ký RingerModeReceiver", it)
+        }
+        isRegistered = false
+        debounceTask?.let(handler::removeCallbacks)
+        dismissTask?.let(handler::removeCallbacks)
+        cancel(app)
+    }
+
+    /**
+     * Xử lý sự kiện thay đổi chế độ chuông với debounce tránh rung lắc khi bấm phím liên tục.
+     */
+    fun onRingerModeChanged(context: Context, mode: Int) {
+        if (mode == -1) return
+
+        val app = context.applicationContext
+        val prefs = app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean("cast_notifications", true) &&
+            prefs.getBoolean("cast_ringer_mode", true)
+
+        if (!enabled) return
+
+        // Nếu chế độ không thay đổi so với lần trước thì bỏ qua
+        if (mode == lastMode) return
+        lastMode = mode
+
+        // Debounce: gộp các sự kiện liên tiếp
+        debounceTask?.let(handler::removeCallbacks)
+        val task = Runnable {
+            showRingerCard(app, mode)
+        }
+        debounceTask = task
+        handler.postDelayed(task, DEBOUNCE_DELAY_MS)
+    }
+
+    /**
+     * Đẩy thẻ thông báo lên Đảo Origin qua PlaygroundService.
+     */
+    private fun showRingerCard(context: Context, mode: Int) {
+        val (title, text, leftContent, rightContent, colorHex, icon) = when (mode) {
+            AudioManager.RINGER_MODE_NORMAL -> RingerStateInfo(
+                title = "Chuông",
+                text = "Đã bật chuông thông báo",
+                leftContent = "Chuông",
+                rightContent = "Bật",
+                colorHex = COLOR_NORMAL,
+                icon = createBellIcon(Color.parseColor(COLOR_NORMAL)),
+            )
+            AudioManager.RINGER_MODE_VIBRATE -> RingerStateInfo(
+                title = "Rung",
+                text = "Đã bật chế độ rung",
+                leftContent = "Rung",
+                rightContent = "Rung",
+                colorHex = COLOR_VIBRATE,
+                icon = createVibrateIcon(Color.parseColor(COLOR_VIBRATE)),
+            )
+            AudioManager.RINGER_MODE_SILENT -> RingerStateInfo(
+                title = "Im lặng",
+                text = "Đã tắt toàn bộ âm thanh",
+                leftContent = "Im lặng",
+                rightContent = "Tắt",
+                colorHex = COLOR_SILENT,
+                icon = createSilentIcon(Color.parseColor(COLOR_SILENT)),
+            )
+            else -> return
+        }
+
+        val intent = Intent(context, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", ID)
+            putExtra("is_ongoing", false)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+            putExtra("oi_show_right_icon", true)
+            putExtra("title", title)
+            putExtra("text", text)
+            putExtra("oi_left_content", leftContent)
+            putExtra("oi_right_content", rightContent)
+            putExtra("status_chip_text", rightContent)
+            putExtra("oi_left_icon", icon)
+            putExtra("oi_large_icon", icon)
+            putExtra("oi_right_icon", icon)
+            putExtra("oi_light_color", colorHex)
+            putExtra("oi_force_show", true)
+            putExtra("oi_keep_duration", AUTO_DISMISS_MS.toInt())
+            putExtra("oi_dismiss_when_kill", true)
+        }
+        context.startService(intent)
+
+        // Tự động đóng sau AUTO_DISMISS_MS (2500ms)
+        dismissTask?.let(handler::removeCallbacks)
+        val dismiss = Runnable {
+            cancel(context)
+        }
+        dismissTask = dismiss
+        handler.postDelayed(dismiss, AUTO_DISMISS_MS)
+    }
+
+    /**
+     * Hủy hiển thị thẻ trên Đảo Origin.
+     */
+    fun cancel(context: Context) {
+        dismissTask?.let(handler::removeCallbacks)
+        dismissTask = null
+        context.startService(
+            Intent(context, PlaygroundService::class.java)
+                .setAction(PlaygroundService.ACTION_CANCEL)
+                .putExtra("id", ID)
+                .putExtra("oi_scene", "NAVIGATION"),
+        )
+    }
+
+    /**
+     * Dựng Icon Chuông vàng (Normal Mode) dạng Canvas vector 96x96 px.
+     */
+    fun createBellIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val loopPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 4.5f
+            strokeCap = Paint.Cap.ROUND
+            this.color = color
+        }
+        canvas.drawArc(RectF(42f, 16f, 54f, 28f), 180f, 180f, false, loopPaint)
+
+        val bellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = color
+        }
+        val path = Path().apply {
+            moveTo(48f, 26f)
+            cubicTo(40f, 26f, 32f, 42f, 30f, 58f)
+            lineTo(24f, 66f)
+            quadTo(22f, 70f, 27f, 70f)
+            lineTo(69f, 70f)
+            quadTo(74f, 70f, 72f, 66f)
+            lineTo(66f, 58f)
+            cubicTo(64f, 42f, 56f, 26f, 48f, 26f)
+            close()
+        }
+        canvas.drawPath(path, bellPaint)
+        canvas.drawCircle(48f, 75f, 6f, bellPaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
+
+    /**
+     * Dựng Icon Điện thoại Rung lam (Vibrate Mode) dạng Canvas vector 96x96 px.
+     */
+    fun createVibrateIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val fillPhone = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = Color.argb(45, Color.red(color), Color.green(color), Color.blue(color))
+        }
+        val phoneRect = RectF(34f, 22f, 62f, 74f)
+        canvas.drawRoundRect(phoneRect, 6f, 6f, fillPhone)
+
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 4.5f
+            strokeCap = Paint.Cap.ROUND
+            this.color = color
+        }
+        canvas.drawRoundRect(phoneRect, 6f, 6f, strokePaint)
+
+        // Loa thoại trên & nút home dưới
+        canvas.drawLine(44f, 28f, 52f, 28f, strokePaint)
+        canvas.drawCircle(48f, 68f, 2.5f, strokePaint)
+
+        // Sóng rung 2 bên
+        val leftInner = Path().apply {
+            moveTo(24f, 36f)
+            quadTo(18f, 48f, 24f, 60f)
+        }
+        canvas.drawPath(leftInner, strokePaint)
+
+        val leftOuter = Path().apply {
+            moveTo(16f, 30f)
+            quadTo(9f, 48f, 16f, 66f)
+        }
+        canvas.drawPath(leftOuter, strokePaint)
+
+        val rightInner = Path().apply {
+            moveTo(72f, 36f)
+            quadTo(78f, 48f, 72f, 60f)
+        }
+        canvas.drawPath(rightInner, strokePaint)
+
+        val rightOuter = Path().apply {
+            moveTo(80f, 30f)
+            quadTo(87f, 48f, 80f, 66f)
+        }
+        canvas.drawPath(rightOuter, strokePaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
+
+    /**
+     * Dựng Icon Chuông gạch chéo đỏ (Silent Mode) dạng Canvas vector 96x96 px.
+     */
+    fun createSilentIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val bellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = color
+        }
+
+        val loopPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 4.5f
+            strokeCap = Paint.Cap.ROUND
+            this.color = color
+        }
+        canvas.drawArc(RectF(42f, 16f, 54f, 28f), 180f, 180f, false, loopPaint)
+
+        val path = Path().apply {
+            moveTo(48f, 26f)
+            cubicTo(40f, 26f, 32f, 42f, 30f, 58f)
+            lineTo(24f, 66f)
+            quadTo(22f, 70f, 27f, 70f)
+            lineTo(69f, 70f)
+            quadTo(74f, 70f, 72f, 66f)
+            lineTo(66f, 58f)
+            cubicTo(64f, 42f, 56f, 26f, 48f, 26f)
+            close()
+        }
+        canvas.drawPath(path, bellPaint)
+        canvas.drawCircle(48f, 75f, 6f, bellPaint)
+
+        // Đường gạch chéo sắc nét với viền đen nền
+        val slashMask = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 9f
+            strokeCap = Paint.Cap.ROUND
+            this.color = Color.BLACK
+        }
+        canvas.drawLine(20f, 20f, 76f, 76f, slashMask)
+
+        val slashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 5.5f
+            strokeCap = Paint.Cap.ROUND
+            this.color = Color.WHITE
+        }
+        canvas.drawLine(20f, 20f, 76f, 76f, slashPaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
+
+    private data class RingerStateInfo(
+        val title: String,
+        val text: String,
+        val leftContent: String,
+        val rightContent: String,
+        val colorHex: String,
+        val icon: Icon,
+    )
+}

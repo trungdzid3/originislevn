@@ -144,4 +144,76 @@ object BatteryCanvasRenderer {
             Icon.createWithResource(context, R.mipmap.ic_launcher_round)
         }
     }
+
+    /**
+     * Dựng Icon hình tròn màu đỏ đặc #FF5247 với dấu ✕ màu trắng tinh khiết căn giữa.
+     */
+    fun createRedCrossCircleIcon(context: Context, size: Int = 96): Icon {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val cx = size / 2f
+        val cy = size / 2f
+        val radius = size / 2f
+
+        // Vòng tròn màu đỏ đặc #FF5247
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#FF5247")
+        }
+        canvas.drawCircle(cx, cy, radius, bgPaint)
+
+        // Dấu ✕ màu trắng tinh khiết #FFFFFF bo tròn, độ dày size * 0.12f
+        val strokeWidth = size * 0.12f
+        val crossPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidth
+            strokeCap = Paint.Cap.ROUND
+            color = Color.WHITE
+        }
+
+        val offset = size * 0.18f
+        canvas.drawLine(cx - offset, cy - offset, cx + offset, cy + offset, crossPaint)
+        canvas.drawLine(cx - offset, cy + offset, cx + offset, cy - offset, crossPaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
+
+    /**
+     * Dựng Icon hình tròn màu xanh lá đặc #00D084 với dấu tích ✓ màu trắng tinh khiết căn giữa.
+     */
+    fun createGreenCheckCircleIcon(context: Context, size: Int = 96): Icon {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val cx = size / 2f
+        val cy = size / 2f
+        val radius = size / 2f
+
+        // Vòng tròn màu xanh lá đặc #00D084
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#00D084")
+        }
+        canvas.drawCircle(cx, cy, radius, bgPaint)
+
+        // Dấu tích ✓ màu trắng tinh khiết #FFFFFF bo tròn
+        val strokeWidth = size * 0.12f
+        val checkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidth
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            color = Color.WHITE
+        }
+
+        val checkPath = Path().apply {
+            moveTo(cx - size * 0.20f, cy + size * 0.01f)
+            lineTo(cx - size * 0.05f, cy + size * 0.16f)
+            lineTo(cx + size * 0.22f, cy - size * 0.15f)
+        }
+        canvas.drawPath(checkPath, checkPaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
 }

@@ -24,6 +24,8 @@ import androidx.core.app.NotificationManagerCompat
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.cards.ChargingCard
+import com.originisle.android.cards.BatteryCanvasRenderer
+import com.originisle.android.cards.createRedCrossCircleIcon
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
 import com.originisle.android.cards.GenericCard
@@ -287,6 +289,7 @@ class NotificationCastListener : NotificationListenerService() {
     /** Lưu trữ tiến độ và trạng thái hoàn tất cuối cùng của tệp đang truyền / tải xuống. */
     private val transferProgressMap = ConcurrentHashMap<Int, Int>()
     private val transferFinishedMap = ConcurrentHashMap<Int, Boolean>()
+    private val activeDownloadIds = ConcurrentHashMap.newKeySet<Int>()
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -489,6 +492,7 @@ class NotificationCastListener : NotificationListenerService() {
                 val dlInfo = DownloadDetector.parse(sbn)
                 if (dlInfo != null) {
                     val id = IconCache.castIdFor(sbn)
+                    activeDownloadIds.add(id)
                     transferProgressMap[id] = dlInfo.progress
                     transferFinishedMap[id] = dlInfo.isFinished
                     log(sbn, "hiển thị — tiến độ tải xuống", true)
@@ -967,7 +971,7 @@ class NotificationCastListener : NotificationListenerService() {
 
         val id = IconCache.castIdFor(sbn)
         val isQs = QuickShareDetector.isQuickShare(sbn)
-        val isDl = DownloadDetector.isDownload(sbn)
+        val isDl = DownloadDetector.isDownload(sbn) || activeDownloadIds.remove(id)
 
         if (isQs || isDl) {
             val lastProg = transferProgressMap.remove(id) ?: -1
@@ -998,15 +1002,8 @@ class NotificationCastListener : NotificationListenerService() {
             if (isDl) {
                 if (isFinished || lastProg >= 80) {
                     postDownloadFinished(id, appPkg, title)
-                } else if (lastProg >= 0) {
-                    postDownloadCanceled(id, appPkg)
                 } else {
-                    DownloadCard.clear(id)
-                    startService(
-                        Intent(this, PlaygroundService::class.java)
-                            .setAction(PlaygroundService.ACTION_CANCEL)
-                            .putExtra("id", id),
-                    )
+                    postDownloadCanceled(id, appPkg)
                 }
                 return
             }
@@ -1082,7 +1079,7 @@ class NotificationCastListener : NotificationListenerService() {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
-            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("icon_res", R.drawable.ic_download)
             if (appIcon != null) {
                 putExtra("oi_left_icon", appIcon)
                 putExtra("oi_large_icon", appIcon)
@@ -1095,15 +1092,16 @@ class NotificationCastListener : NotificationListenerService() {
             putExtra("oi_show_notify", false)
             putExtra("is_ongoing", false)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-            putExtra("oi_right_content", "✕")
-            putExtra("oi_left_content", "✕")
+            putExtra("oi_right_icon", BatteryCanvasRenderer.createRedCrossCircleIcon(this@NotificationCastListener))
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_right_content", "")
+            putExtra("oi_left_content", "Đã hủy")
             putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1
             putExtra("oi_light_color", "#FF5247")
             putExtra("oi_bg_color", "#FF5247")
             putExtra("oi_fg_color", "#FF5247")
             putExtra("title", "Đã hủy")
-            putExtra("text", "✕")
+            putExtra("text", "Đã hủy tải xuống")
         }
         startService(intent)
         pollHandler.postDelayed({
