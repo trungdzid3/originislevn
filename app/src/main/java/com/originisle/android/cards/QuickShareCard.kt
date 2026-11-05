@@ -75,33 +75,40 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", sbn.packageName)
-            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("icon_res", R.drawable.ic_download)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
             putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
+            putExtra("oi_show_notify", false)
 
-            // Cấu hình SuperX chuẩn Vivo OriginOS 6 theo GenericCard
+            // Cấu hình SuperX chuẩn Vivo OriginOS 6 theo mẫu demo hoạt động tốt
             when {
                 info.isRequest -> {
                     // Trạng thái yêu cầu nhận tệp (REQUEST)
-                    val template = if (info.actions.size >= 2) {
-                        OriginIslandConstants.TEMPLATE_BUTTONS // 8
-                    } else {
-                        OriginIslandConstants.TEMPLATE_BASE // 4
-                    }
-                    putExtra("oi_template", template)
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                    putExtra("status_chip_text", "Nhận tệp")
                     putExtra("oi_left_content", "")
                     putExtra("oi_right_content", "Nhận tệp")
+                    putExtra("status_chip_text", "Nhận tệp")
                     putExtra("oi_island_show_time", 15)
                     putExtra("is_ongoing", true)
                     putExtra("title", info.title)
                     putExtra("text", info.text)
                     if (info.actions.isNotEmpty()) {
                         putParcelableArrayListExtra("actions", ArrayList(info.actions))
+                        val btnTitles = if (info.actions.size >= 2) {
+                            arrayListOf(
+                                info.actions[0].title?.toString() ?: "Từ chối",
+                                info.actions[1].title?.toString() ?: "Chấp nhận",
+                            )
+                        } else {
+                            arrayListOf("Từ chối", "Chấp nhận")
+                        }
+                        putStringArrayListExtra("oi_button_titles", btnTitles)
+                    } else {
+                        putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Chấp nhận"))
                     }
                 }
                 info.isFinished -> {
@@ -124,8 +131,9 @@ object QuickShareCard {
                     putExtra("progress", pct)
                     putExtra("progress_max", 100)
                     if (info.isIndeterminate) putExtra("progress_indeterminate", true)
-                    putExtra("oi_left_content", if (info.isIndeterminate) "Chia sẻ" else "${pct}%")
+                    putExtra("oi_left_content", "${pct}%")
                     putExtra("oi_right_content", "")
+                    putExtra("status_chip_text", "${pct}%")
                     putExtra("title", "Quick Share · ${if (info.isIndeterminate) "Đang kết nối" else "$pct%"}")
                     putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
                     if (!info.speedText.isNullOrBlank()) {

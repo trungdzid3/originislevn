@@ -60,18 +60,11 @@ object IslandSamples {
             )
         },
         OriginSample(
-            "Mã OTP Ngân hàng", "SMS Vietcombank: 482915 · Phát thông báo kiểm tra luồng thật",
-            IslandPreview(R.mipmap.ic_launcher_round, "", IslandPreview.Right.Capsule("482915")),
+            "Mã OTP Ngân hàng", "SMS Vietcombank: 482915 · Mã xác thực giao dịch",
+            IslandPreview(R.drawable.ic_chat, "", IslandPreview.Right.Capsule("482915")),
         ) { ctx ->
-            postSampleNotification(
-                context = ctx,
-                notificationId = 9101,
-                channelId = "origin_sample_otp",
-                channelName = "SMS OTP Ngân hàng",
-                title = "Vietcombank",
-                text = "Vietcombank: Ma OTP giao dich cua Quy khach la 482915. Tuyet doi khong chia se ma nay.",
-            )
             start(ctx, 40015) {
+                putExtra("icon_res", R.drawable.ic_chat)
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
@@ -81,7 +74,6 @@ object IslandSamples {
                 putExtra("title", "482 915")
                 putExtra("text", "Mã xác thực · Vietcombank")
                 putExtra("source_app", "Vietcombank")
-                putExtra("icon_res", R.mipmap.ic_launcher_round)
                 putExtra("oi_force_show", true)
                 putExtra("oi_island_notify", true)
                 putExtra("oi_keep_duration", 30)
@@ -108,17 +100,6 @@ object IslandSamples {
             "Tải xuống", "Thanh tiến trình tải tệp · 75%",
             IslandPreview(R.drawable.ic_download, "", IslandPreview.Right.Progress(0.75f)),
         ) { ctx ->
-            postSampleNotification(
-                context = ctx,
-                notificationId = 9102,
-                channelId = "origin_sample_download",
-                channelName = "Tiến độ Tải xuống",
-                title = "ban-cap-nhat-moi.apk",
-                text = "Đang tải xuống... 75%",
-                progress = 75,
-                progressMax = 100,
-                ongoing = true,
-            )
             start(ctx, 40001) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
@@ -318,17 +299,6 @@ object IslandSamples {
             "Quick Share (Đang nhận)", "Ảnh_chụp_origin.heic · 65% · 4.2 MB/s",
             IslandPreview(R.drawable.ic_download, "", IslandPreview.Right.Progress(0.65f)),
         ) { ctx ->
-            postSampleNotification(
-                context = ctx,
-                notificationId = 9103,
-                channelId = "origin_sample_quickshare",
-                channelName = "Chia sẻ nhanh Quick Share",
-                title = "Quick Share",
-                text = "Ảnh_chụp_origin.heic · 65% · 4.2 MB/s",
-                progress = 65,
-                progressMax = 100,
-                ongoing = true,
-            )
             start(ctx, 40032) {
                 putExtra("oi_scene", "NAVIGATION")
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
@@ -346,53 +316,6 @@ object IslandSamples {
             }
         },
     )
-
-    private fun postSampleNotification(
-        context: Context,
-        notificationId: Int,
-        channelId: String,
-        channelName: String,
-        title: String,
-        text: String,
-        progress: Int = -1,
-        progressMax: Int = 100,
-        ongoing: Boolean = false,
-    ) {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager ?: return
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = android.app.NotificationChannel(
-                channelId,
-                channelName,
-                android.app.NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                description = "Kênh thử nghiệm Đảo Origin"
-                enableVibration(false)
-                setSound(null, null)
-            }
-            nm.createNotificationChannel(channel)
-        }
-
-        val builder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            android.app.Notification.Builder(context, channelId)
-        } else {
-            @Suppress("DEPRECATION")
-            android.app.Notification.Builder(context)
-        }
-
-        builder.setSmallIcon(R.mipmap.ic_launcher_round)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setAutoCancel(true)
-            .setOngoing(ongoing)
-
-        if (progress >= 0) {
-            builder.setProgress(progressMax, progress, false)
-        }
-
-        runCatching {
-            nm.notify(notificationId, builder.build())
-        }
-    }
 
     private fun start(context: Context, id: Int, configure: Intent.() -> Unit) {
         val intent = Intent(context, PlaygroundService::class.java).apply {

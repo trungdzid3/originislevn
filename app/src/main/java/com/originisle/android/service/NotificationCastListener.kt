@@ -435,7 +435,7 @@ class NotificationCastListener : NotificationListenerService() {
             val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
                 template == "android.app.Notification\$CallStyle"
 
-            // --- Ưu tiên tuyệt đối: Ngân hàng -> OTP -> Tải xuống --------------------------
+            // --- Ưu tiên tuyệt đối: Ngân hàng -> Quick Share -> Tải xuống -> Mã OTP --------------------------
             // Ba loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
             // quiet hours, media…). Trên OriginOS chúng có thể đến từ gói hệ thống hoặc mang cờ
             // ongoing/progress nên nếu để sau các filter thì card bị nuốt mất.
@@ -454,7 +454,29 @@ class NotificationCastListener : NotificationListenerService() {
                 return
             }
 
-            // 2) Mã OTP / đăng nhập. Bóc tách cả từ khóa SMS và action "Sao chép mã" / "Copy code".
+            // 2) Quick Share (Google Play Services, Google Quick Share, Vivo EasyShare, Samsung Quick Share)
+            //    BẮT BUỘC chạy trước OTP và Tải xuống để không bị OTP Detector bắt nhầm dung lượng/số file/PIN.
+            if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
+                val qsInfo = QuickShareDetector.parse(sbn)
+                if (qsInfo != null) {
+                    QuickShareCard.post(applicationContext, qsInfo, sbn)
+                    val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
+                    log(sbn, "hiển thị — Quick Share $mode", true)
+                    return
+                }
+            }
+
+            // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
+            if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
+                val dlInfo = DownloadDetector.parse(sbn)
+                if (dlInfo != null) {
+                    log(sbn, "hiển thị — tiến độ tải xuống", true)
+                    DownloadCard.post(applicationContext, dlInfo, sbn)
+                    return
+                }
+            }
+
+            // 4) Mã OTP / đăng nhập. Bóc tách cả từ khóa SMS và action "Sao chép mã" / "Copy code".
             //    KHÔNG dùng lại time-guard: notification OTP thường được update tại chỗ với cùng postTime.
             if (prefs.getBoolean("cast_otp", true)) {
                 val actionTitles = sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
@@ -466,27 +488,6 @@ class NotificationCastListener : NotificationListenerService() {
                     val outcome = "hiển thị — mã OTP: $code ($sender)"
                     lastOutcome[sbn.key] = outcome
                     CastLog.add(sender, title.ifBlank { "OTP" }, outcome, true)
-                    return
-                }
-            }
-
-            // 3) Quick Share (Google Play Services, Google Quick Share, Vivo EasyShare, Samsung Quick Share)
-            if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
-                val qsInfo = QuickShareDetector.parse(sbn)
-                if (qsInfo != null) {
-                    QuickShareCard.post(applicationContext, qsInfo, sbn)
-                    val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
-                    log(sbn, "hiển thị — Quick Share $mode", true)
-                    return
-                }
-            }
-
-            // 4) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
-            if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
-                val dlInfo = DownloadDetector.parse(sbn)
-                if (dlInfo != null) {
-                    log(sbn, "hiển thị — tiến độ tải xuống", true)
-                    DownloadCard.post(applicationContext, dlInfo, sbn)
                     return
                 }
             }

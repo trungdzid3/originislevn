@@ -44,17 +44,10 @@ object QuickShareDetector {
     )
 
     fun isQuickShare(sbn: StatusBarNotification): Boolean {
-        val pkg = sbn.packageName
-        if (pkg !in QUICK_SHARE_PACKAGES &&
-            !pkg.contains("easyshare") &&
-            !pkg.contains("quickshare") &&
-            !pkg.contains("share")
-        ) {
-            return false
-        }
-
+        val pkg = sbn.packageName.lowercase()
         val n = sbn.notification
         val channelId = n.channelId?.lowercase().orEmpty()
+        val tag = sbn.tag?.lowercase().orEmpty()
         val extras = n.extras
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
@@ -62,13 +55,29 @@ object QuickShareDetector {
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val allText = "$title $text $bigText $subText".lowercase()
 
-        val isChannelMatch = channelId.contains("nearby") ||
-            channelId.contains("nearby_sharing") ||
-            channelId.contains("sharing") ||
-            channelId.contains("quick_share") ||
-            channelId.contains("quickshare") ||
-            channelId.contains("fast_pair")
+        val actionTitles = n.actions?.mapNotNull { it.title?.toString()?.lowercase()?.trim() }.orEmpty()
 
+        // 1. Kiểm tra Tag
+        val isTagMatch = tag.contains("sharing") || tag.contains("nearby") || tag.contains("quick")
+
+        // 2. Kiểm tra Action buttons (Chấp nhận / Từ chối / Accept / Decline...)
+        val isActionMatch = actionTitles.any { a ->
+            a.contains("chấp nhận") || a.contains("accept") || a.contains("đồng ý") ||
+                a == "nhận" || a.contains("nhận tệp") ||
+                a.contains("từ chối") || a.contains("decline") || a.contains("reject")
+        }
+
+        // 3. Kiểm tra Channel ID
+        val isChannelMatch = channelId.contains("nearby") ||
+            channelId.contains("shar") ||
+            channelId.contains("quick") ||
+            channelId.contains("transfer") ||
+            channelId.contains("fast_pair") ||
+            channelId.contains("receive") ||
+            channelId.contains("send") ||
+            channelId.contains("file")
+
+        // 4. Kiểm tra Text
         val isTextMatch = allText.contains("quick share") ||
             allText.contains("chia sẻ nhanh") ||
             allText.contains("chia sẻ lân cận") ||
@@ -79,18 +88,45 @@ object QuickShareDetector {
             allText.contains("receiving") ||
             allText.contains("đã nhận") ||
             allText.contains("đã gửi") ||
+            allText.contains("tệp") ||
+            allText.contains("file") ||
+            allText.contains("wants to share") ||
+            allText.contains("muốn chia sẻ") ||
             allText.contains("đã chia sẻ")
 
-        return when (pkg) {
-            "com.google.android.gms" -> isChannelMatch || isTextMatch
-            "com.android.bluetooth" -> isChannelMatch || isTextMatch || allText.contains("bluetooth") || allText.contains("chia sẻ") || allText.contains("tệp") || allText.contains("file")
-            "com.google.android.apps.sharing",
-            "com.vivo.easyshare",
-            "com.vivo.share",
-            "com.bbk.share",
-            "com.samsung.android.app.share" -> true
-            else -> isChannelMatch || isTextMatch || allText.contains("quick share") || allText.contains("easyshare") || allText.contains("chia sẻ")
+        // 5. Kiểm tra Progress
+        val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
+        val hasProgress = max > 0 ||
+            extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false) ||
+            PERCENT_PATTERN.matcher(allText).find()
+
+        // Gói Google Play Services (nơi chạy Nearby Share / Quick Share mặc định trên mọi máy Android):
+        if (pkg == "com.google.android.gms") {
+            return isActionMatch || isChannelMatch || isTagMatch || isTextMatch || hasProgress
         }
+
+        // Các gói Quick Share chuyên biệt:
+        if (pkg in QUICK_SHARE_PACKAGES ||
+            pkg.contains("easyshare") ||
+            pkg.contains("quickshare")
+        ) {
+            return true
+        }
+
+        // Gói Bluetooth truyền nhận tệp:
+        if (pkg == "com.android.bluetooth") {
+            return isChannelMatch || isTextMatch || isTagMatch || isActionMatch ||
+                allText.contains("bluetooth") || allText.contains("chia sẻ") ||
+                allText.contains("tệp") || allText.contains("file")
+        }
+
+        // Bất kỳ gói nào có tên chứa "share":
+        if (pkg.contains("share")) {
+            return isChannelMatch || isTextMatch || isTagMatch || isActionMatch || hasProgress
+        }
+
+        // Các gói khác: nếu có action chấp nhận/từ chối kèm channel/tag/text liên quan
+        return (isActionMatch || isTagMatch || isChannelMatch) && (isTextMatch || hasProgress)
     }
 
     fun detect(sbn: StatusBarNotification, context: Context? = null): QuickShareInfo? = parse(sbn)
@@ -134,8 +170,6 @@ object QuickShareDetector {
             allTextLower.contains("chia sẻ tệp với bạn") ||
             allTextLower.contains("muốn gửi")
 
-        val isRequest = (hasAccept || hasDecline || isRequestByText) && rawActions.isNotEmpty()
-
         // 2. Progress & Finished detection
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val curr = extras.getInt(NotificationCompat.EXTRA_PROGRESS, 0)
@@ -163,6 +197,8 @@ object QuickShareDetector {
             allTextLower.contains("received") ||
             allTextLower.contains("thành công") ||
             allTextLower.contains("đã chia sẻ")
+
+        val isRequest = !isFinished && (hasAccept || hasDecline || isRequestByText)
 
         // Nếu indeterminate hoặc đang kết nối chờ xác nhận, gán indeterminate = true, progress = 10
         val isConnectingOrWaiting = isRequest ||
