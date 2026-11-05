@@ -16,6 +16,19 @@ class OtpDetectorTest {
     @Test fun spanish() = assertEquals("774120", OtpDetector.find("Tu código es 774120"))
     @Test fun german() = assertEquals("90817", OtpDetector.find("Ihr Bestätigungscode lautet 90817"))
     @Test fun chinese() = assertEquals("605218", OtpDetector.find("您的验证码为605218，5分钟内有效"))
+    @Test fun fptLongChau() = assertEquals(
+        "532247",
+        OtpDetector.find(
+            "Nha Thuoc FPT Long Chau: Ma xac thuc OTP cua ban la 532247. Vui long lien he 18006928 de duoc h...",
+            listOf("Xóa", "Đánh dấu đã đọc", "Sao chép mã")
+        )
+    )
+    @Test fun fptLongChauNoActions() = assertEquals(
+        "532247",
+        OtpDetector.find(
+            "Nha Thuoc FPT Long Chau: Ma xac thuc OTP cua ban la 532247. Vui long lien he 18006928 de duoc h..."
+        )
+    )
 
     @Test fun noKeyword() = assertNull(OtpDetector.find("Meet me at 1830 near gate 4"))
     @Test fun chatNumber() = assertNull(OtpDetector.find("I paid 1500 for the tickets"))

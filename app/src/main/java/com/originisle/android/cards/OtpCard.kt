@@ -47,7 +47,7 @@ object OtpCard {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val copyAction = Notification.Action.Builder(
-            Icon.createWithResource(app, R.mipmap.ic_launcher_round), copyLabel, copy,
+            IconCache.safeResourceIcon(app, R.mipmap.ic_launcher_round), copyLabel, copy,
         ).build()
 
         val intent = Intent(app, PlaygroundService::class.java).apply {
