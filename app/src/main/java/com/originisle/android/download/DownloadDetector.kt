@@ -41,7 +41,7 @@ object DownloadDetector {
 
     private val PERCENT_PATTERN = Pattern.compile("(\\d{1,3})\\s*%")
     private val SIZE_PATTERN = Pattern.compile(
-        "(\\d+(?:[.,]\\d+)?)\\s*(?:MB|GB|KB|kB|M|G|K)?\\s*/\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:MB|GB|KB|kB|M|G|K)",
+        "(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)?\\s*(?:/|of|của|trong(?:\\s+số)?|trên)\\s*(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)",
         Pattern.CASE_INSENSITIVE
     )
     private val SINGLE_SIZE_PATTERN = Pattern.compile(
@@ -49,13 +49,23 @@ object DownloadDetector {
         Pattern.CASE_INSENSITIVE
     )
     private val SPEED_PATTERN = Pattern.compile(
-        "(\\d+(?:[.,]\\d+)?\\s*(?:KB/s|MB/s|GB/s|kB/s|kb/s|mb/s))",
+        "(\\d+(?:[.,]\\d+)?\\s*(?:KB/s|MB/s|GB/s|kB/s|kb/s|mb/s|B/s|b/s|K/s|M/s))",
         Pattern.CASE_INSENSITIVE
     )
     private val FILE_EXT_PATTERN = Pattern.compile(
         "\\.(?:apk|zip|rar|7z|tar|gz|bin|iso|pdf|mp4|mkv|exe|dmg|docx|xlsx)\\b",
         Pattern.CASE_INSENSITIVE
     )
+
+    fun isDownloadPackage(pkg: String): Boolean {
+        return pkg in DOWNLOAD_PACKAGES ||
+            pkg.startsWith("com.microsoft.emmx") ||
+            pkg.startsWith("com.android.chrome") ||
+            pkg.startsWith("com.chrome") ||
+            pkg == "com.android.vending" ||
+            pkg.startsWith("com.android.providers.downloads") ||
+            pkg.contains("browser")
+    }
 
     fun isDownload(sbn: StatusBarNotification): Boolean {
         val n = sbn.notification
@@ -72,7 +82,12 @@ object DownloadDetector {
 
         // 3. Kiểm tra kênh thông báo (Channel ID): Chrome/Edge/PlayStore luôn dùng channel có chữ download
         val channelId = n.channelId?.lowercase().orEmpty()
-        if (channelId.contains("download") || channelId.contains("tai_xuong") || channelId.contains("tải")) {
+        if (channelId.contains("download") ||
+            channelId.contains("tai_xuong") ||
+            channelId.contains("tải") ||
+            channelId.contains("tệp") ||
+            channelId.contains("transfer")
+        ) {
             return true
         }
 
@@ -95,20 +110,36 @@ object DownloadDetector {
             allText.contains("đã tải xong") ||
             allText.contains("đã cài đặt") ||
             allText.contains("installed") ||
-            allText.contains("hoàn tất tải")
+            allText.contains("hoàn tất tải") ||
+            allText.contains("tải hoàn tất") ||
+            allText.contains("download complete") ||
+            allText.contains("download finished") ||
+            allText.contains("đã tải về") ||
+            allText.contains("tải thành công")
 
         if (hasDownloadKeywords) return true
 
-        // 5. Nếu từ gói tải xuống/trình duyệt và có dấu hiệu tiến trình (% hoặc size hoặc tốc độ hoặc đuôi file)
-        val isDownloadPackage = pkg in DOWNLOAD_PACKAGES ||
-            pkg.startsWith("com.microsoft.emmx") ||
-            pkg.startsWith("com.android.chrome") ||
-            pkg.startsWith("com.chrome") ||
-            pkg == "com.android.vending" ||
-            pkg.startsWith("com.android.providers.downloads") ||
-            pkg.contains("browser")
+        // 5. Nếu từ gói tải xuống/trình duyệt
+        val isDownloadPkg = isDownloadPackage(pkg)
 
-        if (isDownloadPackage) {
+        if (isDownloadPkg) {
+            val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
+
+            // Play Store hoặc Android Download Manager mà có FLAG_ONGOING_EVENT thì chắc chắn là tải xuống/cài đặt
+            if (isOngoing && (pkg == "com.android.vending" || pkg.startsWith("com.android.providers.downloads"))) {
+                return true
+            }
+
+            // Với Chrome / Edge / Trình duyệt khác: nếu có cờ ongoing và không phải media
+            if (isOngoing && n.category != Notification.CATEGORY_TRANSPORT && !extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION)) {
+                if (PERCENT_PATTERN.matcher(allText).find()) return true
+                if (SIZE_PATTERN.matcher(allText).find()) return true
+                if (SPEED_PATTERN.matcher(allText).find()) return true
+                if (FILE_EXT_PATTERN.matcher(allText).find()) return true
+                if (SINGLE_SIZE_PATTERN.matcher(allText).find()) return true
+            }
+
+            // Kể cả thông báo ở chế độ im lặng (silent channel) hoặc không có cờ ongoing
             if (PERCENT_PATTERN.matcher(allText).find()) return true
             if (SIZE_PATTERN.matcher(allText).find()) return true
             if (SPEED_PATTERN.matcher(allText).find()) return true
@@ -117,6 +148,16 @@ object DownloadDetector {
         }
 
         return false
+    }
+
+    private fun parseSizeToBytes(value: Float, unit: String): Double {
+        return when (unit.uppercase()) {
+            "GB", "G" -> value.toDouble() * 1024.0 * 1024.0 * 1024.0
+            "MB", "M" -> value.toDouble() * 1024.0 * 1024.0
+            "KB", "K" -> value.toDouble() * 1024.0
+            "B" -> value.toDouble()
+            else -> value.toDouble()
+        }
     }
 
     fun parse(sbn: StatusBarNotification): DownloadInfo? {
@@ -133,12 +174,18 @@ object DownloadDetector {
         val lower = fullText.lowercase()
 
         // Trạng thái hoàn thành
-        val isFinished = lower.contains("đã cài đặt") ||
+        val isExplicitFinish = lower.contains("đã cài đặt") ||
             lower.contains("installed") ||
-            lower.contains("hoàn tất") ||
-            lower.contains("complete") ||
-            lower.contains("thành công") ||
-            lower.contains("tải xong")
+            lower.contains("tải xong") ||
+            lower.contains("tải thành công") ||
+            lower.contains("download complete") ||
+            lower.contains("download finished") ||
+            lower.contains("đã tải xong") ||
+            lower.contains("đã tải về") ||
+            lower.contains("thành công")
+
+        val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
+        val isFinished = isExplicitFinish || (!isOngoing && (lower.contains("hoàn tất") || lower.contains("complete")))
 
         // Trích xuất tốc độ tải (speedText) từ subText/text/bigText nếu chưa hoàn tất
         var speedText: String? = null
@@ -160,8 +207,8 @@ object DownloadDetector {
         }
 
         // Trạng thái cài đặt / chờ
-        val isInstalling = lower.contains("đang cài đặt") || lower.contains("installing")
-        val isPending = lower.contains("đang chờ") || lower.contains("pending") || lower.contains("chuẩn bị") || lower.contains("preparing")
+        val isInstalling = lower.contains("đang cài đặt") || lower.contains("installing") || lower.contains("cài đặt…")
+        val isPending = lower.contains("đang chờ") || lower.contains("pending") || lower.contains("chuẩn bị") || lower.contains("preparing") || lower.contains("waiting")
 
         var progress = 0
         var isIndeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
@@ -169,9 +216,16 @@ object DownloadDetector {
         val rawMax = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val rawProgress = extras.getInt(NotificationCompat.EXTRA_PROGRESS, 0)
 
-        if (rawMax > 0 && !isIndeterminate) {
-            progress = (rawProgress * 100 / rawMax).coerceIn(0, 100)
-        } else {
+        // Tính tiến độ từ hệ thống, dùng toLong() để chống tràn số nguyên 32-bit khi tải file lớn tính theo byte
+        if (rawMax > 0) {
+            progress = (rawProgress.toLong() * 100 / rawMax).toInt().coerceIn(0, 100)
+            if (progress > 0) {
+                isIndeterminate = false
+            }
+        }
+
+        // Nếu hệ thống không cung cấp progress hoặc progress bằng 0, bóc tách từ text
+        if (progress <= 0 || isIndeterminate) {
             // Thử trích xuất % từ chuỗi văn bản
             val mPercent = PERCENT_PATTERN.matcher(fullText)
             if (mPercent.find()) {
@@ -181,13 +235,17 @@ object DownloadDetector {
                     isIndeterminate = false
                 }
             } else {
-                // Thử trích xuất theo dung lượng A / B
+                // Thử trích xuất theo dung lượng A / B (hỗ trợ chuyển đổi đơn vị KB, MB, GB linh hoạt)
                 val mSize = SIZE_PATTERN.matcher(fullText)
                 if (mSize.find()) {
-                    val current = mSize.group(1)?.replace(',', '.')?.toFloatOrNull() ?: 0f
-                    val total = mSize.group(2)?.replace(',', '.')?.toFloatOrNull() ?: 0f
-                    if (total > 0f) {
-                        progress = ((current / total) * 100).toInt().coerceIn(0, 100)
+                    val currentVal = mSize.group(1)?.replace(',', '.')?.toFloatOrNull() ?: 0f
+                    val unit1 = mSize.group(2).orEmpty()
+                    val totalVal = mSize.group(3)?.replace(',', '.')?.toFloatOrNull() ?: 0f
+                    val unit2 = mSize.group(4).orEmpty()
+                    val currentBytes = parseSizeToBytes(currentVal, unit1.ifBlank { unit2 })
+                    val totalBytes = parseSizeToBytes(totalVal, unit2)
+                    if (totalBytes > 0.0) {
+                        progress = ((currentBytes / totalBytes) * 100).toInt().coerceIn(0, 100)
                         isIndeterminate = false
                     }
                 }
@@ -203,12 +261,30 @@ object DownloadDetector {
         } else if (isFinished) {
             progress = 100
             isIndeterminate = false
+        } else if (progress <= 0) {
+            isIndeterminate = true
         }
 
         // Tên file hoặc tên ứng dụng đang tải
+        val isGenericTitle = title.isBlank() ||
+            title.lowercase().let {
+                it.contains("cửa hàng") ||
+                it.contains("play store") ||
+                it.contains("download") ||
+                it.contains("tải xuống") ||
+                it.contains("trình duyệt") ||
+                it.contains("browser") ||
+                it == "chrome" ||
+                it == "edge" ||
+                it.contains("edge canary") ||
+                it.contains("chrome canary")
+            }
+
         val displayTitle = when {
-            title.isNotBlank() && !title.lowercase().contains("cửa hàng") && !title.lowercase().contains("play store") && !title.lowercase().contains("download") -> title
-            text.isNotBlank() && !text.lowercase().contains("đang tải") && !text.lowercase().contains("downloading") -> text
+            !isGenericTitle -> title
+            text.isNotBlank() && !text.lowercase().let {
+                it.contains("đang tải") || it.contains("downloading") || it.contains("tải xuống")
+            } -> text
             else -> when {
                 pkg == "com.android.vending" -> "Cửa hàng Google Play"
                 pkg.contains("chrome") -> "Tải tệp Chrome"

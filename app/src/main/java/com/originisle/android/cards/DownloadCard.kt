@@ -11,13 +11,38 @@ import com.originisle.android.download.DownloadInfo
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 
 object DownloadCard {
 
     private val handler = Handler(Looper.getMainLooper())
+    private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
+    private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
 
     fun post(context: Context, info: DownloadInfo, sbn: StatusBarNotification) {
         val id = IconCache.castIdFor(sbn)
+        val now = System.currentTimeMillis()
+        val lastTime = lastPostTimeMap[id] ?: 0L
+        val lastProg = lastProgressMap[id] ?: -1
+
+        // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
+        // Chỉ post nếu hoàn tất, hoặc trôi qua >= 500ms, hoặc tiến độ thay đổi >= 2%
+        val shouldPost = info.isFinished ||
+            (now - lastTime >= 500L) ||
+            (abs(info.progress - lastProg) >= 2)
+
+        if (!shouldPost) {
+            return
+        }
+
+        if (info.isFinished) {
+            lastPostTimeMap.remove(id)
+            lastProgressMap.remove(id)
+        } else {
+            lastPostTimeMap[id] = now
+            lastProgressMap[id] = info.progress
+        }
 
         IconCache.activeSmallIcons.remove(id)
         val clickPi = info.contentIntent
@@ -60,7 +85,8 @@ object DownloadCard {
             putExtra("status_chip_text", chipText)
             val leftContent = if (info.isFinished) "Hoàn tất" else "Đang tải"
             putExtra("oi_left_content", leftContent)
-            putExtra("oi_right_content", chipText)
+            // XÓA BỎ: putExtra("oi_right_content", chipText) vì right_template = 2 là thanh tiến độ tròn,
+            // gửi oi_right_content gây mâu thuẫn bundle khiến SuperX reject đảo!
 
             putExtra("show_progress", true)
             putExtra("progress", info.progress)
@@ -89,5 +115,10 @@ object DownloadCard {
                 )
             }, 3500L)
         }
+    }
+
+    fun clear(id: Int) {
+        lastPostTimeMap.remove(id)
+        lastProgressMap.remove(id)
     }
 }

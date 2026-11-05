@@ -250,36 +250,36 @@ fun NavRow(
 }
 
 /**
- * OriginOS 6 Custom Switch (100% pixel-matched to Vivo OriginOS 6 physical switch):
- * - Track: soft capsule pill (50.dp width x 22.dp height, RoundedCornerShape(11.dp)).
- *   ON: Soft Pastel Cyan / Mint (#AFD3D2).
- *   OFF: Light gray (#E2E5E8 in Light Mode / #2C2F36 in Dark Mode).
- * - Thumb: circular ring (30.dp diameter), overhangs track equally top & bottom by 4.dp.
+ * OriginOS 6/7 Custom Switch (100% pixel-matched to Vivo OriginOS 6/7 physical switch):
+ * - Track: soft capsule pill (48.dp width x 24.dp height, RoundedCornerShape(12.dp)).
+ *   ON: Soft Pastel Cyan / Mint (#A0D0CF).
+ *   OFF: Light gray (#E2E6E8 in Light Mode / #2C2F36 in Dark Mode).
+ * - Thumb: circular ring (32.dp diameter), overhangs track equally top & bottom by 4.dp.
  *   Inner disk: Pure White (#FFFFFF).
- *   Outer border ring: 3.6.dp thick.
- *   ON: Deep rich Teal (#00696E).
- *   OFF: Slate gray (#8E9298 in Light Mode / #71767C in Dark Mode).
+ *   Outer border ring: 4.8.dp thick.
+ *   ON: Deep rich Teal (#006D77).
+ *   OFF: Slate gray (#8A9096 in Light Mode / #71767C in Dark Mode).
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
-    val trackWidth = 50.dp
-    val trackHeight = 22.dp
-    val thumbSize = 30.dp
+    val trackWidth = 48.dp
+    val trackHeight = 24.dp
+    val thumbSize = 32.dp
     val isDark = IsleColors.isDark
 
     val thumbOffset by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (checked) trackWidth - thumbSize else 0.dp,
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 180),
         label = "thumbOffset",
     )
     val trackColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) Color(0xFFAFD3D2) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E5E8),
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        targetValue = if (checked) Color(0xFFA0D0CF) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E6E8),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 180),
         label = "trackColor",
     )
     val ringColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) Color(0xFF00696E) else if (isDark) Color(0xFF71767C) else Color(0xFF8E9298),
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+        targetValue = if (checked) Color(0xFF006D77) else if (isDark) Color(0xFF71767C) else Color(0xFF8A9096),
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 180),
         label = "ringColor",
     )
 
@@ -305,7 +305,7 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
                 .height(trackHeight)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(trackColor)
         )
         // Thumb: pure white center with thick outer ring border that overhangs track
@@ -316,7 +316,7 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
                 .clip(CircleShape)
                 .background(Color.White)
                 .border(
-                    width = 3.6.dp,
+                    width = 4.8.dp,
                     color = ringColor,
                     shape = CircleShape,
                 )

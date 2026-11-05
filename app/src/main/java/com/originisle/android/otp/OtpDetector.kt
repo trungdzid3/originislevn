@@ -27,6 +27,12 @@ object OtpDetector {
         RegexOption.IGNORE_CASE,
     )
 
+    /** Notification action button phrases indicating an OTP code to copy. */
+    private val COPY_ACTION_REGEX = Regex(
+        """(?U)\b(?:sao\s+chép(?:\s+mã|\s+ma|\s+otp|\s+mã\s+xác\s+thực)?|sao\s+chep(?:\s+ma|\s+otp|\s+ma\s+xac\s+thuc)?|copy(?:\s+code|\s+otp)?)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
     private val KEYWORD = Regex(
         """(?U)\b(?:""" +
             // Vivo / Reminder headers
@@ -64,7 +70,7 @@ object OtpDetector {
      * - Đóng trong ngoặc vuông [123456]
      */
     private val DIRECT_PATTERNS = listOf(
-        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:(?:mã|ma)\s*)?(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan)?\s*(?:otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:mã|ma)\s*(?:giao\s*dịch|giao\s*dich|bảo\s*mật|bao\s*mat|đăng\s*nhập|dang\s*nhap|kích\s*hoạt|kich\s*hoat)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:otp|code|mã|ma)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?<!\d)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp)"""),
@@ -93,10 +99,11 @@ object OtpDetector {
     )
 
     private val PHONE_PREFIX = Regex(
-        """(?U)\b(?:sđt|sdt|số\s+điện\s+thoại|so\s+dien\s+thoai|điện\s+thoại|dien\s+thoai|""" +
-            """liên\s+hệ(?:\s+qua)?|lien\s+he(?:\s+qua)?|tổng\s+đài|tong\s+dai|cskh|""" +
-            """hotline|hỗ\s+trợ|ho\s+tro|tư\s+vấn|tu\s+van|""" +
-            """tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact|gọi|goi|call)\s*[:#.-]?\s*$""",
+        """(?U)(?:\b(?:sđt|sdt|số\s+điện\s+thoại|so\s+dien\s+thoai|điện\s+thoại|dien\s+thoai|""" +
+            """tổng\s+đài|tong\s+dai|cskh|hotline|hỗ\s+trợ|ho\s+tro|tư\s+vấn|tu\s+van|""" +
+            """tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact|gọi|goi|call|""" +
+            """1800|1900)\s*[:#.-]?\s*$|""" +
+            """\b(?:liên\s+hệ|lien\s+he)\b.{0,25}$)""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -133,17 +140,19 @@ object OtpDetector {
      * that must never be mistaken for an OTP verification code.
      */
     private fun isHotlineNumber(digits: String): Boolean {
-        if ((digits.startsWith("1800") || digits.startsWith("1900")) && digits.length in 7..10) {
+        if ((digits.startsWith("1800") || digits.startsWith("1900")) && digits.length >= 6) {
             return true
         }
-        if (digits.startsWith("0") && digits.length in 8..11) {
+        if (digits.startsWith("0") && digits.length in 9..11) {
             return true
         }
         return false
     }
 
     /** The code (digits only) in [text], or null if it doesn't read like a login code. */
-    fun find(text: String): String? {
+    fun find(text: String, actionTitles: List<String> = emptyList()): String? {
+        val hasCopyAction = actionTitles.any { COPY_ACTION_REGEX.containsMatchIn(it) } ||
+            COPY_ACTION_REGEX.containsMatchIn(text)
         val isVivoReminder = VIVO_REMINDER.containsMatchIn(text)
 
         // 1. Thử bắt bằng các biểu thức chính quy trực tiếp
@@ -165,7 +174,25 @@ object OtpDetector {
             }
         }
 
-        // 2. Nếu là Vivo Verification Reminder, quét tất cả số 4-8 chữ số gần nhất
+        // 2. Nếu có Action "Sao chép mã" / "Copy code", trích xuất ngay số 4-8 chữ số hợp lệ
+        if (hasCopyAction) {
+            val actionCandidates = CANDIDATE.findAll(text)
+                .filter { m -> isValidCandidate(text, m, isVivoReminder = false) }
+                .toList()
+
+            if (actionCandidates.isNotEmpty()) {
+                val keywords = KEYWORD.findAll(text).map { it.range }.toList()
+                return if (keywords.isNotEmpty()) {
+                    actionCandidates.minByOrNull { m -> keywords.minOf { k -> distance(m.range, k) } }
+                        ?.groupValues?.get(1)
+                        ?.filter(Char::isDigit)
+                } else {
+                    actionCandidates.first().groupValues[1].filter(Char::isDigit)
+                }
+            }
+        }
+
+        // 3. Nếu là Vivo Verification Reminder, quét tất cả số 4-8 chữ số gần nhất
         if (isVivoReminder) {
             val reminderMatch = VIVO_REMINDER.find(text)
             val reminderPos = reminderMatch?.range ?: (0..0)

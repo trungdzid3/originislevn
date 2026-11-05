@@ -55,14 +55,16 @@ object OtpCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_show_right_icon", false)
+            putExtra("oi_left_content", "MÃ OTP")
+            putExtra("oi_right_content", code)
+            putExtra("status_chip_text", code)
+            putExtra("oi_fg_color", "#00E5FF") // Màu Cyan neon nổi bật
             putExtra("title", spaced(code))
             putExtra("text", subtitle)
             putExtra("source_app", appLabel)
             putExtra("source_pkg", sbn.packageName)
-            putExtra("oi_left_content", "OTP")
-            putExtra("oi_right_content", spaced(code))
-            putExtra("status_chip_text", spaced(code))
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             appIcon?.let {
                 putExtra("oi_left_icon", it)
@@ -73,6 +75,8 @@ object OtpCard {
             putExtra("source_content_intent", copy)
             putExtra("click_resp", copy)
             putExtra("oi_force_show", true)
+            putExtra("oi_island_notify", true)
+            putExtra("oi_keep_duration", 30)
             putExtra("oi_dismiss_when_kill", true)
         }
         app.startService(intent)
