@@ -21,6 +21,8 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.originisle.android.R
+import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.cards.ChargingCard
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
@@ -273,6 +275,10 @@ class NotificationCastListener : NotificationListenerService() {
      */
     private val lastCastPostTime = ConcurrentHashMap<String, Long>()
 
+    /** Lưu trữ tiến độ và trạng thái hoàn tất cuối cùng của tệp đang truyền / tải xuống. */
+    private val transferProgressMap = ConcurrentHashMap<Int, Int>()
+    private val transferFinishedMap = ConcurrentHashMap<Int, Boolean>()
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             try {
@@ -459,6 +465,9 @@ class NotificationCastListener : NotificationListenerService() {
             if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
                 val qsInfo = QuickShareDetector.parse(sbn)
                 if (qsInfo != null) {
+                    val id = IconCache.castIdFor(sbn)
+                    transferProgressMap[id] = qsInfo.progress
+                    transferFinishedMap[id] = qsInfo.isFinished
                     QuickShareCard.post(applicationContext, qsInfo, sbn)
                     val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
                     log(sbn, "hiển thị — Quick Share $mode", true)
@@ -470,6 +479,9 @@ class NotificationCastListener : NotificationListenerService() {
             if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
                 val dlInfo = DownloadDetector.parse(sbn)
                 if (dlInfo != null) {
+                    val id = IconCache.castIdFor(sbn)
+                    transferProgressMap[id] = dlInfo.progress
+                    transferFinishedMap[id] = dlInfo.isFinished
                     log(sbn, "hiển thị — tiến độ tải xuống", true)
                     DownloadCard.post(applicationContext, dlInfo, sbn)
                     return
@@ -895,6 +907,52 @@ class NotificationCastListener : NotificationListenerService() {
         }
 
         val id = IconCache.castIdFor(sbn)
+        val isQs = QuickShareDetector.isQuickShare(sbn)
+        val isDl = DownloadDetector.isDownload(sbn)
+
+        if (isQs || isDl) {
+            val lastProg = transferProgressMap.remove(id) ?: -1
+            val isFinished = transferFinishedMap.remove(id) ?: false
+            val appPkg = sbn.packageName
+            val title = sbn.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+                .ifBlank { if (isQs) "Quick Share" else "Tải xuống" }
+
+            IconCache.clear(id)
+            lastMatchIcons.remove(id)
+
+            if (isQs) {
+                if (isFinished || lastProg >= 80) {
+                    QuickShareCard.postFinished(applicationContext, id, appPkg, title)
+                } else if (lastProg >= 0) {
+                    QuickShareCard.postCanceled(applicationContext, id, appPkg)
+                } else {
+                    QuickShareCard.clear(id)
+                    startService(
+                        Intent(this, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_CANCEL)
+                            .putExtra("id", id),
+                    )
+                }
+                return
+            }
+
+            if (isDl) {
+                if (isFinished || lastProg >= 80) {
+                    postDownloadFinished(id, appPkg, title)
+                } else if (lastProg >= 0) {
+                    postDownloadCanceled(id, appPkg)
+                } else {
+                    DownloadCard.clear(id)
+                    startService(
+                        Intent(this, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_CANCEL)
+                            .putExtra("id", id),
+                    )
+                }
+                return
+            }
+        }
+
         if (QuickShareDetector.isQuickShare(sbn)) {
             QuickShareCard.clear(id)
         }
@@ -905,5 +963,97 @@ class NotificationCastListener : NotificationListenerService() {
                 .setAction(PlaygroundService.ACTION_CANCEL)
                 .putExtra("id", id),
         )
+    }
+
+    private fun postDownloadFinished(id: Int, appPkg: String, title: String) {
+        DownloadCard.clear(id)
+        val appIcon: Icon? = runCatching {
+            val ai = packageManager.getApplicationInfo(appPkg, 0)
+            if (ai.icon != 0) Icon.createWithResource(appPkg, ai.icon) else null
+        }.getOrNull()
+        val clickPi = fallbackClickIntent(applicationContext, appPkg)
+        val intent = Intent(this, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", id)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("source_pkg", appPkg)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            if (appIcon != null) {
+                putExtra("oi_left_icon", appIcon)
+                putExtra("oi_large_icon", appIcon)
+            }
+            putExtra("source_content_intent", clickPi)
+            putExtra("click_resp", clickPi)
+            putExtra("oi_force_show", true)
+            putExtra("is_high_priority", true)
+            putExtra("oi_dismiss_when_kill", true)
+            putExtra("oi_show_notify", false)
+            putExtra("is_ongoing", false)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+            putExtra("oi_right_content", "✓")
+            putExtra("oi_left_content", "Xong")
+            putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
+            putExtra("oi_light_color", "#00D084")
+            putExtra("oi_bg_color", "#00D084")
+            putExtra("oi_fg_color", "#00D084")
+            putExtra("title", "Tải xong · ${title.take(22)}")
+            putExtra("text", "Đã hoàn tất tải xuống")
+        }
+        startService(intent)
+        pollHandler.postDelayed({
+            startService(
+                Intent(this, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+        }, 3500L)
+    }
+
+    private fun postDownloadCanceled(id: Int, appPkg: String) {
+        DownloadCard.clear(id)
+        val appIcon: Icon? = runCatching {
+            val ai = packageManager.getApplicationInfo(appPkg, 0)
+            if (ai.icon != 0) Icon.createWithResource(appPkg, ai.icon) else null
+        }.getOrNull()
+        val clickPi = fallbackClickIntent(applicationContext, appPkg)
+        val intent = Intent(this, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", id)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("source_pkg", appPkg)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            if (appIcon != null) {
+                putExtra("oi_left_icon", appIcon)
+                putExtra("oi_large_icon", appIcon)
+            }
+            putExtra("source_content_intent", clickPi)
+            putExtra("click_resp", clickPi)
+            putExtra("oi_force_show", true)
+            putExtra("is_high_priority", true)
+            putExtra("oi_dismiss_when_kill", true)
+            putExtra("oi_show_notify", false)
+            putExtra("is_ongoing", false)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+            putExtra("oi_right_content", "✕")
+            putExtra("oi_left_content", "✕")
+            putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1
+            putExtra("oi_light_color", "#FF5247")
+            putExtra("oi_bg_color", "#FF5247")
+            putExtra("oi_fg_color", "#FF5247")
+            putExtra("title", "Đã hủy")
+            putExtra("text", "✕")
+        }
+        startService(intent)
+        pollHandler.postDelayed({
+            startService(
+                Intent(this, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+        }, 2500L)
     }
 }

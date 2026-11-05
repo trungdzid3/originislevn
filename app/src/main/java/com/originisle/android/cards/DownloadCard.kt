@@ -17,9 +17,6 @@ import kotlin.math.abs
 
 object DownloadCard {
 
-    private const val TEMPLATE_ISLAND_TEXT_SWAP = OriginIslandConstants.TEMPLATE_PRIORITY_INFO // 1
-    private const val TEMPLATE_RIGHT_ISLAND_NONE = 0
-
     private val handler = Handler(Looper.getMainLooper())
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
@@ -33,11 +30,13 @@ object DownloadCard {
         val lastProg = lastProgressMap[id] ?: -1
 
         val isCompleted = info.isFinished
+        val isCanceled = info.isCanceled
+        val isTerminated = isCompleted || isCanceled
         val isIndeterminate = info.isIndeterminate
 
         // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
-        // Chỉ post nếu hoàn tất, hoặc trôi qua >= 500ms, hoặc tiến độ thay đổi >= 2%
-        val shouldPost = isCompleted ||
+        // Đăng ngay nếu hoàn tất hoặc bị hủy, hoặc trôi qua >= 500ms, hoặc tiến độ thay đổi >= 2%
+        val shouldPost = isTerminated ||
             (now - lastTime >= 500L) ||
             (abs(info.progress - lastProg) >= 2)
 
@@ -45,7 +44,7 @@ object DownloadCard {
             return
         }
 
-        if (isCompleted) {
+        if (isTerminated) {
             lastPostTimeMap.remove(id)
             lastProgressMap.remove(id)
         } else {
@@ -56,19 +55,17 @@ object DownloadCard {
         val n = sbn.notification
         // Quản lý Icon chuẩn Resource theo GenericCard:
         n.smallIcon?.let { IconCache.activeSmallIcons[id] = it } ?: IconCache.activeSmallIcons.remove(id)
-        val largeIcon: Icon? = try {
+
+        // 1. Icon bên trái (Logo app): Luôn lấy app icon thực tế của nguồn tải
+        val appIcon: Icon? = runCatching {
             val pm = context.packageManager
             val appInfo = pm.getApplicationInfo(sbn.packageName, 0)
-            if (appInfo.icon != 0) Icon.createWithResource(sbn.packageName, appInfo.icon)
-            else n.getLargeIcon()
-        } catch (_: Throwable) {
-            n.getLargeIcon()
-        }
-        if (largeIcon != null) {
-            IconCache.activeLargeIcons[id] = largeIcon
-        } else {
-            IconCache.activeLargeIcons.remove(id)
-        }
+            if (appInfo.icon != 0) Icon.createWithResource(sbn.packageName, appInfo.icon) else null
+        }.getOrNull() ?: n.getLargeIcon()
+        val fallbackIcon = Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        val leftIcon = appIcon ?: fallbackIcon
+
+        IconCache.activeLargeIcons[id] = leftIcon
 
         val clickPi = info.contentIntent
             ?: n.contentIntent
@@ -83,7 +80,7 @@ object DownloadCard {
         val subText = n.extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString()?.trim().orEmpty()
             .ifBlank { info.statusText }
 
-        val pct = info.progress.coerceIn(1, 99)
+        val pct = if (isIndeterminate && info.progress <= 0) 5 else info.progress.coerceIn(1, 99)
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -92,48 +89,70 @@ object DownloadCard {
             putExtra("source_pkg", sbn.packageName)
             putExtra("source_app", appLabel)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("oi_left_icon", leftIcon)
+            putExtra("oi_large_icon", leftIcon)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
             putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
-            putExtra("is_ongoing", !isCompleted)
 
             when {
+                // 3. Khi hoàn tất (info.isFinished)
                 isCompleted -> {
-                    putExtra("oi_template", TEMPLATE_ISLAND_TEXT_SWAP) // 1
-                    putExtra("oi_right_template", TEMPLATE_RIGHT_ISLAND_NONE) // 0
+                    putExtra("is_ongoing", false)
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+                    putExtra("oi_right_content", "✓")
                     putExtra("oi_left_content", "Xong")
-                    putExtra("oi_right_content", info.title.take(10))
-                    putExtra("title", "Tải xong · ${info.title.take(22)}")
-                    putExtra("text", subText.ifBlank { "Chạm để mở tệp từ $appLabel" })
+                    putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
+                    putExtra("oi_light_color", "#00D084")
+                    putExtra("oi_bg_color", "#00D084")
+                    putExtra("oi_fg_color", "#00D084")
+                    putExtra("title", "Tải xong")
+                    putExtra("text", info.title.take(30))
                 }
-                isIndeterminate -> {
-                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-                    putExtra("oi_progress", 5)
-                    putExtra("show_progress", true)
-                    putExtra("progress", 5)
-                    putExtra("progress_max", 100)
-                    putExtra("progress_indeterminate", true)
-                    putExtra("oi_left_content", "Tải...")
-                    putExtra("oi_right_content", "")
-                    putExtra("title", info.title.take(28))
-                    putExtra("text", "$appLabel · Đang chuẩn bị tệp...")
+                // 4. Khi hủy / thất bại (info.isCanceled)
+                isCanceled -> {
+                    putExtra("is_ongoing", false)
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+                    putExtra("oi_right_content", "✕")
+                    putExtra("oi_left_content", "✕")
+                    putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1
+                    putExtra("oi_light_color", "#FF5247")
+                    putExtra("oi_bg_color", "#FF5247")
+                    putExtra("oi_fg_color", "#FF5247")
+                    putExtra("title", "Đã hủy")
+                    putExtra("text", "✕")
                 }
+                // 2. Khi đang tải
                 else -> {
-                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                    putExtra("is_ongoing", true)
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
                     putExtra("oi_progress", pct)
                     putExtra("show_progress", true)
                     putExtra("progress", pct)
                     putExtra("progress_max", 100)
-                    putExtra("oi_left_content", "${pct}%")
+                    if (isIndeterminate) {
+                        putExtra("progress_indeterminate", true)
+                    }
+                    putExtra("oi_left_content", "$pct%")
                     putExtra("oi_right_content", "")
-                    putExtra("title", "${info.title.take(26)} (${pct}%)")
+                    putExtra("title", "${info.title.take(26)} ($pct%)")
                     putExtra("text", subText.ifBlank { "$appLabel · Đang tải xuống" })
                     if (!info.speedText.isNullOrBlank()) {
                         putExtra("subtext", "Tốc độ: ${info.speedText}")
+                    }
+
+                    // Khi chạm mở rộng (Expanded card):
+                    if (info.actions.isNotEmpty()) {
+                        putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
+                        putParcelableArrayListExtra("actions", ArrayList(info.actions))
+                        putStringArrayListExtra("oi_button_titles", ArrayList(info.actions.mapNotNull { it.title?.toString() }))
+                    } else {
+                        putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                        putExtra("oi_card_ring", pct)
                     }
                 }
             }
@@ -141,7 +160,7 @@ object DownloadCard {
 
         context.startService(intent)
 
-        // Nếu đã hoàn tất, tự động dọn dẹp đảo sau 3.5 giây
+        // Tự động dọn dẹp đảo:
         if (isCompleted) {
             handler.postDelayed({
                 context.startService(
@@ -151,6 +170,15 @@ object DownloadCard {
                         .putExtra("oi_scene", "NAVIGATION")
                 )
             }, 3500L)
+        } else if (isCanceled) {
+            handler.postDelayed({
+                context.startService(
+                    Intent(context, PlaygroundService::class.java)
+                        .setAction(PlaygroundService.ACTION_CANCEL)
+                        .putExtra("id", id)
+                        .putExtra("oi_scene", "NAVIGATION")
+                )
+            }, 2500L)
         }
     }
 

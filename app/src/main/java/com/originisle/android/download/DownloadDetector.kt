@@ -115,7 +115,12 @@ object DownloadDetector {
             allText.contains("download complete") ||
             allText.contains("download finished") ||
             allText.contains("đã tải về") ||
-            allText.contains("tải thành công")
+            allText.contains("tải thành công") ||
+            allText.contains("tải thất bại") ||
+            allText.contains("hủy tải") ||
+            allText.contains("download failed") ||
+            allText.contains("download canceled") ||
+            allText.contains("download cancelled")
 
         if (hasDownloadKeywords) return true
 
@@ -173,7 +178,53 @@ object DownloadDetector {
         val fullText = "$title $text $bigText $subText".trim()
         val lower = fullText.lowercase()
 
-        // Trạng thái hoàn thành
+        // 1. Kiểm tra trạng thái bị hủy / thất bại từ kênh (Channel ID)
+        val channelLower = n.channelId?.lowercase().orEmpty()
+        val channelIsCancelOrError = channelLower.contains("failed") ||
+            channelLower.contains("error") ||
+            channelLower.contains("cancel")
+
+        // 2. Kiểm tra text / bigText / subText
+        val statusCandidates = listOf(text, bigText, subText)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .lowercase()
+
+        val statusIsCancelOrError = statusCandidates.contains("đã hủy") ||
+            statusCandidates.contains("bị hủy") ||
+            statusCandidates.contains("hủy tải") ||
+            statusCandidates.contains("thất bại") ||
+            statusCandidates.contains("không thành công") ||
+            statusCandidates.contains("lỗi") ||
+            statusCandidates.contains("canceled") ||
+            statusCandidates.contains("cancelled") ||
+            statusCandidates.contains("failed") ||
+            statusCandidates.contains("error") ||
+            statusCandidates == "hủy" ||
+            statusCandidates == "cancel"
+
+        // 3. Kiểm tra title (trừ trường hợp tên file chứa các từ khóa này, vd: error_report.pdf)
+        val titleLower = title.lowercase()
+        val titleIsCancelOrError = !FILE_EXT_PATTERN.matcher(title).find() && (
+            titleLower.contains("thất bại") ||
+            titleLower.contains("đã hủy") ||
+            titleLower.contains("bị hủy") ||
+            titleLower.contains("không thành công") ||
+            titleLower.contains("lỗi tải") ||
+            titleLower.contains("download failed") ||
+            titleLower.contains("download canceled") ||
+            titleLower.contains("download cancelled") ||
+            titleLower == "đã hủy" ||
+            titleLower == "bị hủy" ||
+            titleLower == "thất bại" ||
+            titleLower == "canceled" ||
+            titleLower == "cancelled" ||
+            titleLower == "failed"
+        )
+
+        val isCanceled = channelIsCancelOrError || statusIsCancelOrError || titleIsCancelOrError
+
+        // Trạng thái hoàn thành (chỉ khi không bị hủy/thất bại)
         val isExplicitFinish = lower.contains("đã cài đặt") ||
             lower.contains("installed") ||
             lower.contains("tải xong") ||
@@ -185,11 +236,11 @@ object DownloadDetector {
             lower.contains("thành công")
 
         val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
-        val isFinished = isExplicitFinish || (!isOngoing && (lower.contains("hoàn tất") || lower.contains("complete")))
+        val isFinished = !isCanceled && (isExplicitFinish || (!isOngoing && (lower.contains("hoàn tất") || lower.contains("complete"))))
 
-        // Trích xuất tốc độ tải (speedText) từ subText/text/bigText nếu chưa hoàn tất
+        // Trích xuất tốc độ tải (speedText) từ subText/text/bigText nếu chưa hoàn tất và chưa bị hủy
         var speedText: String? = null
-        if (!isFinished) {
+        if (!isFinished && !isCanceled) {
             val subMatcher = SPEED_PATTERN.matcher(subText)
             if (subMatcher.find()) {
                 speedText = subMatcher.group(1)?.trim()
@@ -295,6 +346,10 @@ object DownloadDetector {
 
         // Mô tả chi tiết trạng thái
         val displayStatus = when {
+            isCanceled -> when {
+                statusCandidates.contains("thất bại") || statusCandidates.contains("failed") || statusCandidates.contains("lỗi") || titleLower.contains("thất bại") -> "Tải xuống thất bại"
+                else -> "Đã hủy tải xuống"
+            }
             isFinished -> "Đã tải xuống thành công"
             isInstalling -> "Đang cài đặt ứng dụng…"
             isPending -> "Đang chờ tải xuống…"
@@ -305,14 +360,24 @@ object DownloadDetector {
             else -> "Đang tải xuống…"
         }
 
+        // Bóc tách usable action buttons từ thông báo
+        val rawActions = n.actions
+        val usableActions = rawActions?.filterNotNull()?.filter { action ->
+            action.actionIntent != null &&
+                (action.remoteInputs == null || action.remoteInputs.isEmpty()) &&
+                !action.title.isNullOrBlank()
+        } ?: emptyList()
+
         return DownloadInfo(
             title = displayTitle,
             statusText = displayStatus,
             progress = progress,
             isIndeterminate = isIndeterminate,
             isFinished = isFinished,
+            isCanceled = isCanceled,
             speedText = speedText,
             contentIntent = n.contentIntent,
+            actions = usableActions,
         )
     }
 }

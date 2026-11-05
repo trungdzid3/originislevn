@@ -15,6 +15,7 @@ data class QuickShareInfo(
     val progress: Int = 0, // 0..100
     val isIndeterminate: Boolean = false,
     val isFinished: Boolean = false,
+    val isCanceled: Boolean = false,
     val speedText: String? = null,
     val isRequest: Boolean = false,
     val actions: List<Notification.Action> = emptyList(),
@@ -92,7 +93,10 @@ object QuickShareDetector {
             allText.contains("file") ||
             allText.contains("wants to share") ||
             allText.contains("muốn chia sẻ") ||
-            allText.contains("đã chia sẻ")
+            allText.contains("đã chia sẻ") ||
+            allText.contains("hủy") ||
+            allText.contains("cancel") ||
+            allText.contains("declined")
 
         // 5. Kiểm tra Progress
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
@@ -198,7 +202,18 @@ object QuickShareDetector {
             allTextLower.contains("thành công") ||
             allTextLower.contains("đã chia sẻ")
 
-        val isRequest = !isFinished && (hasAccept || hasDecline || isRequestByText)
+        val isCanceled = !isFinished && (
+            allTextLower.contains("đã hủy") ||
+            allTextLower.contains("từ chối") ||
+            allTextLower.contains("declined") ||
+            allTextLower.contains("canceled") ||
+            allTextLower.contains("cancelled") ||
+            allTextLower.contains("failed") ||
+            allTextLower.contains("thất bại") ||
+            allTextLower.contains("không thành công")
+        ) && !hasAccept
+
+        val isRequest = !isFinished && !isCanceled && (hasAccept || hasDecline || isRequestByText)
 
         // Nếu indeterminate hoặc đang kết nối chờ xác nhận, gán indeterminate = true, progress = 10
         val isConnectingOrWaiting = isRequest ||
@@ -209,7 +224,7 @@ object QuickShareDetector {
             allTextLower.contains("chuẩn bị") ||
             allTextLower.contains("preparing")
 
-        if (!isFinished && (isIndeterminate || (isConnectingOrWaiting && max <= 0) || (progress <= 0 && !isFinished))) {
+        if (!isFinished && !isCanceled && (isIndeterminate || (isConnectingOrWaiting && max <= 0) || (progress <= 0 && !isFinished))) {
             isIndeterminate = true
             if (progress <= 0) progress = 10
         }
@@ -237,6 +252,7 @@ object QuickShareDetector {
         }
 
         val displayTitle = when {
+            isCanceled -> "Đã hủy"
             isRequest && deviceName != null -> "Chia sẻ từ $deviceName"
             isRequest -> title.ifBlank { "Yêu cầu Quick Share" }
             deviceName != null -> "$deviceName · Quick Share"
@@ -245,6 +261,7 @@ object QuickShareDetector {
         }
 
         val displayStatus = when {
+            isCanceled -> "✕"
             isRequest -> text.ifBlank { "Chạm hoặc chọn Chấp nhận để nhận tệp" }
             isFinished -> "Đã hoàn tất truyền tệp"
             !speedText.isNullOrBlank() && fileName != null -> "$fileName · $speedText"
@@ -262,6 +279,7 @@ object QuickShareDetector {
             progress = progress,
             isIndeterminate = isIndeterminate,
             isFinished = isFinished,
+            isCanceled = isCanceled,
             speedText = speedText,
             isRequest = isRequest,
             actions = rawActions.take(3),

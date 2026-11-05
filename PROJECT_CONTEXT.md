@@ -12,10 +12,6 @@ origin-isle-vn/
 ├── .agent/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
-├── .github/
-│   ├── FUNDING.yml
-│   └── workflows/
-│       └── verify-release.yml        # Workflow kiểm thử phát hành
 ├── app/
 │   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies
 │   ├── proguard-rules.pro
@@ -23,11 +19,11 @@ origin-isle-vn/
 │       ├── main/java/com/originisle/android/
 │       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS
 │       │   ├── cards/                # 14 loại thẻ giao diện Đảo Origin
-│       │   ├── download/             # Nhận diện tiến trình tải xuống
+│       │   ├── download/             # Nhận diện tiến trình tải xuống & actions
 │       │   ├── island/               # Service SuperX, builder, constants
 │       │   ├── log/                  # Nhật ký hoạt động bền vững (CastLog)
 │       │   ├── otp/                  # Nhận diện mã xác thực OTP tiếng Việt
-│       │   ├── quickshare/           # Nhận diện Quick Share & EasyShare
+│       │   ├── quickshare/           # Nhận diện Quick Share & EasyShare & actions
 │       │   ├── ride/                 # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
 │       │   ├── service/              # NotificationCastListener & Receivers
 │       │   ├── smart/                # Bóc tách thông tin màn hình
@@ -55,18 +51,19 @@ origin-isle-vn/
 
 ## 3. Bản Đồ Code (Code Map)
 - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`):
-  - `readAndPost` (khoảng L185-387): Nạp thông số Intent và gửi thẻ SuperX lên Đảo.
-  - `onRejected` (khoảng L395-408): Tự động hạ cấp thẻ về dạng cơ bản không nút khi bị Đảo từ chối.
-  - `Icon.ownedBy` (khoảng L415-419): Gán package sở hữu cho icon tránh lỗi trên một số ROM Vivo.
-  - `postSuperX` (khoảng L426-458): Đóng gói notification gửi tới Vivo SystemUI.
+  - `readAndPost` (L185-387): Nạp thông số Intent và gửi thẻ SuperX lên Đảo.
+  - `onRejected` (L395-408): Tự động hạ cấp thẻ về dạng cơ bản không nút khi bị Đảo từ chối.
+  - `Icon.ownedBy` (L415-419): Gán package sở hữu cho icon tránh lỗi trên một số ROM Vivo.
+  - `postSuperX` (L426-458): Đóng gói notification gửi tới Vivo SystemUI.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - `onNotificationPosted` (khoảng L424-621): Cổng tiếp nhận thông báo theo thứ tự ưu tiên: Ngân hàng -> Quick Share -> Tải xuống -> OTP -> Nhạc -> Gọi xe -> Google Wallet -> Điều hướng -> Thông báo thường.
-  - `cleanUpRejectedSuperX` (khoảng L760-774): Hủy bản fallback trên thanh thông báo và kích hoạt `ACTION_REJECTED`.
+  - `onNotificationPosted` (L424-621): Cổng tiếp nhận thông báo theo thứ tự ưu tiên: Ngân hàng -> Quick Share -> Tải xuống -> OTP -> Nhạc -> Gọi xe -> Google Wallet -> Điều hướng -> Thông báo thường.
+  - `onNotificationRemoved` (L884-970): Bắt sự kiện gỡ thông báo: với Tải xuống và Quick Share, kiểm tra tiến độ lần cuối để hiển thị hoạt ảnh Hoàn tất (tích xanh lá 3.5s) hoặc Đã hủy (X đỏ 2.5s) thay vì ngắt phụt làm đảo tắt ngấm.
 - `Cards` (`app/src/main/java/com/originisle/android/cards/`):
+  - `DownloadCard.kt` & `QuickShareCard.kt`: Hiển thị logo app nguồn thực tế bên trái, vòng tròn tiến độ % quanh camera bên phải; mở rộng hiển thị các nút thao tác Tạm dừng / Hủy / Tiếp tục (`TEMPLATE_BUTTONS`); khi xong hiện viền sáng xanh lá + tích xanh; khi hủy hiện viền đỏ + X đỏ tối giản chữ.
   - `GenericCard.kt` (L31-215): Thẻ chung & helper `shownActions`.
   - `ChargingCard.kt` (L80-132): Thẻ sạc pin với `%` bên phải camera và `oi_card_ring`.
   - `PaymentCard.kt` (L52-170): Apple Pay style cho Google Wallet & biến động số dư ngân hàng VN.
-  - `QuickShareCard.kt`, `DownloadCard.kt`, `OtpCard.kt`, `EarbudsCard.kt`, `RideCard.kt`, `NavigationCard.kt`.
+  - `OtpCard.kt`, `EarbudsCard.kt`, `RideCard.kt`, `NavigationCard.kt`.
 - `AppsScreen.kt` (`app/src/main/java/com/originisle/android/ui/AppsScreen.kt`):
   - `AppsScreen` (L52-175): Quản lý bật/tắt thông báo từng ứng dụng.
   - `AppIcon` (L213-223): Tải biểu tượng bất đồng bộ kèm bộ đệm cache.
@@ -78,4 +75,4 @@ origin-isle-vn/
 - **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.0.5-debug.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Hiện tại toàn bộ tác vụ dọn dẹp, chuẩn hóa cấu trúc và đồng bộ tính năng upstream v2.2.3 đã hoàn tất.
+- Đang chờ kết quả phản biện và bản kế hoạch chiến lược từ **Gemini 4 Argon** cho hạng mục: Hỗ trợ kết nối Galaxy Fit 3 & Cải tổ thẻ pin đa thành phần co giãn tự động cho Earbuds/Wearables.
