@@ -48,14 +48,37 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Biến động số dư", "Thông báo cộng tiền ngân hàng",
-            IslandPreview(R.drawable.ic_payment, "+500.000 đ", IslandPreview.Right.Success),
+            "Biến động số dư", "Thông báo cộng tiền Vietcombank · +2.500.000 đ",
+            IslandPreview(R.drawable.ic_payment, "Vietcombank", IslandPreview.Right.Text("+2.500.000 đ")),
         ) { ctx ->
             PaymentCard.post(
                 context = ctx, id = 40002, appIcon = null,
-                amount = "+500.000 đ", merchant = "Vietcombank", appLabel = "VCB Digibank",
+                amount = "+2.500.000 đ", description = "Chuyen tien thu nghiem Dao Origin",
+                bankName = "Vietcombank", isIncome = true,
                 clickResp = openApp(ctx),
             )
+        },
+        OriginSample(
+            "Mã OTP", "Mã xác thực SMS FPT Long Châu · 490 603",
+            IslandPreview(R.drawable.ic_alert, "MÃ OTP", IslandPreview.Right.Text("490 603")),
+        ) { ctx ->
+            start(ctx, 40015) {
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+                putExtra("oi_show_right_icon", false)
+                putExtra("oi_left_content", "MÃ OTP")
+                putExtra("oi_right_content", "490603")
+                putExtra("status_chip_text", "490603")
+                putExtra("oi_fg_color", "#00E5FF")
+                putExtra("title", "490 603")
+                putExtra("text", "Mã xác thực · FPT Long Châu")
+                putExtra("source_app", "FPT Long Châu")
+                putExtra("icon_res", R.mipmap.ic_launcher_round)
+                putExtra("oi_force_show", true)
+                putExtra("oi_island_notify", true)
+                putExtra("oi_keep_duration", 30)
+            }
         },
         OriginSample(
             "Điều hướng", "Chỉ đường lái xe · Quãng đường & Thời gian",
@@ -89,6 +112,7 @@ object IslandSamples {
                 putExtra("progress", 75)
                 putExtra("progress_max", 100)
                 putExtra("status_chip_text", "75%")
+                putExtra("is_high_priority", true)
                 putExtra("icon_res", R.drawable.ic_download)
             }
         },

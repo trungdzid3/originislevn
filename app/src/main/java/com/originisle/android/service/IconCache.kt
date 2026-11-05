@@ -54,4 +54,28 @@ object IconCache {
             Icon.createWithResource(context, R.mipmap.ic_launcher_round)
         }
     }
+    /**
+     * Safely resolve any drawable resource (including Vector XML drawables) as a standalone
+     * pure Bitmap Icon. On Vivo OriginOS, passing raw resource-backed Icons (R.drawable.xxx)
+     * into SuperX bundles causes SystemUI to fail inflating remote VectorDrawables, which triggers
+     * SUPERX_VALUE = false and immediately drops the card off the island.
+     */
+    fun safeResourceIcon(context: Context, resId: Int): Icon {
+        if (resId == 0 || resId == R.mipmap.ic_launcher_round) {
+            return Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        }
+        return runCatching {
+            val drawable = androidx.core.content.ContextCompat.getDrawable(context, resId)
+                ?: return Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceIn(48, 144) else 96
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceIn(48, 144) else 96
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            Icon.createWithBitmap(bitmap)
+        }.getOrElse {
+            Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+        }
+    }
 }

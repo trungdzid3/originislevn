@@ -244,6 +244,15 @@ class PlaygroundService : Service() {
             return true
         }
 
+        // 4. Download & Progress detection: Ưu tiên đưa thẻ tiến độ lên đầu đảo ngay khi tải tệp
+        if (intent.getBooleanExtra("show_progress", false) ||
+            intent.getIntExtra("oi_template", 0) == OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL ||
+            leftContent.contains("tải", ignoreCase = true) ||
+            title.contains("tải", ignoreCase = true)
+        ) {
+            return true
+        }
+
         return false
     }
 
@@ -317,7 +326,7 @@ class PlaygroundService : Service() {
         // Icons: prefer the ones the listener captured for this cast id, else the app icon.
         val iconRes = intent.getIntExtra("icon_res", R.mipmap.ic_launcher_round)
         val baseIcon: Icon = IconCache.activeSmallIcons[id]
-            ?: Icon.createWithResource(this, iconRes)
+            ?: IconCache.safeResourceIcon(this, iconRes)
         val leftIcon: Icon = intent.getParcelableExtra("oi_left_icon", Icon::class.java) ?: baseIcon
         val rightIcon: Icon = intent.getParcelableExtra("oi_right_icon", Icon::class.java) ?: baseIcon
         val largeIcon: Icon? = intent.getParcelableExtra("oi_large_icon", Icon::class.java)
