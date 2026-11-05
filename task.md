@@ -1,7 +1,8 @@
-# MA TRẬN NHIỆM VỤ DỌN DẸP & CẢI TỔ DỰ ÁN (PROJECT RESTRUCTURING TASK MATRIX)
+# MA TRẬN NHIỆM VỤ NÂNG CẤP ORIGINOS 6 TOÀN DIỆN & SỬA LỖI CỐT LÕI
 
-- [x] Task 1: Tạo bản sao lưu dự phòng (Major Overhaul Backup) vào thư mục backups/ | [Agent: Lead-Orchestrator] | [Skill: default] | [Locked Files: backups/]
-- [x] Task 2: Tái cấu trúc thư mục scripts/, di chuyển các python patch/migration/scan scripts từ thư mục gốc vào scripts/tools/ kèm tài liệu README | [Agent: Project-Restructure-Specialist] | [Skill: default] | [Locked Files: scripts/tools/, scripts/README.md]
-- [x] Task 3: Chuẩn hóa cấu hình .gitignore ngăn chặn theo dõi backups/ và file tạm | [Agent: Project-Restructure-Specialist] | [Skill: default] | [Locked Files: .gitignore]
-- [x] Task 4: Xác thực và kiểm thử biên dịch toàn diện Gradle (compileDebugKotlin) | [Agent: Project-Restructure-Specialist] | [Skill: android-cli] | [Locked Files: app/build.gradle.kts]
-- [x] Task 5: Đồng bộ hóa tài liệu hệ thống và bản đồ code vào PROJECT_CONTEXT.md | [Agent: Lead-Orchestrator] | [Skill: default] | [Locked Files: PROJECT_CONTEXT.md]
+- [ ] Task 1: Nâng cấp VietnamBankDetector hỗ trợ cả tin nhắn SMS từ ngân hàng và khắc phục lỗi chặn biến động số dư | [Agent: Bank-Transfer-Fixer] | [Skill: default] | [Locked Files: app/src/main/java/com/originisle/android/bank/VietnamBankDetector.kt, app/src/main/java/com/originisle/android/cards/PaymentCard.kt]
+- [ ] Task 2: Khắc phục triệt để bắt mã OTP từ tin nhắn SMS và giải quyết nuốt thông báo trong NotificationCastListener | [Agent: OTP-Cast-Fixer] | [Skill: default] | [Locked Files: app/src/main/java/com/originisle/android/otp/OtpDetector.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
+- [ ] Task 3: Tối ưu hoá DownloadCard và PlaygroundService đảm bảo hiển thị thanh tiến trình tải xuống Chrome/Edge/CH Play | [Agent: Download-System-Fixer] | [Skill: default] | [Locked Files: app/src/main/java/com/originisle/android/cards/DownloadCard.kt, app/src/main/java/com/originisle/android/island/PlaygroundService.kt]
+- [ ] Task 4: Triệt tiêu tận gốc lỗi màn hình đen xì và vòng lặp khoá app khi khởi động trong MainActivity & OriginIsleApp | [Agent: Crash-Shield-Fixer] | [Skill: default] | [Locked Files: app/src/main/java/com/originisle/android/MainActivity.kt, app/src/main/java/com/originisle/android/OriginIsleApp.kt]
+- [ ] Task 5: Tái thiết kế toàn bộ Theme và HomeScreen chuẩn OriginOS 6 (Chế độ Sáng/Tối, Phone Mockup kép, Switch Teal) | [Agent: OriginOS-UI-Architect] | [Skill: minimalist-ui] | [Locked Files: app/src/main/java/com/originisle/android/ui/Theme.kt, app/src/main/java/com/originisle/android/ui/Components.kt, app/src/main/java/com/originisle/android/ui/HomeScreen.kt]
+- [ ] Task 6: Biên dịch APK Dao-Origin-0.0.6-VN.apk, kiểm tra cú pháp và hướng dẫn cấu hình Remote Git để đẩy code | [Agent: Lead-Orchestrator] | [Skill: android-cli] | [Locked Files: Dao-Origin-0.0.6-VN.apk, PROJECT_CONTEXT.md]

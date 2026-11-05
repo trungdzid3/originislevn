@@ -10,6 +10,7 @@ import com.originisle.android.R
 import com.originisle.android.bank.BankTransaction
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
+import com.originisle.android.service.IconCache
 
 /**
  * Apple-Pay-style payment card and Vietnam Bank transaction card for the OriginIsland.
@@ -222,14 +223,20 @@ object PaymentCard {
             putExtra("oi_left_content", title)
             putExtra("oi_right_content", chip)
             putExtra("status_chip_text", chip)
+            // Small notification/status icon must always be a mipmap (ic_launcher_round).
+            // Clear from activeSmallIcons to ensure PlaygroundService never picks a vector XML from another notification.
+            IconCache.activeSmallIcons.remove(id)
+
             // Use the PAYMENT app's own icon for the card image AND the pill's left icon. Without
             // oi_left_icon the pill falls back to icon_res (our launcher), which looked wrong.
-            appIcon?.let {
-                putExtra("oi_large_icon", it)
-                putExtra("oi_left_icon", it)
-            }
-            // Small notification/status icon + fallback when there's no app icon: a card glyph, not us.
-            putExtra("icon_res", R.drawable.ic_payment)
+            val fallbackIcon = Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+            val leftIcon = appIcon ?: fallbackIcon
+            putExtra("oi_large_icon", leftIcon)
+            putExtra("oi_left_icon", leftIcon)
+
+            // Small notification/status icon + fallback when there's no app icon. Must be a mipmap:
+            // a vector XML drawable here makes OriginOS reject the SuperX post.
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_generating_status", generating)
             putExtra("oi_icon_status_type", iconStatus)
             // Accent colors: chip fill, chip text and the island edge glow.

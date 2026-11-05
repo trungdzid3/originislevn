@@ -51,21 +51,21 @@ object DownloadCard {
             }
             putExtra("source_pkg", sbn.packageName)
 
-            // Cấu hình SuperX chuẩn OriginOS 6 (TEMPLATE_BASE + CAPSULE_TEXT)
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
+            // Cấu hình SuperX chuẩn OriginOS 6 cho thẻ tiến độ (giống IslandSamples đang chạy được)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_PROGRESS_VISUAL)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
             putExtra("status_chip_text", chipText)
-            putExtra("oi_left_content", info.title)
+            val leftContent = if (info.isFinished) "Hoàn tất" else "Đang tải"
+            putExtra("oi_left_content", leftContent)
             putExtra("oi_right_content", chipText)
 
-            putExtra("oi_progress", info.progress)
             putExtra("show_progress", true)
             putExtra("progress", info.progress)
             putExtra("progress_max", 100)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
 
             putExtra("oi_left_icon", icon)
             putExtra("oi_large_icon", icon)
-            putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_fg_color", "#FF2B66FF") // Vivo Origin Blue
             putExtra("oi_force_show", true)      // Ép đảo hiển thị viên thuốc ngay lập tức
             putExtra("is_ongoing", !info.isFinished)

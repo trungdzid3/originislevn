@@ -2,10 +2,11 @@ package com.originisle.android.otp
 
 /**
  * Pulls a one-time login / verification code out of a notification's text ("Your code is 482913",
- * "G-123456 is your Google verification code", "Code de vérification : 1234", "Mã xác thực của bạn là 849201").
+ * "G-123456 is your Google verification code", "Code de vérification : 1234", "Mã xác thực của bạn là 849201",
+ * "Nha Thuoc FPT Long Chau: Ma xac thuc OTP cua ban la 918119...").
  *
  * A code only counts when a code-ish keyword sits near it — a bare number in a chat message, an
- * order number or a price must never turn into a login-code card.
+ * order number, a price, or a customer service hotline (1800xxxx, 1900xxxx) must never turn into a login-code card.
  *
  * On OriginOS 6 (Vivo), SMS notifications with "Verification Reminder" or "Nhắc nhở mã xác minh"
  * bypass the maximum distance check and regular prefix restrictions to reliably capture login codes.
@@ -51,22 +52,20 @@ object OtpDetector {
     )
 
     /**
-     * Các biểu thức chính quy bắt trực tiếp mã OTP:
-     * - (?i)(?:mã|ma|code|otp|passcode|pin)[:\s]+([0-9]{4,8})
-     * - (?i)(?:là|la|is)[:\s]+([0-9]{4,8})
-     * - (?i)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp)
-     * - (?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})
-     * - (?i)\[([0-9]{4,8})\]
-     * - (?i)(?:\bOTP\b|\bmã xác thực\b|...)[^\d]{0,35}?(?<!\d)(\d{4,8})(?!\d)
-     * - (?i)\bcode\s*[:\s]\s*([0-9]{4,8})\b
+     * Biểu thức chính quy trực tiếp bắt mã OTP 4-8 chữ số:
+     * - Sau OTP / mã xác thực / mã xác minh / verification code kèm từ ngữ phụ ("của bạn là", "là", ":", v.v.)
+     * - Sau "là", "la", "is"
+     * - Sau "mã", "ma", "code", "otp", "pin" kèm dấu phân tách
+     * - Trước "là mã", "la ma", "là OTP"
+     * - Dạng prefix G-123456, FB-123456
+     * - Đóng trong ngoặc vuông [123456]
      */
     private val DIRECT_PATTERNS = listOf(
-        Regex("""(?i)(?:\bOTP\b|\bma\s*xac\s*thuc\b|\bmã\s*xác\s*thực\b|\bverification\s*code\b|\bsecurity\s*code\b|\bcode\b)[^\d]{0,35}?(?<!\d)(\d{4,8})(?!\d)"""),
-        Regex("""(?i)\bcode\s*[:\s]\s*([0-9]{4,8})\b"""),
-        Regex("""(?i)(?:mã|ma|code|otp|passcode|pin)[:\s]+([0-9]{4,8})"""),
-        Regex("""(?i)(?:là|la|is)[:\s]+([0-9]{4,8})"""),
-        Regex("""(?i)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp)"""),
-        Regex("""(?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})"""),
+        Regex("""(?i)(?:\bOTP\b|\bmã\s*xác\s*thực\b|\bma\s*xac\s*thuc\b|\bmã\s*xác\s*minh\b|\bma\s*xac\s*minh\b|\bmã\s*xác\s*nhận\b|\bma\s*xac\s*nhan\b|\bmã\s*đăng\s*nhập\b|\bma\s*dang\s*nhap\b|\bverification\s*code\b|\bsecurity\s*code\b)[^\d]{0,45}?(?<!\d)(\d{4,8})(?!\d)"""),
+        Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:\bmã\b|\bma\b|\bcode\b|\botp\b|\bpasscode\b|\bpin\b)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?<!\d)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp)"""),
+        Regex("""(?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\[([0-9]{4,8})\]"""),
     )
 
@@ -90,14 +89,11 @@ object OtpDetector {
     private val PHONE_PREFIX = Regex(
         """(?U)\b(?:sđt|sdt|số\s+điện\s+thoại|so\s+dien\s+thoai|điện\s+thoại|dien\s+thoai|""" +
             """liên\s+hệ|lien\s+he|tổng\s+đài|tong\s+dai|cskh|""" +
-            """hotline|tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact)\s*[:#.-]?\s*$""",
+            """hotline|hỗ\s+trợ|ho\s+tro|tư\s+vấn|tu\s+van|""" +
+            """tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact|gọi|goi|call)\b.*$""",
         RegexOption.IGNORE_CASE,
     )
 
-    /**
-     * Chỉ coi là tiền nếu đứng ngay sau "số tiền:" hoặc có ký hiệu tiền tệ rõ ràng.
-     * BỎ việc "thanh toán", "chuyển khoản", "nạp", "rút", "payment", "paid" loại trừ nhầm OTP.
-     */
     private val STRICT_MONEY_PREFIX = Regex(
         """(?U)\b(?:số\s+tiền|so\s+tien|amount|price|cost)\s*[:#.-]?\s*$""",
         RegexOption.IGNORE_CASE,
@@ -126,6 +122,20 @@ object OtpDetector {
         RegexOption.IGNORE_CASE,
     )
 
+    /**
+     * Vietnam hotline numbers (1800xxxx, 1900xxxx) are toll-free or paid customer service numbers
+     * that must never be mistaken for an OTP verification code.
+     */
+    private fun isHotlineNumber(digits: String): Boolean {
+        if ((digits.startsWith("1800") || digits.startsWith("1900")) && digits.length in 7..10) {
+            return true
+        }
+        if (digits.startsWith("0") && digits.length in 8..11) {
+            return true
+        }
+        return false
+    }
+
     /** The code (digits only) in [text], or null if it doesn't read like a login code. */
     fun find(text: String): String? {
         val isVivoReminder = VIVO_REMINDER.containsMatchIn(text)
@@ -135,13 +145,14 @@ object OtpDetector {
             val m = pattern.find(text)
             if (m != null) {
                 val candidateCode = m.groupValues[1].filter(Char::isDigit)
-                if (candidateCode.length in 4..8) {
+                if (candidateCode.length in 4..8 && !isHotlineNumber(candidateCode)) {
                     val prefix = text.substring(0, m.range.first).takeLast(40)
                     val suffix = text.substring(m.range.last + 1).take(20)
                     val isMoney = STRICT_MONEY_PREFIX.containsMatchIn(prefix) ||
                         CURRENCY_PREFIX.containsMatchIn(prefix) ||
                         CURRENCY_SUFFIX.containsMatchIn(suffix)
-                    if (!isMoney) {
+                    val isPhone = PHONE_PREFIX.containsMatchIn(prefix)
+                    if (!isMoney && !isPhone) {
                         return candidateCode
                     }
                 }
@@ -187,20 +198,23 @@ object OtpDetector {
         val raw = match.groupValues[1]
         val digits = raw.filter(Char::isDigit)
         if (digits.length !in 4..8) return false
-        if (!isVivoReminder && looksLikeYear(raw)) return false
+        if (isHotlineNumber(digits)) return false
 
         val prefix = text.substring(0, match.range.first).takeLast(40)
         val suffix = text.substring(match.range.last + 1).take(20)
+
+        // Không bao giờ nhận diện số điện thoại / hotline hỗ trợ kể cả khi là Vivo Reminder
+        if (PHONE_PREFIX.containsMatchIn(prefix)) return false
 
         // Kiểm tra tiền tệ nghiêm ngặt
         if (STRICT_MONEY_PREFIX.containsMatchIn(prefix) || CURRENCY_PREFIX.containsMatchIn(prefix)) return false
         if (CURRENCY_SUFFIX.containsMatchIn(suffix)) return false
 
-        // Khi là Vivo Reminder, bỏ qua các prefix chặn thông thường để không bao giờ bỏ sót OTP
+        // Khi là Vivo Reminder, bỏ qua các prefix chặn số tài khoản/đơn hàng
         if (isVivoReminder) return true
 
+        if (looksLikeYear(raw)) return false
         if (ACCOUNT_PREFIX.containsMatchIn(prefix)) return false
-        if (PHONE_PREFIX.containsMatchIn(prefix)) return false
         if (ORDER_PREFIX.containsMatchIn(prefix)) return false
         if (BIRTH_YEAR_PREFIX.containsMatchIn(prefix)) return false
 

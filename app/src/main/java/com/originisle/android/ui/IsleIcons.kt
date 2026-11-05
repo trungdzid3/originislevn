@@ -53,6 +53,9 @@ object IsleIcons {
         "camera", "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z",
         circle(12f, 13f, 3f),
     )
+    val CreditCard = stroke("credit-card", roundRect(2f, 5f, 20f, 14f, 2f), "M2 10h20")
+    val Smartphone = stroke("smartphone", roundRect(5f, 2f, 14f, 20f, 2.5f), "M12 18h.01")
+    val Sun = stroke("sun", circle(12f, 12f, 4f), "M12 2v2", "M12 20v2", "m4.93 4.93 1.41 1.41", "m17.66 17.66 1.41 1.41", "M2 12h2", "M20 12h2", "m6.34 17.66-1.41 1.41", "m19.07 4.93-1.41 1.41")
 
     val More = filled("more", circle(5f, 12f, 2f), circle(12f, 12f, 2f), circle(19f, 12f, 2f))
     val Stop = filled("stop", roundRect(5f, 5f, 14f, 14f, 3f))

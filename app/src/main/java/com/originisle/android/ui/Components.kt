@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,10 +45,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Shared building blocks for the redesigned screens: grouped cards, settings rows, pills, segments. */
+/** Shared building blocks for OriginOS 6 UI: grouped squircle cards, settings rows, pills, switches. */
 
 /** Page padding shared by every screen. */
-val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 32.dp)
+val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 32.dp)
 
 private val GroupRadius = 24.dp
 
@@ -137,7 +137,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** A rounded grey card holding a group of rows. */
+/** Squircle card with 24dp rounded corners holding a group of settings rows. */
 @Composable
 fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -164,25 +164,28 @@ fun groupItemShape(index: Int, count: Int): Shape {
     return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
 }
 
-/** Hairline between rows, inset to line up with the row titles after the icon tile. */
+/** Hairline between rows in OriginOS 6, inset to line up with row titles. */
 @Composable
-fun GroupDivider(inset: Dp = 62.dp) {
-    Box(Modifier.padding(start = inset).fillMaxWidth().height(1.dp).background(IsleColors.SurfaceHigh))
+fun GroupDivider(inset: Dp = 56.dp) {
+    Box(Modifier.padding(start = inset).fillMaxWidth().height(0.8.dp).background(IsleColors.Divider))
 }
 
+/** OriginOS 6 vector icon without heavy background frames. */
 @Composable
-fun IconTile(icon: ImageVector, color: Color, size: Dp = 26.dp) {
+fun IconTile(icon: ImageVector, color: Color = IsleColors.Accent, size: Dp = 26.dp) {
     Box(
         Modifier.size(size),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, Modifier.size(24.dp), tint = color) }
+    ) {
+        Icon(icon, null, Modifier.size(24.dp), tint = color)
+    }
 }
 
-/** Icon tile + title (+ subtitle) + trailing content. Clickable when [onClick] is set. */
+/** Icon + title (+ subtitle) + trailing content. Clickable when [onClick] is set. */
 @Composable
 fun SettingRow(
     icon: ImageVector,
-    tileColor: Color,
+    tileColor: Color = IsleColors.Accent,
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
@@ -194,11 +197,11 @@ fun SettingRow(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .heightIn(min = 60.dp)
-            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        IconTile(icon, tileColor)
+        IconTile(icon, color = tileColor)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
             if (subtitle != null) {
@@ -213,7 +216,7 @@ fun SettingRow(
 @Composable
 fun ToggleRow(
     icon: ImageVector,
-    tileColor: Color,
+    tileColor: Color = IsleColors.Accent,
     title: String,
     checked: Boolean,
     subtitle: String? = null,
@@ -224,19 +227,30 @@ fun ToggleRow(
         modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
         subtitle = subtitle,
     ) {
-        IsleSwitch(checked, onCheckedChange = null, modifier = Modifier.padding(end = 6.dp))
+        IsleSwitch(checked, onCheckedChange = null, modifier = Modifier.padding(end = 4.dp))
     }
 }
 
 /** A row that opens another screen: tile, title, optional value, chevron. */
 @Composable
-fun NavRow(icon: ImageVector, tileColor: Color, title: String, value: String? = null, onClick: () -> Unit) {
+fun NavRow(
+    icon: ImageVector,
+    tileColor: Color = IsleColors.Accent,
+    title: String,
+    value: String? = null,
+    onClick: () -> Unit,
+) {
     SettingRow(icon, tileColor, title, onClick = onClick) {
-        if (value != null) Text(value, fontSize = 14.sp, color = IsleColors.TextTertiary)
-        Icon(IsleIcons.ChevronRight, null, Modifier.padding(end = 8.dp).size(18.dp), tint = IsleColors.Chevron)
+        if (value != null) Text(value, fontSize = 14.sp, color = IsleColors.TextSecondary)
+        Icon(IsleIcons.ChevronRight, null, Modifier.padding(end = 6.dp).size(18.dp), tint = IsleColors.Chevron)
     }
 }
 
+/**
+ * OriginOS 6 Switch:
+ * ON: Track = Teal (#00BFA5), Thumb = Pure White (#FFFFFF)
+ * OFF: Track = #2C2D35 (Dark) / #D1D5DB (Light), Thumb = Pure White (#FFFFFF)
+ */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
     Switch(
@@ -254,7 +268,7 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
     )
 }
 
-/** iOS-style segmented control. */
+/** Segmented control styled for OriginOS 6. */
 @Composable
 fun SegmentedControl(
     options: List<String>,
@@ -289,7 +303,7 @@ fun SegmentedControl(
                     label,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (on) Color.White else IsleColors.TextTertiary,
+                    color = if (on) IsleColors.Text else IsleColors.TextSecondary,
                 )
             }
         }

@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.service.NotificationCastListener
 import com.originisle.android.sports.SportsFeed
+import com.originisle.android.ui.PREFS_NAME
 import java.io.File
 
 class OriginIsleApp : Application() {
@@ -23,7 +24,14 @@ class OriginIsleApp : Application() {
         }
 
         runCatching {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            val themeMode = prefs.getString("app_theme", "DARK") ?: "DARK"
+            val nightMode = when (themeMode) {
+                "LIGHT" -> AppCompatDelegate.MODE_NIGHT_NO
+                "SYSTEM" -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                else -> AppCompatDelegate.MODE_NIGHT_YES
+            }
+            AppCompatDelegate.setDefaultNightMode(nightMode)
         }.onFailure { Log.e("OriginIsleApp", "Loi setDefaultNightMode", it) }
 
         runCatching {

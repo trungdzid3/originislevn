@@ -424,39 +424,57 @@ class NotificationCastListener : NotificationListenerService() {
             return
         }
 
-        val prefs = getSharedPreferences(PREFS, 0)
-        val n = sbn.notification
-        val extras = n.extras
-        val template = extras.getString(NotificationCompat.EXTRA_TEMPLATE)
-        val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
-            template == "android.app.Notification\$CallStyle"
+            val prefs = getSharedPreferences(PREFS, 0)
+            val n = sbn.notification
+            val extras = n.extras
+            val template = extras.getString(NotificationCompat.EXTRA_TEMPLATE)
+            val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
+                template == "android.app.Notification\$CallStyle"
 
-        // Ưu tiên quét OTP trước tất cả bộ lọc hệ thống.
-        // Trên Vivo OriginOS 6, tính năng Verification Reminder có thể do gói hệ thống (SYSTEM_PKGS) phát ra.
-        if (!isCall && prefs.getBoolean("cast_otp", true)) {
-            OtpDetector.find(notificationText(sbn))?.let { code ->
-                if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
-                    log(sbn, "bỏ qua — thông tin chưa thay đổi", false)
+            // --- Ưu tiên tuyệt đối: Ngân hàng -> OTP -> Tải xuống --------------------------
+            // Ba loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
+            // quiet hours, media…). Trên OriginOS chúng có thể đến từ gói hệ thống hoặc mang cờ
+            // ongoing/progress nên nếu để sau các filter thì card bị nuốt mất.
+
+            // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
+            val bankTx = VietnamBankDetector.parse(sbn)
+            if (bankTx != null) {
+
+                val id = IconCache.castIdFor(sbn)
+                val appIcon = runCatching {
+                    val ai = packageManager.getApplicationInfo(sbn.packageName, 0)
+                    Icon.createWithResource(sbn.packageName, ai.icon)
+                }.getOrNull()
+                val click = sbn.notification.contentIntent
+                    ?: fallbackClickIntent(applicationContext, sbn.packageName)
+                PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)
+                val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
+                log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
+                return
+            }
+
+            // 2) Mã OTP / đăng nhập. KHÔNG dùng lại time-guard: notification OTP thường được
+            //    update tại chỗ với cùng postTime, guard cũ sẽ chặn mất mã mới.
+            if (prefs.getBoolean("cast_otp", true)) {
+                OtpDetector.find(notificationText(sbn))?.let { code ->
+                    OtpCard.post(applicationContext, sbn, code, appLabel(sbn.packageName))
+                    log(sbn, "hiển thị — mã OTP / đăng nhập", true)
                     return
                 }
-                OtpCard.post(applicationContext, sbn, code, appLabel(sbn.packageName))
-                log(sbn, "hiển thị — mã OTP / đăng nhập", true)
-                return
             }
-        }
 
-        // Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
-        if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
-            val dlInfo = DownloadDetector.parse(sbn)
-            if (dlInfo != null) {
-                log(sbn, "hiển thị — tiến độ tải xuống", true)
-                DownloadCard.post(applicationContext, dlInfo, sbn)
-                return
+            // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
+            if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
+                val dlInfo = DownloadDetector.parse(sbn)
+                if (dlInfo != null) {
+                    log(sbn, "hiển thị — tiến độ tải xuống", true)
+                    DownloadCard.post(applicationContext, dlInfo, sbn)
+                    return
+                }
             }
-        }
 
-        // Bỏ qua thông báo hệ thống thông thường nếu không phải tiến trình tải xuống
-        if (sbn.packageName in SYSTEM_PKGS && !DownloadDetector.isDownload(sbn)) return
+            // Bỏ qua thông báo hệ thống thông thường nếu không phải tiến trình tải xuống
+            if (sbn.packageName in SYSTEM_PKGS && !DownloadDetector.isDownload(sbn)) return
 
         // A group summary ("3 new messages") stays active alongside the individual notifications it
         // summarizes — casting both means the same event shows up on the island twice (Gmail is the
@@ -522,23 +540,7 @@ class NotificationCastListener : NotificationListenerService() {
             }
         }
 
-        // Ngân hàng Việt Nam (biến động số dư: cộng/trừ tiền, Vietcombank, Techcombank, MB, MoMo,...)
-        val bankTx = VietnamBankDetector.parse(sbn)
-        if (bankTx != null) {
-            if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
-                log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
-            }
-            val id = IconCache.castIdFor(sbn)
-            val appIcon = runCatching {
-                val ai = packageManager.getApplicationInfo(sbn.packageName, 0)
-                Icon.createWithResource(sbn.packageName, ai.icon)
-            }.getOrNull()
-            val click = sbn.notification.contentIntent ?: fallbackClickIntent(applicationContext, sbn.packageName)
-            PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)
-            val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
-            log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
-            return
-        }
+        // Ngân hàng Việt Nam đã được xử lý ưu tiên ở đầu onNotificationPosted.
 
         // Payments quốc tế (Wallet, Revolut, PayPal, …) -> Apple-Pay-style success card.
         detectPayment(sbn)?.let {
@@ -633,7 +635,14 @@ class NotificationCastListener : NotificationListenerService() {
             extras.getBoolean(NotificationCompat.EXTRA_CHRONOMETER_COUNT_DOWN, false)
     }
 
-    /** Title + text + big text + sub text + messages + ticker + extras, as one comprehensive string to search. */
+    /**
+     * Title + text + big text + sub text + summary/info + ticker + messages, as one string to search.
+     *
+     * Deliberately limited to [NotificationCompat] string keys, the ticker and MessagingStyle
+     * messages: iterating `extras.keySet()` and materialising arbitrary values throws
+     * BadParcelableException on some source apps (custom Parcelables / classloader mismatch), which
+     * would kill the listener for every later notification.
+     */
     private fun notificationText(sbn: StatusBarNotification): String {
         val n = sbn.notification
         val extras = n.extras
@@ -644,30 +653,43 @@ class NotificationCastListener : NotificationListenerService() {
             NotificationCompat.EXTRA_SUB_TEXT,
             NotificationCompat.EXTRA_SUMMARY_TEXT,
             NotificationCompat.EXTRA_INFO_TEXT,
+            NotificationCompat.EXTRA_TITLE_BIG,
         ).mapNotNull { key ->
             runCatching { extras.getCharSequence(key)?.toString() }.getOrNull()
         }
 
         val ticker = listOfNotNull(runCatching { n.tickerText?.toString() }.getOrNull())
 
+        val textLines = runCatching {
+            extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES)
+                ?.mapNotNull { it?.toString() }
+        }.getOrNull().orEmpty()
+
+        val dynamicExtras = runCatching {
+            extras.keySet().mapNotNull { key ->
+                runCatching {
+                    val v = extras.get(key)
+                    if (v is CharSequence) v.toString() else null
+                }.getOrNull()
+            }
+        }.getOrNull().orEmpty()
+
+        val actionTitles = runCatching {
+            n.actions?.mapNotNull { action ->
+                action.title?.toString()
+            }
+        }.getOrNull().orEmpty()
+
         val messagingMessages = runCatching {
             NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
                 ?.messages?.mapNotNull { it.text?.toString() }
         }.getOrNull().orEmpty()
 
-        val extraTexts = runCatching {
-            extras.keySet().mapNotNull { k ->
-                val v = extras.get(k)
-                if (v is CharSequence) v.toString() else null
-            }
-        }.getOrNull().orEmpty()
-
-        val channelText = listOfNotNull(n.channelId)
-        val allParts = (base + ticker + messagingMessages + channelText + extraTexts)
+        val allParts = (base + ticker + textLines + dynamicExtras + actionTitles + messagingMessages)
             .filter { it.isNotBlank() }
             .distinct()
 
-        return allParts.joinToString(" \n ")
+        return allParts.joinToString(" ")
     }
 
     /**

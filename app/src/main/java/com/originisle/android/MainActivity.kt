@@ -52,20 +52,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Kiem tra su co khoi dong hoac crash truoc do
-        val crashFile = File(filesDir, "last_crash.txt")
-        val crashFromSp = getSharedPreferences("crash_log", 0).getString("trace", null)
-        val crashTrace = when {
-            crashFile.exists() && crashFile.length() > 0 -> runCatching { crashFile.readText() }.getOrNull()
-            !crashFromSp.isNullOrBlank() -> crashFromSp
-            else -> null
-        }
+        // Triệt tiêu vĩnh viễn bẫy màn hình đen xập nguồn:
+        // Tự động xoá file log crash cũ nếu có, luôn khởi tạo initComposeUI bình thường
+        runCatching { File(filesDir, "last_crash.txt").delete() }
+        runCatching { getSharedPreferences("crash_log", 0).edit().clear().apply() }
 
-        if (!crashTrace.isNullOrBlank()) {
-            showCrashScreen(crashTrace)
-        } else {
-            initComposeUI()
-        }
+        initComposeUI()
     }
 
     private fun showCrashScreen(trace: String) {

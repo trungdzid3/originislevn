@@ -359,16 +359,24 @@ class PlaygroundService : Service() {
         // each other — vivo happily stacks several live cards (a main one + reduced ones), and ending
         // one mid-update is what left a match card half-rendered (one badge / one score). Cards are
         // still cleared when their own notification is dismissed (onNotificationRemoved -> cancel).
-        if (id >= 40000) {
-            val prevInScene = sceneCurrentId[scene]
+        // Khi một thẻ mới đang được post trong scene NAVIGATION, nếu đã có thẻ khác đang tồn tại trong
+        // scene này (prevInScene != null && prevInScene != id), kết thúc thẻ cũ bằng endOrigin trước để
+        // Vivo SuperX không bị xung đột hoặc bỏ rơi thẻ mới.
+        val prevInScene = sceneCurrentId[scene]
+        if (scene == "NAVIGATION" && prevInScene != null && prevInScene != id) {
+            endOrigin(prevInScene, scene)
+            activeIds.remove(prevInScene)
+            originChangeRecord.remove(prevInScene)
+            originScenes.remove(prevInScene)
+        } else if (id >= 40000) {
             if (prevInScene != null && prevInScene != id && prevInScene >= 40000) {
                 endOrigin(prevInScene, scene)
                 activeIds.remove(prevInScene)
                 originChangeRecord.remove(prevInScene)
                 originScenes.remove(prevInScene)
             }
-            sceneCurrentId[scene] = id
         }
+        sceneCurrentId[scene] = id
 
         activeIds.add(id)
         originScenes[id] = scene
@@ -425,7 +433,9 @@ class PlaygroundService : Service() {
             .setOngoing(isOngoing)
             .setAutoCancel(isOngoing)
             .setDeleteIntent(deletePi)
-            .setSmallIcon(iconRes)
+            // Always the launcher mipmap. Vivo OriginOS rejects SuperX posts that carry a vector
+            // XML drawable as the small icon, which silently drops the card off the island.
+            .setSmallIcon(R.mipmap.ic_launcher_round)
             .setExtras(bundle)
         if (sourceApp.isNotEmpty()) builder.setSubText(sourceApp)
         notificationManager.notify(OriginIslandConstants.SUPERX_TAG, id, builder.build())
