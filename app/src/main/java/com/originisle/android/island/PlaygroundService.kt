@@ -445,15 +445,15 @@ class PlaygroundService : Service() {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
-        val scene = originScenes.remove(id) ?: intent.getStringExtra("oi_scene")
-        if (scene != null) {
-            endOrigin(id, scene)
-            mainHandler.postDelayed({
-                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
-            }, 350L)
-        } else {
-            notificationManager.cancel(id)
+        val scene = originScenes.remove(id) ?: intent.getStringExtra("oi_scene") ?: "NAVIGATION"
+        if (sceneCurrentId[scene] == id) {
+            sceneCurrentId.remove(scene)
         }
+        endOrigin(id, scene)
+        mainHandler.postDelayed({
+            notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
+            notificationManager.cancel(id)
+        }, 350L)
         activeIds.remove(id)
         originChangeRecord.remove(id)
         lastPosts.remove(id)

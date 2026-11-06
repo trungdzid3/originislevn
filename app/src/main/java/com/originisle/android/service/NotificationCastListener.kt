@@ -296,7 +296,7 @@ class NotificationCastListener : NotificationListenerService() {
             try {
                 val prefs = getSharedPreferences(PREFS, 0)
                 val castNotifs = prefs.getBoolean("cast_notifications", true)
-                val castMedia = prefs.getBoolean("cast_media_sessions", false)
+                val castMedia = prefs.getBoolean("cast_media_sessions", true)
                 activeNotifications?.forEach { sbn ->
                     val extras = sbn.notification.extras
                     val token = extras.getParcelable(
@@ -583,7 +583,7 @@ class NotificationCastListener : NotificationListenerService() {
         }
 
         val castNotifs = prefs.getBoolean("cast_notifications", true)
-        val castMedia = prefs.getBoolean("cast_media_sessions", false)
+        val castMedia = prefs.getBoolean("cast_media_sessions", true)
         if (!castNotifs && !castMedia) { log(sbn, "bỏ qua — tính năng truyền thông báo đang tắt", false); return }
 
         val token = extras.getParcelable(NotificationCompat.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
@@ -970,6 +970,21 @@ class NotificationCastListener : NotificationListenerService() {
         }
 
         val id = IconCache.castIdFor(sbn)
+
+        val isMedia = sbn.notification.extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
+            IconCache.activeControllers.containsKey(id)
+        if (isMedia) {
+            startService(
+                Intent(this, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+            IconCache.activeControllers.remove(id)
+            MediaCard.clear(this, id)
+            return
+        }
+
         val isQs = QuickShareDetector.isQuickShare(sbn)
         val isDl = DownloadDetector.isDownload(sbn) || activeDownloadIds.remove(id)
 

@@ -39,6 +39,21 @@ object DownloadDetector {
         "mark.via.gp",
     )
 
+    private val MEDIA_PACKAGES = setOf(
+        "com.google.android.apps.youtube.music",
+        "com.google.android.youtube",
+        "com.spotify.music",
+        "com.zing.mp3",
+        "com.apple.android.music",
+        "deezer.android.app",
+        "com.soundcloud.android",
+        "com.netease.cloudmusic",
+        "com.tencent.qqmusic",
+        "com.kugou.android",
+        "vn.nhaccuatui",
+        "tunein.player",
+    )
+
     private val PERCENT_PATTERN = Pattern.compile("(\\d{1,3})\\s*%")
     private val SIZE_PATTERN = Pattern.compile(
         "(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)?\\s*(?:/|of|của|trong(?:\\s+số)?|trên)\\s*(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)",
@@ -72,6 +87,24 @@ object DownloadDetector {
         val extras = n.extras
         val pkg = sbn.packageName
 
+        // Bỏ qua nếu là thông báo phát đa phương tiện (Media Session / MediaStyle)
+        val isMediaSession = extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
+            extras.containsKey("android.mediaSession") ||
+            extras.getString(NotificationCompat.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+
+        val channelId = n.channelId?.lowercase().orEmpty()
+        val isExplicitDownloadChannel = channelId.contains("download") || channelId.contains("offline") || channelId.contains("tải")
+
+        if (isMediaSession) {
+            // Nếu thông báo mang MediaSession token thì 100% là điều khiển phát nhạc, không bao giờ là file download
+            return false
+        }
+
+        if (pkg in MEDIA_PACKAGES && !isExplicitDownloadChannel) {
+            // Nếu thuộc app nghe nhạc mà channel không phải download ngoại tuyến thì bỏ qua
+            return false
+        }
+
         // 1. Kiểm tra progress bar trực tiếp từ hệ thống
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val indeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
@@ -81,7 +114,6 @@ object DownloadDetector {
         if (n.category == Notification.CATEGORY_PROGRESS) return true
 
         // 3. Kiểm tra kênh thông báo (Channel ID): Chrome/Edge/PlayStore luôn dùng channel có chữ download
-        val channelId = n.channelId?.lowercase().orEmpty()
         if (channelId.contains("download") ||
             channelId.contains("tai_xuong") ||
             channelId.contains("tải") ||

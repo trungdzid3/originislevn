@@ -9,6 +9,8 @@ import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import com.originisle.android.R
@@ -16,6 +18,7 @@ import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
 import com.originisle.android.service.MediaControlReceiver
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 
 /**
@@ -24,6 +27,9 @@ import kotlin.math.abs
  * [MediaControlReceiver].
  */
 object MediaCard {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val pendingDismissTasks = ConcurrentHashMap<Int, Runnable>()
 
     fun post(context: Context, sbn: StatusBarNotification, controller: MediaController) {
         val id = IconCache.castIdFor(sbn)
@@ -64,12 +70,7 @@ object MediaCard {
         } else if (playing) {
             "Đang phát"
         } else {
-            // Paused pill is icon-only — no "Tạm dừng" text, no source-app icon standing in for it.
-            // A single space, not "": OriginIslandBuilder's capsule content is always populated
-            // unconditionally, and a genuinely empty value risks the same silent-rejection behaviour
-            // documented for empty notification title/text (already worked around elsewhere in
-            // OriginIslandBuilder's template-4 path the same way).
-            " "
+            "Tạm dừng"
         }
 
         fun mediaAction(action: String) = PendingIntent.getBroadcast(
@@ -88,35 +89,48 @@ object MediaCard {
 
         val prevSourceAction = findSourceAction(listOf("previous", "skip back", "rewind"))
         val nextSourceAction = findSourceAction(listOf("next", "skip forward", "fast forward"))
-        val sessionActions = controller.playbackState?.actions ?: 0L
-        val hasPrev = prevSourceAction != null || (sessionActions and PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L
-        val hasNext = nextSourceAction != null || (sessionActions and PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
 
-        val actions = arrayListOf<Notification.Action>()
-        if (hasPrev) {
-            actions.add(
-                makeAction(context, R.drawable.ic_media_prev, prevSourceAction ?: mediaAction(MediaControlReceiver.ACTION_PREV)),
-            )
-        }
-        actions.add(
+        val actions = arrayListOf<Notification.Action>(
+            makeAction(
+                context,
+                R.drawable.ic_media_prev,
+                prevSourceAction ?: mediaAction(MediaControlReceiver.ACTION_PREV),
+            ),
             makeAction(
                 context,
                 if (playing) R.drawable.ic_media_pause else R.drawable.ic_media_play,
                 mediaAction(MediaControlReceiver.ACTION_PLAY_PAUSE),
             ),
+            makeAction(
+                context,
+                R.drawable.ic_media_next,
+                nextSourceAction ?: mediaAction(MediaControlReceiver.ACTION_NEXT),
+            ),
         )
-        if (hasNext) {
-            actions.add(
-                makeAction(context, R.drawable.ic_media_next, nextSourceAction ?: mediaAction(MediaControlReceiver.ACTION_NEXT)),
-            )
+
+        if (playing) {
+            pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
+        } else {
+            pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
+            val task = Runnable {
+                pendingDismissTasks.remove(id)
+                val cancelIntent = Intent(context, PlaygroundService::class.java).apply {
+                    action = PlaygroundService.ACTION_CANCEL
+                    putExtra("id", id)
+                    putExtra("oi_scene", "MOVIE")
+                }
+                context.startService(cancelIntent)
+            }
+            pendingDismissTasks[id] = task
+            handler.postDelayed(task, 3000L)
         }
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", playing)
 
-            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_scene", "MOVIE")
             putExtra("title", track)
             putExtra("text", artist)
             putExtra("source_pkg", sbn.packageName)
@@ -129,20 +143,15 @@ object MediaCard {
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
-            // Lockscreen visibility is decided globally by the "Live card on lockscreen" setting in
-            // PlaygroundService, not per-card — no oi_displays override needed here anymore.
+
             if (playing) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
-                // Test: waveState=2 rendered a static (non-animated) wave shape. Trying 1 now that real
-                // colours are actually wired in — never tested that combination before.
                 putExtra("oi_wave_state", 1)
                 if (waveColors.isNotEmpty()) {
                     putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
                 }
             } else {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                // Explicit pause-bars icon instead of falling back to the source app's small icon
-                // (which for some apps IS a speaker glyph — confusing next to "no text").
                 putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
                 putExtra("oi_show_right_icon", true)
             }
@@ -154,6 +163,17 @@ object MediaCard {
             )
         }
         context.startService(intent)
+    }
+
+    fun clear(context: Context, id: Int) {
+        pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
+        IconCache.clear(id)
+        val cancelIntent = Intent(context, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_CANCEL
+            putExtra("id", id)
+            putExtra("oi_scene", "MOVIE")
+        }
+        context.startService(cancelIntent)
     }
 
     private fun extrasTitle(sbn: StatusBarNotification): String =

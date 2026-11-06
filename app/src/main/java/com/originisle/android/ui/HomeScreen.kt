@@ -104,7 +104,7 @@ fun HomeScreen(
     }
 
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
-    var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", false)) }
+    var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
     var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
     var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
     var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
@@ -473,8 +473,8 @@ fun HomeScreen(
                 SectionLabel("Tiện ích & Hệ thống")
                 GroupCard {
                     ToggleRow(
-                        IsleIcons.Music, IsleColors.Accent, "Âm nhạc & Trình phát", mediaOn,
-                        subtitle = "Trình phát nhạc thu nhỏ và thanh điều khiển",
+                        IsleIcons.Music, IsleColors.Accent, "Trình phát nhạc & Sóng âm thanh", mediaOn,
+                        subtitle = "Hiển thị sóng nhạc động và điều khiển nhạc (Spotify, YouTube, Zing MP3...); tự thu gọn sau 3s khi tạm dừng.",
                     ) {
                         mediaOn = it; prefs.edit().putBoolean("cast_media_sessions", it).apply()
                     }
