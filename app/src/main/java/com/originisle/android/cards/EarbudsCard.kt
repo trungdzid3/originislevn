@@ -157,6 +157,23 @@ object EarbudsCard {
         lastConnectionState[nameOrAddress] = connected
     }
 
+    private const val PREFS_BATTERY_CACHE = "wearable_battery_cache"
+
+    fun getCachedBattery(context: Context, name: String): Int {
+        if (name.isBlank()) return -1
+        val key = name.lowercase().trim()
+        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+        return prefs.getInt(key, -1).takeIf { it in 0..100 } ?: -1
+    }
+
+    fun saveCachedBattery(context: Context, name: String, level: Int) {
+        if (name.isBlank() || level !in 0..100) return
+        val key = name.lowercase().trim()
+        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+        prefs.edit().putInt(key, level).apply()
+    }
+
+
     private val WEARABLE_KEYWORDS = listOf(
         "galaxy fit", "fit 3", "fit3", "sm-r390", "galaxy watch",
         "mi band", "smart band", "huawei band", "amazfit", "garmin",
@@ -164,7 +181,7 @@ object EarbudsCard {
     )
 
     private val WEARABLE_PACKAGES = listOf(
-        "fit3plugin", "watchmanager", "accessory", "gearfit2plugin",
+        "fit3plugin", "watchmanager", "accessory", "gearfit2plugin", "waterplugin",
         "geargplugin", "watch6plugin",
     )
 
@@ -338,14 +355,32 @@ object EarbudsCard {
                 setConnectedState(address, true)
                 setConnectedState(devName, true)
 
-                val initial = readTelemetry(device, intent)
+                var initial = readTelemetry(device, intent)
+                if (initial.effectiveLevel !in 0..100) {
+                    val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
+                        ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
+                    if (cached in 0..100) {
+                        initial = initial.copy(main = cached)
+                    }
+                }
                 if (initial.effectiveLevel in 0..100) {
+                    saveCachedBattery(context, devName, initial.effectiveLevel)
                     deviceTelemetry[address] = initial
                     show(context, device, devName, initial, low = (initial.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                 } else {
                     val task = Runnable {
                         pending.remove(address)
-                        val telemetry = readTelemetry(device, intent)
+                        var telemetry = readTelemetry(device, intent)
+                        if (telemetry.effectiveLevel !in 0..100) {
+                            val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
+                                ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
+                            if (cached in 0..100) {
+                                telemetry = telemetry.copy(main = cached)
+                            }
+                        }
+                        if (telemetry.effectiveLevel in 0..100) {
+                            saveCachedBattery(context, devName, telemetry.effectiveLevel)
+                        }
                         deviceTelemetry[address] = telemetry
                         show(context, device, devName, telemetry, low = (telemetry.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                     }
@@ -400,6 +435,9 @@ object EarbudsCard {
                             isLeftCharging = if (parsed.second) true else current.isLeftCharging,
                             isRightCharging = if (parsed.second) true else current.isRightCharging,
                         )
+                        if (updated.effectiveLevel in 0..100) {
+                            saveCachedBattery(context, devName, updated.effectiveLevel)
+                        }
                         deviceTelemetry[address] = updated
                         show(context, device, devName, updated, low = (updated.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                     }
@@ -412,6 +450,9 @@ object EarbudsCard {
                 disconnectDebounce.remove(devName)?.let(handler::removeCallbacks)
 
                 val updated = readTelemetry(device, intent)
+                if (updated.effectiveLevel in 0..100) {
+                    saveCachedBattery(context, devName, updated.effectiveLevel)
+                }
                 val before = deviceTelemetry.put(address, updated)
                 val eff = updated.effectiveLevel
 
@@ -884,6 +925,9 @@ object EarbudsCard {
             devName = if (isWearableDevice) "Thiết bị đeo" else "Tai nghe Bluetooth"
         }
 
+        if (telemetry.effectiveLevel in 0..100) {
+            saveCachedBattery(context, devName, telemetry.effectiveLevel)
+        }
         show(
             context = context,
             device = null,
@@ -989,6 +1033,11 @@ object EarbudsCard {
         val effectivePct = telemetry.effectiveLevel
         val known = effectivePct in 0..100
         val isLow = known && effectivePct <= LOW_LEVEL
+
+        if (known) {
+            saveCachedBattery(context, name, effectivePct)
+            device?.address?.let { saveCachedBattery(context, it, effectivePct) }
+        }
 
         val glyph = when {
             isWearableDevice -> R.drawable.ic_smartband
@@ -1182,7 +1231,22 @@ object EarbudsCard {
         val alreadyConnected = isConnected(name)
         setConnectedState(name, true)
 
-        val telemetry = if (battery in 0..100) EarbudsTelemetry(main = battery) else (deviceTelemetry[name] ?: EarbudsTelemetry())
+        var effectiveBattery = battery
+        if (effectiveBattery !in 0..100) {
+            val cached = getCachedBattery(ctx, name)
+            if (cached in 0..100) {
+                effectiveBattery = cached
+            }
+        }
+        if (effectiveBattery in 0..100) {
+            saveCachedBattery(ctx, name, effectiveBattery)
+        }
+
+        val telemetry = if (effectiveBattery in 0..100) {
+            EarbudsTelemetry(main = effectiveBattery)
+        } else {
+            deviceTelemetry[name]?.takeIf { it.effectiveLevel in 0..100 } ?: EarbudsTelemetry()
+        }
         deviceTelemetry[name] = telemetry
 
         if (alreadyConnected) {
@@ -1236,6 +1300,9 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
+        if (telemetry.effectiveLevel in 0..100) {
+            saveCachedBattery(ctx, name, telemetry.effectiveLevel)
+        }
         val before = deviceTelemetry.put(name, telemetry)
         val eff = telemetry.effectiveLevel
         // Chỉ cập nhật hiển thị nếu Đang hiển thị trên đảo, hoặc pin tụt xuống mức cảnh báo yếu

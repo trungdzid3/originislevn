@@ -186,6 +186,20 @@ class PlaygroundService : Service() {
 
     // --- posting -----------------------------------------------------------------
 
+    private fun resolveAllowedScene(requested: String?): String {
+        val s = requested?.trim().orEmpty().ifBlank { "NAVIGATION" }
+        if (s == "NAVIGATION") return "NAVIGATION"
+        val granted = runCatching {
+            val method = NotificationManager::class.java.getMethod(
+                "getSceneStatus",
+                String::class.java,
+                String::class.java,
+            )
+            method.invoke(notificationManager, packageName, s) as? Boolean
+        }.getOrNull() ?: false
+        return if (granted) s else "NAVIGATION"
+    }
+
     /** Read the `oi_*` extras contract off [intent] and post/refresh a SuperX card. */
     private fun readAndPost(intent: Intent) {
         val id = intent.getIntExtra("id", -1)
@@ -193,7 +207,7 @@ class PlaygroundService : Service() {
         lastPosts[id] = intent
         val plain = id in plainIds
 
-        val scene = intent.getStringExtra("oi_scene").orEmptyOr("NAVIGATION")
+        val scene = resolveAllowedScene(intent.getStringExtra("oi_scene"))
         val title = intent.getStringExtra("title").orEmpty()
         val text = intent.getStringExtra("text").orEmpty()
         val leftContent = intent.getStringExtra("oi_left_content").orEmpty()
@@ -445,7 +459,7 @@ class PlaygroundService : Service() {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
-        val scene = originScenes.remove(id) ?: intent.getStringExtra("oi_scene") ?: "NAVIGATION"
+        val scene = originScenes.remove(id) ?: resolveAllowedScene(intent.getStringExtra("oi_scene"))
         if (sceneCurrentId[scene] == id) {
             sceneCurrentId.remove(scene)
         }

@@ -55,6 +55,15 @@ object DownloadDetector {
     )
 
     private val NAV_PACKAGES = setOf(
+        "android",
+        "com.android.systemui",
+        "com.samsung.wearable.fit3plugin",
+        "com.samsung.android.wearable.fit3plugin",
+        "com.samsung.android.waterplugin",
+        "com.samsung.android.app.watchmanager",
+        "com.samsung.accessory",
+        "com.samsung.accessory.neobeanmgr",
+        "com.samsung.accessory.atticmgr",
         "com.google.android.apps.maps",
         "com.waze",
         "app.organicmaps",
@@ -108,39 +117,12 @@ object DownloadDetector {
         val extras = n.extras
         val pkg = sbn.packageName
 
-        // 0. Bỏ qua ngay các danh mục điều hướng, di chuyển, gọi thoại hoặc app bản đồ / gọi xe
-        if (n.category == Notification.CATEGORY_NAVIGATION ||
-            n.category == Notification.CATEGORY_TRANSPORT ||
-            n.category == Notification.CATEGORY_CALL
-        ) {
-            return false
-        }
-
-        if (pkg in NAV_PACKAGES) {
-            return false
-        }
-
-        // Bỏ qua nếu là thông báo phát đa phương tiện (Media Session / MediaStyle)
-        val isMediaSession = extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
-            extras.containsKey("android.mediaSession") ||
-            extras.getString(NotificationCompat.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
-
         val channelId = n.channelId?.lowercase().orEmpty()
         val isExplicitDownloadChannel = channelId.contains("download") ||
             channelId.contains("tai_xuong") ||
             channelId.contains("tải") ||
             channelId.contains("tệp") ||
             channelId.contains("transfer")
-
-        if (isMediaSession) {
-            // Nếu thông báo mang MediaSession token thì 100% là điều khiển phát nhạc, không bao giờ là file download
-            return false
-        }
-
-        if (pkg in MEDIA_PACKAGES && !isExplicitDownloadChannel) {
-            // Nếu thuộc app nghe nhạc mà channel không phải download ngoại tuyến thì bỏ qua
-            return false
-        }
 
         // Kiểm tra nội dung text
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
@@ -173,28 +155,47 @@ object DownloadDetector {
             allText.contains("download canceled") ||
             allText.contains("download cancelled")
 
-        val hasDownloadMetrics = PERCENT_PATTERN.matcher(allText).find() ||
-            SIZE_PATTERN.matcher(allText).find() ||
-            SPEED_PATTERN.matcher(allText).find() ||
-            FILE_EXT_PATTERN.matcher(allText).find() ||
-            SINGLE_SIZE_PATTERN.matcher(allText).find()
-
         val isDownloadPkg = isDownloadPackage(pkg)
 
-        val hasDownloadIndicators = isDownloadPkg ||
-            isExplicitDownloadChannel ||
-            hasDownloadKeywords ||
-            hasDownloadMetrics
+        // 0. Bỏ qua ngay các danh mục điều hướng, di chuyển, gọi thoại, báo thức, đồng hồ bấm giờ hoặc dịch vụ ngầm
+        if (n.category == Notification.CATEGORY_NAVIGATION ||
+            n.category == Notification.CATEGORY_TRANSPORT ||
+            n.category == Notification.CATEGORY_CALL ||
+            n.category == Notification.CATEGORY_ALARM ||
+            n.category == Notification.CATEGORY_STOPWATCH ||
+            (n.category == Notification.CATEGORY_SERVICE && !isDownloadPkg && !isExplicitDownloadChannel && !hasDownloadKeywords)
+        ) {
+            return false
+        }
 
-        // 1. Kiểm tra progress bar trực tiếp từ hệ thống: CHỈ chấp nhận khi có dấu hiệu tải xuống
+        if (pkg in NAV_PACKAGES) {
+            return false
+        }
+
+        // Bỏ qua nếu là thông báo phát đa phương tiện (Media Session / MediaStyle)
+        val isMediaSession = extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
+            extras.containsKey("android.mediaSession") ||
+            extras.getString(NotificationCompat.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+
+        if (isMediaSession) {
+            // Nếu thông báo mang MediaSession token thì 100% là điều khiển phát nhạc, không bao giờ là file download
+            return false
+        }
+
+        if (pkg in MEDIA_PACKAGES && !isExplicitDownloadChannel) {
+            // Nếu thuộc app nghe nhạc mà channel không phải download ngoại tuyến thì bỏ qua
+            return false
+        }
+
+        // 1. Kiểm tra progress bar trực tiếp từ hệ thống
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val indeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
-        if ((max > 0 || indeterminate) && hasDownloadIndicators) {
+        if (max > 0 || indeterminate) {
             return true
         }
 
-        // 2. Kiểm tra category chuẩn (phải có dấu hiệu tải xuống)
-        if (n.category == Notification.CATEGORY_PROGRESS && hasDownloadIndicators) {
+        // 2. Kiểm tra category chuẩn
+        if (n.category == Notification.CATEGORY_PROGRESS) {
             return true
         }
 
@@ -207,6 +208,12 @@ object DownloadDetector {
         if (hasDownloadKeywords) {
             return true
         }
+
+        val hasDownloadMetrics = PERCENT_PATTERN.matcher(allText).find() ||
+            SIZE_PATTERN.matcher(allText).find() ||
+            SPEED_PATTERN.matcher(allText).find() ||
+            FILE_EXT_PATTERN.matcher(allText).find() ||
+            SINGLE_SIZE_PATTERN.matcher(allText).find()
 
         // 5. Nếu từ gói tải xuống/trình duyệt
         if (isDownloadPkg) {

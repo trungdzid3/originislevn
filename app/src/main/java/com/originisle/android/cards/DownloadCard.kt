@@ -131,7 +131,8 @@ object DownloadCard {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
-            putExtra("oi_scene", "DELIEVERY")
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_show_notify", false)
             putExtra("source_pkg", sbn.packageName)
             putExtra("source_app", appLabel)
             putExtra("source_content_intent", clickPi)
@@ -234,7 +235,7 @@ object DownloadCard {
                     Intent(context, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
                         .putExtra("id", id)
-                        .putExtra("oi_scene", "DELIEVERY")
+                        .putExtra("oi_scene", "NAVIGATION")
                 )
             }, 3500L)
         } else if (isCanceled) {
@@ -243,7 +244,7 @@ object DownloadCard {
                     Intent(context, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
                         .putExtra("id", id)
-                        .putExtra("oi_scene", "DELIEVERY")
+                        .putExtra("oi_scene", "NAVIGATION")
                 )
             }, 2500L)
         }

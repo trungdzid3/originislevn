@@ -20,14 +20,16 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
+import com.originisle.android.log.CastLog
 import com.originisle.android.ui.PREFS_NAME
 
 /**
  * Thẻ thông báo Đảo Origin khi thay đổi chế độ Chuông / Rung / Im lặng / Không làm phiền (Ringer & DND Mode Card).
  * Hỗ trợ 4 chế độ: Normal (Chuông), Vibrate (Rung), Silent (Im lặng), DND (Không làm phiền / Zen Mode) trên Vivo OriginOS 6.
- * Lắng nghe đa tầng qua BroadcastReceiver, ContentObserver và hỗ trợ callback trực tiếp từ NotificationListenerService.
+ * Lắng nghe đa tầng qua BroadcastReceiver, ContentObserver, polling mỗi giây và callback trực tiếp từ NotificationListenerService.
  */
 object RingerModeCard {
 
@@ -45,20 +47,32 @@ object RingerModeCard {
     private const val COLOR_DND = "#7B61FF"     // Tím Indigo
 
     private const val DEBOUNCE_DELAY_MS = 150L
-    private const val AUTO_DISMISS_MS = 2500L
+    private const val AUTO_DISMISS_MS = 2800L
 
     private val handler = Handler(Looper.getMainLooper())
-    private var lastMode: Int = -1
+    @Volatile private var lastRingerMode: Int = -1
+    @Volatile private var lastDndState: Boolean? = null
+    @Volatile private var lastVibrateSetting: Int = -1
+    @Volatile private var lastRingerChangeAt: Long = 0L
     private var isRegistered = false
 
     private var debounceTask: Runnable? = null
     private var dismissTask: Runnable? = null
     private var contentObserver: ContentObserver? = null
 
+    private fun readVibrateSetting(context: Context): Int {
+        val resolver = context.contentResolver
+        val vibRing = runCatching { Settings.System.getInt(resolver, "vibrate_when_ringing", -1) }.getOrDefault(-1)
+        val vibSilent = runCatching { Settings.System.getInt(resolver, "vibrate_in_silent", -1) }.getOrDefault(-1)
+        val vivoVib = runCatching { Settings.System.getInt(resolver, "vivo_vibrate_state", -1) }.getOrDefault(-1)
+        return (vibRing shl 8) xor (vibSilent shl 4) xor vivoVib
+    }
+
     private val ringerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED,
+                NotificationManager.ACTION_NOTIFICATION_POLICY_CHANGED,
                 "android.app.action.INTERRUPTION_FILTER_CHANGED" -> {
                     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                     val filter = nm?.currentInterruptionFilter ?: NotificationManager.INTERRUPTION_FILTER_ALL
@@ -66,17 +80,18 @@ object RingerModeCard {
                 }
                 AudioManager.RINGER_MODE_CHANGED_ACTION,
                 "android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION" -> {
-                    if (isDndActive(context)) {
-                        onRingerModeChanged(context, MODE_DND)
-                    } else {
-                        val mode = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
-                        if (mode != -1) {
-                            onRingerModeChanged(context, mode)
-                        } else {
-                            val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                            onRingerModeChanged(context, am?.ringerMode ?: -1)
-                        }
+                    val mode = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1).takeIf { it != -1 }
+                        ?: (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: -1
+                    if (mode != -1 && mode != lastRingerMode) {
+                        lastRingerMode = mode
+                        lastRingerChangeAt = System.currentTimeMillis()
+                        lastDndState = isDndActive(context)
+                        lastVibrateSetting = readVibrateSetting(context)
+                        triggerCard(context, mode)
                     }
+                }
+                "android.media.VIBRATE_SETTING_CHANGED" -> {
+                    poll(context, "vibrate")
                 }
             }
         }
@@ -88,17 +103,17 @@ object RingerModeCard {
     fun register(context: Context) {
         if (isRegistered) return
         val app = context.applicationContext
-        val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        lastMode = if (isDndActive(app)) {
-            MODE_DND
-        } else {
-            audioManager?.ringerMode ?: -1
-        }
+        val am = app.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        lastRingerMode = am?.ringerMode ?: -1
+        lastDndState = isDndActive(app)
+        lastVibrateSetting = readVibrateSetting(app)
 
         val filter = IntentFilter().apply {
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION")
+            addAction("android.media.VIBRATE_SETTING_CHANGED")
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
+            addAction(NotificationManager.ACTION_NOTIFICATION_POLICY_CHANGED)
             addAction("android.app.action.INTERRUPTION_FILTER_CHANGED")
         }
 
@@ -108,7 +123,7 @@ object RingerModeCard {
             } else {
                 app.registerReceiver(ringerReceiver, filter)
             }
-            Log.d(TAG, "Đã đăng ký RingerReceiver thành công (mode ban đầu: $lastMode)")
+            Log.d(TAG, "Đã đăng ký RingerReceiver thành công (ringer=$lastRingerMode, dnd=$lastDndState)")
         }.onFailure {
             Log.e(TAG, "Lỗi đăng ký RingerReceiver", it)
         }
@@ -118,7 +133,7 @@ object RingerModeCard {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
                 super.onChange(selfChange, uri)
                 Log.d(TAG, "ContentObserver nhận thay đổi URI: $uri")
-                checkCurrentState(app)
+                poll(app, uri?.toString())
             }
         }
         contentObserver = observer
@@ -127,6 +142,8 @@ object RingerModeCard {
             Settings.Global.getUriFor("mode_ringer"),
             Settings.Global.getUriFor("zen_mode"),
             Settings.System.getUriFor("vibrate_when_ringing"),
+            Settings.System.getUriFor("vibrate_in_silent"),
+            Settings.System.getUriFor("vivo_vibrate_state"),
         ).forEach { uri ->
             if (uri != null) {
                 runCatching {
@@ -166,21 +183,64 @@ object RingerModeCard {
     }
 
     /**
-     * Kiểm tra trạng thái chuông / DND hiện tại từ hệ thống để đồng bộ.
+     * Kiểm tra định kỳ hoặc tức thì khi có sự kiện thay đổi Chuông / Rung / Im lặng / DND.
      */
-    fun checkCurrentState(context: Context) {
-        if (isDndActive(context)) {
-            onRingerModeChanged(context, MODE_DND)
-        } else {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            val currentMode = audioManager?.ringerMode ?: -1
-            if (currentMode != -1) {
-                if (lastMode == MODE_DND) {
-                    lastMode = -1
-                }
-                onRingerModeChanged(context, currentMode)
+    fun poll(context: Context, triggerUri: String? = null) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val nowRinger = am?.ringerMode ?: -1
+        if (nowRinger != -1) {
+            if (lastRingerMode == -1) {
+                lastRingerMode = nowRinger
+            } else if (nowRinger != lastRingerMode) {
+                lastRingerMode = nowRinger
+                lastRingerChangeAt = System.currentTimeMillis()
+                lastDndState = isDndActive(context)
+                lastVibrateSetting = readVibrateSetting(context)
+                triggerCard(context, nowRinger)
+                return
             }
         }
+
+        val nowDnd = isDndActive(context)
+        if (lastDndState == null) {
+            lastDndState = nowDnd
+        } else if (nowDnd != lastDndState) {
+            lastDndState = nowDnd
+            if (System.currentTimeMillis() - lastRingerChangeAt >= 500L) {
+                if (nowDnd) {
+                    triggerCard(context, MODE_DND)
+                } else {
+                    val currentMode = if (nowRinger != -1) nowRinger else MODE_NORMAL
+                    lastRingerMode = currentMode
+                    triggerCard(context, currentMode)
+                }
+                return
+            }
+        }
+
+        val nowVib = readVibrateSetting(context)
+        if (lastVibrateSetting == -1) {
+            lastVibrateSetting = nowVib
+        } else if (nowVib != lastVibrateSetting) {
+            lastVibrateSetting = nowVib
+            val resolver = context.contentResolver
+            val vibRing = runCatching { Settings.System.getInt(resolver, "vibrate_when_ringing", 0) }.getOrDefault(0)
+            val vivoVib = runCatching { Settings.System.getInt(resolver, "vivo_vibrate_state", 0) }.getOrDefault(0)
+            if (vibRing == 1 || vivoVib == 1 || nowRinger == MODE_VIBRATE) {
+                triggerCard(context, MODE_VIBRATE)
+            } else if (nowRinger == MODE_SILENT) {
+                triggerCard(context, MODE_SILENT)
+            } else {
+                triggerCard(context, MODE_NORMAL)
+            }
+        }
+    }
+
+    /**
+     * Kiểm tra trạng thái chuông / DND hiện tại từ hệ thống để đồng bộ (tương thích ngược).
+     */
+    fun checkCurrentState(context: Context) {
+        poll(context)
     }
 
     /**
@@ -188,23 +248,21 @@ object RingerModeCard {
      * Cung cấp hàm public để NotificationCastListener có thể gọi trực tiếp.
      */
     fun onInterruptionFilterChanged(context: Context, filter: Int) {
-        val isDnd = when (filter) {
-            NotificationManager.INTERRUPTION_FILTER_PRIORITY,
-            NotificationManager.INTERRUPTION_FILTER_ALARMS,
-            NotificationManager.INTERRUPTION_FILTER_NONE -> true
-            NotificationManager.INTERRUPTION_FILTER_ALL -> false
-            else -> isDndActive(context)
-        }
+        val isDnd = filter == NotificationManager.INTERRUPTION_FILTER_PRIORITY ||
+            filter == NotificationManager.INTERRUPTION_FILTER_ALARMS ||
+            filter == NotificationManager.INTERRUPTION_FILTER_NONE
+
+        if (lastDndState == isDnd) return
+        lastDndState = isDnd
+
+        if (System.currentTimeMillis() - lastRingerChangeAt < 500L) return
 
         if (isDnd) {
-            onRingerModeChanged(context, MODE_DND)
+            triggerCard(context, MODE_DND)
         } else {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            val currentMode = audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
-            if (lastMode == MODE_DND) {
-                lastMode = -1
-            }
-            onRingerModeChanged(context, currentMode)
+            val currentMode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: MODE_NORMAL
+            lastRingerMode = currentMode
+            triggerCard(context, currentMode)
         }
     }
 
@@ -228,9 +286,17 @@ object RingerModeCard {
     }
 
     /**
-     * Xử lý sự kiện thay đổi chế độ chuông / DND với debounce tránh rung lắc khi bấm phím liên tục.
+     * Xử lý sự kiện thay đổi chế độ chuông / DND (hàm public tương thích ngược).
      */
     fun onRingerModeChanged(context: Context, mode: Int) {
+        if (mode == -1) return
+        if (mode != MODE_DND) {
+            lastRingerMode = mode
+        }
+        triggerCard(context, mode)
+    }
+
+    private fun triggerCard(context: Context, mode: Int) {
         if (mode == -1) return
 
         val app = context.applicationContext
@@ -240,11 +306,6 @@ object RingerModeCard {
 
         if (!enabled) return
 
-        // Nếu chế độ không thay đổi so với lần trước thì bỏ qua
-        if (mode == lastMode) return
-        lastMode = mode
-
-        // Debounce: gộp các sự kiện liên tiếp
         debounceTask?.let(handler::removeCallbacks)
         val task = Runnable {
             showRingerCard(app, mode)
@@ -257,7 +318,7 @@ object RingerModeCard {
      * Đẩy thẻ thông báo lên Đảo Origin qua PlaygroundService.
      */
     private fun showRingerCard(context: Context, mode: Int) {
-        val (title, text, leftContent, rightContent, colorHex, icon) = when (mode) {
+        val (title, text, _, rightContent, colorHex, icon) = when (mode) {
             MODE_NORMAL -> RingerStateInfo(
                 title = "Chuông",
                 text = "Đã bật chuông thông báo",
@@ -293,30 +354,35 @@ object RingerModeCard {
             else -> return
         }
 
+        CastLog.add("Hệ thống", title, "hiển thị — chế độ âm thanh: $title ($text)", true)
+
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-            putExtra("oi_show_right_icon", true)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_show_right_icon", false)
             putExtra("title", title)
             putExtra("text", text)
-            putExtra("oi_left_content", leftContent)
+            putExtra("subtext", text)
+            putExtra("oi_left_content", "")
             putExtra("oi_right_content", rightContent)
             putExtra("status_chip_text", rightContent)
             putExtra("oi_left_icon", icon)
             putExtra("oi_large_icon", icon)
-            putExtra("oi_right_icon", icon)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("oi_bg_color", "#FF1C1C1E")
+            putExtra("oi_fg_color", colorHex)
             putExtra("oi_light_color", colorHex)
             putExtra("oi_force_show", true)
-            putExtra("oi_keep_duration", AUTO_DISMISS_MS.toInt())
             putExtra("oi_dismiss_when_kill", true)
+            putExtra("oi_show_notify", false)
         }
         context.startService(intent)
 
-        // Tự động đóng sau AUTO_DISMISS_MS (2500ms)
+        // Tự động đóng sau AUTO_DISMISS_MS (2800ms)
         dismissTask?.let(handler::removeCallbacks)
         val dismiss = Runnable {
             cancel(context)

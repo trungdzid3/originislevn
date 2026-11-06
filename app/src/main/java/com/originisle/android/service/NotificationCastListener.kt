@@ -179,6 +179,8 @@ class NotificationCastListener : NotificationListenerService() {
         /** Ứng dụng quản lý thiết bị đeo & đồng hồ thông minh Samsung (Fit 3, Galaxy Watch, Buds). */
         private val WEARABLE_SAMSUNG_PKGS = setOf(
             "com.samsung.wearable.fit3plugin",
+            "com.samsung.android.wearable.fit3plugin",
+            "com.samsung.android.waterplugin",
             "com.samsung.android.app.watchmanager",
             "com.samsung.accessory",
             "com.samsung.accessory.neobeanmgr",
@@ -326,6 +328,7 @@ class NotificationCastListener : NotificationListenerService() {
                     }
                 }
                 SportsCard.refresh(applicationContext)
+                RingerModeCard.poll(applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "poll error", e)
             }
@@ -402,10 +405,7 @@ class NotificationCastListener : NotificationListenerService() {
 
     override fun onInterruptionFilterChanged(interruptionFilter: Int) {
         super.onInterruptionFilterChanged(interruptionFilter)
-        runCatching {
-            val method = RingerModeCard::class.java.methods.firstOrNull { it.name == "onInterruptionFilterChanged" }
-            method?.invoke(RingerModeCard, this, interruptionFilter)
-        }
+        runCatching { RingerModeCard.onInterruptionFilterChanged(this, interruptionFilter) }
     }
 
     /**
@@ -540,7 +540,8 @@ class NotificationCastListener : NotificationListenerService() {
             // 5) Thiết bị đeo thông minh & phụ kiện Samsung (Galaxy Fit 3, Galaxy Watch, Galaxy Buds)
             if (prefs.getBoolean("cast_earbuds", true) && (sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
                     sbn.packageName.contains("fit3", ignoreCase = true) ||
-                    sbn.packageName.contains("watchmanager", ignoreCase = true))
+                    sbn.packageName.contains("watchmanager", ignoreCase = true) ||
+                    sbn.packageName.contains("waterplugin", ignoreCase = true))
             ) {
                 val isOngoingNotification = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
                 val fullText = notificationText(sbn)
@@ -558,7 +559,40 @@ class NotificationCastListener : NotificationListenerService() {
                 }
 
                 val pctRegex = Regex("""(\d{1,3})\s*%""")
-                val batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
+                var batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
+
+                if (batteryPct == -1) {
+                    val notifs = runCatching { activeNotifications }.getOrNull()
+                    if (notifs != null) {
+                        for (active in notifs) {
+                            val activePkg = active.packageName
+                            val isSamsungWearPkg = activePkg in WEARABLE_SAMSUNG_PKGS ||
+                                activePkg.contains("fit3", ignoreCase = true) ||
+                                activePkg.contains("watchmanager", ignoreCase = true) ||
+                                activePkg.contains("waterplugin", ignoreCase = true) ||
+                                activePkg.contains("accessory", ignoreCase = true)
+                            if (isSamsungWearPkg) {
+                                val text = notificationText(active)
+                                val match = pctRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
+                                if (match != null && match in 0..100) {
+                                    batteryPct = match
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (batteryPct == -1) {
+                    val cached = EarbudsCard.getCachedBattery(applicationContext, devName)
+                    if (cached in 0..100) {
+                        batteryPct = cached
+                    }
+                }
+
+                if (batteryPct in 0..100) {
+                    EarbudsCard.saveCachedBattery(applicationContext, devName, batteryPct)
+                }
 
                 val isFullyCharged = listOf("đã sạc đầy", "sạc đầy", "fully charged", "pin đầy", "sạc hoàn tất").any { hay.contains(it) } ||
                     (batteryPct == 100 && listOf("sạc", "charging", "sạc pin").any { hay.contains(it) })

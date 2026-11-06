@@ -117,7 +117,7 @@ object MediaCard {
                 val cancelIntent = Intent(context, PlaygroundService::class.java).apply {
                     action = PlaygroundService.ACTION_CANCEL
                     putExtra("id", id)
-                    putExtra("oi_scene", "MOVIE")
+                    putExtra("oi_scene", "NAVIGATION")
                 }
                 context.startService(cancelIntent)
             }
@@ -130,7 +130,7 @@ object MediaCard {
             putExtra("id", id)
             putExtra("is_ongoing", playing)
 
-            putExtra("oi_scene", "MOVIE")
+            putExtra("oi_scene", "NAVIGATION")
             putExtra("title", track)
             putExtra("text", artist)
             putExtra("source_pkg", sbn.packageName)
@@ -171,7 +171,7 @@ object MediaCard {
         val cancelIntent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_CANCEL
             putExtra("id", id)
-            putExtra("oi_scene", "MOVIE")
+            putExtra("oi_scene", "NAVIGATION")
         }
         context.startService(cancelIntent)
     }

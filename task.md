@@ -1,18 +1,21 @@
-# KẾ HOẠCH TRIỂN KHAI SỬA CÁC VẤN ĐỀ TRÊN ĐẢO ORIGIN ISLE
+# KẾ HOẠCH NÂNG CẤP PHIÊN BẢN CHUYÊN NGHIỆP V1.1.0 & KHẮC PHỤC TRIỆT ĐỂ TIẾN ĐỘ TẢI XUỐNG + CHẾ ĐỘ CHUÔNG/RUNG/DND
 
 [CONTRACT LOCKED]
-- Task 1: Loại trừ điều hướng / Google Maps khỏi DownloadDetector; siết chặt điều kiện progress bar.
-- Task 2: Hỗ trợ 4 chế độ Chuông / Rung / Im lặng / Không làm phiền (DND) trong RingerModeCard.
-- Task 3: Thay thế icon mảnh ghép Google Play Services bằng biểu tượng Quick Share chính thức trong QuickShareCard và IconCache.
-- Task 4: Sửa lỗi trích xuất text "\n", tối ưu OtpDetector và ưu tiên OTP trong NotificationCastListener.
-- Task 5: Loại bỏ triệt để tin nhắn rác/quảng cáo bị nhận nhầm thành ngân hàng với số tiền +0đ (bắt buộc số tiền > 0, phát hiện từ khóa quảng cáo/khuyến mãi/gói cước, phân biệt nhà mạng viễn thông).
-- Task 6: Khắc phục hiện tượng Galaxy Fit 3 báo kết nối/ngắt kết nối ảo liên tục (chặn lặp từ thông báo nền ongoing của Samsung, lưu trạng thái kết nối để không spam pop-up); đổi huy hiệu ngắt kết nối sang dạng chữ ("Ngắt") đồng bộ với khi kết nối; khi kết nối ưu tiên hiển thị % pin trực tiếp trên viên con nhộng và vòng tròn camera; trang bị tính năng thông báo Đảo Origin khi thiết bị Samsung sạc đầy pin 100%.
+1. Sửa lỗi tiến độ tải xuống & Đa nhiệm an toàn:
+   - Khôi phục `oi_scene = "NAVIGATION"` trong `DownloadCard.kt` và `MediaCard.kt` (đồng bộ với `NotificationCastListener.kt`), thêm cơ chế `resolveAllowedScene` trong `PlaygroundService.kt` kiểm tra `NotificationManager.getSceneStatus` trước khi dùng scene khác.
+   - Trong `DownloadDetector.kt`: Giữ bộ lọc loại trừ nghiêm ngặt cho Media, Bản đồ (`NAV_PACKAGES`, `CATEGORY_NAVIGATION`), Gọi xe, Thiết bị đeo/Hệ thống; sau bước loại trừ, khôi phục nhận diện nhạy bén với mọi thông báo có `max > 0 || indeterminate` hoặc `CATEGORY_PROGRESS`.
+2. Sửa dứt điểm nhận diện đổi chế độ Chuông / Rung / Im lặng / Không làm phiền (DND):
+   - Tách riêng 3 biến trạng thái trong `RingerModeCard.kt`: `lastRingerMode`, `lastVibrateSetting`, `lastDndState`. Không dùng `isDndActive` để chặn sự kiện đổi `ringerMode`.
+   - Bổ sung `RingerModeCard.poll(context)` và gọi mỗi giây trong `NotificationCastListener.pollRunnable`.
+   - Chuẩn hóa payload `showRingerCard` đồng bộ với `ChargingCard.kt` (`oi_left_content = ""`, `oi_show_right_icon = false`, nền `#FF1C1C1E`, chữ `#FFFFFFFF`, bỏ `oi_keep_duration`, ghi log vào `CastLog`).
+3. Báo pin thiết bị đeo Galaxy Fit 3:
+   - Lưu đệm pin bền vững `wearable_battery_cache` và quét `activeNotifications` khi thiết bị kết nối.
+4. Chuẩn hóa phiên bản chuyên nghiệp:
+   - Nâng `versionName = "1.1.0"`, `versionCode = 10100` trong `app/build.gradle.kts`.
+   - Xuất bản tệp APK chuẩn: `OriginIsle-VN-v1.1.0.apk` (loại bỏ hậu tố debug và dọn file debug cũ).
 
 [SUBAGENT TASKS]
-- [x] Task 1: Sửa DownloadDetector loại trừ Maps, Navigation, Ride và siết chặt progress bar | [Agent: Subagent-DownloadNavFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/download/DownloadDetector.kt]
-- [x] Task 2: Nâng cấp RingerModeCard bắt Chuông / Rung / Im lặng / Không làm phiền (DND) | [Agent: Subagent-RingerDndFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/RingerModeCard.kt]
-- [x] Task 3: Tạo biểu tượng Quick Share chuẩn và loại bỏ icon mảnh ghép Google Play Services | [Agent: Subagent-QuickShareIconFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/QuickShareCard.kt, app/src/main/java/com/originisle/android/service/IconCache.kt]
-- [x] Task 4: Sửa trích xuất text "\n", tối ưu OtpDetector và ưu tiên OTP trong NotificationCastListener | [Agent: Subagent-OtpAndListenerFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/otp/OtpDetector.kt, app/src/main/java/com/originisle/android/cards/OtpCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
-- [x] Task 5: Loại bỏ tin nhắn rác quảng cáo 0đ và siết chặt lọc ngân hàng trong VietnamBankDetector | [Agent: Subagent-BankSpamFilter] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/bank/VietnamBankDetector.kt]
-- [x] Task 6: Khắc phục thông báo ảo Galaxy Fit 3, đổi mất kết nối thành chữ "Ngắt", báo % pin khi kết nối, và thông báo sạc đầy pin | [Agent: Subagent-Fit3ConnectionFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/EarbudsCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
-- [x] Task 7: QA, biên dịch kiểm thử Gradle, xuất APK OriginIsle-VN-v1.0.6-debug.apk và đồng bộ Git | [Agent: Lead-Orchestrator] | [Skill: android-cli] | [Locked Files: PROJECT_CONTEXT.md, task.md]
+- [x] Task 1: Nâng cấp bộ nhớ đệm và cơ chế quét pin thông minh cho Galaxy Fit 3 / Wearable trong EarbudsCard và NotificationCastListener | [Agent: Subagent-WearableBatteryExpert] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/EarbudsCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
+- [x] Task 2: Sửa lỗi Tiến độ tải xuống và bảo vệ scene đa nhiệm trong DownloadDetector, DownloadCard, MediaCard, PlaygroundService | [Agent: Subagent-DownloadFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/download/DownloadDetector.kt, app/src/main/java/com/originisle/android/cards/DownloadCard.kt, app/src/main/java/com/originisle/android/cards/MediaCard.kt, app/src/main/java/com/originisle/android/island/PlaygroundService.kt]
+- [x] Task 3: Sửa dứt điểm nhận diện Chuông / Rung / Im lặng / DND trong RingerModeCard và tích hợp polling trong NotificationCastListener | [Agent: Subagent-RingerFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/RingerModeCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
+- [x] Task 4: Nâng phiên bản v1.1.0, biên dịch đóng gói APK chuyên nghiệp OriginIsle-VN-v1.1.0.apk, cập nhật PROJECT_CONTEXT.md và đồng bộ Git | [Agent: Lead-Orchestrator] | [Skill: android-cli] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]

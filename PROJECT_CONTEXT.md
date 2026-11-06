@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.0.6` (mã bản dựng `versionCode = 10007`, chuẩn SemVer 2.0.0).
+- **Phiên bản hiện tại**: `1.1.0` (mã bản dựng `versionCode = 10100`, chuẩn SemVer 2.0.0).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,21 +13,21 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.1.0 / 10100)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/java/com/originisle/android/
 │       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS (lọc spam/promo 0đ)
 │       │   ├── cards/                # 15 loại thẻ giao diện Đảo Origin
 │       │   │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
-│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: DELIEVERY)
-│       │   │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (chặn pop-up ảo, báo % pin, sạc đầy 100%, chip "Ngắt")
-│       │   │   ├── MediaCard.kt      # Nhạc sóng động (Scene: MOVIE, tự thu gọn sau 3s)
+│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
+│       │   │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (wearable_battery_cache, báo % pin, sạc đầy 100%, nền tối #FF1C1C1E)
+│       │   │   ├── MediaCard.kt      # Nhạc sóng động (Scene: NAVIGATION, tự thu gọn sau 3s)
 │       │   │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép)
 │       │   │   ├── QuickShareCard.kt # Quick Share logo chính thức Canvas 192x192
-│       │   │   └── RingerModeCard.kt # 4 chế độ Chuông / Rung / Im lặng / DND đa tầng
-│       │   ├── download/             # Nhận diện tải xuống (loại trừ Maps/Navigation/Ride)
-│       │   ├── island/               # Service SuperX, builder, constants, multi-scene management
+│       │   │   └── RingerModeCard.kt # 4 chế độ Chuông / Rung / Im lặng / DND độc lập + polling 1s
+│       │   ├── download/             # Nhận diện tải xuống nhạy bén (loại trừ Maps/Media/Wearable/System)
+│       │   ├── island/               # Service SuperX, builder, constants, resolveAllowedScene
 │       │   ├── log/                  # Nhật ký hoạt động bền vững (CastLog)
 │       │   ├── otp/                  # Nhận diện mã xác thực OTP tiếng Việt (quét toàn bộ match, phân tách \n)
 │       │   ├── quickshare/           # Nhận diện Quick Share & EasyShare & actions
@@ -54,30 +54,29 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.0.6-debug.apk    # File APK xuất bản duy nhất
+└── OriginIsle-VN-v1.1.0.apk          # File APK xuất bản chuẩn chuyên nghiệp
 ```
 
 ## 3. Bản Đồ Code (Code Map)
 - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`):
-  - `readAndPost` (L185-387): Quản lý `sceneCurrentId` độc lập theo scene (`MOVIE`, `DELIEVERY`, `TAXI`, `NAVIGATION`), cho phép xếp chồng và lướt đa nhiệm native trên Vivo SystemUI.
-  - `cancelNotification` (L444-462): Dọn dẹp thẻ và scene tương ứng sạch sẽ.
-  - `postSuperX` (L400-424): Đóng gói notification gửi tới Vivo SystemUI.
+  - `resolveAllowedScene` (L190-204): Kiểm tra quyền `getSceneStatus` trên Vivo SystemUI, tự động fallback về `"NAVIGATION"` để thẻ không bao giờ bị từ chối.
+  - `readAndPost` (L206-402): Quản lý `sceneCurrentId` và đóng gói SuperX bundle.
+  - `cancelNotification` (L459-477): Dọn dẹp thẻ và scene tương ứng sạch sẽ.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - `onNotificationPosted` (L424-650): Thứ tự ưu tiên nghiêm ngặt: Ngân hàng -> Quick Share -> Mã OTP -> Tải xuống -> Galaxy Fit 3 / Wearable -> Media -> Ride -> Dẫn đường.
-  - `notificationText` (L740-787): Phân tách bằng `\n` tránh dính số điện thoại/ngày tháng vào mã OTP; bóc tách `android.messages`.
-  - `onInterruptionFilterChanged`: Cầu nối trực tiếp chuyển trạng thái DND sang `RingerModeCard`.
+  - `pollRunnable` (L301-337): Định kỳ mỗi 1 giây làm mới Media, Chronometer, Tỷ số thể thao và gọi `RingerModeCard.poll(applicationContext)`.
+  - `onNotificationPosted` (L464-812): Thứ tự ưu tiên nghiêm ngặt: Ngân hàng -> Quick Share -> Mã OTP -> Tải xuống -> Galaxy Fit 3 / Wearable (kèm quét `activeNotifications` và `wearable_battery_cache`) -> Media -> Ride -> Dẫn đường.
+  - `onInterruptionFilterChanged` (L406-411): Gọi trực tiếp `RingerModeCard.onInterruptionFilterChanged`.
 - `Cards` (`app/src/main/java/com/originisle/android/cards/`):
-  - `EarbudsCard.kt`: Quản lý `lastConnectionState`, chặn triệt để pop-up ảo từ notification nền của Samsung; khi kết nối ưu tiên hiển thị thẳng `% pin` lên viên con nhộng và vòng tròn camera; khi mất kết nối hiển thị viên chữ `"Ngắt"` đồng bộ; bổ sung `onDeviceFullyCharged` thông báo khi thiết bị sạc đầy pin 100%.
-  - `VietnamBankDetector.kt`: `extractNumericAmount` loại bỏ số tiền `<= 0đ`; lọc triệt để tin nhắn rác / khuyến mãi / gói cước viễn thông nhận nhầm; siết chặt điều kiện SMS biến động số dư thực tế.
-  - `RingerModeCard.kt`: Bắt đủ 4 chế độ Chuông (Vàng `#FCD535`), Rung (Lam `#4A90E2`), Im lặng (Đỏ `#FF5247`), Không làm phiền DND (Tím `#7B61FF`, icon trăng khuyết), lắng nghe đa tầng BroadcastReceiver + ContentObserver + InterruptionFilter.
-  - `QuickShareCard.kt` & `IconCache.kt`: `createQuickShareOfficialIcon` vẽ logo Quick Share chính thức Canvas 192x192; chặn icon mảnh ghép của Play Services trong `IconCache.safeAppIcon`.
-  - `DownloadDetector.kt`: Loại trừ triệt để Google Maps, Waze, Navigation, Ride và thắt chặt điều kiện progress bar.
-  - `MediaCard.kt`: Độc lập scene `MOVIE`, tự đóng sau 3s khi dừng.
+  - `EarbudsCard.kt`: Lưu đệm pin bền vững `wearable_battery_cache` (`getCachedBattery`, `saveCachedBattery`), chặn pop-up kết nối ảo, hiển thị thẳng `% pin` lên viên con nhộng và vòng tròn tiến độ camera khi kết nối, báo sạc đầy 100%, và dùng nền kính mờ tối `#FF1C1C1E` chữ trắng với viền đỏ khi ngắt kết nối.
+  - `RingerModeCard.kt`: Tách biệt 3 trạng thái `lastRingerMode`, `lastDndState`, `lastVibrateSetting` (đọc `vibrate_when_ringing`, `vibrate_in_silent`, `vivo_vibrate_state`) để DND không bao giờ nuốt sự kiện Chuông/Rung/Im lặng; chuẩn hóa payload SuperX đồng bộ `ChargingCard.kt` và ghi nhận vào `CastLog`.
+  - `DownloadCard.kt` & `DownloadDetector.kt`: Sử dụng scene `"NAVIGATION"` hợp lệ 100%, loại trừ các gói Bản đồ/Media/Wearable/Hệ thống ở đầu hàm rồi bắt nhạy bén mọi thông báo có `max > 0 || indeterminate` hoặc `CATEGORY_PROGRESS`.
+  - `VietnamBankDetector.kt`: Lọc triệt để tin nhắn rác / khuyến mãi / gói cước viễn thông `+0đ`.
+  - `QuickShareCard.kt` & `IconCache.kt`: `createQuickShareOfficialIcon` vẽ logo Quick Share chính thức.
 
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
-- **ApplicationId cố định**: Bắt buộc giữ `com.autonavi.minimap` trong `app/build.gradle.kts` để qua whitelist của Vivo Origin Island.
-- **Tài nguyên Small Icon**: Mọi thông báo gửi tới Vivo SuperX phải sử dụng mipmap resource (`R.mipmap.ic_launcher_round`), không được dùng vector XML hoặc adaptive mipmap trong Compose painterResource.
-- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.0.6-debug.apk`.
+- **ApplicationId & Scene**: Bắt buộc giữ `applicationId = "com.autonavi.minimap"` và ưu tiên `oi_scene = "NAVIGATION"` (scene duy nhất được Vivo cấp quyền mặc định cho gói giả lập AMap).
+- **Tài nguyên Small Icon**: Mọi thông báo gửi tới Vivo SuperX phải sử dụng mipmap resource (`R.mipmap.ic_launcher_round`).
+- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn SemVer không hậu tố debug: `OriginIsle-VN-v1.1.0.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Toàn bộ 6 vấn đề kỹ thuật và yêu cầu tính năng mở rộng đều đã được giải quyết, kiểm thử đơn vị và biên dịch thành công 100%.
+- Toàn bộ các hạng mục của bản phát hành chuyên nghiệp **v1.1.0** đã hoàn tất, vượt qua kiểm thử và đóng gói thành công.
