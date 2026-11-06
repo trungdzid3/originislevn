@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -15,7 +14,6 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.media.AudioManager
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -32,7 +30,7 @@ import com.originisle.android.ui.PREFS_NAME
 /**
  * Thẻ thông báo Đảo Origin khi thay đổi chế độ Chuông / Rung / Im lặng / Không làm phiền (Ringer & DND Mode Card).
  * Hỗ trợ 4 chế độ: Normal (Chuông), Vibrate (Rung), Silent (Im lặng), DND (Không làm phiền / Zen Mode) trên Vivo OriginOS 6.
- * Lắng nghe qua BroadcastReceiver, ContentObserver và callback trực tiếp từ NotificationListenerService.
+ * Lắng nghe qua BroadcastReceiver chuẩn AudioManager.RINGER_MODE_CHANGED_ACTION và NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED.
  */
 object RingerModeCard {
 
@@ -49,58 +47,36 @@ object RingerModeCard {
     private const val COLOR_SILENT = "#FF5247"  // Đỏ cảnh báo
     private const val COLOR_DND = "#7B61FF"     // Tím Indigo
 
-    private const val DEBOUNCE_DELAY_MS = 200L
+    private const val DEBOUNCE_DELAY_MS = 80L
     private const val AUTO_DISMISS_MS = 2800L
 
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var lastRingerMode: Int = -1
     @Volatile private var lastDndState: Boolean? = null
-    @Volatile private var lastRingerChangeAt: Long = 0L
-    @Volatile private var lastDndChangeAt: Long = 0L
     @Volatile private var lastShownMode: Int = -1
+    @Volatile private var isShowing: Boolean = false
     private var isRegistered = false
 
     private var debounceTask: Runnable? = null
     private var dismissTask: Runnable? = null
-    private var contentObserver: ContentObserver? = null
 
     private val ringerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED,
-                NotificationManager.ACTION_NOTIFICATION_POLICY_CHANGED,
-                "android.app.action.INTERRUPTION_FILTER_CHANGED" -> {
+                NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED -> {
                     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                     val filter = nm?.currentInterruptionFilter ?: NotificationManager.INTERRUPTION_FILTER_ALL
                     onInterruptionFilterChanged(context, filter)
                 }
-                AudioManager.RINGER_MODE_CHANGED_ACTION,
-                "android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION" -> {
+                AudioManager.RINGER_MODE_CHANGED_ACTION -> {
                     val modeFromIntent = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
-                    val mode = if (modeFromIntent != -1) {
+                    val mode = if (modeFromIntent in 0..2) {
                         modeFromIntent
                     } else {
                         (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: -1
                     }
-                    if (mode == -1) return
-
-                    val dndActive = isDndActive(context)
-                    if (dndActive && lastDndState != true) {
-                        lastDndState = true
-                        lastDndChangeAt = System.currentTimeMillis()
+                    if (mode in 0..2) {
                         lastRingerMode = mode
-                        triggerCard(context, MODE_DND)
-                        return
-                    }
-
-                    if (System.currentTimeMillis() - lastDndChangeAt < 1200L) {
-                        lastRingerMode = mode
-                        return
-                    }
-
-                    if (mode != lastRingerMode) {
-                        lastRingerMode = mode
-                        lastRingerChangeAt = System.currentTimeMillis()
                         triggerCard(context, mode)
                     }
                 }
@@ -123,7 +99,7 @@ object RingerModeCard {
     }
 
     /**
-     * Đăng ký lắng nghe broadcast và ContentObserver thay đổi chế độ chuông / DND hệ thống.
+     * Đăng ký lắng nghe broadcast thay đổi chế độ chuông / DND hệ thống.
      */
     fun register(context: Context) {
         if (isRegistered) return
@@ -134,10 +110,7 @@ object RingerModeCard {
 
         val filter = IntentFilter().apply {
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
-            addAction("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION")
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
-            addAction(NotificationManager.ACTION_NOTIFICATION_POLICY_CHANGED)
-            addAction("android.app.action.INTERRUPTION_FILTER_CHANGED")
         }
 
         runCatching {
@@ -155,27 +128,6 @@ object RingerModeCard {
             Log.e(TAG, "Lỗi đăng ký RingerReceiver", it)
         }
 
-        val observer = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean, uri: Uri?) {
-                super.onChange(selfChange, uri)
-                Log.d(TAG, "ContentObserver nhận thay đổi URI: $uri")
-                poll(app, uri?.toString())
-            }
-        }
-        contentObserver = observer
-        val resolver = app.contentResolver
-        listOfNotNull(
-            Settings.Global.getUriFor("mode_ringer"),
-            Settings.System.getUriFor("mode_ringer"),
-            Settings.Global.getUriFor("zen_mode"),
-        ).forEach { uri ->
-            runCatching {
-                resolver.registerContentObserver(uri, false, observer)
-            }.onFailure {
-                Log.w(TAG, "Không thể đăng ký ContentObserver cho $uri", it)
-            }
-        }
-
         isRegistered = true
     }
 
@@ -191,13 +143,6 @@ object RingerModeCard {
             Log.e(TAG, "Lỗi hủy đăng ký RingerReceiver", it)
         }
 
-        contentObserver?.let {
-            runCatching {
-                app.contentResolver.unregisterContentObserver(it)
-            }
-            contentObserver = null
-        }
-
         isRegistered = false
         debounceTask?.let(handler::removeCallbacks)
         dismissTask?.let(handler::removeCallbacks)
@@ -209,35 +154,25 @@ object RingerModeCard {
      */
     fun poll(context: Context, triggerUri: String? = null) {
         val nowDnd = isDndActive(context)
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val nowRinger = am?.ringerMode ?: MODE_NORMAL
+
         if (lastDndState == null) {
             lastDndState = nowDnd
         } else if (nowDnd != lastDndState) {
             lastDndState = nowDnd
-            lastDndChangeAt = System.currentTimeMillis()
-            val currentRinger = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: MODE_NORMAL
-            lastRingerMode = currentRinger
+            lastRingerMode = nowRinger
             if (nowDnd) {
                 triggerCard(context, MODE_DND)
             } else {
-                triggerCard(context, currentRinger)
+                triggerCard(context, nowRinger)
             }
             return
         }
 
-        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        val nowRinger = am?.ringerMode ?: -1
-        if (nowRinger != -1) {
-            if (lastRingerMode == -1) {
-                lastRingerMode = nowRinger
-            } else if (nowRinger != lastRingerMode) {
-                lastRingerMode = nowRinger
-                if (System.currentTimeMillis() - lastDndChangeAt < 1200L) {
-                    return
-                }
-                lastRingerChangeAt = System.currentTimeMillis()
-                triggerCard(context, nowRinger)
-                return
-            }
+        if (nowRinger != lastRingerMode) {
+            lastRingerMode = nowRinger
+            triggerCard(context, nowRinger)
         }
     }
 
@@ -259,9 +194,9 @@ object RingerModeCard {
 
         if (lastDndState == isDnd) return
         lastDndState = isDnd
-        lastDndChangeAt = System.currentTimeMillis()
 
-        val currentRinger = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: MODE_NORMAL
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val currentRinger = am?.ringerMode ?: MODE_NORMAL
         lastRingerMode = currentRinger
 
         if (isDnd) {
@@ -313,7 +248,6 @@ object RingerModeCard {
 
         debounceTask?.let(handler::removeCallbacks)
         val task = Runnable {
-            lastShownMode = mode
             showRingerCard(app, mode)
         }
         debounceTask = task
@@ -324,6 +258,20 @@ object RingerModeCard {
      * Đẩy thẻ thông báo lên Đảo Origin qua PlaygroundService.
      */
     private fun showRingerCard(context: Context, mode: Int) {
+        if (mode == lastShownMode && isShowing) {
+            // Thẻ đang hiển thị đúng chế độ này, chỉ gia hạn thời gian tự động đóng
+            dismissTask?.let(handler::removeCallbacks)
+            val dismiss = Runnable {
+                cancel(context)
+            }
+            dismissTask = dismiss
+            handler.postDelayed(dismiss, AUTO_DISMISS_MS)
+            return
+        }
+
+        lastShownMode = mode
+        isShowing = true
+
         val (title, text, leftContent, rightContent, colorHex, icon) = when (mode) {
             MODE_NORMAL -> RingerStateInfo(
                 title = "Chuông báo",
@@ -414,6 +362,8 @@ object RingerModeCard {
     fun cancel(context: Context) {
         dismissTask?.let(handler::removeCallbacks)
         dismissTask = null
+        isShowing = false
+        lastShownMode = -1
         IconCache.activeSmallIcons.remove(ID)
         context.startService(
             Intent(context, PlaygroundService::class.java)

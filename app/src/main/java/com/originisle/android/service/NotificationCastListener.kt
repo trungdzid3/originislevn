@@ -610,7 +610,6 @@ class NotificationCastListener : NotificationListenerService() {
                     }
                 }
                 SportsCard.refresh(applicationContext)
-                RingerModeCard.poll(applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "poll error", e)
             }
