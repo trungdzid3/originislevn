@@ -7,6 +7,7 @@ import android.graphics.drawable.Icon
 import android.media.session.MediaController
 import android.service.notification.StatusBarNotification
 import com.originisle.android.R
+import com.originisle.android.cards.QuickShareCard
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -40,6 +41,9 @@ object IconCache {
      * Resources$NotFoundException or SecurityException when unparceling notifications.
      */
     fun safeAppIcon(context: Context, packageName: String): Icon {
+        if (packageName == "com.google.android.gms" || packageName.startsWith("com.google.android.gms")) {
+            return QuickShareCard.createQuickShareOfficialIcon(context)
+        }
         return runCatching {
             val pm = context.packageManager
             val drawable = pm.getApplicationIcon(packageName)

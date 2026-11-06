@@ -36,6 +36,7 @@ import com.originisle.android.cards.OtpCard
 import com.originisle.android.cards.PaymentCard
 import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.cards.RideCard
+import com.originisle.android.cards.RingerModeCard
 import com.originisle.android.cards.DownloadCard
 import com.originisle.android.cards.QuickShareCard
 import com.originisle.android.quickshare.QuickShareDetector
@@ -291,6 +292,10 @@ class NotificationCastListener : NotificationListenerService() {
     private val transferFinishedMap = ConcurrentHashMap<Int, Boolean>()
     private val activeDownloadIds = ConcurrentHashMap.newKeySet<Int>()
 
+    /** Lưu trạng thái kết nối cuối cùng và mốc báo sạc đầy của thiết bị đeo để chống pop-up ảo. */
+    private val wearableConnectionState = ConcurrentHashMap<String, Boolean>()
+    private val fullyChargedNoticeMap = ConcurrentHashMap<String, Long>()
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             try {
@@ -343,17 +348,19 @@ class NotificationCastListener : NotificationListenerService() {
 
 
 
-    /** Cards fed by the system rather than by notifications: camera/mic, flashlight, earbuds. */
+    /** Cards fed by the system rather than by notifications: camera/mic, flashlight, earbuds, ringer. */
     private fun startSystemCards() {
         runCatching { FlashlightCard.start(this) }.onFailure { Log.e(TAG, "flashlight card failed", it) }
         runCatching { PrivacyCard.start(this) }.onFailure { Log.e(TAG, "privacy card failed", it) }
         runCatching { EarbudsCard.start(this) }.onFailure { Log.e(TAG, "earbuds card failed", it) }
+        runCatching { RingerModeCard.register(this) }.onFailure { Log.e(TAG, "ringer card failed", it) }
     }
 
     private fun stopSystemCards() {
         runCatching { PrivacyCard.stop() }
         runCatching { FlashlightCard.stop() }
         runCatching { EarbudsCard.stop() }
+        runCatching { RingerModeCard.unregister(this) }
     }
 
     /** Feeds [ChargingCard]. Registered while bound — the bound listener is what keeps us alive anyway. */
@@ -383,12 +390,22 @@ class NotificationCastListener : NotificationListenerService() {
         super.onListenerDisconnected()
         unregisterBatteryReceiver()
         stopSystemCards()
+        wearableConnectionState.clear()
+        fullyChargedNoticeMap.clear()
         if (instance === this) instance = null
         connectedAt = 0L
         pollHandler.removeCallbacks(pollRunnable)
         // A system-initiated unbind DOES snooze the component, so unlike the process-kill case a
         // plain requestRebind works here (see [forceRebind]). Self-heals transient disconnects.
         runCatching { requestRebind(ComponentName(this, NotificationCastListener::class.java)) }
+    }
+
+    override fun onInterruptionFilterChanged(interruptionFilter: Int) {
+        super.onInterruptionFilterChanged(interruptionFilter)
+        runCatching {
+            val method = RingerModeCard::class.java.methods.firstOrNull { it.name == "onInterruptionFilterChanged" }
+            method?.invoke(RingerModeCard, this, interruptionFilter)
+        }
     }
 
     /**
@@ -418,6 +435,8 @@ class NotificationCastListener : NotificationListenerService() {
      * Backs the "Recast all" button. Returns the number of notifications examined.
      */
     fun recastAll(): Int {
+        wearableConnectionState.clear()
+        fullyChargedNoticeMap.clear()
         val notifs = activeNotifications ?: return 0
         notifs.forEach { sbn ->
             // Force it past the [lastCastPostTime] redelivery guard: this is a deliberate replay, not
@@ -487,21 +506,8 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
-            // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
-            if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
-                val dlInfo = DownloadDetector.parse(sbn)
-                if (dlInfo != null) {
-                    val id = IconCache.castIdFor(sbn)
-                    activeDownloadIds.add(id)
-                    transferProgressMap[id] = dlInfo.progress
-                    transferFinishedMap[id] = dlInfo.isFinished
-                    log(sbn, "hiển thị — tiến độ tải xuống", true)
-                    DownloadCard.post(applicationContext, dlInfo, sbn)
-                    return
-                }
-            }
-
-            // 4) Mã OTP / đăng nhập. Bóc tách cả từ khóa SMS và action "Sao chép mã" / "Copy code".
+            // 3) Mã OTP / đăng nhập. Bóc tách cả từ khóa SMS và action "Sao chép mã" / "Copy code".
+            //    Ưu tiên chạy TRƯỚC tiến trình tải xuống để không bị các thanh tiến trình/thông báo che mất.
             //    KHÔNG dùng lại time-guard: notification OTP thường được update tại chỗ với cùng postTime.
             if (prefs.getBoolean("cast_otp", true)) {
                 val actionTitles = sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
@@ -517,11 +523,26 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
+            // 4) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
+            if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
+                val dlInfo = DownloadDetector.parse(sbn)
+                if (dlInfo != null) {
+                    val id = IconCache.castIdFor(sbn)
+                    activeDownloadIds.add(id)
+                    transferProgressMap[id] = dlInfo.progress
+                    transferFinishedMap[id] = dlInfo.isFinished
+                    log(sbn, "hiển thị — tiến độ tải xuống", true)
+                    DownloadCard.post(applicationContext, dlInfo, sbn)
+                    return
+                }
+            }
+
             // 5) Thiết bị đeo thông minh & phụ kiện Samsung (Galaxy Fit 3, Galaxy Watch, Galaxy Buds)
             if (prefs.getBoolean("cast_earbuds", true) && (sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
                     sbn.packageName.contains("fit3", ignoreCase = true) ||
                     sbn.packageName.contains("watchmanager", ignoreCase = true))
             ) {
+                val isOngoingNotification = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
                 val fullText = notificationText(sbn)
                 val rawTitle = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
                 val rawText = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
@@ -539,6 +560,8 @@ class NotificationCastListener : NotificationListenerService() {
                 val pctRegex = Regex("""(\d{1,3})\s*%""")
                 val batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
 
+                val isFullyCharged = listOf("đã sạc đầy", "sạc đầy", "fully charged", "pin đầy", "sạc hoàn tất").any { hay.contains(it) } ||
+                    (batteryPct == 100 && listOf("sạc", "charging", "sạc pin").any { hay.contains(it) })
                 val isConnect = listOf("đã kết nối", "connected", "kết nối thành công").any { hay.contains(it) }
                 val isDisconnect = listOf("đã ngắt", "disconnected", "mất kết nối", "không thể kết nối").any { hay.contains(it) }
                 val hasBattery = batteryPct != -1 || listOf("%", "pin", "battery").any { hay.contains(it) }
@@ -549,16 +572,72 @@ class NotificationCastListener : NotificationListenerService() {
                     devName.contains("Watch", ignoreCase = true) ||
                     devName.contains("Band", ignoreCase = true)
 
+                val deviceKey = devName.lowercase().trim()
+                val isCurrentlyConnected = wearableConnectionState[deviceKey] == true || EarbudsCard.isConnected(devName)
+
+                // 5.1) Xử lý thông báo báo sạc đầy pin 100%
+                if (isFullyCharged) {
+                    val now = System.currentTimeMillis()
+                    val lastNotified = fullyChargedNoticeMap[deviceKey] ?: 0L
+                    if (now - lastNotified > 300_000L) { // Cooldown 5 phút tránh pop-up liên tục khi vẫn cắm sạc
+                        fullyChargedNoticeMap[deviceKey] = now
+                        wearableConnectionState[deviceKey] = true
+                        EarbudsCard.onDeviceFullyCharged(applicationContext, devName, isWearable = isWearableDevice)
+                        log(sbn, "hiển thị — thiết bị đeo đã sạc đầy pin 100%", true)
+                        return
+                    } else {
+                        log(sbn, "bỏ qua — thông báo sạc đầy lặp lại", false)
+                        return
+                    }
+                }
+
                 var handled = false
                 if (isConnect) {
+                    if (isCurrentlyConnected) {
+                        // Thiết bị đã kết nối: Thông báo nền thường trực của Fit 3 chỉ cập nhật bước chân/calo/pin
+                        // Tuyệt đối không gọi onDeviceConnected để tránh pop-up đảo lặp đi lặp lại
+                        if (batteryPct != -1) {
+                            EarbudsCard.onBatteryUpdated(
+                                applicationContext,
+                                devName,
+                                EarbudsCard.EarbudsTelemetry(main = batteryPct),
+                                isWearable = isWearableDevice,
+                            )
+                        }
+                        log(sbn, "bỏ qua — thông báo nền thiết bị đeo duy trì kết nối", false)
+                        return
+                    }
+
+                    // Chuyển từ DISCONNECTED -> CONNECTED hoặc lần đầu kết nối
+                    wearableConnectionState[deviceKey] = true
                     EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
                     handled = true
                 } else if (isDisconnect) {
+                    if (!isCurrentlyConnected) {
+                        // Đã ở trạng thái ngắt rồi, bỏ qua để tránh pop-up mất kết nối ảo
+                        log(sbn, "bỏ qua — thiết bị đeo đã ở trạng thái ngắt kết nối", false)
+                        return
+                    }
+                    wearableConnectionState[deviceKey] = false
                     EarbudsCard.onDeviceDisconnected(applicationContext, devName, isWearable = isWearableDevice)
                     handled = true
                 } else if (hasBattery && batteryPct != -1) {
-                    EarbudsCard.onBatteryUpdated(applicationContext, devName, EarbudsCard.EarbudsTelemetry(main = batteryPct), isWearable = isWearableDevice)
+                    if (!isCurrentlyConnected) {
+                        wearableConnectionState[deviceKey] = true
+                        EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
+                    } else {
+                        EarbudsCard.onBatteryUpdated(
+                            applicationContext,
+                            devName,
+                            EarbudsCard.EarbudsTelemetry(main = batteryPct),
+                            isWearable = isWearableDevice,
+                        )
+                    }
                     handled = true
+                } else if (isOngoingNotification) {
+                    // Thông báo thường trực nền khác của Fit 3 (bước chân, đồng bộ)
+                    log(sbn, "bỏ qua — thông báo thường trực nền thiết bị đeo", false)
+                    return
                 }
 
                 if (handled) {
@@ -779,11 +858,26 @@ class NotificationCastListener : NotificationListenerService() {
                 ?.messages?.mapNotNull { it.text?.toString() }
         }.getOrNull().orEmpty()
 
-        val allParts = (base + ticker + textLines + dynamicExtras + actionTitles + messagingMessages)
+        val parcelableMessages = runCatching {
+            val arr = extras.getParcelableArray("android.messages")
+                ?: extras.getParcelableArray("android.messages.historic")
+            arr?.mapNotNull { item ->
+                when (item) {
+                    is android.os.Bundle -> {
+                        val text = item.getCharSequence("text")?.toString()
+                        val sender = item.getCharSequence("sender")?.toString()
+                        listOfNotNull(sender, text).joinToString("\n").ifBlank { null }
+                    }
+                    else -> null
+                }
+            }
+        }.getOrNull().orEmpty()
+
+        val allParts = (base + ticker + textLines + dynamicExtras + actionTitles + messagingMessages + parcelableMessages)
             .filter { it.isNotBlank() }
             .distinct()
 
-        return allParts.joinToString(" ")
+        return allParts.joinToString("\n")
     }
 
     /**

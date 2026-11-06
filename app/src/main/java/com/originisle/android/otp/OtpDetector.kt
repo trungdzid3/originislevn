@@ -79,6 +79,8 @@ object OtpDetector {
         Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\[([0-9]{4,8})\]"""),
+        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan|otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la|:)?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)\b([0-9]{4,8})\b(?=.*(?:mã|ma|otp|code|xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh))"""),
     )
 
     /**
@@ -155,10 +157,9 @@ object OtpDetector {
             COPY_ACTION_REGEX.containsMatchIn(text)
         val isVivoReminder = VIVO_REMINDER.containsMatchIn(text)
 
-        // 1. Thử bắt bằng các biểu thức chính quy trực tiếp
+        // 1. Thử bắt bằng các biểu thức chính quy trực tiếp (quét toàn bộ các match để tránh vướng số đt / tiền tệ)
         for (pattern in DIRECT_PATTERNS) {
-            val m = pattern.find(text)
-            if (m != null) {
+            for (m in pattern.findAll(text)) {
                 val candidateCode = m.groupValues[1].filter(Char::isDigit)
                 if (candidateCode.length in 4..8 && !isHotlineNumber(candidateCode)) {
                     val prefix = text.substring(0, m.range.first).takeLast(40)

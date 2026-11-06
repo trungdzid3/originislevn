@@ -52,6 +52,7 @@ object OtpCard {
         val intent = Intent(app, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
+            putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
@@ -68,6 +69,8 @@ object OtpCard {
                 putExtra("oi_large_icon", it)
             }
             putParcelableArrayListExtra("actions", arrayListOf(copyAction))
+            putStringArrayListExtra("oi_button_titles", arrayListOf(copyLabel))
+            putExtra("action_title", copyLabel)
             putExtra("source_content_intent", copy)
             putExtra("click_resp", copy)
             putExtra("oi_force_show", true)

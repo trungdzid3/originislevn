@@ -1,9 +1,11 @@
 package com.originisle.android.cards
 
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -12,26 +14,35 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.ui.PREFS_NAME
 
 /**
- * Thẻ thông báo Đảo Origin khi thay đổi chế độ Chuông / Rung / Im lặng (Ringer Mode Card).
- * Tự động đồng bộ với phím bấm âm lượng / cần gạt chuông và hiển thị viên nang hào quang động.
+ * Thẻ thông báo Đảo Origin khi thay đổi chế độ Chuông / Rung / Im lặng / Không làm phiền (Ringer & DND Mode Card).
+ * Hỗ trợ 4 chế độ: Normal (Chuông), Vibrate (Rung), Silent (Im lặng), DND (Không làm phiền / Zen Mode) trên Vivo OriginOS 6.
+ * Lắng nghe đa tầng qua BroadcastReceiver, ContentObserver và hỗ trợ callback trực tiếp từ NotificationListenerService.
  */
 object RingerModeCard {
 
     const val ID = 35008
     private const val TAG = "RingerModeCard"
 
+    const val MODE_SILENT = AudioManager.RINGER_MODE_SILENT // 0
+    const val MODE_VIBRATE = AudioManager.RINGER_MODE_VIBRATE // 1
+    const val MODE_NORMAL = AudioManager.RINGER_MODE_NORMAL // 2
+    const val MODE_DND = 3
+
     private const val COLOR_NORMAL = "#FCD535" // Vàng OriginOS
     private const val COLOR_VIBRATE = "#4A90E2" // Lam sáng
     private const val COLOR_SILENT = "#FF5247"  // Đỏ cảnh báo
+    private const val COLOR_DND = "#7B61FF"     // Tím Indigo
 
     private const val DEBOUNCE_DELAY_MS = 150L
     private const val AUTO_DISMISS_MS = 2500L
@@ -42,37 +53,91 @@ object RingerModeCard {
 
     private var debounceTask: Runnable? = null
     private var dismissTask: Runnable? = null
+    private var contentObserver: ContentObserver? = null
 
     private val ringerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
-                val mode = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
-                onRingerModeChanged(context, mode)
+            when (intent.action) {
+                NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED,
+                "android.app.action.INTERRUPTION_FILTER_CHANGED" -> {
+                    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                    val filter = nm?.currentInterruptionFilter ?: NotificationManager.INTERRUPTION_FILTER_ALL
+                    onInterruptionFilterChanged(context, filter)
+                }
+                AudioManager.RINGER_MODE_CHANGED_ACTION,
+                "android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION" -> {
+                    if (isDndActive(context)) {
+                        onRingerModeChanged(context, MODE_DND)
+                    } else {
+                        val mode = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
+                        if (mode != -1) {
+                            onRingerModeChanged(context, mode)
+                        } else {
+                            val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                            onRingerModeChanged(context, am?.ringerMode ?: -1)
+                        }
+                    }
+                }
             }
         }
     }
 
     /**
-     * Đăng ký lắng nghe broadcast thay đổi chế độ chuông hệ thống.
+     * Đăng ký lắng nghe broadcast và ContentObserver thay đổi chế độ chuông / DND hệ thống.
      */
     fun register(context: Context) {
         if (isRegistered) return
         val app = context.applicationContext
         val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        lastMode = audioManager?.ringerMode ?: -1
+        lastMode = if (isDndActive(app)) {
+            MODE_DND
+        } else {
+            audioManager?.ringerMode ?: -1
+        }
 
-        val filter = IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION)
+        val filter = IntentFilter().apply {
+            addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+            addAction("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION")
+            addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
+            addAction("android.app.action.INTERRUPTION_FILTER_CHANGED")
+        }
+
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_EXPORTED)
             } else {
                 app.registerReceiver(ringerReceiver, filter)
             }
-            isRegistered = true
-            Log.d(TAG, "Đã đăng ký RingerModeReceiver thành công (mode ban đầu: $lastMode)")
+            Log.d(TAG, "Đã đăng ký RingerReceiver thành công (mode ban đầu: $lastMode)")
         }.onFailure {
-            Log.e(TAG, "Lỗi đăng ký RingerModeReceiver", it)
+            Log.e(TAG, "Lỗi đăng ký RingerReceiver", it)
         }
+
+        // Đăng ký ContentObserver theo dõi các URI cài đặt hệ thống trên OriginOS
+        val observer = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                Log.d(TAG, "ContentObserver nhận thay đổi URI: $uri")
+                checkCurrentState(app)
+            }
+        }
+        contentObserver = observer
+        val resolver = app.contentResolver
+        listOf(
+            Settings.Global.getUriFor("mode_ringer"),
+            Settings.Global.getUriFor("zen_mode"),
+            Settings.System.getUriFor("vibrate_when_ringing"),
+        ).forEach { uri ->
+            if (uri != null) {
+                runCatching {
+                    resolver.registerContentObserver(uri, false, observer)
+                }.onFailure {
+                    Log.w(TAG, "Không thể đăng ký ContentObserver cho $uri", it)
+                }
+            }
+        }
+
+        isRegistered = true
     }
 
     /**
@@ -84,8 +149,16 @@ object RingerModeCard {
         runCatching {
             app.unregisterReceiver(ringerReceiver)
         }.onFailure {
-            Log.e(TAG, "Lỗi hủy đăng ký RingerModeReceiver", it)
+            Log.e(TAG, "Lỗi hủy đăng ký RingerReceiver", it)
         }
+
+        contentObserver?.let {
+            runCatching {
+                app.contentResolver.unregisterContentObserver(it)
+            }
+            contentObserver = null
+        }
+
         isRegistered = false
         debounceTask?.let(handler::removeCallbacks)
         dismissTask?.let(handler::removeCallbacks)
@@ -93,7 +166,69 @@ object RingerModeCard {
     }
 
     /**
-     * Xử lý sự kiện thay đổi chế độ chuông với debounce tránh rung lắc khi bấm phím liên tục.
+     * Kiểm tra trạng thái chuông / DND hiện tại từ hệ thống để đồng bộ.
+     */
+    fun checkCurrentState(context: Context) {
+        if (isDndActive(context)) {
+            onRingerModeChanged(context, MODE_DND)
+        } else {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            val currentMode = audioManager?.ringerMode ?: -1
+            if (currentMode != -1) {
+                if (lastMode == MODE_DND) {
+                    lastMode = -1
+                }
+                onRingerModeChanged(context, currentMode)
+            }
+        }
+    }
+
+    /**
+     * Xử lý khi bộ lọc ngắt quãng (DND / Zen mode) thay đổi.
+     * Cung cấp hàm public để NotificationCastListener có thể gọi trực tiếp.
+     */
+    fun onInterruptionFilterChanged(context: Context, filter: Int) {
+        val isDnd = when (filter) {
+            NotificationManager.INTERRUPTION_FILTER_PRIORITY,
+            NotificationManager.INTERRUPTION_FILTER_ALARMS,
+            NotificationManager.INTERRUPTION_FILTER_NONE -> true
+            NotificationManager.INTERRUPTION_FILTER_ALL -> false
+            else -> isDndActive(context)
+        }
+
+        if (isDnd) {
+            onRingerModeChanged(context, MODE_DND)
+        } else {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            val currentMode = audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
+            if (lastMode == MODE_DND) {
+                lastMode = -1
+            }
+            onRingerModeChanged(context, currentMode)
+        }
+    }
+
+    /**
+     * Kiểm tra xem thiết bị có đang ở chế độ Không làm phiền (DND / Zen Mode) hay không.
+     */
+    fun isDndActive(context: Context): Boolean {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        val filter = nm?.currentInterruptionFilter ?: NotificationManager.INTERRUPTION_FILTER_ALL
+        if (filter == NotificationManager.INTERRUPTION_FILTER_PRIORITY ||
+            filter == NotificationManager.INTERRUPTION_FILTER_ALARMS ||
+            filter == NotificationManager.INTERRUPTION_FILTER_NONE
+        ) {
+            return true
+        }
+
+        val zenMode = runCatching {
+            Settings.Global.getInt(context.contentResolver, "zen_mode", 0)
+        }.getOrDefault(0)
+        return zenMode != 0
+    }
+
+    /**
+     * Xử lý sự kiện thay đổi chế độ chuông / DND với debounce tránh rung lắc khi bấm phím liên tục.
      */
     fun onRingerModeChanged(context: Context, mode: Int) {
         if (mode == -1) return
@@ -123,7 +258,7 @@ object RingerModeCard {
      */
     private fun showRingerCard(context: Context, mode: Int) {
         val (title, text, leftContent, rightContent, colorHex, icon) = when (mode) {
-            AudioManager.RINGER_MODE_NORMAL -> RingerStateInfo(
+            MODE_NORMAL -> RingerStateInfo(
                 title = "Chuông",
                 text = "Đã bật chuông thông báo",
                 leftContent = "Chuông",
@@ -131,7 +266,7 @@ object RingerModeCard {
                 colorHex = COLOR_NORMAL,
                 icon = createBellIcon(Color.parseColor(COLOR_NORMAL)),
             )
-            AudioManager.RINGER_MODE_VIBRATE -> RingerStateInfo(
+            MODE_VIBRATE -> RingerStateInfo(
                 title = "Rung",
                 text = "Đã bật chế độ rung",
                 leftContent = "Rung",
@@ -139,7 +274,7 @@ object RingerModeCard {
                 colorHex = COLOR_VIBRATE,
                 icon = createVibrateIcon(Color.parseColor(COLOR_VIBRATE)),
             )
-            AudioManager.RINGER_MODE_SILENT -> RingerStateInfo(
+            MODE_SILENT -> RingerStateInfo(
                 title = "Im lặng",
                 text = "Đã tắt toàn bộ âm thanh",
                 leftContent = "Im lặng",
@@ -147,13 +282,21 @@ object RingerModeCard {
                 colorHex = COLOR_SILENT,
                 icon = createSilentIcon(Color.parseColor(COLOR_SILENT)),
             )
+            MODE_DND -> RingerStateInfo(
+                title = "Không làm phiền",
+                text = "Đã bật chế độ Không làm phiền",
+                leftContent = "Không làm phiền",
+                rightContent = "DND",
+                colorHex = COLOR_DND,
+                icon = createDndIcon(Color.parseColor(COLOR_DND)),
+            )
             else -> return
         }
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
-            putExtra("is_ongoing", false)
+            putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
@@ -336,6 +479,39 @@ object RingerModeCard {
             this.color = Color.WHITE
         }
         canvas.drawLine(20f, 20f, 76f, 76f, slashPaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
+
+    /**
+     * Dựng Icon Mặt trăng khuyết tím Indigo (DND / Zen Mode) dạng Canvas vector 96x96 px.
+     */
+    fun createDndIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val dndPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = color
+        }
+
+        // Mặt trăng khuyết: hình tròn chính tại (46, 48) r=28 trừ đi hình tròn cắt tại (58, 40) r=23
+        val moonOuter = Path().apply {
+            addCircle(46f, 48f, 28f, Path.Direction.CW)
+        }
+        val moonInner = Path().apply {
+            addCircle(58f, 40f, 23f, Path.Direction.CW)
+        }
+        moonOuter.op(moonInner, Path.Op.DIFFERENCE)
+        canvas.drawPath(moonOuter, dndPaint)
+
+        // Hai ngôi sao nhỏ điểm xuyết
+        val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = color
+        }
+        canvas.drawCircle(70f, 30f, 2.8f, starPaint)
+        canvas.drawCircle(78f, 46f, 2.0f, starPaint)
 
         return Icon.createWithBitmap(bitmap)
     }

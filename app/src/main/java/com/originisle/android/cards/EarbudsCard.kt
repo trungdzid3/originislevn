@@ -31,6 +31,7 @@ import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
 import com.originisle.android.ui.PREFS_NAME
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Viễn trắc tai nghe Bluetooth & Thiết bị đeo thông minh (Wearables / Smart Bands) chuẩn OriginOS 6:
@@ -134,8 +135,27 @@ object EarbudsCard {
     private val disconnectDebounce = mutableMapOf<String, Runnable>()
     private val warnedLow = mutableSetOf<String>()
     private val wearableRegistry = mutableSetOf<String>()
+    private val lastConnectionState = ConcurrentHashMap<String, Boolean>()
     private var showingAddress: String? = null
     private var hideTask: Runnable? = null
+
+    /** Kiểm tra xem thiết bị theo tên hoặc MAC address có đang ở trạng thái kết nối thật hay không. */
+    fun isConnected(nameOrAddress: String?): Boolean {
+        if (nameOrAddress.isNullOrBlank()) return false
+        val key = nameOrAddress.trim().lowercase()
+        if (lastConnectionState[key] == true || lastConnectionState[nameOrAddress] == true) return true
+        return lastConnectionState.entries.any { (k, v) ->
+            v && k.length >= 4 && (k.contains(key, ignoreCase = true) || key.contains(k, ignoreCase = true))
+        }
+    }
+
+    /** Cập nhật trạng thái kết nối của thiết bị. */
+    fun setConnectedState(nameOrAddress: String, connected: Boolean) {
+        if (nameOrAddress.isBlank()) return
+        val key = nameOrAddress.trim().lowercase()
+        lastConnectionState[key] = connected
+        lastConnectionState[nameOrAddress] = connected
+    }
 
     private val WEARABLE_KEYWORDS = listOf(
         "galaxy fit", "fit 3", "fit3", "sm-r390", "galaxy watch",
@@ -211,6 +231,7 @@ object EarbudsCard {
         pending.clear()
         disconnectDebounce.values.forEach(handler::removeCallbacks)
         disconnectDebounce.clear()
+        lastConnectionState.clear()
         if (showingAddress != null) hide(ctx)
         app = null
     }
@@ -314,6 +335,9 @@ object EarbudsCard {
                 warnedLow -= address
                 pending.remove(address)?.let(handler::removeCallbacks)
 
+                setConnectedState(address, true)
+                setConnectedState(devName, true)
+
                 val initial = readTelemetry(device, intent)
                 if (initial.effectiveLevel in 0..100) {
                     deviceTelemetry[address] = initial
@@ -335,16 +359,29 @@ object EarbudsCard {
             action == ACTION_SAMSUNG_FIT_DISCONNECTED ||
             action == ACTION_SAMSUNG_WEARABLE_DISCONNECTED ||
             isSamsungAccessoryDisconnected(intent) -> {
+                val wasConnected = isConnected(address) || isConnected(devName)
                 pending.remove(address)?.let(handler::removeCallbacks)
                 disconnectDebounce.remove(address)?.let(handler::removeCallbacks)
+                disconnectDebounce.remove(devName)?.let(handler::removeCallbacks)
+
+                setConnectedState(address, false)
+                setConnectedState(devName, false)
+
+                if (!wasConnected) {
+                    return
+                }
 
                 val disconnectTask = Runnable {
                     disconnectDebounce.remove(address)
+                    disconnectDebounce.remove(devName)
                     deviceTelemetry -= address
+                    deviceTelemetry -= devName
                     warnedLow -= address
+                    warnedLow -= devName
                     showDisconnected(context, devName, isWearable = isWearableDevice)
                 }
                 disconnectDebounce[address] = disconnectTask
+                disconnectDebounce[devName] = disconnectTask
                 handler.postDelayed(disconnectTask, DISCONNECT_DEBOUNCE_MS)
             }
 
@@ -907,6 +944,9 @@ object EarbudsCard {
                 else read
             }
             deviceTelemetry[address] = telemetry
+            setConnectedState(address, true)
+            runCatching { targetDevice.name }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
+            runCatching { targetDevice.alias }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
             show(
                 context = context,
                 device = targetDevice,
@@ -966,6 +1006,8 @@ object EarbudsCard {
         // Dòng 1: oi_title
         val displayTitle = if (telemetry.case in 1..100) {
             "${name.take(16)} · Hộp: ${telemetry.case}%${if (telemetry.isCaseCharging) "⚡" else ""}"
+        } else if (known) {
+            "${name.take(18)} · ${effectivePct}%"
         } else {
             name.take(24)
         }
@@ -987,6 +1029,12 @@ object EarbudsCard {
         } else {
             if (isWearableDevice) "Thiết bị đeo · Đã kết nối"
             else "Tai nghe Bluetooth · Đã kết nối"
+        }
+
+        val displaySubtext = if (known) {
+            "${if (isWearableDevice) "Thiết bị đeo" else "Tai nghe Bluetooth"} · Pin $effectivePct%"
+        } else {
+            if (isWearableDevice) "Thiết bị đeo · Đã kết nối" else "Tai nghe Bluetooth · Đã kết nối"
         }
 
         // Xây dựng danh sách slot pin co giãn thích ứng
@@ -1017,12 +1065,12 @@ object EarbudsCard {
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", if (low) "Pin yếu · $displayTitle" else displayTitle)
             putExtra("text", displayText)
-            putExtra("subtext", if (isWearableDevice) "Thiết bị đeo · Đã kết nối" else "Tai nghe Bluetooth · Đã kết nối")
+            putExtra("subtext", displaySubtext)
             putExtra("oi_left_content", leftContent)
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("oi_right_content", "")
+            putExtra("oi_right_content", pillStatus)
             putExtra("status_chip_text", pillStatus)
 
             // Tiến độ vòng tròn quanh camera selfie
@@ -1072,7 +1120,7 @@ object EarbudsCard {
     }
 
     /**
-     * Hiển thị thẻ Mất kết nối Bluetooth với icon huy hiệu tròn đỏ chứa dấu X trắng (vivo icon-only 103), viền đỏ #FF5247.
+     * Hiển thị thẻ Mất kết nối Bluetooth với huy hiệu chữ "Ngắt" đồng bộ định dạng với khi kết nối, viền đỏ #FF5247.
      * Tự động đóng sau 3000ms.
      */
     fun showDisconnected(context: Context, name: String, isWearable: Boolean = false) {
@@ -1090,6 +1138,7 @@ object EarbudsCard {
         )
 
         val redCrossIcon = BatteryCanvasRenderer.createRedCrossCircleIcon(context)
+        val chipText = "Ngắt"
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -1100,14 +1149,15 @@ object EarbudsCard {
             putExtra("title", "$name · Mất kết nối")
             putExtra("text", "Đã ngắt kết nối Bluetooth")
             putExtra("subtext", "Bluetooth · Đã ngắt kết nối")
-            putExtra("oi_left_content", "Ngắt")
+            putExtra("oi_left_content", chipText)
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_right_icon", redCrossIcon)
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-            putExtra("oi_right_content", "") // chế độ icon-only 103 của vivo
-            putExtra("status_chip_text", "")
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+            putExtra("oi_right_content", chipText)
+            putExtra("status_chip_text", chipText)
             putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1 - dấu X đỏ
             putExtra("oi_light_color", RED)
             putExtra("oi_bg_color", RED)
@@ -1129,8 +1179,29 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
+        val alreadyConnected = isConnected(name)
+        setConnectedState(name, true)
+
         val telemetry = if (battery in 0..100) EarbudsTelemetry(main = battery) else (deviceTelemetry[name] ?: EarbudsTelemetry())
         deviceTelemetry[name] = telemetry
+
+        if (alreadyConnected) {
+            // Đã kết nối trước đó: chỉ cập nhật thông số ngầm, không kích hoạt pop-up đảo
+            if (showingAddress == name || (telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow)) {
+                if (telemetry.effectiveLevel in 0..LOW_LEVEL) warnedLow += name
+                show(
+                    context = ctx,
+                    device = null,
+                    customName = name,
+                    telemetry = telemetry,
+                    low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
+                    isWearable = isWearable,
+                )
+            }
+            return
+        }
+
+        // Chuyển từ ngắt kết nối -> kết nối: Hiển thị đảo
         show(
             context = ctx,
             device = null,
@@ -1145,6 +1216,12 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
+        val wasConnected = isConnected(name)
+        setConnectedState(name, false)
+        if (!wasConnected) {
+            // Thiết bị chưa từng kết nối hoặc đã ở trạng thái ngắt, không hiển thị pop-up ảo
+            return
+        }
         val task = Runnable {
             disconnectDebounce.remove(name)
             deviceTelemetry -= name
@@ -1159,15 +1236,73 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
-        deviceTelemetry[name] = telemetry
-        show(
-            context = ctx,
-            device = null,
-            customName = name,
-            telemetry = telemetry,
-            low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
-            isWearable = isWearable,
+        val before = deviceTelemetry.put(name, telemetry)
+        val eff = telemetry.effectiveLevel
+        // Chỉ cập nhật hiển thị nếu Đang hiển thị trên đảo, hoặc pin tụt xuống mức cảnh báo yếu
+        if (showingAddress == name || (eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && name !in warnedLow)) {
+            if (eff in 0..LOW_LEVEL) warnedLow += name
+            show(
+                context = ctx,
+                device = null,
+                customName = name,
+                telemetry = telemetry,
+                low = (eff in 0..LOW_LEVEL),
+                isWearable = isWearable,
+            )
+        }
+    }
+
+    /**
+     * Hiển thị thẻ Báo sạc đầy pin 100% cho thiết bị Samsung/tai nghe Bluetooth.
+     * Tự động thu gọn sau 3500ms.
+     */
+    fun onDeviceFullyCharged(context: Context, name: String, isWearable: Boolean = false) {
+        val ctx = context.applicationContext
+        if (!enabled(ctx)) return
+        hideTask?.let(handler::removeCallbacks)
+
+        val glyph = if (isWearable) R.drawable.ic_smartband else R.drawable.ic_earbuds
+        val safeIcon = createSafeIcon(ctx, glyph)
+        IconCache.activeSmallIcons.remove(ID)
+
+        val click = PendingIntent.getActivity(
+            ctx, ID, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+
+        val batteryFullIcon = BatteryCanvasRenderer.createBatteryIcon(ctx, 100, isCharging = false)
+
+        val intent = Intent(ctx, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", ID)
+            putExtra("is_ongoing", true)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+            putExtra("title", "$name · Đã sạc đầy")
+            putExtra("text", "Pin 100% · Có thể ngắt sạc")
+            putExtra("subtext", "Pin 100% ⚡ Đã sạc đầy")
+            putExtra("oi_left_content", "100%")
+            putExtra("oi_left_icon", safeIcon)
+            putExtra("oi_large_icon", safeIcon)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("oi_right_icon", batteryFullIcon)
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
+            putExtra("oi_progress", 100)
+            putExtra("oi_fg_color", GREEN)
+            putExtra("oi_bg_color", GREEN_TRACK)
+            putExtra("oi_right_content", "100%")
+            putExtra("status_chip_text", "100%")
+            putExtra("oi_card_ring", 100)
+            putExtra("oi_light_color", GREEN)
+            putExtra("click_resp", click)
+            putExtra("oi_force_show", true)
+            putExtra("oi_dismiss_when_kill", true)
+        }
+
+        ctx.startService(intent)
+        showingAddress = name
+        hideTask = Runnable { hide(ctx) }.also { handler.postDelayed(it, 3500L) }
     }
 
     private fun hide(context: Context) {

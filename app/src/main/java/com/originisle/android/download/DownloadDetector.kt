@@ -54,6 +54,27 @@ object DownloadDetector {
         "tunein.player",
     )
 
+    private val NAV_PACKAGES = setOf(
+        "com.google.android.apps.maps",
+        "com.waze",
+        "app.organicmaps",
+        "com.sygic.aura",
+        "com.here.app.maps",
+        // Ứng dụng gọi xe / giao hàng
+        "com.grabtaxi.passenger",
+        "com.grabtaxi.driver2",
+        "be.com.vinagroup.partner",
+        "com.be.customer",
+        "com.vng.zalopay",
+        "vn.green.gsm",
+        "com.shopee.food.driver",
+        "com.shopee.vn",
+        "com.gojek.app",
+        "com.deliveree",
+        "com.ahamove",
+        "com.lalamove",
+    )
+
     private val PERCENT_PATTERN = Pattern.compile("(\\d{1,3})\\s*%")
     private val SIZE_PATTERN = Pattern.compile(
         "(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)?\\s*(?:/|of|của|trong(?:\\s+số)?|trên)\\s*(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)",
@@ -87,13 +108,29 @@ object DownloadDetector {
         val extras = n.extras
         val pkg = sbn.packageName
 
+        // 0. Bỏ qua ngay các danh mục điều hướng, di chuyển, gọi thoại hoặc app bản đồ / gọi xe
+        if (n.category == Notification.CATEGORY_NAVIGATION ||
+            n.category == Notification.CATEGORY_TRANSPORT ||
+            n.category == Notification.CATEGORY_CALL
+        ) {
+            return false
+        }
+
+        if (pkg in NAV_PACKAGES) {
+            return false
+        }
+
         // Bỏ qua nếu là thông báo phát đa phương tiện (Media Session / MediaStyle)
         val isMediaSession = extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
             extras.containsKey("android.mediaSession") ||
             extras.getString(NotificationCompat.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
 
         val channelId = n.channelId?.lowercase().orEmpty()
-        val isExplicitDownloadChannel = channelId.contains("download") || channelId.contains("offline") || channelId.contains("tải")
+        val isExplicitDownloadChannel = channelId.contains("download") ||
+            channelId.contains("tai_xuong") ||
+            channelId.contains("tải") ||
+            channelId.contains("tệp") ||
+            channelId.contains("transfer")
 
         if (isMediaSession) {
             // Nếu thông báo mang MediaSession token thì 100% là điều khiển phát nhạc, không bao giờ là file download
@@ -105,25 +142,7 @@ object DownloadDetector {
             return false
         }
 
-        // 1. Kiểm tra progress bar trực tiếp từ hệ thống
-        val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
-        val indeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
-        if (max > 0 || indeterminate) return true
-
-        // 2. Kiểm tra category chuẩn
-        if (n.category == Notification.CATEGORY_PROGRESS) return true
-
-        // 3. Kiểm tra kênh thông báo (Channel ID): Chrome/Edge/PlayStore luôn dùng channel có chữ download
-        if (channelId.contains("download") ||
-            channelId.contains("tai_xuong") ||
-            channelId.contains("tải") ||
-            channelId.contains("tệp") ||
-            channelId.contains("transfer")
-        ) {
-            return true
-        }
-
-        // 4. Kiểm tra nội dung text
+        // Kiểm tra nội dung text
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
         val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
@@ -154,11 +173,42 @@ object DownloadDetector {
             allText.contains("download canceled") ||
             allText.contains("download cancelled")
 
-        if (hasDownloadKeywords) return true
+        val hasDownloadMetrics = PERCENT_PATTERN.matcher(allText).find() ||
+            SIZE_PATTERN.matcher(allText).find() ||
+            SPEED_PATTERN.matcher(allText).find() ||
+            FILE_EXT_PATTERN.matcher(allText).find() ||
+            SINGLE_SIZE_PATTERN.matcher(allText).find()
 
-        // 5. Nếu từ gói tải xuống/trình duyệt
         val isDownloadPkg = isDownloadPackage(pkg)
 
+        val hasDownloadIndicators = isDownloadPkg ||
+            isExplicitDownloadChannel ||
+            hasDownloadKeywords ||
+            hasDownloadMetrics
+
+        // 1. Kiểm tra progress bar trực tiếp từ hệ thống: CHỈ chấp nhận khi có dấu hiệu tải xuống
+        val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
+        val indeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
+        if ((max > 0 || indeterminate) && hasDownloadIndicators) {
+            return true
+        }
+
+        // 2. Kiểm tra category chuẩn (phải có dấu hiệu tải xuống)
+        if (n.category == Notification.CATEGORY_PROGRESS && hasDownloadIndicators) {
+            return true
+        }
+
+        // 3. Kiểm tra kênh thông báo (Channel ID): Chrome/Edge/PlayStore luôn dùng channel có chữ download
+        if (isExplicitDownloadChannel) {
+            return true
+        }
+
+        // 4. Kiểm tra nội dung text
+        if (hasDownloadKeywords) {
+            return true
+        }
+
+        // 5. Nếu từ gói tải xuống/trình duyệt
         if (isDownloadPkg) {
             val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
 
@@ -167,21 +217,10 @@ object DownloadDetector {
                 return true
             }
 
-            // Với Chrome / Edge / Trình duyệt khác: nếu có cờ ongoing và không phải media
-            if (isOngoing && n.category != Notification.CATEGORY_TRANSPORT && !extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION)) {
-                if (PERCENT_PATTERN.matcher(allText).find()) return true
-                if (SIZE_PATTERN.matcher(allText).find()) return true
-                if (SPEED_PATTERN.matcher(allText).find()) return true
-                if (FILE_EXT_PATTERN.matcher(allText).find()) return true
-                if (SINGLE_SIZE_PATTERN.matcher(allText).find()) return true
+            // Với Chrome / Edge / Trình duyệt khác: nếu có định dạng dung lượng/tốc độ/file
+            if (hasDownloadMetrics) {
+                return true
             }
-
-            // Kể cả thông báo ở chế độ im lặng (silent channel) hoặc không có cờ ongoing
-            if (PERCENT_PATTERN.matcher(allText).find()) return true
-            if (SIZE_PATTERN.matcher(allText).find()) return true
-            if (SPEED_PATTERN.matcher(allText).find()) return true
-            if (FILE_EXT_PATTERN.matcher(allText).find()) return true
-            if (SINGLE_SIZE_PATTERN.matcher(allText).find()) return true
         }
 
         return false

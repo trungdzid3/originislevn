@@ -2,6 +2,12 @@ package com.originisle.android.cards
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +26,100 @@ object QuickShareCard {
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
     private val finishedIds = ConcurrentHashMap.newKeySet<Int>()
+
+    @Volatile
+    private var cachedOfficialIcon: Icon? = null
+
+    /**
+     * Tạo biểu tượng Quick Share chính thức dạng Canvas Bitmap:
+     * - Nền tròn màu xanh dương Quick Share #1B72E8.
+     * - Vẽ 2 mũi tên chia sẻ lồng nhau dạng vòng cung xoay đối xứng 180 độ màu trắng chuẩn xác.
+     */
+    fun createQuickShareOfficialIcon(context: Context): Icon {
+        cachedOfficialIcon?.let { return it }
+        val size = 144
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val cx = size / 2f
+        val cy = size / 2f
+
+        // Nền tròn màu xanh Quick Share
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#1B72E8")
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(cx, cy, cx, bgPaint)
+
+        // Bút vẽ nét vòng cung màu trắng
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 11f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        // Bút vẽ đầu mũi tên màu trắng
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+
+        val arcRadius = 34f
+        val arcRect = RectF(cx - arcRadius, cy - arcRadius, cx + arcRadius, cy + arcRadius)
+
+        // Nhánh 1: Cung tròn quét từ 170° qua đỉnh 270° đến 325°
+        val endAngleDeg = 325.0
+        val endAngleRad = Math.toRadians(endAngleDeg)
+        val endX = cx + arcRadius * Math.cos(endAngleRad).toFloat()
+        val endY = cy + arcRadius * Math.sin(endAngleRad).toFloat()
+
+        // Hướng tiếp tuyến theo chiều kim đồng hồ (+90°)
+        val tangentAngleRad = Math.toRadians(endAngleDeg + 90.0)
+        val dirX = Math.cos(tangentAngleRad).toFloat()
+        val dirY = Math.sin(tangentAngleRad).toFloat()
+        val normX = -dirY
+        val normY = dirX
+
+        // Tạo hình tam giác đầu mũi tên
+        val tipOffset = 3f
+        val tipX = endX + dirX * tipOffset
+        val tipY = endY + dirY * tipOffset
+        val arrowLen = 16f
+        val arrowHalfWidth = 8f
+        val baseX = tipX - dirX * arrowLen
+        val baseY = tipY - dirY * arrowLen
+
+        val arrowPath = Path().apply {
+            moveTo(tipX, tipY)
+            lineTo(baseX + normX * arrowHalfWidth, baseY + normY * arrowHalfWidth)
+            lineTo(baseX - normX * arrowHalfWidth, baseY - normY * arrowHalfWidth)
+            close()
+        }
+
+        // Vẽ cánh trên (nhánh 1)
+        canvas.drawArc(arcRect, 170f, 155f, false, strokePaint)
+        canvas.drawPath(arrowPath, fillPaint)
+
+        // Vẽ cánh dưới (nhánh 2) xoay đối xứng 180° qua tâm
+        canvas.save()
+        canvas.rotate(180f, cx, cy)
+        canvas.drawArc(arcRect, 170f, 155f, false, strokePaint)
+        canvas.drawPath(arrowPath, fillPaint)
+        canvas.restore()
+
+        val icon = Icon.createWithBitmap(bitmap)
+        cachedOfficialIcon = icon
+        return icon
+    }
+
+    private fun resolveShareIcon(context: Context, packageName: String): Icon {
+        return if (packageName == "com.vivo.easyshare") {
+            IconCache.safeAppIcon(context, packageName)
+        } else {
+            createQuickShareOfficialIcon(context)
+        }
+    }
 
     fun post(context: Context, sbn: StatusBarNotification, info: QuickShareInfo) = post(context, info, sbn)
 
@@ -57,19 +157,8 @@ object QuickShareCard {
         val n = sbn.notification
         // Quản lý Icon chuẩn Resource theo GenericCard:
         n.smallIcon?.let { IconCache.activeSmallIcons[id] = it } ?: IconCache.activeSmallIcons.remove(id)
-        val appIcon: Icon? = try {
-            val pm = context.packageManager
-            val appInfo = pm.getApplicationInfo(sbn.packageName, 0)
-            if (appInfo.icon != 0) Icon.createWithResource(sbn.packageName, appInfo.icon)
-            else n.getLargeIcon() ?: n.smallIcon
-        } catch (_: Throwable) {
-            n.getLargeIcon() ?: n.smallIcon
-        }
-        if (appIcon != null) {
-            IconCache.activeLargeIcons[id] = appIcon
-        } else {
-            IconCache.activeLargeIcons.remove(id)
-        }
+        val appIcon: Icon = resolveShareIcon(context, sbn.packageName)
+        IconCache.activeLargeIcons[id] = appIcon
 
         val clickPi = info.contentIntent
             ?: n.contentIntent
@@ -81,10 +170,8 @@ object QuickShareCard {
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", sbn.packageName)
             putExtra("icon_res", R.drawable.ic_download)
-            if (appIcon != null) {
-                putExtra("oi_left_icon", appIcon)
-                putExtra("oi_large_icon", appIcon)
-            }
+            putExtra("oi_left_icon", appIcon)
+            putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
             putExtra("oi_force_show", true)
@@ -203,13 +290,8 @@ object QuickShareCard {
      */
     fun postFinished(context: Context, id: Int, appPkg: String, title: String = "Quick Share") {
         clear(id)
-        val appIcon: Icon? = try {
-            val pm = context.packageManager
-            val appInfo = pm.getApplicationInfo(appPkg, 0)
-            if (appInfo.icon != 0) Icon.createWithResource(appPkg, appInfo.icon) else null
-        } catch (_: Throwable) {
-            null
-        }
+        val appIcon: Icon = resolveShareIcon(context, appPkg)
+        IconCache.activeLargeIcons[id] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -217,10 +299,8 @@ object QuickShareCard {
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
             putExtra("icon_res", R.drawable.ic_download)
-            if (appIcon != null) {
-                putExtra("oi_left_icon", appIcon)
-                putExtra("oi_large_icon", appIcon)
-            }
+            putExtra("oi_left_icon", appIcon)
+            putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
             putExtra("oi_force_show", true)
@@ -255,13 +335,8 @@ object QuickShareCard {
      */
     fun postCanceled(context: Context, id: Int, appPkg: String) {
         clear(id)
-        val appIcon: Icon? = try {
-            val pm = context.packageManager
-            val appInfo = pm.getApplicationInfo(appPkg, 0)
-            if (appInfo.icon != 0) Icon.createWithResource(appPkg, appInfo.icon) else null
-        } catch (_: Throwable) {
-            null
-        }
+        val appIcon: Icon = resolveShareIcon(context, appPkg)
+        IconCache.activeLargeIcons[id] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -269,10 +344,8 @@ object QuickShareCard {
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
             putExtra("icon_res", R.drawable.ic_download)
-            if (appIcon != null) {
-                putExtra("oi_left_icon", appIcon)
-                putExtra("oi_large_icon", appIcon)
-            }
+            putExtra("oi_left_icon", appIcon)
+            putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
             putExtra("oi_force_show", true)

@@ -17,17 +17,19 @@ origin-isle-vn/
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/java/com/originisle/android/
-│       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS
+│       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS (lọc spam/promo 0đ)
 │       │   ├── cards/                # 15 loại thẻ giao diện Đảo Origin
 │       │   │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
-│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống có icon bắt đầu & action buttons
-│       │   │   ├── EarbudsCard.kt    # Tai nghe & vòng đeo Galaxy Fit 3 (X đỏ khi ngắt)
-│       │   │   ├── QuickShareCard.kt # Quick Share có action buttons & tích xanh
-│       │   │   └── RingerModeCard.kt # Chế độ Chuông / Rung / Im lặng OriginOS 6
-│       │   ├── download/             # Nhận diện tiến trình tải xuống & actions
-│       │   ├── island/               # Service SuperX, builder, constants
+│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: DELIEVERY)
+│       │   │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (chặn pop-up ảo, báo % pin, sạc đầy 100%, chip "Ngắt")
+│       │   │   ├── MediaCard.kt      # Nhạc sóng động (Scene: MOVIE, tự thu gọn sau 3s)
+│       │   │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép)
+│       │   │   ├── QuickShareCard.kt # Quick Share logo chính thức Canvas 192x192
+│       │   │   └── RingerModeCard.kt # 4 chế độ Chuông / Rung / Im lặng / DND đa tầng
+│       │   ├── download/             # Nhận diện tải xuống (loại trừ Maps/Navigation/Ride)
+│       │   ├── island/               # Service SuperX, builder, constants, multi-scene management
 │       │   ├── log/                  # Nhật ký hoạt động bền vững (CastLog)
-│       │   ├── otp/                  # Nhận diện mã xác thực OTP tiếng Việt
+│       │   ├── otp/                  # Nhận diện mã xác thực OTP tiếng Việt (quét toàn bộ match, phân tách \n)
 │       │   ├── quickshare/           # Nhận diện Quick Share & EasyShare & actions
 │       │   ├── ride/                 # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
 │       │   ├── service/              # NotificationCastListener & Receivers
@@ -39,6 +41,7 @@ origin-isle-vn/
 ├── docs/
 │   ├── DEV.md                        # Hướng dẫn build, ký APK và AMap spoof
 │   ├── PROTOCOL.md                   # Đặc tả kỹ thuật SuperX của OriginOS
+│   ├── ECOSYSTEM_REFERENCE.md        # Tổng hợp hệ sinh thái Đảo Origin & HyperIsland
 │   ├── architecture/
 │   │   └── ARCHITECTURE.md           # Sơ đồ kiến trúc & luồng dữ liệu (Mermaid)
 │   └── screenshots/
@@ -56,23 +59,20 @@ origin-isle-vn/
 
 ## 3. Bản Đồ Code (Code Map)
 - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`):
-  - `readAndPost` (L185-387): Nạp thông số Intent và gửi thẻ SuperX lên Đảo.
-  - `onRejected` (L395-408): Tự động hạ cấp thẻ về dạng cơ bản không nút khi bị Đảo từ chối.
-  - `Icon.ownedBy` (L415-419): Gán package sở hữu cho icon tránh lỗi trên một số ROM Vivo.
-  - `postSuperX` (L426-458): Đóng gói notification gửi tới Vivo SystemUI.
+  - `readAndPost` (L185-387): Quản lý `sceneCurrentId` độc lập theo scene (`MOVIE`, `DELIEVERY`, `TAXI`, `NAVIGATION`), cho phép xếp chồng và lướt đa nhiệm native trên Vivo SystemUI.
+  - `cancelNotification` (L444-462): Dọn dẹp thẻ và scene tương ứng sạch sẽ.
+  - `postSuperX` (L400-424): Đóng gói notification gửi tới Vivo SystemUI.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - `onNotificationPosted` (L424-650): Cổng tiếp nhận thông báo: Ngân hàng -> Quick Share -> Tải xuống -> Samsung Wearable / Fit 3 -> OTP -> Nhạc -> Gọi xe -> Google Wallet -> Điều hướng -> Thông báo thường.
-  - `onNotificationRemoved` (L900-1080): Bắt sự kiện gỡ thông báo: với Tải xuống và Quick Share, luôn duy trì `activeDownloadIds` để khi gỡ mà chưa xong thì chuyển sang hoạt ảnh Đã hủy (X đỏ 2.5s) thay vì ngắt phụt làm đảo tắt ngấm.
+  - `onNotificationPosted` (L424-650): Thứ tự ưu tiên nghiêm ngặt: Ngân hàng -> Quick Share -> Mã OTP -> Tải xuống -> Galaxy Fit 3 / Wearable -> Media -> Ride -> Dẫn đường.
+  - `notificationText` (L740-787): Phân tách bằng `\n` tránh dính số điện thoại/ngày tháng vào mã OTP; bóc tách `android.messages`.
+  - `onInterruptionFilterChanged`: Cầu nối trực tiếp chuyển trạng thái DND sang `RingerModeCard`.
 - `Cards` (`app/src/main/java/com/originisle/android/cards/`):
-  - `EarbudsCard.kt`: Hỗ trợ cả tai nghe TWS & thiết bị đeo thông minh (Galaxy Fit 3, Galaxy Watch,...), lắng nghe 8 Broadcasts Samsung, quét BLE GATT profile 7, máy trạng thái Kết nối (xanh lá 5s) / Mất kết nối (vòng tròn dấu X đỏ bên trong `createRedCrossCircleIcon`, template 4 icon-only, giữ 3s), bố cục pin co giãn tự động 1-2-3 thành phần với `TEMPLATE_BUTTONS`.
-  - `BatteryCanvasRenderer.kt`: Bộ vẽ Canvas tạo icon viên pin động (xanh/vàng/đỏ theo %) kèm tia sét sạc; tạo vòng tròn đỏ dấu X trắng (`createRedCrossCircleIcon`) và vòng tròn xanh dấu tích (`createGreenCheckCircleIcon`).
-  - `DownloadCard.kt` & `QuickShareCard.kt`: Biểu tượng tải xuống ban đầu `ic_download` khi bắt đầu, logo app nguồn bên trái và vòng tròn tiến độ % camera bên phải khi tải; mở rộng có nút Tạm dừng / Hủy / Tiếp tục (`TEMPLATE_BUTTONS`); xong hiện viền sáng xanh lá + tích xanh; hủy hiện viền đỏ + vòng tròn dấu X đỏ tối giản chữ.
-  - `RingerModeCard.kt`: Đón bắt `AudioManager.RINGER_MODE_CHANGED_ACTION`, hiển thị đảo thông báo khi đổi chế độ Chuông (vàng `#FCD535`), Rung (lam `#4A90E2`), Im lặng (đỏ `#FF5247`), tự đóng sau 2.5s.
-  - `GenericCard.kt`, `ChargingCard.kt`, `PaymentCard.kt`, `OtpCard.kt`, `RideCard.kt`, `NavigationCard.kt`.
-- `AppsScreen.kt` (`app/src/main/java/com/originisle/android/ui/AppsScreen.kt`):
-  - `AppsScreen` (L52-175): Quản lý bật/tắt thông báo từng ứng dụng.
-  - `AppIcon` (L213-223): Tải biểu tượng bất đồng bộ kèm bộ đệm cache.
-  - `loadApps` (L225-241): Truy vấn ứng dụng cài đặt và ứng dụng hệ thống.
+  - `EarbudsCard.kt`: Quản lý `lastConnectionState`, chặn triệt để pop-up ảo từ notification nền của Samsung; khi kết nối ưu tiên hiển thị thẳng `% pin` lên viên con nhộng và vòng tròn camera; khi mất kết nối hiển thị viên chữ `"Ngắt"` đồng bộ; bổ sung `onDeviceFullyCharged` thông báo khi thiết bị sạc đầy pin 100%.
+  - `VietnamBankDetector.kt`: `extractNumericAmount` loại bỏ số tiền `<= 0đ`; lọc triệt để tin nhắn rác / khuyến mãi / gói cước viễn thông nhận nhầm; siết chặt điều kiện SMS biến động số dư thực tế.
+  - `RingerModeCard.kt`: Bắt đủ 4 chế độ Chuông (Vàng `#FCD535`), Rung (Lam `#4A90E2`), Im lặng (Đỏ `#FF5247`), Không làm phiền DND (Tím `#7B61FF`, icon trăng khuyết), lắng nghe đa tầng BroadcastReceiver + ContentObserver + InterruptionFilter.
+  - `QuickShareCard.kt` & `IconCache.kt`: `createQuickShareOfficialIcon` vẽ logo Quick Share chính thức Canvas 192x192; chặn icon mảnh ghép của Play Services trong `IconCache.safeAppIcon`.
+  - `DownloadDetector.kt`: Loại trừ triệt để Google Maps, Waze, Navigation, Ride và thắt chặt điều kiện progress bar.
+  - `MediaCard.kt`: Độc lập scene `MOVIE`, tự đóng sau 3s khi dừng.
 
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
 - **ApplicationId cố định**: Bắt buộc giữ `com.autonavi.minimap` trong `app/build.gradle.kts` để qua whitelist của Vivo Origin Island.
@@ -80,4 +80,4 @@ origin-isle-vn/
 - **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.0.6-debug.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Toàn bộ tính năng đã được triển khai, kiểm thử đơn vị và biên dịch thành công 100%.
+- Toàn bộ 6 vấn đề kỹ thuật và yêu cầu tính năng mở rộng đều đã được giải quyết, kiểm thử đơn vị và biên dịch thành công 100%.

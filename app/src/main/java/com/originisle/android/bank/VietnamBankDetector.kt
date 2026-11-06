@@ -18,6 +18,7 @@ data class BankTransaction(
 /**
  * Detector and parser for Vietnam banking & e-wallet notifications,
  * supporting both banking apps and bank balance SMS notifications (Vivo MMS, Android Messages, etc.).
+ * Includes strict spam/promo filters and 0-amount exclusion.
  */
 object VietnamBankDetector {
 
@@ -79,6 +80,54 @@ object VietnamBankDetector {
         listOf("zalopay", "ví zalopay", "vi zalopay") to "ZaloPay",
     )
 
+    /**
+     * Known telecom sender brandnames.
+     */
+    private val TELECOM_SENDERS = setOf(
+        "viettel", "viettel_km", "viettel_plus", "myviettel",
+        "vinaphone", "vinaphone_km",
+        "mobifone", "mobifone_km",
+        "vietnamobile", "vnm",
+        "itel", "wintel"
+    )
+
+    /**
+     * Keywords confirming legitimate balance fluctuations for Viettel Money carrier messages.
+     */
+    private val VIETTEL_BALANCE_CONFIRM_KEYWORDS = listOf(
+        "số dư tk", "so du tk",
+        "thanh toán thành công", "thanh toan thanh cong",
+        "chuyển tiền thành công", "chuyen tien thanh cong"
+    )
+
+    /**
+     * Keywords indicating spam, promo, data package or telecommunication advertising.
+     */
+    private val SPAM_PROMO_KEYWORDS = listOf(
+        "quảng cáo", "quang cao",
+        "qc:", "(qc)", "[qc]",
+        "khuyen mai", "khuyến mại", "khuyến mãi",
+        "uu dai", "ưu đãi",
+        "chi tu", "chỉ từ",
+        "gia chi", "giá chỉ",
+        "soan", "soạn",
+        "gui", "gửi",
+        "cuoc phi", "cước phí",
+        "mien phi", "miễn phí",
+        "trung thuong", "trúng thưởng",
+        "voucher",
+        "giam gia", "giảm giá",
+        "flash sale",
+        "nhan ngay", "nhận ngay",
+        "goi cuoc", "gói cước",
+        "data", "4g", "5g",
+        "tich diem", "tích điểm",
+        "doi thuong", "đổi thưởng",
+        "vay tieu dung", "vay tiêu dùng",
+        "vay tiền", "vay tien",
+        "mo the tin dung", "mở thẻ tín dụng"
+    )
+
     private val INCOME_KEYWORDS = listOf(
         "cộng", "cong",
         "nhận", "nhan",
@@ -137,10 +186,156 @@ object VietnamBankDetector {
     }
 
     /**
+     * Checks if sender name explicitly designates the Viettel Money / ViettelPay e-wallet.
+     */
+    fun isExplicitViettelWallet(sender: String): Boolean {
+        val clean = sender.trim().lowercase(Locale.ROOT)
+        return clean == "viettelpay" || clean == "viettel money" || clean == "viettelmoney" ||
+                clean == "viettel_pay" || clean == "viettel-money"
+    }
+
+    /**
+     * Checks if sender name belongs to a telecommunications carrier brandname.
+     */
+    fun isTelecomSender(sender: String): Boolean {
+        if (isExplicitViettelWallet(sender)) return false
+        val clean = sender.trim().lowercase(Locale.ROOT)
+        if (clean in TELECOM_SENDERS) return true
+        return clean.startsWith("viettel") || clean.startsWith("vinaphone") ||
+                clean.startsWith("mobifone") || clean.startsWith("vietnamobile") ||
+                clean == "vnm" || clean == "itel" || clean == "wintel"
+    }
+
+    /**
+     * Checks if text contains explicit keywords confirming a Viettel Money balance fluctuation.
+     */
+    fun hasViettelBalanceConfirmation(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT)
+        return VIETTEL_BALANCE_CONFIRM_KEYWORDS.any { lower.contains(it) }
+    }
+
+    /**
+     * Checks if text contains advertising, promo, or spam keywords.
+     */
+    fun hasSpamPromoKeywords(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT)
+        for (kw in SPAM_PROMO_KEYWORDS) {
+            if (kw.length <= 4) {
+                val regex = Regex("""(?i)(?:\b|^|\s|\[|\()${Regex.escape(kw)}(?:\b|\s|:|\]|\)|$)""")
+                if (regex.containsMatchIn(lower)) return true
+            } else {
+                if (lower.contains(kw)) return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Checks if text contains clear signs of actual balance fluctuation:
+     * "số dư", "so du", "sd:", "giao dịch", "gd:", "tk".
+     */
+    fun hasBalanceIndicator(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT)
+        if (lower.contains("số dư") || lower.contains("so du") ||
+            lower.contains("sd:") || lower.contains("sd ") ||
+            lower.contains("giao dịch") || lower.contains("giao dich") ||
+            lower.contains("gd:") || lower.contains("gd ") ||
+            lower.contains("biến động") || lower.contains("bien dong") ||
+            lower.contains("tài khoản") || lower.contains("tai khoan")
+        ) {
+            return true
+        }
+        // "tk" với boundary hoặc đứng trước số/dấu hai chấm
+        if (Regex("""(?i)(?:\b|^|\s)tk(?:\s|:|\d|$)""").containsMatchIn(text)) {
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Checks if text contains balance or account confirmation keywords for SMS context:
+     * "số dư", "so du", "sd:", "sd ", "tk", "tai khoan", "tài khoản", "the", "thẻ", "gd:", "giao dịch", "giao dich", "biến động", "bien dong".
+     */
+    fun hasSmsBalanceOrAccountContext(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT)
+        val basicKeywords = listOf(
+            "số dư", "so du",
+            "sd:", "sd ",
+            "tai khoan", "tài khoản",
+            "gd:", "gd ",
+            "giao dịch", "giao dich",
+            "biến động", "bien dong"
+        )
+        if (basicKeywords.any { lower.contains(it) }) return true
+
+        // "the", "thẻ": kiểm tra ranh giới từ để tránh match chữ ghép như "thêm", "then"
+        if (Regex("""(?i)(?:\b|^|\s)(?:thẻ|the)(?:\s|:|\d|$)""").containsMatchIn(text)) {
+            return true
+        }
+
+        // "tk": kiểm tra ranh giới từ "tk", "tk:", "tk "
+        if (Regex("""(?i)(?:\b|^|\s)tk(?:\s|:|\d|$)""").containsMatchIn(text)) {
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Checks if amount has an explicit '+' or '-' sign immediately before it.
+     */
+    fun hasExplicitSign(amountStr: String, fullText: String, matchRange: IntRange): Boolean {
+        val trimmed = amountStr.trim()
+        if (trimmed.startsWith("+") || trimmed.startsWith("-")) return true
+        val startIndex = matchRange.first
+        val prefixBefore = fullText.substring((startIndex - 3).coerceAtLeast(0), startIndex).trim()
+        return prefixBefore.endsWith("+") || prefixBefore.endsWith("-")
+    }
+
+    /**
+     * Extracts actual numeric transaction amount as [Long],
+     * removing non-digit characters, thousand separators (. or ,), and currency units.
+     * Handles decimal cents (,00 or .00) if present.
+     * Returns 0L if invalid or non-numeric.
+     */
+    fun extractNumericAmount(amountStr: String): Long {
+        if (amountStr.isBlank()) return 0L
+        // Xóa phần thập phân 1 hoặc 2 chữ số ở cuối nếu đứng sau dấu chấm hoặc phẩy và trước đơn vị tiền
+        // Ví dụ: "50.000,00 đ" -> "50.000 đ", "0,00đ" -> "0đ", "100.50 VND" -> "100 VND"
+        val cleanDecimal = amountStr.replace(
+            Regex("""[,.]\d{1,2}(?:\s*(?:VND|VNĐ|dong|đồng|đ|d))?$""", RegexOption.IGNORE_CASE)
+        ) { matchResult ->
+            matchResult.value.replace(Regex("""^[,.]\d{1,2}"""), "")
+        }
+        val digitsOnly = cleanDecimal.filter { it.isDigit() }
+        return digitsOnly.toLongOrNull() ?: 0L
+    }
+
+    /**
      * Detects bank brand name from sender/title or notification content.
      */
     fun detectBankBrand(title: String, content: String): String? {
         val titleClean = title.trim()
+        val contentClean = content.trim()
+
+        // 1. Sender là ví Viettel Money rõ ràng (ViettelPay, Viettel Money)
+        if (isExplicitViettelWallet(titleClean)) {
+            return "Viettel Money"
+        }
+
+        // 2. Sender là nhà mạng viễn thông thông thường (VIETTEL, Viettel_KM, VINAPHONE, MOBIFONE, ...)
+        if (isTelecomSender(titleClean)) {
+            val titleLower = titleClean.lowercase(Locale.ROOT)
+            val isViettelCarrier = titleLower.startsWith("viettel") || titleLower == "myviettel"
+            // Với Viettel viễn thông: Chỉ chấp nhận nếu nội dung có từ khóa xác nhận biến động số dư tài khoản
+            if (isViettelCarrier && hasViettelBalanceConfirmation(contentClean)) {
+                return "Viettel Money"
+            }
+            // Các nhà mạng viễn thông khác hoặc Viettel thông thường: tuyệt đối không nhận diện là ngân hàng
+            return null
+        }
+
+        // 3. Khớp brandname từ title (người gửi SMS)
         if (titleClean.isNotBlank()) {
             for ((aliases, brandName) in BANK_BRANDS) {
                 for (alias in aliases) {
@@ -152,12 +347,16 @@ object VietnamBankDetector {
             }
         }
 
-        val contentClean = content.trim()
+        // 4. Khớp brandname từ content
         if (contentClean.isNotBlank()) {
             for ((aliases, brandName) in BANK_BRANDS) {
                 for (alias in aliases) {
                     val regex = Regex("""(?i)(?:\b|^|_)${Regex.escape(alias)}(?:\b|$|_)""")
                     if (regex.containsMatchIn(contentClean)) {
+                        // Nếu là Viettel Money được tìm thấy trong content, yêu cầu phải có từ khóa xác nhận biến động số dư
+                        if (brandName == "Viettel Money" && !hasViettelBalanceConfirmation(contentClean)) {
+                            continue
+                        }
                         return brandName
                     }
                 }
@@ -194,7 +393,18 @@ object VietnamBankDetector {
             val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
             val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
             val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
-            return detectBankBrand(title, "$text $bigText") != null
+            val fullText = "$text $bigText".trim()
+
+            // Loại trừ OTP
+            if (isOtpMessage(fullText)) return false
+
+            // Loại trừ telecom sender thông thường
+            if (isTelecomSender(title) && !hasViettelBalanceConfirmation(fullText)) return false
+
+            // Loại trừ spam/promo SMS không có dấu hiệu biến động số dư thực tế
+            if (hasSpamPromoKeywords(fullText) && !hasBalanceIndicator(fullText)) return false
+
+            return detectBankBrand(title, fullText) != null
         }
         return false
     }
@@ -254,6 +464,18 @@ object VietnamBankDetector {
             return null
         }
 
+        val isSms = isSmsPackage(packageName)
+
+        // Đối với SMS: Kiểm tra bộ lọc spam / quảng cáo
+        if (isSms && hasSpamPromoKeywords(fullText) && !hasBalanceIndicator(fullText)) {
+            return null
+        }
+
+        // Nếu sender là nhà mạng viễn thông thông thường mà không có xác nhận biến động số dư Viettel Money
+        if (isTelecomSender(title) && !hasViettelBalanceConfirmation(fullText)) {
+            return null
+        }
+
         // Tìm tất cả các ứng viên số tiền
         val allMatches = mutableListOf<MatchResult>()
         allMatches.addAll(POSTFIX_AMOUNT_REGEX.findAll(fullText))
@@ -261,8 +483,14 @@ object VietnamBankDetector {
 
         if (allMatches.isEmpty()) return null
 
+        // 1. Loại trừ triệt để số tiền bằng 0: lọc các ứng viên có giá trị số > 0
+        val positiveMatches = allMatches.filter { match ->
+            extractNumericAmount(match.value) > 0L
+        }
+        if (positiveMatches.isEmpty()) return null
+
         // Lọc bỏ số dư (balance) nếu có ứng viên khác rõ ràng hơn
-        val transactionMatch = allMatches.firstOrNull { match ->
+        val transactionMatch = positiveMatches.firstOrNull { match ->
             val matchValue = match.value.trim()
             val startIndex = match.range.first
             val prefixBefore = fullText.substring((startIndex - 25).coerceAtLeast(0), startIndex).lowercase(Locale.ROOT)
@@ -271,9 +499,27 @@ object VietnamBankDetector {
             val hasSign = matchValue.contains("+") || matchValue.contains("-")
 
             hasSign || !isBalance
-        } ?: allMatches.first()
+        } ?: positiveMatches.first()
 
         val matchedAmountStr = transactionMatch.value.trim()
+        val numericAmount = extractNumericAmount(matchedAmountStr)
+
+        // Kiểm tra bắt buộc: số tiền thực tế phải > 0L
+        if (numericAmount <= 0L) {
+            return null
+        }
+
+        // 4. Ngữ cảnh biến động số dư đối với SMS:
+        // BẮT BUỘC thỏa mãn ít nhất một trong hai điều kiện:
+        // (a) Có từ khóa xác nhận tài khoản / số dư
+        // (b) Số tiền có dấu rõ ràng '+' hoặc '-' đứng ngay trước
+        if (isSms) {
+            val hasContext = hasSmsBalanceOrAccountContext(fullText)
+            val hasSign = hasExplicitSign(matchedAmountStr, fullText, transactionMatch.range)
+            if (!hasContext && !hasSign) {
+                return null
+            }
+        }
 
         // Xác định isIncome linh hoạt: kiểm tra dấu trong số tiền, tiền tố trước đó hoặc từ khóa
         val startIndex = transactionMatch.range.first
