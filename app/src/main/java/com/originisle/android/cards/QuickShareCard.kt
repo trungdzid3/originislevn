@@ -199,7 +199,7 @@ object QuickShareCard {
                 }
                 else -> {
                     // Trạng thái đang truyền/kết nối tệp (PROGRESS / INDETERMINATE)
-                    val pct = if (info.isIndeterminate) 10 else info.progress.coerceIn(1, 99)
+                    val pct = if (info.isIndeterminate) 0 else info.progress.coerceIn(0, 99)
                     val hasActions = info.actions.isNotEmpty()
                     if (hasActions) {
                         putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8

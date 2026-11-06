@@ -13,6 +13,19 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- Samsung Wearable & Fit 3 Battery Provider Permissions -->
+    <uses-permission android:name="com.samsung.wearable.hostmanager.BATTERY_INFO_PROVIDER" />
+    <uses-permission android:name="com.samsung.android.companionapps.stfinder.READ_BATTERY" />
+    <uses-permission android:name="com.samsung.android.gearplugin.permission.ACCESS_GEAR_PLUGIN" />
+
+    <queries>
+        <package android:name="com.samsung.android.app.watchmanager" />
+        <package android:name="com.samsung.wearable.fit3plugin" />
+        <provider android:authorities="com.samsung.wearable.providers.find.batteryproviderhelper" />
+        <provider android:authorities="com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider" />
+        <provider android:authorities="com.samsung.wearable.fit3plugin.BatteryInfoProvider" />
+    </queries>
+
     <application
         android:name=".OriginIsleApp"
         android:allowBackup="false"

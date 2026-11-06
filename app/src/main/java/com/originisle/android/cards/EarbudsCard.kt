@@ -14,6 +14,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -21,7 +22,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -208,6 +211,67 @@ object EarbudsCard {
         }.apply()
     }
 
+    private val FIT3_BATTERY_URI = Uri.parse("content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb")
+    private val FIT3_SYNC_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.BatteryInfoProvider")
+    private var fit3Observer: ContentObserver? = null
+
+    /**
+     * Đọc % pin phần cứng cho Samsung Galaxy Fit 3 từ ContentProvider của Samsung Fit3 Plugin:
+     * - Kích hoạt sync ngầm qua content://com.samsung.wearable.fit3plugin.BatteryInfoProvider
+     * - Query content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb
+     *   lấy cột 'Value', parse sang Int. Nếu hợp lệ (0..100), lưu cache và trả về mức pin.
+     */
+    fun querySamsungFit3Battery(context: Context, devName: String = "Galaxy Fit 3"): Int {
+        // 1. Kích hoạt sync ngầm từ Fit 3 Plugin
+        runCatching {
+            val syncBundle = Bundle().apply { putInt("sync_battery_data", 1) }
+            context.contentResolver.call(FIT3_SYNC_URI, "sync_request", null, syncBundle)
+        }
+
+        // 2. Query ContentProvider lấy mức pin thật
+        return runCatching {
+            val cursor = context.contentResolver.query(
+                FIT3_BATTERY_URI,
+                arrayOf("Value", "_btAddress", "Time"),
+                null,
+                null,
+                null
+            ) ?: context.contentResolver.query(
+                FIT3_BATTERY_URI,
+                null,
+                null,
+                null,
+                null
+            )
+
+            cursor?.use { c ->
+                val colIndex = c.getColumnIndex("Value").takeIf { it != -1 }
+                    ?: c.getColumnIndex("value").takeIf { it != -1 }
+                    ?: c.getColumnIndex("battery_level").takeIf { it != -1 }
+                    ?: -1
+
+                if (colIndex != -1 && c.moveToFirst()) {
+                    val str = runCatching { c.getString(colIndex) }.getOrNull()
+                    val level = str?.trim()?.toIntOrNull()
+                        ?: runCatching { c.getInt(colIndex) }.getOrNull()?.takeIf { it in 0..100 }
+                        ?: -1
+
+                    if (level in 0..100) {
+                        saveCachedBattery(context, devName, level)
+                        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+                        prefs.edit().putInt("wearable_last_known_battery", level).apply()
+                        Log.i(TAG, "querySamsungFit3Battery: $devName = $level%")
+                        return level
+                    }
+                }
+                -1
+            } ?: -1
+        }.getOrElse {
+            Log.w(TAG, "querySamsungFit3Battery failed", it)
+            -1
+        }
+    }
+
     fun readGattBatteryAsync(context: Context, device: BluetoothDevice?, devName: String, isWearable: Boolean) {
         if (device == null || !hasPermission(context)) return
         runCatching {
@@ -327,10 +391,34 @@ object EarbudsCard {
             addAction(ACTION_SAMSUNG_WATCH_LEVEL)
         }
         runCatching { ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED) }
+
+        // Đăng ký ContentObserver theo dõi cập nhật pin Samsung Galaxy Fit 3
+        runCatching {
+            if (fit3Observer == null) {
+                fit3Observer = object : ContentObserver(handler) {
+                    override fun onChange(selfChange: Boolean, uri: Uri?) {
+                        super.onChange(selfChange, uri)
+                        val level = querySamsungFit3Battery(ctx, "Galaxy Fit 3")
+                        if (level in 0..100) {
+                            onBatteryUpdated(ctx, "Galaxy Fit 3", EarbudsTelemetry(main = level), isWearable = true)
+                        }
+                    }
+                }
+                ctx.contentResolver.registerContentObserver(
+                    FIT3_BATTERY_URI,
+                    true,
+                    fit3Observer!!
+                )
+            }
+        }.onFailure { Log.w(TAG, "registerContentObserver failed", it) }
     }
 
     fun stop() {
         val ctx = app ?: return
+        fit3Observer?.let { observer ->
+            runCatching { ctx.contentResolver.unregisterContentObserver(observer) }
+            fit3Observer = null
+        }
         runCatching { ctx.unregisterReceiver(receiver) }
         pending.values.forEach(handler::removeCallbacks)
         pending.clear()
@@ -1126,10 +1214,15 @@ object EarbudsCard {
 
         var effectivePct = telemetry.effectiveLevel
         if (isWearableDevice && effectivePct !in 0..100) {
-            val fallbackPct = getCachedBattery(context, name).takeIf { it in 0..100 }
-                ?: getCachedBattery(context, "wearable_last_known_battery")
-            if (fallbackPct in 0..100) {
-                effectivePct = fallbackPct
+            val fit3Battery = querySamsungFit3Battery(context, name)
+            if (fit3Battery in 0..100) {
+                effectivePct = fit3Battery
+            } else {
+                val fallbackPct = getCachedBattery(context, name).takeIf { it in 0..100 }
+                    ?: getCachedBattery(context, "wearable_last_known_battery")
+                if (fallbackPct in 0..100) {
+                    effectivePct = fallbackPct
+                }
             }
         }
         val known = effectivePct in 0..100
@@ -1212,7 +1305,7 @@ object EarbudsCard {
         }
 
         val leftContent = if (known) "${effectivePct}%" else (if (isWearableDevice) "Vòng đeo" else "Tai nghe")
-        val pillStatus = if (known) "${effectivePct}%" else "Đã kết nối"
+        val pillStatus = if (known) "${effectivePct}%" else (if (isWearableDevice) "Vòng đeo" else "Đã kết nối")
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START

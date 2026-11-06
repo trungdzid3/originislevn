@@ -612,6 +612,20 @@ class NotificationCastListener : NotificationListenerService() {
                 }
 
                 if (batteryPct == -1) {
+                    val isSamsungWearPkg = sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
+                        sbn.packageName.contains("fit3", ignoreCase = true) ||
+                        sbn.packageName.contains("watchmanager", ignoreCase = true) ||
+                        sbn.packageName.contains("waterplugin", ignoreCase = true) ||
+                        sbn.packageName.contains("accessory", ignoreCase = true)
+                    if (isSamsungWearPkg) {
+                        val fit3Battery = EarbudsCard.querySamsungFit3Battery(applicationContext, devName)
+                        if (fit3Battery in 0..100) {
+                            batteryPct = fit3Battery
+                        }
+                    }
+                }
+
+                if (batteryPct == -1) {
                     val cached = EarbudsCard.getCachedBattery(applicationContext, devName)
                     if (cached in 0..100) {
                         batteryPct = cached
@@ -655,6 +669,19 @@ class NotificationCastListener : NotificationListenerService() {
 
                 var handled = false
                 if (isConnect) {
+                    if (batteryPct == -1) {
+                        val isSamsungWearPkg = sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
+                            sbn.packageName.contains("fit3", ignoreCase = true) ||
+                            sbn.packageName.contains("watchmanager", ignoreCase = true) ||
+                            sbn.packageName.contains("waterplugin", ignoreCase = true) ||
+                            sbn.packageName.contains("accessory", ignoreCase = true)
+                        if (isSamsungWearPkg) {
+                            val fit3Battery = EarbudsCard.querySamsungFit3Battery(applicationContext, devName)
+                            if (fit3Battery in 0..100) {
+                                batteryPct = fit3Battery
+                            }
+                        }
+                    }
                     if (batteryPct == -1) {
                         val cached = EarbudsCard.getCachedBattery(applicationContext, devName)
                         if (cached in 0..100) {

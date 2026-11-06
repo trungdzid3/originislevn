@@ -235,7 +235,7 @@ object QuickShareDetector {
 
         val isRequest = !isFinished && !isCanceled && (hasAccept || hasDecline || isRequestByText)
 
-        // Nếu indeterminate hoặc đang kết nối chờ xác nhận, gán indeterminate = true, progress = 10
+        // Nếu indeterminate hoặc đang kết nối chờ xác nhận, gán indeterminate = true, progress = 0
         val isConnectingOrWaiting = isRequest ||
             allTextLower.contains("đang kết nối") ||
             allTextLower.contains("connecting") ||
@@ -247,7 +247,7 @@ object QuickShareDetector {
         if (!isFinished && !isCanceled) {
             if (isOngoing && (isIndeterminate || isConnectingOrWaiting || (max > 0 && progress <= 0))) {
                 isIndeterminate = true
-                if (progress <= 0) progress = 10
+                if (progress <= 0) progress = 0
             }
         }
 

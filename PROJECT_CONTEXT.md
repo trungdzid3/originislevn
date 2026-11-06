@@ -61,16 +61,17 @@ origin-isle-vn/
 
 ## 3. Bản Đồ Code (Code Map)
 - `QuickShareDetector.kt` (`app/src/main/java/com/originisle/android/quickshare/QuickShareDetector.kt`):
-  - `parse` (L45-125): Kiểm tra cờ `FLAG_ONGOING_EVENT`. Khi thông báo không còn ongoing và `max <= 0`, xác định là hoàn tất (`isFinished = true`), mở rộng từ khóa hoàn tất ("đã lưu", "lưu vào", "sẵn sàng", "chạm để mở", "saved", "ready"), xóa bỏ hoàn toàn việc gán ép `progress = 10` & `isIndeterminate = true`.
+  - `parse` (L45-125): Kiểm tra cờ `FLAG_ONGOING_EVENT`. Khi thông báo không còn ongoing và `max <= 0`, xác định là hoàn tất (`isFinished = true`). Ban đầu khi đang kết nối / indeterminate, gán chính xác `progress = 0` (thay vì 10%), loại bỏ hoàn toàn việc báo ảo 10% khi bắt đầu và kết thúc.
 - `QuickShareCard.kt` (`app/src/main/java/com/originisle/android/cards/QuickShareCard.kt`):
   - `createQuickShareOfficialIcon` (L38-115): Sử dụng `androidx.core.graphics.PathParser` vẽ chính xác 100% hai nhánh mũi tên xoay tròn và hình tròn xanh `#4285F4` từ tệp SVG `Quickshare.svg` người dùng cung cấp; liên kết `R.drawable.ic_quick_share`.
-  - `show` (L120-210): Đồng bộ cờ `is_ongoing` với `sbn.isOngoing`. Nếu không ongoing hoặc `info.isFinished`, chuyển ngay sang thẻ Hoàn tất (tích xanh, dismiss sau 3.5s). Tích hợp cơ chế Watchdog timeout 45 giây chống kẹt thẻ.
+  - `show` (L120-215): Khi đang chuẩn bị/kết nối (indeterminate), hiển thị `oi_left_content = "0%"`, `oi_card_ring = 0`, `oi_progress = 0`. Khi hoàn tất hiển thị tích xanh và tự thu gọn sau 3.5s. Tích hợp cơ chế Watchdog timeout 45 giây chống kẹt thẻ.
 - `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
+  - `querySamsungFit3Battery` (L220-275): Cơ chế đọc pin phần cứng Samsung Galaxy Fit 3 từ kết quả dịch ngược (Reverse-Engineering) gói `com.samsung.wearable.fit3plugin`. Kích hoạt ngầm `sync_request` trên `content://com.samsung.wearable.fit3plugin.BatteryInfoProvider` với `sync_battery_data = 1`; truy vấn trực tiếp từ ContentProvider `content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb` đọc cột `Value` (`_btAddress`), parse sang % pin phần cứng thực tế và lưu trữ cache.
+  - `start` / `stop` (L390-440): Đăng ký `ContentObserver` trên `BatteryDBProvider/Battery_tb` để cập nhật viễn trắc pin thời gian thực ngay khi Fit 3 đồng bộ; hủy đăng ký an toàn khi dừng dịch vụ.
   - `saveCachedBattery` / `getCachedBattery` (L164-210): Tự động khử tên đuôi `(xxxx)`, so khớp mờ và lưu trữ pin vào key toàn cầu `wearable_last_known_battery`.
-  - `readGattBatteryAsync` (L215-280): Đọc pin phần cứng trực tiếp từ thiết bị BLE qua GATT Service `0x180F` (Battery Service) / Characteristic `0x2A19`.
-  - `show` (L1100-1200): Cơ chế fallback pin thông minh, nếu pin tức thời chưa về kịp thì nạp ngay mức pin đã biết gần nhất để luôn hiển thị `% pin` trên viên con nhộng và vòng tròn tiến độ camera selfie.
+  - `show` (L1200-1320): Cơ chế fallback pin thông minh: chủ động gọi `querySamsungFit3Battery` trước khi hiển thị thẻ để luôn đảm bảo lấy được % pin phần cứng, hiển thị `$effectivePct%` và vòng tròn tiến độ camera selfie thay vì "Đã kết nối".
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - `onNotificationPosted` (L550-685): Quét sâu `extras.keySet()` của ứng dụng Samsung Wearable để trích xuất pin ẩn; nạp cache pin ngay khi nhận sự kiện kết nối.
+  - `onNotificationPosted` (L550-715): Quét các gói ứng dụng Samsung Wearable (`com.samsung.wearable.fit3plugin`, `com.samsung.android.app.watchmanager`, `waterplugin`...). Nếu notification không mang sẵn % pin (`batteryPct == -1`), tự động gọi `EarbudsCard.querySamsungFit3Battery` để lấy ngay mức pin thực tế từ ContentProvider.
   - `onNotificationRemoved` (L750-800): Ngăn chặn `postCanceled` sai khi notification hoàn tất được gỡ bỏ.
 
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
