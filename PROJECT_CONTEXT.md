@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.2.1` (mã bản dựng `versionCode = 10201`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.2.2` (mã bản dựng `versionCode = 10202`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Quy chuẩn đánh số phiên bản**:
   - `X` (Số đầu): Thế hệ hiện tại.
   - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
@@ -17,7 +17,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.1 / 10201)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.2 / 10202)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -29,7 +29,7 @@ origin-isle-vn/
 │       │       ├── cards/            # 15 loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
-│       │       │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (Chống flap, debounce 8s, verify BluetoothManager)
+│       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (Hiện "Đã kết nối", bỏ khung xám ngắt kết nối)
 │       │       │   ├── MediaCard.kt      # Nhạc sóng động & cơ chế nhường Đảo gốc OriginOS 6 (Zero-Overlap)
 │       │       │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép mã)
 │       │       │   ├── QuickShareCard.kt # Quick Share logo chính thức từ file SVG tải về
@@ -53,23 +53,17 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.2.1.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 1)
+└── OriginIsle-VN-v1.2.2.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 2)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
 - `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
-  - `isDeviceHardwareConnected`: Kiểm tra thực tế phần cứng Bluetooth (GATT, GATT_SERVER, A2DP, HEADSET) qua `BluetoothManager`.
-  - `DISCONNECT_DEBOUNCE_MS = 8000L`: Hoãn ngắt kết nối 8s để chờ RFCOMM/SAP tái lập phiên.
-  - `ANTI_FLAP_COOLDOWN_MS = 10_000L`: Chặn pop-up đảo lặp đi lặp lại giữa kết nối và ngắt kết nối trong 10s.
-  - `onDeviceDisconnected` / `disconnectTask`: Hoãn hạ cờ `setConnectedState(false)` vào bên trong Runnable sau khi xác nhận ngắt thật.
-- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - Lọc từ khóa `isDisconnect` chuẩn xác, loại trừ 100% lỗi mạng/máy chủ/Wi-Fi/tài khoản.
-  - Chặn đè kết nối lại khi thiết bị đã ở trạng thái kết nối hoặc phần cứng BT còn active.
+  - Khi kết nối chưa xác định % pin: Chuyển chữ hiển thị từ "Vòng đeo" sang "Đã kết nối" chuẩn chỉ.
+  - Khi ngắt kết nối: Chuyển template từ `TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (Template 6) sang `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (Template 4), loại bỏ hoàn toàn khung bo tròn xám (capsule), hiển thị chữ "Đã ngắt" và icon đỏ thanh thoát.
+- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Lọc từ khóa ngắt kết nối, chặn flap.
 - `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`): Cơ chế nhường Đảo gốc OriginOS 6.
 - `RingerModeCard.kt` (`app/src/main/java/com/originisle/android/cards/RingerModeCard.kt`): Thẻ Chuông / Rung / Im lặng độc lập.
-- `OtpDetector.kt` (`app/src/main/java/com/originisle/android/otp/OtpDetector.kt`): Bóc tách OTP tiếng Việt có dấu & không dấu.
-- `VietnamRideDetector.kt` & `RideCard.kt`: Bóc tách Grab, Be, Xanh SM, ShopeeFood.
 - `HomeScreen.kt`, `Theme.kt`, `Components.kt`: Giao diện Cài đặt Vivo OriginOS 6 lồng nhau 5 nhóm chuẩn mực.
 
 ## 4. Việc Đang Mở
-- Không còn việc mở. Bản vá lỗi v1.2.1 đã hoàn thành và sẵn sàng sử dụng.
+- Không còn việc mở. Bản vá lỗi v1.2.2 đã hoàn thành và sẵn sàng sử dụng.
