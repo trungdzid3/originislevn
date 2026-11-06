@@ -41,9 +41,10 @@ object RideCard {
             45
         }
 
-        // Viên nang bên phải (oi_right_content): Hiển thị Biển số xe hoặc trạng thái chặng ngắn gọn
+        // Viên nang bên phải (oi_right_content): Hiển thị Biển số xe hoặc Model xe hoặc trạng thái chặng ngắn gọn
         val rightCapsuleContent = when {
             !info.licensePlate.isNullOrBlank() -> info.licensePlate
+            !ext?.vehicleModel.isNullOrBlank() -> ext.vehicleModel
             ext?.stage != null -> ext.stage.shortLabel
             info.statusText.isNotBlank() -> info.statusText.take(12)
             else -> info.appName
@@ -59,19 +60,30 @@ object RideCard {
             else -> info.appName
         }
 
-        // Tiêu đề & nội dung chi tiết cho Thẻ mở rộng (Expanded Card)
+        // Tiêu đề cho Thẻ mở rộng (Expanded Card):
+        // Kết hợp: App name + Tên quán (nếu là đồ ăn) HOẶC Model xe + Biển số (ví dụ: "Xanh SM Taxi • VF 5 • 29A-123.45")
         val expandedTitle = buildString {
             append(info.appName)
             if (!ext?.restaurantOrStore.isNullOrBlank()) {
                 append(" • ${ext.restaurantOrStore}")
-            } else if (!info.licensePlate.isNullOrBlank()) {
-                append(" • ${info.licensePlate}")
+            } else {
+                val vehicleDetails = listOfNotNull(
+                    ext?.vehicleModel?.takeIf { it.isNotBlank() },
+                    info.licensePlate?.takeIf { it.isNotBlank() }
+                ).joinToString(" • ")
+                if (vehicleDetails.isNotBlank()) {
+                    append(" • $vehicleDetails")
+                }
             }
         }
 
+        // Nội dung chi tiết cho Thẻ mở rộng
         val expandedContent = buildString {
             if (!info.driverName.isNullOrBlank()) {
                 append("Tài xế: ${info.driverName} • ")
+            }
+            if (!ext?.driverMessage.isNullOrBlank() && ext.driverMessage != info.statusText) {
+                append("Tin nhắn: \"${ext.driverMessage}\" • ")
             }
             append(info.statusText)
             if (info.etaMinutes != null && !isCompleted) {
@@ -103,9 +115,13 @@ object RideCard {
             putExtra("oi_right_content", rightCapsuleContent)
             putExtra("status_chip_text", rightCapsuleContent)
 
-            // Nút gọi tài xế nếu có action từ notification
-            if (ext?.callAction != null) {
-                putParcelableArrayListExtra("actions", arrayListOf(ext.callAction))
+            // Nút hành động trên Thẻ mở rộng: Hỗ trợ cả Call Action và Chat Action
+            val cardActions = arrayListOf<Notification.Action>()
+            ext?.callAction?.let { cardActions.add(it) }
+            ext?.chatAction?.let { cardActions.add(it) }
+
+            if (cardActions.isNotEmpty()) {
+                putParcelableArrayListExtra("actions", cardActions)
             } else if (!ext?.allActions.isNullOrEmpty()) {
                 putParcelableArrayListExtra("actions", ArrayList(ext.allActions))
             }

@@ -111,11 +111,10 @@ object VietnamBankDetector {
         "chi tu", "chỉ từ",
         "gia chi", "giá chỉ",
         "soan", "soạn",
-        "gui", "gửi",
         "cuoc phi", "cước phí",
         "mien phi", "miễn phí",
         "trung thuong", "trúng thưởng",
-        "voucher",
+        "voucher", "nhận ngay voucher", "nhan ngay voucher",
         "giam gia", "giảm giá",
         "flash sale",
         "nhan ngay", "nhận ngay",
@@ -125,7 +124,33 @@ object VietnamBankDetector {
         "doi thuong", "đổi thưởng",
         "vay tieu dung", "vay tiêu dùng",
         "vay tiền", "vay tien",
-        "mo the tin dung", "mở thẻ tín dụng"
+        "khoản vay", "khoan vay",
+        "gói vay", "goi vay",
+        "vay vốn", "vay von",
+        "vay",
+        "mo the tin dung", "mở thẻ tín dụng",
+        "thẻ tín dụng", "the tin dung",
+        "mở thẻ", "mo the",
+        "lãi suất", "lai suat",
+        "trả góp", "tra gop",
+        "quà tặng", "qua tang",
+        "bảo hiểm", "bao hiem",
+        "tiết kiệm", "tiet kiem",
+        "cơ hội", "co hoi",
+        "hoàn tiền lên tới", "hoan tien len toi",
+        "hoàn tiền tới", "hoan tien toi",
+        "hoàn tiền đến", "hoan tien den",
+        "lên tới", "len toi",
+        "lên đến", "len den",
+        "hạn mức", "han muc"
+    )
+
+    /**
+     * Regex matching advertising / promo limit prefix immediately preceding the transaction amount,
+     * such as: "lên tới", "lên đến", "tới", "đến", "tối đa", "hạn mức", "hạn mức tới", "hạn mức lên tới"...
+     */
+    private val PROMO_LIMIT_PREFIX_REGEX = Regex(
+        """(?i)(?:^|[^\p{L}\p{N}])(?:lên\s+tới|len\s+toi|lên\s+đến|len\s+den|hạn\s+mức\s+lên\s+tới|han\s+muc\s+len\s+toi|hạn\s+mức\s+tới|han\s+muc\s+toi|hạn\s+mức\s+lên\s+đến|han\s+muc\s+len\s+den|hạn\s+mức\s+đến|han\s+muc\s+den|hạn\s+mức|han\s+muc|tối\s+đa|toi\s+da|tới|toi|đến|den)\s*[:：-]?\s*$"""
     )
 
     private val INCOME_KEYWORDS = listOf(
@@ -221,13 +246,68 @@ object VietnamBankDetector {
         val lower = text.lowercase(Locale.ROOT)
         for (kw in SPAM_PROMO_KEYWORDS) {
             if (kw.length <= 4) {
-                val regex = Regex("""(?i)(?:\b|^|\s|\[|\()${Regex.escape(kw)}(?:\b|\s|:|\]|\)|$)""")
+                val regex = Regex("""(?i)(?:^|[^\p{L}\p{N}])${Regex.escape(kw)}(?:[^\p{L}\p{N}]|$)""")
                 if (regex.containsMatchIn(lower)) return true
             } else {
                 if (lower.contains(kw)) return true
             }
         }
         return false
+    }
+
+    /**
+     * Checks if amount candidate is preceded by a promo limit / ceiling keyword
+     * (e.g. 'lên tới', 'tới', 'đến', 'tối đa', 'hạn mức'...) which indicates advertising limit rather than actual transaction.
+     */
+    fun hasPromoLimitPrefix(fullText: String, matchStartIndex: Int): Boolean {
+        val prefix = fullText.substring(0, matchStartIndex).trimEnd()
+        if (PROMO_LIMIT_PREFIX_REGEX.containsMatchIn(prefix)) {
+            return true
+        }
+        val window = fullText.substring((matchStartIndex - 35).coerceAtLeast(0), matchStartIndex).lowercase(Locale.ROOT)
+        val limitKeywords = listOf(
+            "lên tới", "len toi",
+            "lên đến", "len den",
+            "tối đa", "toi da",
+            "hạn mức", "han muc"
+        )
+        return limitKeywords.any { window.contains(it) }
+    }
+
+    /**
+     * Checks if text contains clear signs of actual balance fluctuation:
+     * - Direct '+' or '-' sign associated with an amount (+50.000, -150.000)
+     * - Confirmation phrases like "biến động số dư", "số dư thay đổi", "số dư tk",
+     *   "thanh toán thành công", "chuyển tiền thành công", "nhận tiền thành công".
+     */
+    fun hasClearBalanceFluctuationSigns(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT)
+
+        // 1. Dấu '+' hoặc '-' trực tiếp trong số tiền
+        if (Regex("""[+-]\s*[\d.,]+\s*(?:vnd|vnđ|dong|đồng|đ|d)(?![a-zA-Z\p{L}])""", RegexOption.IGNORE_CASE).containsMatchIn(text) ||
+            Regex("""(?:vnd|vnđ|đ|d)\s*[+-]\s*[\d.,]+(?![0-9.,])""", RegexOption.IGNORE_CASE).containsMatchIn(text) ||
+            Regex("""(?:\b|^|\s)[+-][\d.,]{3,}(?:\b|\s|$)""").containsMatchIn(text)
+        ) {
+            return true
+        }
+
+        // 2. Các cụm từ xác nhận biến động số dư hoặc giao dịch thực tế phát sinh rõ ràng
+        val clearKeywords = listOf(
+            "biến động số dư", "bien dong so du",
+            "số dư thay đổi", "so du thay doi",
+            "số dư tk", "so du tk",
+            "thanh toán thành công", "thanh toan thanh cong",
+            "chuyển tiền thành công", "chuyen tien thanh cong",
+            "nhận tiền thành công", "nhan tien thanh cong",
+            "chuyển khoản thành công", "chuyen khoan thanh cong",
+            "giao dịch thành công", "giao dich thanh cong",
+            "nạp tiền thành công", "nap tien thanh cong",
+            "rút tiền thành công", "rut tien thanh cong",
+            "thanh toán cho", "thanh toan cho",
+            "thanh toán tại", "thanh toan tai"
+        )
+
+        return clearKeywords.any { lower.contains(it) }
     }
 
     /**
@@ -387,22 +467,34 @@ object VietnamBankDetector {
      * or is a bank SMS notification.
      */
     fun isBankNotification(sbn: StatusBarNotification): Boolean {
-        if (sbn.packageName in BANK_PACKAGES) return true
+        val extras = sbn.notification.extras ?: return false
+        val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+        val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+        val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val textLines = runCatching {
+            extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES)
+                ?.mapNotNull { it?.toString() }
+                ?.joinToString(" ")
+        }.getOrNull().orEmpty()
+        val fullText = "$text $bigText $textLines".trim()
+
+        // Loại trừ OTP
+        if (isOtpMessage(fullText)) return false
+
+        if (sbn.packageName in BANK_PACKAGES) {
+            // Loại trừ quảng cáo, ưu đãi, vay vốn từ app ngân hàng nếu không có dấu hiệu biến động số dư thực tế
+            if (hasSpamPromoKeywords(fullText) && !hasClearBalanceFluctuationSigns(fullText)) {
+                return false
+            }
+            return true
+        }
+
         if (isSmsPackage(sbn.packageName)) {
-            val extras = sbn.notification.extras ?: return false
-            val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
-            val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
-            val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
-            val fullText = "$text $bigText".trim()
-
-            // Loại trừ OTP
-            if (isOtpMessage(fullText)) return false
-
             // Loại trừ telecom sender thông thường
             if (isTelecomSender(title) && !hasViettelBalanceConfirmation(fullText)) return false
 
             // Loại trừ spam/promo SMS không có dấu hiệu biến động số dư thực tế
-            if (hasSpamPromoKeywords(fullText) && !hasBalanceIndicator(fullText)) return false
+            if (hasSpamPromoKeywords(fullText) && !hasClearBalanceFluctuationSigns(fullText)) return false
 
             return detectBankBrand(title, fullText) != null
         }
@@ -464,10 +556,9 @@ object VietnamBankDetector {
             return null
         }
 
-        val isSms = isSmsPackage(packageName)
-
-        // Đối với SMS: Kiểm tra bộ lọc spam / quảng cáo
-        if (isSms && hasSpamPromoKeywords(fullText) && !hasBalanceIndicator(fullText)) {
+        // Chốt chặn 1: Áp dụng kiểm tra Spam/Promo cho CẢ app ngân hàng/ví điện tử lẫn SMS
+        // Nếu chứa từ khóa quảng cáo/vay/thẻ/ưu đãi và KHÔNG có dấu hiệu biến động số dư thực tế rõ ràng -> bỏ qua
+        if (hasSpamPromoKeywords(fullText) && !hasClearBalanceFluctuationSigns(fullText)) {
             return null
         }
 
@@ -489,8 +580,15 @@ object VietnamBankDetector {
         }
         if (positiveMatches.isEmpty()) return null
 
+        // Chốt chặn 2: Bộ lọc tiền tố giới hạn quảng cáo (Promo Limit Prefix)
+        // Loại bỏ mọi ứng viên số tiền có tiền tố chỉ hạn mức/trần tối đa (lên tới, tới, đến, tối đa, hạn mức...)
+        val validMatches = positiveMatches.filterNot { match ->
+            hasPromoLimitPrefix(fullText, match.range.first)
+        }
+        if (validMatches.isEmpty()) return null
+
         // Lọc bỏ số dư (balance) nếu có ứng viên khác rõ ràng hơn
-        val transactionMatch = positiveMatches.firstOrNull { match ->
+        val nonBalanceMatches = validMatches.filter { match ->
             val matchValue = match.value.trim()
             val startIndex = match.range.first
             val prefixBefore = fullText.substring((startIndex - 25).coerceAtLeast(0), startIndex).lowercase(Locale.ROOT)
@@ -499,7 +597,18 @@ object VietnamBankDetector {
             val hasSign = matchValue.contains("+") || matchValue.contains("-")
 
             hasSign || !isBalance
-        } ?: positiveMatches.first()
+        }
+        val transactionMatch = nonBalanceMatches.firstOrNull() ?: validMatches.first()
+
+        // Nếu số tiền được chọn là số dư và không có dấu hiệu giao dịch (+/-) thì không phải giao dịch phát sinh
+        val selectedStartIndex = transactionMatch.range.first
+        val selectedPrefixBefore = fullText.substring((selectedStartIndex - 25).coerceAtLeast(0), selectedStartIndex).lowercase(Locale.ROOT)
+        val selectedIsBalance = selectedPrefixBefore.contains("số dư") || selectedPrefixBefore.contains("so du") ||
+                selectedPrefixBefore.contains("sd:") || selectedPrefixBefore.contains("sd ")
+        val selectedHasSign = transactionMatch.value.contains("+") || transactionMatch.value.contains("-")
+        if (selectedIsBalance && !selectedHasSign) {
+            return null
+        }
 
         val matchedAmountStr = transactionMatch.value.trim()
         val numericAmount = extractNumericAmount(matchedAmountStr)
@@ -508,6 +617,8 @@ object VietnamBankDetector {
         if (numericAmount <= 0L) {
             return null
         }
+
+        val isSms = isSmsPackage(packageName)
 
         // 4. Ngữ cảnh biến động số dư đối với SMS:
         // BẮT BUỘC thỏa mãn ít nhất một trong hai điều kiện:
@@ -521,7 +632,7 @@ object VietnamBankDetector {
             }
         }
 
-        // Xác định isIncome linh hoạt: kiểm tra dấu trong số tiền, tiền tố trước đó hoặc từ khóa
+        // Chốt chặn 3: Xác định isIncome và không mặc định thành Expense nếu không có dấu hiệu trừ tiền rõ ràng
         val startIndex = transactionMatch.range.first
         val prefixNear = fullText.substring((startIndex - 25).coerceAtLeast(0), startIndex).lowercase(Locale.ROOT)
 
@@ -530,10 +641,15 @@ object VietnamBankDetector {
             matchedAmountStr.contains("-") -> false
             prefixNear.contains("+") || prefixNear.contains("(+)") || prefixNear.contains("cộng") ||
                 prefixNear.contains("cong") || prefixNear.contains("ghi có") || prefixNear.contains("ghi co") ||
-                prefixNear.contains("tiền vào") || prefixNear.contains("tien vao") -> true
+                prefixNear.contains("tiền vào") || prefixNear.contains("tien vao") ||
+                prefixNear.contains("nhận") || prefixNear.contains("nhan") ||
+                prefixNear.contains("nạp") || prefixNear.contains("nap") -> true
             prefixNear.contains("-") || prefixNear.contains("(-)") || prefixNear.contains("trừ") ||
                 prefixNear.contains("tru") || prefixNear.contains("ghi nợ") || prefixNear.contains("ghi no") ||
-                prefixNear.contains("thanh toán") || prefixNear.contains("thanh toan") -> false
+                prefixNear.contains("thanh toán") || prefixNear.contains("thanh toan") ||
+                prefixNear.contains("chuyển") || prefixNear.contains("chuyen") ||
+                prefixNear.contains("rút") || prefixNear.contains("rut") ||
+                prefixNear.contains("chi tiêu") || prefixNear.contains("chi tieu") -> false
             else -> {
                 val lower = fullText.lowercase(Locale.ROOT)
                 val incomeIndex = INCOME_KEYWORDS.filter { it != "+" }
@@ -545,10 +661,11 @@ object VietnamBankDetector {
                     .filter { it >= 0 }
                     .minOrNull() ?: Int.MAX_VALUE
 
-                if (incomeIndex < expenseIndex) {
-                    true
-                } else {
-                    false
+                when {
+                    incomeIndex == Int.MAX_VALUE && expenseIndex == Int.MAX_VALUE -> return null
+                    incomeIndex < expenseIndex -> true
+                    expenseIndex < incomeIndex -> false
+                    else -> return null
                 }
             }
         }

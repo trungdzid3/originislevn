@@ -1,22 +1,22 @@
-# DANH SÁCH CÔNG VIỆC (TASK MATRIX) - BẢN VÁ LỖI v1.2.3
+# DANH SÁCH CÔNG VIỆC (TASK MATRIX) - BẢN NÂNG CẤP v1.2.5
 
 [CONTRACT LOCKED]
-- Phiên bản mục tiêu: `v1.2.3` (`versionCode = 10203`, `versionName = "1.2.3"`).
-- Khóa phạm vi file độc lập, cấm 2 subagent sửa chung file.
+- Phiên bản mục tiêu: `v1.2.5` (`versionCode = 10205`, `versionName = "1.2.5"`).
+- Khóa phạm vi file độc lập, cấm race condition giữa các subagent.
 
 ## Ma trận Phân quyền Thực thi
 
-- [x] **Task 1: Sửa triệt để lỗi không bắt được mã OTP (MessagingStyle EXTRA_MESSAGES, Action Title, regex OTP) & Tối ưu UI hiển thị OTP bên trái, nút/chữ sao chép bên phải**
-  - `[Agent: Subagent-OTP-Specialist]`
-  - `[Skill: android-system-integration]`
-  - `[Locked Files: app/src/main/java/com/originisle/android/otp/OtpDetector.kt, app/src/main/java/com/originisle/android/cards/OtpCard.kt]`
+- [x] **Task 1: Tối giản hóa thông báo ngắt kết nối tai nghe (chỉ hiện 'Đã ngắt', loại bỏ icon X đỏ)**
+  - `[Agent: Subagent-Earbuds-Disconnect]`
+  - `[Skill: android-cli]`
+  - `[Locked Files: app/src/main/java/com/originisle/android/cards/EarbudsCard.kt]`
 
-- [x] **Task 2: Cơ chế đọc % pin chuẩn cho Samsung Galaxy Fit 3 (Quét BluetoothDevice bondedDevices, sửa GATT API 33+ ByteArray, bóc tách sâu notification extras Samsung Wearable)**
-  - `[Agent: Subagent-Wearable-Battery-Specialist]`
-  - `[Skill: reverse-engineer-anything]`
-  - `[Locked Files: app/src/main/java/com/originisle/android/cards/EarbudsCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]`
+- [x] **Task 2: Khắc phục triệt để lỗi nhận diện tin nhắn quảng cáo/hạn mức vay (ZaloPay, MBBank...) thành giao dịch trừ tiền**
+  - `[Agent: Subagent-Bank-Spam-Filter]`
+  - `[Skill: android-cli]`
+  - `[Locked Files: app/src/main/java/com/originisle/android/bank/VietnamBankDetector.kt, app/src/test/java/com/originisle/android/bank/VietnamBankDetectorTest.kt]`
 
-- [x] **Task 3: Nâng cấp phiên bản v1.2.3, Build APK, Kiểm thử & Đồng bộ Git**
+- [x] **Task 3: Nâng cấp build.gradle.kts lên v1.2.5 (10205), Unit Test QA, build APK & Đồng bộ Git**
   - `[Agent: Lead-Orchestrator]`
   - `[Skill: pr-feedback-quality-gate]`
   - `[Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]`
