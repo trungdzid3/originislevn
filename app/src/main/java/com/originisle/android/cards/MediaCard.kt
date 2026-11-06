@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -37,70 +38,33 @@ object MediaCard {
         "com.vivo.music",
     )
 
-    /** Danh sách app nhạc được Vivo OriginOS 6 hỗ trợ hiển thị gốc trên Đảo Nguyên Tử */
-    val ORIGIN_WHITELISTED_MUSIC_APPS = setOf(
-        "com.spotify.music",
-        "com.spotify.lite",
-        "com.apple.android.music",
-        "com.zing.mp3",
-        "ht.nct",
-        "com.soundcloud.android",
-        "com.google.android.apps.youtube.music",
-        "app.revanced.android.apps.youtube.music",
-        "com.rvx.android.apps.youtube.music",
-        "com.kugou.player",
-        "com.kugou.android",
-        "com.kugou.viper",
-        "com.soda.music",
-        "com.tencent.soda",
-        "com.netease.cloudmusic",
-        "com.tencent.qqmusic",
-        "cn.kuwo.player",
-        "com.ximalaya.ting.android",
-        "com.android.bbkmusic",
-        "com.vivo.music",
-        "deezer.android.app",
-        "com.aspiro.tidal",
-        "com.iloen.melon",
-        "com.tencent.ibg.joox",
-    )
-
     private val handler = Handler(Looper.getMainLooper())
     private val pendingDismissTasks = ConcurrentHashMap<Int, Runnable>()
     private val activeMediaCastIds = ConcurrentHashMap.newKeySet<Int>()
 
     /**
      * Kiểm tra xem Đảo gốc OriginOS 6 có đang hiển thị trình phát nhạc hay không:
-     * - Quét các tiến trình widget gốc: com.vivo.musicwidgetmix, com.vivo.mediacontrol, com.android.bbkmusic, com.vivo.music
-     * - Hoặc có thông báo SuperX từ hệ thống với scene MUSIC/AUDIO hoặc cờ islandNotify == true
-     * - Hoặc các ứng dụng thuộc whitelist gốc của Vivo đang hoạt động
+     * Chỉ trả về true khi và chỉ khi Đảo nhạc gốc của Vivo THỰC SỰ đang chạy.
      */
     fun isOriginNativePlayerActive(context: Context): Boolean {
         val listener = NotificationCastListener.instance ?: return false
         val activeNotifs = runCatching { listener.activeNotifications }.getOrNull() ?: return false
         for (active in activeNotifs) {
             val pkg = active.packageName.lowercase()
-            // 1. Gói widget điều khiển nhạc gốc của Vivo (thông báo SuperX của com.vivo.musicwidgetmix không bật FLAG_ONGOING_EVENT)
+            // 1. Tiến trình widget đảo nhạc gốc của Vivo đang xuất hiện
             if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
                 return true
             }
-            // 2. Thông báo SuperX gốc từ hệ thống hoặc ứng dụng khác có scene MUSIC / AUDIO hoặc islandNotify
+            // 2. Thông báo SuperX gốc từ hệ thống với scene MUSIC / AUDIO từ gói khác
             val extras = active.notification.extras
             if (active.packageName != context.packageName &&
                 (active.tag == OriginIslandConstants.SUPERX_TAG ||
-                    extras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true ||
-                    extras?.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) == true)
+                    extras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true)
             ) {
                 val scene = extras?.getString(OriginIslandConstants.BUNDLE_KEY_SCENE)?.uppercase().orEmpty()
-                if (scene == "MUSIC" || scene == "AUDIO" || pkg in ORIGIN_NATIVE_MUSIC_PACKAGES ||
-                    extras?.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) == true
-                ) {
+                if (scene == "MUSIC" || scene == "AUDIO" || pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
                     return true
                 }
-            }
-            // 3. Ứng dụng âm nhạc nằm trong whitelist gốc của OriginOS 6
-            if (pkg in ORIGIN_WHITELISTED_MUSIC_APPS) {
-                return true
             }
         }
         return false
@@ -110,9 +74,9 @@ object MediaCard {
         val id = IconCache.castIdFor(sbn)
         val pkg = sbn.packageName.lowercase()
 
-        // Khi Đảo gốc đang hiển thị nhạc hoặc app này nằm trong whitelist gốc của Vivo,
+        // Khi Đảo gốc đang hiển thị nhạc,
         // Origin Isle VN chủ động thu hồi/dismiss thẻ để KHÔNG BAO GIỜ bị đè 2 thẻ nhạc trên Đảo.
-        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || pkg in ORIGIN_WHITELISTED_MUSIC_APPS || isOriginNativePlayerActive(context)) {
+        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || isOriginNativePlayerActive(context)) {
             clear(context, id)
             clearAll(context)
             CastLog.add("Nhạc", appLabel(context, sbn.packageName), "thu hồi thẻ — nhường Đảo gốc OriginOS 6 hiển thị", false)
@@ -151,10 +115,30 @@ object MediaCard {
             else -> false
         }
 
-        n.smallIcon?.let { IconCache.activeSmallIcons[id] = it }
+        val notifLargeIcon = n.getLargeIcon()
+        val notifLargeBitmap = when (val large = n.extras.get(NotificationCompat.EXTRA_LARGE_ICON)) {
+            is Bitmap -> large
+            else -> notifLargeIcon?.loadDrawable(context)?.let { d ->
+                val w = if (d.intrinsicWidth > 0) d.intrinsicWidth.coerceIn(48, 200) else 120
+                val h = if (d.intrinsicHeight > 0) d.intrinsicHeight.coerceIn(48, 200) else 120
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val cv = Canvas(bmp)
+                d.setBounds(0, 0, w, h)
+                d.draw(cv)
+                bmp
+            }
+        }
         val albumArt: Bitmap? = (md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART))?.let(::shrinkForIcon)
-        albumArt?.let { IconCache.activeLargeBitmaps[id] = it }
+            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: notifLargeBitmap)?.let(::shrinkForIcon)
+
+        IconCache.activeSmallIcons[id] = IconCache.safeAppIcon(context, sbn.packageName)
+        val displayIcon: Icon = if (albumArt != null) {
+            IconCache.activeLargeBitmaps[id] = albumArt
+            Icon.createWithBitmap(albumArt)
+        } else {
+            IconCache.safeAppIcon(context, sbn.packageName)
+        }
         val waveColors = waveColorsFrom(albumArt)
 
         val showChrono = n.extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false)
@@ -231,7 +215,9 @@ object MediaCard {
 
             putExtra("status_chip_text", chip)
 
-            albumArt?.let { putExtra("oi_left_icon", Icon.createWithBitmap(it)) }
+            putExtra("oi_left_icon", displayIcon)
+            putExtra("oi_large_icon", displayIcon)
+            putExtra("oi_force_show", true)
             putExtra("icon_res", R.drawable.ic_media_play)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
             putExtra("oi_fg_color", "#FFFFFFFF")

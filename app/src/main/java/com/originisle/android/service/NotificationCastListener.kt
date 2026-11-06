@@ -428,7 +428,6 @@ class NotificationCastListener : NotificationListenerService() {
                 activeNotifications?.forEach { sbn ->
                     val pkgLower = sbn.packageName.lowercase()
                     if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
-                        pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS ||
                         sbn.tag == OriginIslandConstants.SUPERX_TAG
                     ) {
                         return@forEach
@@ -887,17 +886,6 @@ class NotificationCastListener : NotificationListenerService() {
             template == "android.app.Notification\$MediaStyle" ||
             template == "androidx.media.app.NotificationCompat\$MediaStyle"
 
-        // Nếu thuộc danh sách ứng dụng nhạc được Đảo gốc hỗ trợ hoặc thông báo dạng Media/Transport khi Đảo gốc đang hoạt động:
-        // Chủ động thu hồi thẻ và return ngay lập tức (không bao giờ để rơi xuống GenericCard.post bên dưới).
-        if (pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS || isMediaStyleOrTransport) {
-            if (pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS || MediaCard.isOriginNativePlayerActive(applicationContext)) {
-                MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
-                MediaCard.clearAll(applicationContext)
-                log(sbn, "bỏ qua — nhường Đảo nhạc gốc OriginOS 6", false)
-                return
-            }
-        }
-
         // Media sessions get the dedicated media path.
         if (!isCall) {
             val isOngoingNotif = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
@@ -905,7 +893,8 @@ class NotificationCastListener : NotificationListenerService() {
                 ?: if (isOngoingNotif || isMediaStyleOrTransport) findMediaControllerFallback(sbn.packageName) else null
             if (controller != null) {
                 if (!castMedia) { log(sbn, "bỏ qua — trình phát nhạc đang tắt", false); return }
-                if (pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS || MediaCard.isOriginNativePlayerActive(applicationContext)) {
+                // Nếu Đảo nhạc gốc của Vivo đang hoạt động thực sự, nhường quyền hoàn toàn
+                if (MediaCard.isOriginNativePlayerActive(applicationContext)) {
                     MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
                     MediaCard.clearAll(applicationContext)
                     log(sbn, "bỏ qua — nhường Đảo nhạc gốc OriginOS 6", false)
@@ -915,8 +904,7 @@ class NotificationCastListener : NotificationListenerService() {
                 MediaCard.post(applicationContext, sbn, controller)
                 return
             } else if (token != null || isMediaStyleOrTransport) {
-                // Thông báo trình phát nhạc không lấy được MediaController (ví dụ khi vừa tạm dừng hoặc hủy session):
-                // Tuyệt đối không để rơi xuống GenericCard.post tạo viên nang giả ở scene NAVIGATION.
+                // Thông báo nhạc không có controller: không để rơi xuống GenericCard
                 log(sbn, "bỏ qua — thông báo nhạc không có phiên hoạt động", false)
                 return
             }
