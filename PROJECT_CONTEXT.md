@@ -2,7 +2,11 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.1.0` (mã bản dựng `versionCode = 10100`, chuẩn SemVer 2.0.0).
+- **Phiên bản hiện tại**: `1.1.1` (mã bản dựng `versionCode = 10101`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Quy chuẩn đánh số phiên bản**:
+  - `X` (Số đầu): Thế hệ hiện tại.
+  - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
+  - `Z` (Số tiếp nữa): Bản vá lỗi (bug fixes, hotfix).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -56,7 +60,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.1.0.apk          # File APK xuất bản chuẩn chuyên nghiệp
+└── OriginIsle-VN-v1.1.1.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 1, Bản vá 1)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
@@ -77,7 +81,7 @@ origin-isle-vn/
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
 - **ApplicationId & Scene**: Bắt buộc giữ `applicationId = "com.autonavi.minimap"` và ưu tiên `oi_scene = "NAVIGATION"`.
 - **Tài nguyên Small Icon**: Mọi thông báo gửi tới Vivo SuperX phải sử dụng mipmap resource (`R.mipmap.ic_launcher_round`).
-- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn SemVer: `OriginIsle-VN-v1.1.0.apk`.
+- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn `OriginIsle-VN-v<ThếHệ>.<NângCấp>.<VáLỗi>.apk` (ví dụ: `OriginIsle-VN-v1.1.1.apk`).
 
 ## 5. Việc Đang Mở (Lean Context)
-- Không có việc tồn đọng. Bản dựng v1.1.0 hoạt động ổn định và sẵn sàng sử dụng.
+- Không có việc tồn đọng. Bản dựng v1.1.1 (Thế hệ 1, Nâng cấp 1, Bản vá 1) hoạt động ổn định và sẵn sàng sử dụng.
