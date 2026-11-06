@@ -1678,11 +1678,11 @@ object EarbudsCard {
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
+            putExtra("oi_right_icon", safeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_show_right_icon", false)
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4 - Text thuần
             putExtra("oi_right_content", chipText)
-            putExtra("oi_bg_color", "#FF1C1C1E")
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_light_color", RED)
             putExtra("click_resp", click)

@@ -34,6 +34,7 @@ object MediaCard {
         "com.vivo.musicwidgetmix",
         "com.vivo.mediacontrol",
         "com.android.bbkmusic",
+        "com.vivo.music",
     )
 
     /** Danh sách app nhạc được Vivo OriginOS 6 hỗ trợ hiển thị gốc trên Đảo Nguyên Tử */
@@ -42,6 +43,11 @@ object MediaCard {
         "com.spotify.lite",
         "com.apple.android.music",
         "com.zing.mp3",
+        "ht.nct",
+        "com.soundcloud.android",
+        "com.google.android.apps.youtube.music",
+        "app.revanced.android.apps.youtube.music",
+        "com.rvx.android.apps.youtube.music",
         "com.kugou.player",
         "com.kugou.android",
         "com.kugou.viper",
@@ -52,42 +58,49 @@ object MediaCard {
         "cn.kuwo.player",
         "com.ximalaya.ting.android",
         "com.android.bbkmusic",
+        "com.vivo.music",
+        "deezer.android.app",
+        "com.aspiro.tidal",
+        "com.iloen.melon",
+        "com.tencent.ibg.joox",
     )
 
     private val handler = Handler(Looper.getMainLooper())
     private val pendingDismissTasks = ConcurrentHashMap<Int, Runnable>()
+    private val activeMediaCastIds = ConcurrentHashMap.newKeySet<Int>()
 
     /**
      * Kiểm tra xem Đảo gốc OriginOS 6 có đang hiển thị trình phát nhạc hay không:
-     * - Quét các tiến trình widget gốc: com.vivo.musicwidgetmix, com.vivo.mediacontrol, com.android.bbkmusic
-     * - Hoặc có thông báo chứa cờ SuperX islandNotify == true
-     * - Hoặc các ứng dụng thuộc whitelist gốc của Vivo đang ở trạng thái ongoing / phát nhạc
+     * - Quét các tiến trình widget gốc: com.vivo.musicwidgetmix, com.vivo.mediacontrol, com.android.bbkmusic, com.vivo.music
+     * - Hoặc có thông báo SuperX từ hệ thống với scene MUSIC/AUDIO hoặc cờ islandNotify == true
+     * - Hoặc các ứng dụng thuộc whitelist gốc của Vivo đang hoạt động
      */
     fun isOriginNativePlayerActive(context: Context): Boolean {
         val listener = NotificationCastListener.instance ?: return false
         val activeNotifs = runCatching { listener.activeNotifications }.getOrNull() ?: return false
         for (active in activeNotifs) {
             val pkg = active.packageName.lowercase()
-            // 1. Gói widget điều khiển nhạc gốc của Vivo
+            // 1. Gói widget điều khiển nhạc gốc của Vivo (thông báo SuperX của com.vivo.musicwidgetmix không bật FLAG_ONGOING_EVENT)
             if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
-                if (active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) {
-                    return true
-                }
+                return true
             }
-            // 2. Cờ islandNotify từ Vivo SuperX (nếu có thông báo mang cờ này)
+            // 2. Thông báo SuperX gốc từ hệ thống hoặc ứng dụng khác có scene MUSIC / AUDIO hoặc islandNotify
             val extras = active.notification.extras
-            if (extras != null) {
-                if (extras.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) ||
-                    extras.getBoolean("notification.superx.islandNotify", false)
+            if (active.packageName != context.packageName &&
+                (active.tag == OriginIslandConstants.SUPERX_TAG ||
+                    extras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true ||
+                    extras?.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) == true)
+            ) {
+                val scene = extras?.getString(OriginIslandConstants.BUNDLE_KEY_SCENE)?.uppercase().orEmpty()
+                if (scene == "MUSIC" || scene == "AUDIO" || pkg in ORIGIN_NATIVE_MUSIC_PACKAGES ||
+                    extras?.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) == true
                 ) {
                     return true
                 }
             }
-            // 3. Ứng dụng âm nhạc nằm trong whitelist gốc đang phát nhạc trực tiếp
+            // 3. Ứng dụng âm nhạc nằm trong whitelist gốc của OriginOS 6
             if (pkg in ORIGIN_WHITELISTED_MUSIC_APPS) {
-                if (active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) {
-                    return true
-                }
+                return true
             }
         }
         return false
@@ -101,10 +114,12 @@ object MediaCard {
         // Origin Isle VN chủ động thu hồi/dismiss thẻ để KHÔNG BAO GIỜ bị đè 2 thẻ nhạc trên Đảo.
         if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || pkg in ORIGIN_WHITELISTED_MUSIC_APPS || isOriginNativePlayerActive(context)) {
             clear(context, id)
+            clearAll(context)
             CastLog.add("Nhạc", appLabel(context, sbn.packageName), "thu hồi thẻ — nhường Đảo gốc OriginOS 6 hiển thị", false)
             return
         }
 
+        activeMediaCastIds.add(id)
         val n = sbn.notification
         IconCache.activeControllers[id] = controller
 
@@ -219,7 +234,6 @@ object MediaCard {
             albumArt?.let { putExtra("oi_left_icon", Icon.createWithBitmap(it)) }
             putExtra("icon_res", R.drawable.ic_media_play)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-            putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
 
             if (playing) {
@@ -230,7 +244,7 @@ object MediaCard {
                 }
             } else {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
+                putExtra("oi_right_icon", IconCache.safeResourceIcon(context, R.drawable.ic_media_pause))
                 putExtra("oi_show_right_icon", true)
             }
 
@@ -244,7 +258,16 @@ object MediaCard {
         CastLog.add("Nhạc", track, "hiển thị — $track ($artist)", true)
     }
 
+    fun clearAll(context: Context) {
+        val ids = activeMediaCastIds.toList()
+        activeMediaCastIds.clear()
+        for (id in ids) {
+            clear(context, id)
+        }
+    }
+
     fun clear(context: Context, id: Int) {
+        activeMediaCastIds.remove(id)
         pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
         IconCache.clear(id)
         val cancelIntent = Intent(context, PlaygroundService::class.java).apply {
@@ -263,7 +286,7 @@ object MediaCard {
     }.getOrDefault(pkg)
 
     private fun makeAction(context: Context, iconRes: Int, pi: PendingIntent): Notification.Action =
-        Notification.Action.Builder(Icon.createWithResource(context, iconRes), "", pi).build()
+        Notification.Action.Builder(IconCache.safeResourceIcon(context, iconRes), "", pi).build()
 
     /**
      * Trích xuất dải màu sắc trực tiếp từ ảnh bìa album để phục vụ sóng âm visualiser (island.superx.rightInfo.waveColor)

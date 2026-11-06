@@ -1,6 +1,7 @@
 package com.originisle.android.cards
 
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -62,10 +63,10 @@ object RingerModeCard {
 
     private fun readVibrateSetting(context: Context): Int {
         val resolver = context.contentResolver
-        val vibRing = runCatching { Settings.System.getInt(resolver, "vibrate_when_ringing", -1) }.getOrDefault(-1)
-        val vibSilent = runCatching { Settings.System.getInt(resolver, "vibrate_in_silent", -1) }.getOrDefault(-1)
-        val vivoVib = runCatching { Settings.System.getInt(resolver, "vivo_vibrate_state", -1) }.getOrDefault(-1)
-        return (vibRing shl 8) xor (vibSilent shl 4) xor vivoVib
+        val vibRing = runCatching { Settings.System.getInt(resolver, "vibrate_when_ringing", 0) }.getOrDefault(0).coerceAtLeast(0)
+        val vibSilent = runCatching { Settings.System.getInt(resolver, "vibrate_in_silent", 0) }.getOrDefault(0).coerceAtLeast(0)
+        val vivoVib = runCatching { Settings.System.getInt(resolver, "vivo_vibrate_state", 0) }.getOrDefault(0).coerceAtLeast(0)
+        return ((vibRing and 0xF) shl 8) or ((vibSilent and 0xF) shl 4) or (vivoVib and 0xF)
     }
 
     private val ringerReceiver = object : BroadcastReceiver() {
@@ -80,8 +81,8 @@ object RingerModeCard {
                 }
                 AudioManager.RINGER_MODE_CHANGED_ACTION,
                 "android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION" -> {
-                    val mode = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1).takeIf { it != -1 }
-                        ?: (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: -1
+                    val mode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode?.takeIf { it != -1 }
+                        ?: intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
                     if (mode != -1 && mode != lastRingerMode) {
                         lastRingerMode = mode
                         lastRingerChangeAt = System.currentTimeMillis()
@@ -92,6 +93,10 @@ object RingerModeCard {
                 }
                 "android.media.VIBRATE_SETTING_CHANGED" -> {
                     poll(context, "vibrate")
+                }
+                "android.media.VOLUME_CHANGED_ACTION",
+                "android.media.STREAM_MUTE_CHANGED_ACTION" -> {
+                    poll(context, "volume")
                 }
             }
         }
@@ -126,6 +131,8 @@ object RingerModeCard {
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION")
             addAction("android.media.VIBRATE_SETTING_CHANGED")
+            addAction("android.media.VOLUME_CHANGED_ACTION")
+            addAction("android.media.STREAM_MUTE_CHANGED_ACTION")
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
             addAction(NotificationManager.ACTION_NOTIFICATION_POLICY_CHANGED)
             addAction("android.app.action.INTERRUPTION_FILTER_CHANGED")
@@ -133,7 +140,11 @@ object RingerModeCard {
 
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_EXPORTED)
+                runCatching {
+                    app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                }.getOrElse {
+                    app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_EXPORTED)
+                }
             } else {
                 app.registerReceiver(ringerReceiver, filter)
             }
@@ -160,6 +171,9 @@ object RingerModeCard {
             Settings.Global.getUriFor("zen_mode"),
             Settings.System.getUriFor("vibrate_when_ringing"),
             Settings.System.getUriFor("vivo_vibrate_state"),
+            Settings.Global.getUriFor("vivo_vibrate_state"),
+            Settings.System.getUriFor("volume_ring_speaker"),
+            Settings.System.getUriFor("volume_ring"),
         ).forEach { uri ->
             runCatching {
                 resolver.registerContentObserver(uri, false, observer)
@@ -370,6 +384,14 @@ object RingerModeCard {
 
         CastLog.add("Hệ thống", title, "hiển thị — chế độ âm thanh: $title ($text)", true)
 
+        val soundIntent = Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val clickPi = PendingIntent.getActivity(
+            context,
+            ID,
+            soundIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
@@ -378,20 +400,24 @@ object RingerModeCard {
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
             putExtra("oi_show_right_icon", false)
+            putExtra("oi_right_icon", icon)
+            putExtra("oi_left_icon", icon)
+            putExtra("oi_large_icon", icon)
             putExtra("title", title)
             putExtra("text", text)
             putExtra("subtext", text)
             putExtra("oi_left_content", "")
             putExtra("oi_right_content", rightContent)
             putExtra("status_chip_text", rightContent)
-            putExtra("oi_left_icon", icon)
-            putExtra("oi_large_icon", icon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("oi_bg_color", "#FF1C1C1E")
             putExtra("oi_fg_color", colorHex)
             putExtra("oi_light_color", colorHex)
             putExtra("oi_force_show", true)
+            putExtra("oi_island_notify", true)
+            putExtra("oi_show_notify", false)
             putExtra("oi_dismiss_when_kill", true)
+            putExtra("click_resp", clickPi)
+            putExtra("source_content_intent", clickPi)
         }
         context.startService(intent)
 

@@ -174,6 +174,10 @@ class NotificationCastListener : NotificationListenerService() {
             "com.android.shell",
             "com.vivo.upslide",
             "com.vivo.smartmultiwindow",
+            "com.vivo.musicwidgetmix",
+            "com.vivo.mediacontrol",
+            "com.android.bbkmusic",
+            "com.vivo.music",
         )
 
         /** Ứng dụng quản lý thiết bị đeo & đồng hồ thông minh Samsung (Fit 3, Galaxy Watch, Buds). */
@@ -415,10 +419,20 @@ class NotificationCastListener : NotificationListenerService() {
     private val pollRunnable = object : Runnable {
         override fun run() {
             try {
+                if (MediaCard.isOriginNativePlayerActive(applicationContext)) {
+                    MediaCard.clearAll(applicationContext)
+                }
                 val prefs = getSharedPreferences(PREFS, 0)
                 val castNotifs = prefs.getBoolean("cast_notifications", true)
                 val castMedia = prefs.getBoolean("cast_media_sessions", true)
                 activeNotifications?.forEach { sbn ->
+                    val pkgLower = sbn.packageName.lowercase()
+                    if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+                        pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS ||
+                        sbn.tag == OriginIslandConstants.SUPERX_TAG
+                    ) {
+                        return@forEach
+                    }
                     val extras = sbn.notification.extras
                     val token = extras.getParcelable(
                         NotificationCompat.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java,
@@ -575,9 +589,28 @@ class NotificationCastListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
             if (sbn.packageName == packageName) {
-            cleanUpRejectedSuperX(sbn)
-            return
-        }
+                cleanUpRejectedSuperX(sbn)
+                return
+            }
+
+            val pkgLower = sbn.packageName.lowercase()
+            if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) {
+                MediaCard.clearAll(applicationContext)
+                MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
+                return
+            }
+
+            val rawExtras = sbn.notification.extras
+            if (sbn.tag == OriginIslandConstants.SUPERX_TAG ||
+                rawExtras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true ||
+                rawExtras?.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) == true
+            ) {
+                val scene = rawExtras?.getString(OriginIslandConstants.BUNDLE_KEY_SCENE)
+                if (scene.equals("MUSIC", ignoreCase = true) || scene.equals("AUDIO", ignoreCase = true)) {
+                    MediaCard.clearAll(applicationContext)
+                }
+                return
+            }
 
             val prefs = getSharedPreferences(PREFS, 0)
             val n = sbn.notification
@@ -850,16 +883,41 @@ class NotificationCastListener : NotificationListenerService() {
         if (!castNotifs && !castMedia) { log(sbn, "bỏ qua — tính năng truyền thông báo đang tắt", false); return }
 
         val token = extras.getParcelable(NotificationCompat.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
+        val isMediaStyleOrTransport = n.category == Notification.CATEGORY_TRANSPORT ||
+            template == "android.app.Notification\$MediaStyle" ||
+            template == "androidx.media.app.NotificationCompat\$MediaStyle"
+
+        // Nếu thuộc danh sách ứng dụng nhạc được Đảo gốc hỗ trợ hoặc thông báo dạng Media/Transport khi Đảo gốc đang hoạt động:
+        // Chủ động thu hồi thẻ và return ngay lập tức (không bao giờ để rơi xuống GenericCard.post bên dưới).
+        if (pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS || isMediaStyleOrTransport) {
+            if (pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS || MediaCard.isOriginNativePlayerActive(applicationContext)) {
+                MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
+                MediaCard.clearAll(applicationContext)
+                log(sbn, "bỏ qua — nhường Đảo nhạc gốc OriginOS 6", false)
+                return
+            }
+        }
 
         // Media sessions get the dedicated media path.
         if (!isCall) {
             val isOngoingNotif = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
             val controller = token?.let { MediaController(this, it) }
-                ?: if (isOngoingNotif) findMediaControllerFallback(sbn.packageName) else null
+                ?: if (isOngoingNotif || isMediaStyleOrTransport) findMediaControllerFallback(sbn.packageName) else null
             if (controller != null) {
                 if (!castMedia) { log(sbn, "bỏ qua — trình phát nhạc đang tắt", false); return }
+                if (pkgLower in MediaCard.ORIGIN_WHITELISTED_MUSIC_APPS || MediaCard.isOriginNativePlayerActive(applicationContext)) {
+                    MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
+                    MediaCard.clearAll(applicationContext)
+                    log(sbn, "bỏ qua — nhường Đảo nhạc gốc OriginOS 6", false)
+                    return
+                }
                 log(sbn, "hiển thị — trình phát nhạc", true)
                 MediaCard.post(applicationContext, sbn, controller)
+                return
+            } else if (token != null || isMediaStyleOrTransport) {
+                // Thông báo trình phát nhạc không lấy được MediaController (ví dụ khi vừa tạm dừng hoặc hủy session):
+                // Tuyệt đối không để rơi xuống GenericCard.post tạo viên nang giả ở scene NAVIGATION.
+                log(sbn, "bỏ qua — thông báo nhạc không có phiên hoạt động", false)
                 return
             }
         }

@@ -3,9 +3,12 @@ package com.originisle.android.service
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.drawable.Icon
 import android.media.session.MediaController
 import android.service.notification.StatusBarNotification
+import androidx.core.content.ContextCompat
 import com.originisle.android.R
 import com.originisle.android.cards.QuickShareCard
 import java.util.concurrent.ConcurrentHashMap
@@ -35,6 +38,25 @@ object IconCache {
         activeLargeBitmaps.remove(id)
     }
 
+    private fun createFallbackLauncherBitmapIcon(context: Context): Icon {
+        val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val drawable = runCatching {
+            ContextCompat.getDrawable(context, R.mipmap.ic_launcher_round)
+        }.getOrNull()
+        if (drawable != null) {
+            drawable.setBounds(0, 0, 96, 96)
+            drawable.draw(canvas)
+        } else {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#0D111A")
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(48f, 48f, 48f, paint)
+        }
+        return Icon.createWithBitmap(bitmap)
+    }
+
     /**
      * Safely resolve an application's icon as a standalone pure Bitmap Icon.
      * Prevents Vivo SuperX / OriginOS SystemUI from throwing cross-package
@@ -55,9 +77,10 @@ object IconCache {
             drawable.draw(canvas)
             Icon.createWithBitmap(bitmap)
         }.getOrElse {
-            Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+            createFallbackLauncherBitmapIcon(context)
         }
     }
+
     /**
      * Safely resolve any drawable resource (including Vector XML drawables) as a standalone
      * pure Bitmap Icon. On Vivo OriginOS, passing raw resource-backed Icons (R.drawable.xxx)
@@ -66,20 +89,18 @@ object IconCache {
      */
     fun safeResourceIcon(context: Context, resId: Int): Icon {
         if (resId == 0 || resId == R.mipmap.ic_launcher_round) {
-            return Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+            return createFallbackLauncherBitmapIcon(context)
         }
         return runCatching {
-            val drawable = androidx.core.content.ContextCompat.getDrawable(context, resId)
-                ?: return Icon.createWithResource(context, R.mipmap.ic_launcher_round)
-            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceIn(48, 144) else 96
-            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceIn(48, 144) else 96
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val drawable = ContextCompat.getDrawable(context, resId)
+                ?: return createFallbackLauncherBitmapIcon(context)
+            val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.setBounds(0, 0, 96, 96)
             drawable.draw(canvas)
             Icon.createWithBitmap(bitmap)
         }.getOrElse {
-            Icon.createWithResource(context, R.mipmap.ic_launcher_round)
+            createFallbackLauncherBitmapIcon(context)
         }
     }
 }

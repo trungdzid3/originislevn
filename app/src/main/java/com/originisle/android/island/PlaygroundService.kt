@@ -361,18 +361,18 @@ class PlaygroundService : Service() {
 
         val sourceApp = intent.getStringExtra("source_app").orEmpty()
 
-        if (id >= 40000) {
-            val prevInScene = sceneCurrentId[scene]
-            if (prevInScene != null && prevInScene != id && prevInScene >= 40000) {
-                endOrigin(prevInScene, scene)
+        val prevInScene = sceneCurrentId[scene]
+        if (prevInScene != null && prevInScene != id) {
+            endOrigin(prevInScene, scene)
+            if (prevInScene >= 40000) {
                 activeIds.remove(prevInScene)
                 originChangeRecord.remove(prevInScene)
                 originScenes.remove(prevInScene)
                 lastPosts.remove(prevInScene)
                 plainIds.remove(prevInScene)
             }
-            sceneCurrentId[scene] = id
         }
+        sceneCurrentId[scene] = id
         activeIds.add(id)
         originScenes[id] = scene
         activeCardIds = activeIds.toSet()
@@ -473,6 +473,25 @@ class PlaygroundService : Service() {
         lastPosts.remove(id)
         plainIds.remove(id)
         activeCardIds = activeIds.toSet()
+
+        val resumeId = activeIds.lastOrNull { otherId ->
+            otherId != id &&
+                otherId < 40000 &&
+                otherId != 35004 &&
+                otherId != 35008 &&
+                originScenes[otherId] == scene &&
+                lastPosts[otherId]?.getBooleanExtra("is_ongoing", false) == true
+        }
+        if (resumeId != null) {
+            val savedIntent = lastPosts[resumeId]
+            if (savedIntent != null) {
+                mainHandler.postDelayed({
+                    if (resumeId in activeIds && sceneCurrentId[scene] == null) {
+                        readAndPost(savedIntent)
+                    }
+                }, 150L)
+            }
+        }
     }
 
     private fun onRejected(id: Int) {
