@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.2.8` (mã bản dựng `versionCode = 10208`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.2.9` (mã bản dựng `versionCode = 10209`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Quy chuẩn đánh số phiên bản**:
   - `X` (Số đầu): Thế hệ hiện tại.
   - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
@@ -17,7 +17,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.8 / 10208)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.9 / 10209)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -28,14 +28,14 @@ origin-isle-vn/
 │       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS (lọc spam/promo 0đ, chặn hạn mức quảng cáo)
 │       │       ├── cards/            # 15 loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
-│       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
+│       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (TEMPLATE_BASE + vòng tiến độ #2B66FF, 100% Bitmap Icon, xóa oi_show_notify=false)
 │       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (hiển thị "Đã ngắt" tối giản không khung xám)
 │       │       │   ├── MediaCard.kt      # Sóng âm HSV rực rỡ, khôi phục nền tối #FF262626 cho nút bấm, thời lượng bài hát
 │       │       │   ├── OtpCard.kt        # Thẻ OTP chuẩn Ngân hàng (trái "OTP", phải mã OTP màu #00D084, chạm chép clipboard)
-│       │       │   ├── QuickShareCard.kt # Quick Share logo chính thức từ file SVG tải về
+│       │       │   ├── QuickShareCard.kt # Quick Share đồng bộ TEMPLATE_BASE + vòng tiến độ, 100% Bitmap Icon
 │       │       │   ├── RideCard.kt       # Tiến trình Gọi xe & Giao đồ ăn VN (Template 2)
 │       │       │   └── RingerModeCard.kt # Chế độ Chuông / Rung / Im lặng / DND tức thời (RECEIVER_EXPORTED, xóa oi_show_notify=false)
-│       │       ├── download/         # Nhận diện tải xuống nhạy bén
+│       │       ├── download/         # Nhận diện tải xuống nhạy bén (ưu tiên chạy trước OTP, có poll mỗi 1 giây)
 │       │       ├── island/           # PlaygroundService (quản lý chiếm quyền scene & khôi phục thẻ nền), builder, constants
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
 │       │       ├── otp/              # Nhận diện OTP Bank-Style (STRONG_OTP_MARKER, quét MessagingStyle/publicVersion)
@@ -53,10 +53,14 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.2.8.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 8)
+└── OriginIsle-VN-v1.2.9.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 9)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `DownloadCard.kt`, `QuickShareCard.kt` & `NotificationCastListener.kt`:
+  - Xóa bỏ triệt để cờ `putExtra("oi_show_notify", false)` khiến Vivo OriginOS 6 ẩn viên nang.
+  - Chuẩn hóa toàn bộ thẻ Đang tải / Hoàn tất / Đã hủy sang `TEMPLATE_BASE (4)` kèm `oi_card_ring = pct` và `TEMPLATE_RIGHT_ISLAND_PROGRESS (2)` (`#2B66FF` / `#4C2B66FF`), kết hợp `IconCache.safeAppIcon` / `IconCache.safeResourceIcon` (100% `TYPE_BITMAP`).
+  - Đảo thứ tự `DownloadDetector.isDownload(sbn)` chạy trước `OtpDetector` trong `onNotificationPosted` và bổ sung quét cập nhật tải xuống trong `pollRunnable` mỗi 1 giây.
 - `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`):
   - `waveColorsFrom`: Chuyển đổi `HARDWARE` bitmap sang `ARGB_8888`, áp dụng hệ màu `HSV` tăng cường độ sáng (`V >= 0.85f`) để cột sóng âm bên phải viên nang luôn nhảy động rực rỡ, kèm fallback palette sáng.
   - `post`: Khôi phục `oi_bg_color = "#FF262626"` để 3 nút điều khiển ở `TEMPLATE_BUTTONS (8)` có nền tối nổi bật icon trắng; trích xuất thời lượng bài hát hiển thị trên `subtext`.
@@ -75,7 +79,8 @@ origin-isle-vn/
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
 - **ApplicationId cố định**: Bắt buộc giữ `com.autonavi.minimap` trong `app/build.gradle.kts` để qua whitelist của Vivo Origin Island.
 - **Tài nguyên Icon SuperX**: Mọi `Icon` đặt trong `Bundle` SuperX phải là `Icon.createWithBitmap` (`TYPE_BITMAP`), còn `NotificationCompat.Builder.setSmallIcon` dùng `R.mipmap.ic_launcher_round`.
-- **Quy định xuất bản APK**: File APK thành phẩm lưu trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.2.8.apk`.
+- **Cờ `oi_show_notify`**: Tuyệt đối không đặt `oi_show_notify = false` cho các thẻ cần hiển thị viên nang trên OriginOS 6 vì gói `com.autonavi.minimap` sẽ bị Vivo SystemUI chặn hiển thị.
+- **Quy định xuất bản APK**: File APK thành phẩm lưu trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.2.9.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Không có lỗi tồn đọng. Bản dựng `v1.2.8` đã vượt qua 100% kiểm thử đơn vị và biên dịch thành công.
+- Không có lỗi tồn đọng. Bản dựng `v1.2.9` đã vượt qua 100% kiểm thử đơn vị và biên dịch thành công.

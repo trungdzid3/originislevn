@@ -124,7 +124,7 @@ object QuickShareCard {
 
         val n = sbn.notification
         // Quản lý Icon chuẩn Resource theo GenericCard:
-        n.smallIcon?.let { IconCache.activeSmallIcons[id] = it } ?: IconCache.activeSmallIcons.remove(id)
+        IconCache.activeSmallIcons.remove(id)
         val appIcon: Icon = resolveShareIcon(context, sbn.packageName)
         IconCache.activeLargeIcons[id] = appIcon
 
@@ -137,7 +137,7 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", sbn.packageName)
-            putExtra("icon_res", R.drawable.ic_quick_share)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", appIcon)
             putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
@@ -145,31 +145,33 @@ object QuickShareCard {
             putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
-            putExtra("oi_show_notify", false)
 
             // Cấu hình SuperX chuẩn Vivo OriginOS 6 theo quy ước Animation
             when {
                 info.isCanceled -> {
-                    // Trạng thái hủy / thất bại (X đỏ)
-                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
-                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                    putExtra("oi_right_content", "✕")
-                    putExtra("oi_left_content", "✕")
-                    putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1
+                    // Trạng thái hủy / thất bại
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                    putExtra("oi_show_right_icon", false)
+                    putExtra("oi_left_content", "")
+                    putExtra("oi_right_content", "Đã hủy")
+                    putExtra("status_chip_text", "Đã hủy")
+                    putExtra("title", "Quick Share · Đã hủy")
+                    putExtra("text", "Đã hủy truyền tệp")
                     putExtra("oi_light_color", "#FF5247")
                     putExtra("oi_bg_color", "#FF5247")
                     putExtra("oi_fg_color", "#FF5247")
-                    putExtra("title", "Đã hủy")
-                    putExtra("text", "✕")
                     putExtra("is_ongoing", false)
                 }
                 isFinishedEffective -> {
-                    // Trạng thái hoàn tất truyền tệp (tích xanh)
-                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
-                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                    putExtra("oi_right_content", "✓")
+                    // Trạng thái hoàn tất truyền tệp
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                    putExtra("oi_show_right_icon", false)
                     putExtra("oi_left_content", "Xong")
-                    putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
+                    putExtra("oi_right_content", "100%")
+                    putExtra("status_chip_text", "100%")
+                    putExtra("oi_card_ring", 100)
                     putExtra("oi_light_color", "#00D084")
                     putExtra("oi_bg_color", "#00D084")
                     putExtra("oi_fg_color", "#00D084")
@@ -189,6 +191,8 @@ object QuickShareCard {
                     putExtra("is_ongoing", true)
                     putExtra("title", info.title)
                     putExtra("text", info.text)
+                    putExtra("oi_bg_color", "#FF262626")
+                    putExtra("oi_fg_color", "#FFFFFFFF")
                     if (hasActions) {
                         putParcelableArrayListExtra("actions", ArrayList(info.actions))
                         val btnTitles = ArrayList(info.actions.mapNotNull { it.title?.toString() })
@@ -200,16 +204,10 @@ object QuickShareCard {
                 else -> {
                     // Trạng thái đang truyền/kết nối tệp (PROGRESS / INDETERMINATE)
                     val pct = if (info.isIndeterminate) 0 else info.progress.coerceIn(0, 99)
-                    val hasActions = info.actions.isNotEmpty()
-                    if (hasActions) {
-                        putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
-                        putParcelableArrayListExtra("actions", ArrayList(info.actions))
-                        val titles = ArrayList(info.actions.mapNotNull { it.title?.toString() })
-                        putStringArrayListExtra("oi_button_titles", titles)
-                    } else {
-                        putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-                        putExtra("oi_card_ring", pct)
-                    }
+                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                    putExtra("oi_card_ring", pct)
+                    putExtra("oi_fg_color", "#2B66FF")
+                    putExtra("oi_bg_color", "#4C2B66FF")
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
                     putExtra("oi_progress", pct)
                     putExtra("show_progress", true)
@@ -268,10 +266,11 @@ object QuickShareCard {
     }
 
     /**
-     * Phát hoạt ảnh hoàn tất (tích xanh lá) khi notification bị gỡ bỏ lúc đã truyền xong (>= 80%).
+     * Phát hoạt ảnh hoàn tất khi notification bị gỡ bỏ lúc đã truyền xong (>= 80%).
      */
     fun postFinished(context: Context, id: Int, appPkg: String, title: String = "Quick Share") {
         clear(id)
+        IconCache.activeSmallIcons.remove(id)
         val appIcon: Icon = resolveShareIcon(context, appPkg)
         IconCache.activeLargeIcons[id] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
@@ -280,7 +279,7 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
-            putExtra("icon_res", R.drawable.ic_quick_share)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", appIcon)
             putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
@@ -288,13 +287,14 @@ object QuickShareCard {
             putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
-            putExtra("oi_show_notify", false)
             putExtra("is_ongoing", false)
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-            putExtra("oi_right_content", "✓")
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_show_right_icon", false)
             putExtra("oi_left_content", "Xong")
-            putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
+            putExtra("oi_right_content", "100%")
+            putExtra("status_chip_text", "100%")
+            putExtra("oi_card_ring", 100)
             putExtra("oi_light_color", "#00D084")
             putExtra("oi_bg_color", "#00D084")
             putExtra("oi_fg_color", "#00D084")
@@ -313,10 +313,11 @@ object QuickShareCard {
     }
 
     /**
-     * Phát hoạt ảnh hủy / lỗi (X đỏ) khi notification bị gỡ bỏ khi đang truyền dở (< 80%).
+     * Phát hoạt ảnh hủy / lỗi khi notification bị gỡ bỏ khi đang truyền dở (< 80%).
      */
     fun postCanceled(context: Context, id: Int, appPkg: String) {
         clear(id)
+        IconCache.activeSmallIcons.remove(id)
         val appIcon: Icon = resolveShareIcon(context, appPkg)
         IconCache.activeLargeIcons[id] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
@@ -325,7 +326,7 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
-            putExtra("icon_res", R.drawable.ic_quick_share)
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", appIcon)
             putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
@@ -333,18 +334,18 @@ object QuickShareCard {
             putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
-            putExtra("oi_show_notify", false)
             putExtra("is_ongoing", false)
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-            putExtra("oi_right_content", "✕")
-            putExtra("oi_left_content", "✕")
-            putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_FAIL) // 1
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_show_right_icon", false)
+            putExtra("oi_left_content", "")
+            putExtra("oi_right_content", "Đã hủy")
+            putExtra("status_chip_text", "Đã hủy")
+            putExtra("title", "Quick Share · Đã hủy")
+            putExtra("text", "Đã hủy truyền tệp")
             putExtra("oi_light_color", "#FF5247")
             putExtra("oi_bg_color", "#FF5247")
             putExtra("oi_fg_color", "#FF5247")
-            putExtra("title", "Đã hủy")
-            putExtra("text", "✕")
         }
         context.startService(intent)
         handler.postDelayed({
