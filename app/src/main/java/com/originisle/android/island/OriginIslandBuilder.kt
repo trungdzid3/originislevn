@@ -400,6 +400,11 @@ object OriginIslandBuilder {
                     ?: listOf("#FF6B8A", "#4AE2B5", "#5C9DFF")
                 right.putStringArrayList(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_COLOR, ArrayList(colors))
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_STATE, waveState)
+                right.putBoolean(C.BUNDLE_KEY_ISLAND_RIGHT_PLAY_PAG, true)
+                if (showRightIcon) right.putParcelable(C.BUNDLE_KEY_ISLAND_RIGHT_ICON, rightIcon)
+                if (rightContent.isNotEmpty()) {
+                    right.putCharSequence(C.BUNDLE_KEY_ISLAND_RIGHT_CONTENT, colorSpan(rightContent, fgColor))
+                }
             }
             2 -> {
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_PROGRESS, progress.coerceIn(0, 100))

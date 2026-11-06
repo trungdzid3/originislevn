@@ -7,6 +7,10 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -39,31 +43,50 @@ object MediaCard {
         "com.vivo.music",
     )
 
+    /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
+    val THIRD_PARTY_MUSIC_PACKAGES = setOf(
+        "com.zing.mp3",
+        "com.spotify.music",
+        "com.spotify.music.lite",
+        "com.nhaccuatui.player",
+        "com.google.android.apps.youtube.music",
+        "com.soundcloud.android",
+        "com.apple.android.music",
+        "deezer.android.app",
+        "com.amazon.mp3",
+    )
+
     private val handler = Handler(Looper.getMainLooper())
     private val pendingDismissTasks = ConcurrentHashMap<Int, Runnable>()
     private val activeMediaCastIds = ConcurrentHashMap.newKeySet<Int>()
 
     /**
      * Kiểm tra xem Đảo gốc OriginOS 6 có đang hiển thị trình phát nhạc hay không:
-     * Chỉ trả về true khi và chỉ khi Đảo nhạc gốc của Vivo THỰC SỰ đang chạy.
+     * Chỉ trả về true khi và chỉ khi Đảo nhạc gốc của Vivo THỰC SỰ đang chạy và đang ongoing.
+     * Tuyệt đối không tính các ứng dụng nhạc ngoài như Zing MP3, Spotify, Nhaccuatui, YouTube Music.
      */
     fun isOriginNativePlayerActive(context: Context): Boolean {
         val listener = NotificationCastListener.instance ?: return false
         val activeNotifs = runCatching { listener.activeNotifications }.getOrNull() ?: return false
         for (active in activeNotifs) {
             val pkg = active.packageName.lowercase()
-            // 1. Tiến trình widget đảo nhạc gốc của Vivo đang xuất hiện
+            if (pkg == context.packageName.lowercase()) continue
+            if (pkg in THIRD_PARTY_MUSIC_PACKAGES) continue
+
+            val isOngoing = active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
+            if (!isOngoing) continue
+
+            // 1. Tiến trình widget đảo nhạc gốc của Vivo đang xuất hiện VÀ thực sự đang ongoing
             if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
                 return true
             }
-            // 2. Thông báo SuperX gốc từ hệ thống với scene MUSIC / AUDIO từ gói khác
+            // 2. Thông báo SuperX gốc từ hệ thống với scene MUSIC / AUDIO từ gói khác VÀ đang ongoing
             val extras = active.notification.extras
-            if (active.packageName != context.packageName &&
-                (active.tag == OriginIslandConstants.SUPERX_TAG ||
-                    extras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true)
+            if (active.tag == OriginIslandConstants.SUPERX_TAG ||
+                extras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true
             ) {
                 val scene = extras?.getString(OriginIslandConstants.BUNDLE_KEY_SCENE)?.uppercase().orEmpty()
-                if (scene == "MUSIC" || scene == "AUDIO" || pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
+                if (scene == "MUSIC" || scene == "AUDIO") {
                     return true
                 }
             }
@@ -75,11 +98,18 @@ object MediaCard {
         val id = IconCache.castIdFor(sbn)
         val pkg = sbn.packageName.lowercase()
 
-        // Khi Đảo gốc đang hiển thị nhạc,
-        // Origin Isle VN chủ động thu hồi/dismiss thẻ để KHÔNG BAO GIỜ bị đè 2 thẻ nhạc trên Đảo.
-        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || isOriginNativePlayerActive(context)) {
+        // 1. Nếu chính gói phát nhạc gốc của Vivo gửi thông báo: nhường cho Đảo gốc, không can thiệp
+        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
             clear(context, id)
-            clearAll(context)
+            return
+        }
+
+        // 2. Tuyệt đối KHÔNG thu hồi thẻ của các ứng dụng nhạc ngoài (Zing MP3, Spotify, Nhaccuatui, YouTube Music, ...)
+        val isThirdParty = pkg in THIRD_PARTY_MUSIC_PACKAGES ||
+            (!pkg.startsWith("com.vivo.") && !pkg.startsWith("com.bbk.") && !pkg.startsWith("com.android.bbk"))
+
+        if (!isThirdParty && isOriginNativePlayerActive(context)) {
+            clear(context, id)
             CastLog.add("Nhạc", appLabel(context, sbn.packageName), "thu hồi thẻ — nhường Đảo gốc OriginOS 6 hiển thị", false)
             return
         }
@@ -108,7 +138,6 @@ object MediaCard {
         val durSec = if (durationMs > 0) durationMs / 1000 else 0L
         val posMs = controller.playbackState?.position ?: 0L
         val posSec = if (posMs > 0) posMs / 1000 else 0L
-        val artistWithDuration = if (durationMs > 0) "$artist • ${formatElapsed(durSec)}" else artist
 
         // Tối ưu trạng thái phát nhạc: hỗ trợ các app không gửi PlaybackState đầy đủ
         val playbackStateValue = controller.playbackState?.state
@@ -120,6 +149,13 @@ object MediaCard {
             -> true
             null -> sbn.isOngoing
             else -> false
+        }
+
+        val subtext = when {
+            durationMs > 0 && posSec > 0 -> "$artist • ${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
+            durationMs > 0 -> "$artist • ${formatElapsed(durSec)}"
+            playing -> "$artist • Đang phát"
+            else -> "$artist • Tạm dừng"
         }
 
         val notifLargeIcon = n.getLargeIcon()
@@ -137,7 +173,7 @@ object MediaCard {
         }
         val albumArt: Bitmap? = (md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: notifLargeBitmap)?.let(::shrinkForIcon)
+            ?: notifLargeBitmap)?.let(::shrinkForIcon)?.let(::roundCorners)
 
         IconCache.activeSmallIcons[id] = IconCache.safeAppIcon(context, sbn.packageName)
         val displayIcon: Icon = if (albumArt != null) {
@@ -218,15 +254,14 @@ object MediaCard {
 
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", track)
-            putExtra("text", artistWithDuration)
-            putExtra("subtext", if (durationMs > 0) "$artist • ${formatElapsed(durSec)}" else artist)
+            putExtra("text", subtext)
+            putExtra("subtext", subtext)
             putExtra("source_pkg", sbn.packageName)
             putExtra("oi_left_content", if (albumArt != null) "" else track.take(10))
 
-            putExtra("status_chip_text", chip)
-
             putExtra("oi_left_icon", displayIcon)
             putExtra("oi_large_icon", displayIcon)
+            putExtra("oi_show_left_icon", true)
             putExtra("oi_force_show", true)
             putExtra("icon_res", R.drawable.ic_media_play)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
@@ -236,13 +271,18 @@ object MediaCard {
             if (playing) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
                 putExtra("oi_wave_state", 1)
-                if (waveColors.isNotEmpty()) {
-                    putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
-                }
+                putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
+
+                putExtra("oi_right_icon", IconCache.safeResourceIcon(context, R.drawable.ic_media_play))
+                putExtra("oi_show_right_icon", true)
+                putExtra("status_chip_text", chip)
+                putExtra("oi_right_content", if (chip.isNotBlank()) chip else "♪")
             } else {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
                 putExtra("oi_right_icon", IconCache.safeResourceIcon(context, R.drawable.ic_media_pause))
                 putExtra("oi_show_right_icon", true)
+                putExtra("status_chip_text", "Tạm dừng")
+                putExtra("oi_right_content", "Tạm dừng")
             }
 
             putParcelableArrayListExtra("actions", actions)
@@ -286,10 +326,30 @@ object MediaCard {
         Notification.Action.Builder(IconCache.safeResourceIcon(context, iconRes), "", pi).build()
 
     /**
+     * Bo góc cho ảnh bìa album (squircle bo cong mềm mại theo chuẩn thiết kế OriginOS 6)
+     */
+    private fun roundCorners(bitmap: Bitmap, cornerRadiusRatio: Float = 0.22f): Bitmap {
+        return runCatching {
+            val w = bitmap.width
+            val h = bitmap.height
+            if (w <= 0 || h <= 0) return bitmap
+            val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(output)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val rect = RectF(0f, 0f, w.toFloat(), h.toFloat())
+            val radius = minOf(w, h) * cornerRadiusRatio
+            canvas.drawRoundRect(rect, radius, radius, paint)
+            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+            canvas.drawBitmap(bitmap, 0f, 0f, paint)
+            output
+        }.getOrDefault(bitmap)
+    }
+
+    /**
      * Trích xuất dải màu sắc trực tiếp từ ảnh bìa album để phục vụ sóng âm visualiser (island.superx.rightInfo.waveColor)
      */
     private fun waveColorsFrom(bitmap: Bitmap?): List<String> {
-        val fallback = listOf("#FF6B8A", "#4AE2B5", "#5C9DFF")
+        val fallback = listOf("#FF5376", "#00E5FF", "#7C4DFF")
         if (bitmap == null || bitmap.width == 0 || bitmap.height == 0) return fallback
         return runCatching {
             val src = if (bitmap.config == Bitmap.Config.HARDWARE) {
@@ -301,18 +361,18 @@ object MediaCard {
                 val w = src.width
                 val h = src.height
                 val hsv = FloatArray(3)
-                val colors = listOf(0.25f to 0.5f, 0.5f to 0.3f, 0.75f to 0.5f).map { (fx, fy) ->
+                val samplePoints = listOf(0.25f to 0.5f, 0.5f to 0.35f, 0.75f to 0.5f)
+                val colors = samplePoints.map { (fx, fy) ->
                     val x = (fx * (w - 1)).toInt().coerceIn(0, w - 1)
                     val y = (fy * (h - 1)).toInt().coerceIn(0, h - 1)
                     val pixel = src.getPixel(x, y)
                     Color.colorToHSV(pixel, hsv)
-                    if (hsv[2] < 0.55f) {
-                        hsv[2] = 0.85f
-                    }
+                    if (hsv[1] < 0.45f) hsv[1] = 0.65f
+                    if (hsv[2] < 0.65f) hsv[2] = 0.90f
                     val adjusted = Color.HSVToColor(hsv)
                     String.format("#%06X", 0xFFFFFF and adjusted)
                 }
-                if (colors.size == 3) colors else fallback
+                if (colors.size >= 3) colors.take(3) else fallback
             } finally {
                 if (src != bitmap) {
                     src.recycle()
