@@ -12,6 +12,7 @@ import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.StatusBarNotification
+import androidx.core.graphics.PathParser
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
@@ -32,80 +33,41 @@ object QuickShareCard {
 
     /**
      * Tạo biểu tượng Quick Share chính thức dạng Canvas Bitmap:
-     * - Nền tròn màu xanh dương Quick Share #1B72E8.
-     * - Vẽ 2 mũi tên chia sẻ lồng nhau dạng vòng cung xoay đối xứng 180 độ màu trắng chuẩn xác.
+     * - Nền tròn màu xanh Quick Share #4285F4.
+     * - Vẽ 2 cánh mũi tên xoay tròn màu trắng #FFFFFF theo dữ liệu vector chuẩn từ Google/Samsung Quick Share.
      */
-    fun createQuickShareOfficialIcon(context: Context): Icon {
+    fun createQuickShareOfficialIcon(context: Context, size: Int = 192): Icon {
         cachedOfficialIcon?.let { return it }
-        val size = 144
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val cx = size / 2f
-        val cy = size / 2f
 
-        // Nền tròn màu xanh Quick Share
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#1B72E8")
-            style = Paint.Style.FILL
-        }
-        canvas.drawCircle(cx, cy, cx, bgPaint)
-
-        // Bút vẽ nét vòng cung màu trắng
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.STROKE
-            strokeWidth = 11f
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-
-        // Bút vẽ đầu mũi tên màu trắng
-        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.FILL
-        }
-
-        val arcRadius = 34f
-        val arcRect = RectF(cx - arcRadius, cy - arcRadius, cx + arcRadius, cy + arcRadius)
-
-        // Nhánh 1: Cung tròn quét từ 170° qua đỉnh 270° đến 325°
-        val endAngleDeg = 325.0
-        val endAngleRad = Math.toRadians(endAngleDeg)
-        val endX = cx + arcRadius * Math.cos(endAngleRad).toFloat()
-        val endY = cy + arcRadius * Math.sin(endAngleRad).toFloat()
-
-        // Hướng tiếp tuyến theo chiều kim đồng hồ (+90°)
-        val tangentAngleRad = Math.toRadians(endAngleDeg + 90.0)
-        val dirX = Math.cos(tangentAngleRad).toFloat()
-        val dirY = Math.sin(tangentAngleRad).toFloat()
-        val normX = -dirY
-        val normY = dirX
-
-        // Tạo hình tam giác đầu mũi tên
-        val tipOffset = 3f
-        val tipX = endX + dirX * tipOffset
-        val tipY = endY + dirY * tipOffset
-        val arrowLen = 16f
-        val arrowHalfWidth = 8f
-        val baseX = tipX - dirX * arrowLen
-        val baseY = tipY - dirY * arrowLen
-
-        val arrowPath = Path().apply {
-            moveTo(tipX, tipY)
-            lineTo(baseX + normX * arrowHalfWidth, baseY + normY * arrowHalfWidth)
-            lineTo(baseX - normX * arrowHalfWidth, baseY - normY * arrowHalfWidth)
-            close()
-        }
-
-        // Vẽ cánh trên (nhánh 1)
-        canvas.drawArc(arcRect, 170f, 155f, false, strokePaint)
-        canvas.drawPath(arrowPath, fillPaint)
-
-        // Vẽ cánh dưới (nhánh 2) xoay đối xứng 180° qua tâm
+        val scale = size / 222f
         canvas.save()
-        canvas.rotate(180f, cx, cy)
-        canvas.drawArc(arcRect, 170f, 155f, false, strokePaint)
-        canvas.drawPath(arrowPath, fillPaint)
+        canvas.scale(scale, scale)
+
+        // Nền tròn màu xanh Quick Share #4285F4
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#4285F4")
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(111f, 111f, 111f, bgPaint)
+
+        // Bút vẽ 2 cánh mũi tên màu trắng #FFFFFF
+        val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+
+        val pathData1 = "M183.827 110.596c-3.629 0-6.738-2.738-7.119-6.405-3.466-33.6-31.716-58.936-65.706-58.936-27.54 0-51.718 16.758-61.499 41.657h43.47l-3.517-3.502a6.312 6.312 0 0 1 0-8.956 6.388 6.388 0 0 1 9.004 0l15.17 15.098a6.314 6.314 0 0 1 0 8.961l-15.17 15.098a6.384 6.384 0 0 1-8.999 0 6.315 6.315 0 0 1 0-8.961l3.493-3.475H40.305c-2.195 0-4.589-1.168-5.95-2.885-1.363-1.725-1.93-4.34-1.406-6.467C41.801 56.011 73.9 31 111.002 31c41.361 0 75.736 30.843 79.96 71.737.404 3.914-2.46 7.418-6.396 7.82a8.026 8.026 0 0 1-.739.039Z"
+        val pathData2 = "M37.437 111.354c3.983-.356 7.45 2.46 7.854 6.374.12 1.199.276 2.39.462 3.565 5.071 32.131 32.514 55.444 65.249 55.444 27.551 0 51.737-16.761 61.51-41.683h-43.509l3.545 3.528a6.316 6.316 0 0 1 0 8.961 6.385 6.385 0 0 1-8.999 0l-15.174-15.101a6.316 6.316 0 0 1 0-8.961l15.171-15.099a6.39 6.39 0 0 1 9.004 0 6.313 6.313 0 0 1 0 8.957l-3.468 3.452h52.628c2.195 0 4.593 1.168 5.949 2.885 1.364 1.725 1.931 4.324 1.407 6.458C180.225 165.97 148.124 191 111.002 191c-39.835 0-73.226-28.387-79.401-67.494a83.856 83.856 0 0 1-.564-4.34c-.4-3.913 2.468-7.41 6.4-7.812Z"
+
+        try {
+            val path1 = PathParser.createPathFromPathData(pathData1)
+            val path2 = PathParser.createPathFromPathData(pathData2)
+            canvas.drawPath(path1, pathPaint)
+            canvas.drawPath(path2, pathPaint)
+        } catch (_: Exception) {
+        }
         canvas.restore()
 
         val icon = Icon.createWithBitmap(bitmap)
@@ -169,7 +131,7 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", sbn.packageName)
-            putExtra("icon_res", R.drawable.ic_download)
+            putExtra("icon_res", R.drawable.ic_quick_share)
             putExtra("oi_left_icon", appIcon)
             putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
@@ -298,7 +260,7 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
-            putExtra("icon_res", R.drawable.ic_download)
+            putExtra("icon_res", R.drawable.ic_quick_share)
             putExtra("oi_left_icon", appIcon)
             putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)
@@ -343,7 +305,7 @@ object QuickShareCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
-            putExtra("icon_res", R.drawable.ic_download)
+            putExtra("icon_res", R.drawable.ic_quick_share)
             putExtra("oi_left_icon", appIcon)
             putExtra("oi_large_icon", appIcon)
             putExtra("source_content_intent", clickPi)

@@ -559,7 +559,34 @@ class NotificationCastListener : NotificationListenerService() {
                 }
 
                 val pctRegex = Regex("""(\d{1,3})\s*%""")
-                var batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
+                val labelPctRegex = Regex("""(?:pin|battery|mức pin)\s*[:：\-]?\s*(\d{1,3})""", RegexOption.IGNORE_CASE)
+                var batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 }
+                    ?: labelPctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 }
+                    ?: extras.getInt("battery_level", -1).takeIf { it in 0..100 }
+                    ?: extras.getInt("level", -1).takeIf { it in 0..100 }
+                    ?: extras.getInt("percentage", -1).takeIf { it in 0..100 }
+                    ?: -1
+
+                if (batteryPct == -1) {
+                    val keys = runCatching { extras.keySet() }.getOrNull()
+                    if (keys != null) {
+                        for (key in keys) {
+                            val lowerKey = key.lowercase()
+                            if (lowerKey.contains("battery") || lowerKey.contains("level") || lowerKey.contains("capacity")) {
+                                val v = extras.get(key)
+                                val num = when (v) {
+                                    is Number -> v.toInt()
+                                    is String -> v.trim().toIntOrNull()
+                                    else -> null
+                                }
+                                if (num != null && num in 0..100) {
+                                    batteryPct = num
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if (batteryPct == -1) {
                     val notifs = runCatching { activeNotifications }.getOrNull()
@@ -574,6 +601,7 @@ class NotificationCastListener : NotificationListenerService() {
                             if (isSamsungWearPkg) {
                                 val text = notificationText(active)
                                 val match = pctRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
+                                    ?: labelPctRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
                                 if (match != null && match in 0..100) {
                                     batteryPct = match
                                     break
@@ -627,6 +655,12 @@ class NotificationCastListener : NotificationListenerService() {
 
                 var handled = false
                 if (isConnect) {
+                    if (batteryPct == -1) {
+                        val cached = EarbudsCard.getCachedBattery(applicationContext, devName)
+                        if (cached in 0..100) {
+                            batteryPct = cached
+                        }
+                    }
                     if (isCurrentlyConnected) {
                         // Thiết bị đã kết nối: Thông báo nền thường trực của Fit 3 chỉ cập nhật bước chân/calo/pin
                         // Tuyệt đối không gọi onDeviceConnected để tránh pop-up đảo lặp đi lặp lại

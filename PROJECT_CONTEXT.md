@@ -16,26 +16,28 @@ origin-isle-vn/
 │   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.1.0 / 10100)
 │   ├── proguard-rules.pro
 │   └── src/
-│       ├── main/java/com/originisle/android/
-│       │   ├── bank/                 # Bóc tách biến động số dư Ngân hàng VN & SMS (lọc spam/promo 0đ)
-│       │   ├── cards/                # 15 loại thẻ giao diện Đảo Origin
-│       │   │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
-│       │   │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
-│       │   │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (wearable_battery_cache, báo % pin, sạc đầy 100%, nền tối #FF1C1C1E)
-│       │   │   ├── MediaCard.kt      # Nhạc sóng động (Scene: NAVIGATION, tự thu gọn sau 3s)
-│       │   │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép)
-│       │   │   ├── QuickShareCard.kt # Quick Share logo chính thức Canvas 192x192
-│       │   │   └── RingerModeCard.kt # 4 chế độ Chuông / Rung / Im lặng / DND độc lập + polling 1s
-│       │   ├── download/             # Nhận diện tải xuống nhạy bén (loại trừ Maps/Media/Wearable/System)
-│       │   ├── island/               # Service SuperX, builder, constants, resolveAllowedScene
-│       │   ├── log/                  # Nhật ký hoạt động bền vững (CastLog)
-│       │   ├── otp/                  # Nhận diện mã xác thực OTP tiếng Việt (quét toàn bộ match, phân tách \n)
-│       │   ├── quickshare/           # Nhận diện Quick Share & EasyShare & actions
-│       │   ├── ride/                 # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
-│       │   ├── service/              # NotificationCastListener & Receivers
-│       │   ├── smart/                # Bóc tách thông tin màn hình
-│       │   ├── sports/               # Tỷ số thể thao trực tiếp
-│       │   └── ui/                   # Giao diện Compose chuẩn OriginOS 6
+│       ├── main/
+│       │   ├── res/drawable/ic_quick_share.xml # Vector drawable Quick Share chuẩn chính thức 100%
+│       │   └── java/com/originisle/android/
+│       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS (lọc spam/promo 0đ)
+│       │       ├── cards/            # 15 loại thẻ giao diện Đảo Origin
+│       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
+│       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
+│       │       │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (GATT 0x180F/0x2A19, wearable_last_known_battery, fallback % pin)
+│       │       │   ├── MediaCard.kt      # Nhạc sóng động (Scene: NAVIGATION, tự thu gọn sau 3s)
+│       │       │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép)
+│       │       │   ├── QuickShareCard.kt # Quick Share logo chính thức từ file SVG tải về (PathParser Canvas)
+│       │       │   └── RingerModeCard.kt # 4 chế độ Chuông / Rung / Im lặng / DND độc lập + polling 1s
+│       │       ├── download/         # Nhận diện tải xuống nhạy bén (loại trừ Maps/Media/Wearable/System)
+│       │       ├── island/           # Service SuperX, builder, constants, resolveAllowedScene
+│       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
+│       │       ├── otp/              # Nhận diện mã xác thực OTP tiếng Việt (quét toàn bộ match, phân tách \n)
+│       │       ├── quickshare/       # Nhận diện Quick Share & EasyShare & actions
+│       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
+│       │       ├── service/          # NotificationCastListener & Receivers
+│       │       ├── smart/            # Bóc tách thông tin màn hình
+│       │       ├── sports/           # Tỷ số thể thao trực tiếp
+│       │       └── ui/               # Giao diện Compose chuẩn OriginOS 6
 │       └── test/                     # Unit Tests
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
@@ -58,25 +60,19 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`):
-  - `resolveAllowedScene` (L190-204): Kiểm tra quyền `getSceneStatus` trên Vivo SystemUI, tự động fallback về `"NAVIGATION"` để thẻ không bao giờ bị từ chối.
-  - `readAndPost` (L206-402): Quản lý `sceneCurrentId` và đóng gói SuperX bundle.
-  - `cancelNotification` (L459-477): Dọn dẹp thẻ và scene tương ứng sạch sẽ.
+- `QuickShareCard.kt` (`app/src/main/java/com/originisle/android/cards/QuickShareCard.kt`):
+  - `createQuickShareOfficialIcon` (L38-115): Sử dụng `androidx.core.graphics.PathParser` vẽ chính xác 100% hai nhánh mũi tên xoay tròn và hình tròn xanh `#4285F4` từ tệp SVG `Quickshare.svg` người dùng cung cấp; liên kết `R.drawable.ic_quick_share`.
+- `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
+  - `saveCachedBattery` / `getCachedBattery` (L164-210): Tự động khử tên đuôi `(xxxx)`, so khớp mờ và lưu trữ pin vào key toàn cầu `wearable_last_known_battery`.
+  - `readGattBatteryAsync` (L215-280): Đọc pin phần cứng trực tiếp từ thiết bị BLE qua GATT Service `0x180F` (Battery Service) / Characteristic `0x2A19`.
+  - `show` (L1100-1200): Cơ chế fallback pin thông minh, nếu pin tức thời chưa về kịp thì nạp ngay mức pin đã biết gần nhất để luôn hiển thị `% pin` trên viên con nhộng và vòng tròn tiến độ camera selfie.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - `pollRunnable` (L301-337): Định kỳ mỗi 1 giây làm mới Media, Chronometer, Tỷ số thể thao và gọi `RingerModeCard.poll(applicationContext)`.
-  - `onNotificationPosted` (L464-812): Thứ tự ưu tiên nghiêm ngặt: Ngân hàng -> Quick Share -> Mã OTP -> Tải xuống -> Galaxy Fit 3 / Wearable (kèm quét `activeNotifications` và `wearable_battery_cache`) -> Media -> Ride -> Dẫn đường.
-  - `onInterruptionFilterChanged` (L406-411): Gọi trực tiếp `RingerModeCard.onInterruptionFilterChanged`.
-- `Cards` (`app/src/main/java/com/originisle/android/cards/`):
-  - `EarbudsCard.kt`: Lưu đệm pin bền vững `wearable_battery_cache` (`getCachedBattery`, `saveCachedBattery`), chặn pop-up kết nối ảo, hiển thị thẳng `% pin` lên viên con nhộng và vòng tròn tiến độ camera khi kết nối, báo sạc đầy 100%, và dùng nền kính mờ tối `#FF1C1C1E` chữ trắng với viền đỏ khi ngắt kết nối.
-  - `RingerModeCard.kt`: Tách biệt 3 trạng thái `lastRingerMode`, `lastDndState`, `lastVibrateSetting` (đọc `vibrate_when_ringing`, `vibrate_in_silent`, `vivo_vibrate_state`) để DND không bao giờ nuốt sự kiện Chuông/Rung/Im lặng; chuẩn hóa payload SuperX đồng bộ `ChargingCard.kt` và ghi nhận vào `CastLog`.
-  - `DownloadCard.kt` & `DownloadDetector.kt`: Sử dụng scene `"NAVIGATION"` hợp lệ 100%, loại trừ các gói Bản đồ/Media/Wearable/Hệ thống ở đầu hàm rồi bắt nhạy bén mọi thông báo có `max > 0 || indeterminate` hoặc `CATEGORY_PROGRESS`.
-  - `VietnamBankDetector.kt`: Lọc triệt để tin nhắn rác / khuyến mãi / gói cước viễn thông `+0đ`.
-  - `QuickShareCard.kt` & `IconCache.kt`: `createQuickShareOfficialIcon` vẽ logo Quick Share chính thức.
+  - `onNotificationPosted` (L550-685): Quét sâu `extras.keySet()` của ứng dụng Samsung Wearable để trích xuất pin ẩn; nạp cache pin ngay khi nhận sự kiện kết nối.
 
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
-- **ApplicationId & Scene**: Bắt buộc giữ `applicationId = "com.autonavi.minimap"` và ưu tiên `oi_scene = "NAVIGATION"` (scene duy nhất được Vivo cấp quyền mặc định cho gói giả lập AMap).
+- **ApplicationId & Scene**: Bắt buộc giữ `applicationId = "com.autonavi.minimap"` và ưu tiên `oi_scene = "NAVIGATION"`.
 - **Tài nguyên Small Icon**: Mọi thông báo gửi tới Vivo SuperX phải sử dụng mipmap resource (`R.mipmap.ic_launcher_round`).
-- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn SemVer không hậu tố debug: `OriginIsle-VN-v1.1.0.apk`.
+- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn SemVer: `OriginIsle-VN-v1.1.0.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Toàn bộ các hạng mục của bản phát hành chuyên nghiệp **v1.1.0** đã hoàn tất, vượt qua kiểm thử và đóng gói thành công.
+- Đã cập nhật logo Quick Share chính thức từ file SVG tải về và tối ưu hiển thị % pin cho vòng đeo tay Galaxy Fit 3.

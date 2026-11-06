@@ -21,6 +21,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -158,19 +159,106 @@ object EarbudsCard {
     }
 
     private const val PREFS_BATTERY_CACHE = "wearable_battery_cache"
+    private val BATTERY_SERVICE_UUID = java.util.UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")
+    private val BATTERY_LEVEL_CHAR_UUID = java.util.UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")
 
     fun getCachedBattery(context: Context, name: String): Int {
         if (name.isBlank()) return -1
         val key = name.lowercase().trim()
         val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
-        return prefs.getInt(key, -1).takeIf { it in 0..100 } ?: -1
+        val direct = prefs.getInt(key, -1)
+        if (direct in 0..100) return direct
+
+        val cleanKey = key.replace(Regex("""\s*\([a-z0-9]+\)"""), "").trim()
+        if (cleanKey.isNotBlank()) {
+            val cleanVal = prefs.getInt(cleanKey, -1)
+            if (cleanVal in 0..100) return cleanVal
+        }
+
+        if (cleanKey.isNotBlank()) {
+            for ((k, v) in prefs.all) {
+                if (k == "wearable_last_known_battery") continue
+                if (k.contains(cleanKey) || cleanKey.contains(k)) {
+                    val lvl = (v as? Number)?.toInt() ?: (v as? String)?.toIntOrNull() ?: -1
+                    if (lvl in 0..100) return lvl
+                }
+            }
+        }
+
+        if (key.contains("fit") || key.contains("watch") || key.contains("band")) {
+            val globalWearable = prefs.getInt("wearable_last_known_battery", -1)
+            if (globalWearable in 0..100) return globalWearable
+        }
+
+        return -1
     }
 
     fun saveCachedBattery(context: Context, name: String, level: Int) {
         if (name.isBlank() || level !in 0..100) return
         val key = name.lowercase().trim()
+        val cleanKey = key.replace(Regex("""\s*\([a-z0-9]+\)"""), "").trim()
         val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
-        prefs.edit().putInt(key, level).apply()
+        prefs.edit().apply {
+            putInt(key, level)
+            if (cleanKey.isNotBlank()) putInt(cleanKey, level)
+            // Lưu vào key toàn cầu cho thiết bị đeo
+            if (key.contains("fit") || key.contains("watch") || key.contains("band")) {
+                putInt("wearable_last_known_battery", level)
+            }
+        }.apply()
+    }
+
+    fun readGattBatteryAsync(context: Context, device: BluetoothDevice?, devName: String, isWearable: Boolean) {
+        if (device == null || !hasPermission(context)) return
+        runCatching {
+            var gattRef: android.bluetooth.BluetoothGatt? = null
+            val gattCallback = object : android.bluetooth.BluetoothGattCallback() {
+                override fun onConnectionStateChange(gatt: android.bluetooth.BluetoothGatt, status: Int, newState: Int) {
+                    if (newState == android.bluetooth.BluetoothProfile.STATE_CONNECTED) {
+                        runCatching { gatt.discoverServices() }
+                    } else if (newState == android.bluetooth.BluetoothProfile.STATE_DISCONNECTED) {
+                        runCatching { gatt.close() }
+                    }
+                }
+
+                override fun onServicesDiscovered(gatt: android.bluetooth.BluetoothGatt, status: Int) {
+                    if (status == android.bluetooth.BluetoothGatt.GATT_SUCCESS) {
+                        val batteryService = gatt.getService(BATTERY_SERVICE_UUID)
+                        val batteryChar = batteryService?.getCharacteristic(BATTERY_LEVEL_CHAR_UUID)
+                        if (batteryChar != null) {
+                            runCatching { gatt.readCharacteristic(batteryChar) }
+                            return
+                        }
+                    }
+                    runCatching { gatt.disconnect(); gatt.close() }
+                }
+
+                override fun onCharacteristicRead(gatt: android.bluetooth.BluetoothGatt, characteristic: android.bluetooth.BluetoothGattCharacteristic, status: Int) {
+                    if (status == android.bluetooth.BluetoothGatt.GATT_SUCCESS && characteristic.uuid == BATTERY_LEVEL_CHAR_UUID) {
+                        val level = characteristic.value?.firstOrNull()?.toInt()?.and(0xFF) ?: -1
+                        if (level in 0..100) {
+                            saveCachedBattery(context, devName, level)
+                            device.address?.let { saveCachedBattery(context, it, level) }
+                            handler.post {
+                                onBatteryUpdated(context, devName, EarbudsTelemetry(main = level), isWearable = isWearable)
+                            }
+                        }
+                    }
+                    runCatching { gatt.disconnect(); gatt.close() }
+                }
+            }
+
+            val gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            } else {
+                device.connectGatt(context, false, gattCallback)
+            }
+            gattRef = gatt
+            // Timeout an toàn đóng gatt sau 3500ms
+            handler.postDelayed({
+                runCatching { gattRef?.disconnect(); gattRef?.close() }
+            }, 3500L)
+        }.onFailure { Log.w(TAG, "readGattBatteryAsync failed", it) }
     }
 
 
@@ -363,6 +451,9 @@ object EarbudsCard {
                         initial = initial.copy(main = cached)
                     }
                 }
+                if (initial.effectiveLevel !in 0..100) {
+                    readGattBatteryAsync(context, device, devName, isWearableDevice)
+                }
                 if (initial.effectiveLevel in 0..100) {
                     saveCachedBattery(context, devName, initial.effectiveLevel)
                     deviceTelemetry[address] = initial
@@ -377,6 +468,9 @@ object EarbudsCard {
                             if (cached in 0..100) {
                                 telemetry = telemetry.copy(main = cached)
                             }
+                        }
+                        if (telemetry.effectiveLevel !in 0..100) {
+                            readGattBatteryAsync(context, device, devName, isWearableDevice)
                         }
                         if (telemetry.effectiveLevel in 0..100) {
                             saveCachedBattery(context, devName, telemetry.effectiveLevel)
@@ -1030,9 +1124,22 @@ object EarbudsCard {
         val name = customName ?: runCatching { device?.alias ?: device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: if (isWearableDevice) "Galaxy Fit 3" else "Tai nghe"
 
-        val effectivePct = telemetry.effectiveLevel
+        var effectivePct = telemetry.effectiveLevel
+        if (isWearableDevice && effectivePct !in 0..100) {
+            val fallbackPct = getCachedBattery(context, name).takeIf { it in 0..100 }
+                ?: getCachedBattery(context, "wearable_last_known_battery")
+            if (fallbackPct in 0..100) {
+                effectivePct = fallbackPct
+            }
+        }
         val known = effectivePct in 0..100
         val isLow = known && effectivePct <= LOW_LEVEL
+
+        val activeTelemetry = if (known && telemetry.effectiveLevel !in 0..100) {
+            telemetry.copy(main = effectivePct)
+        } else {
+            telemetry
+        }
 
         if (known) {
             saveCachedBattery(context, name, effectivePct)
@@ -1053,8 +1160,8 @@ object EarbudsCard {
         )
 
         // Dòng 1: oi_title
-        val displayTitle = if (telemetry.case in 1..100) {
-            "${name.take(16)} · Hộp: ${telemetry.case}%${if (telemetry.isCaseCharging) "⚡" else ""}"
+        val displayTitle = if (activeTelemetry.case in 1..100) {
+            "${name.take(16)} · Hộp: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}"
         } else if (known) {
             "${name.take(18)} · ${effectivePct}%"
         } else {
@@ -1062,19 +1169,19 @@ object EarbudsCard {
         }
 
         // Dòng 2: oi_text
-        val displayText = if (telemetry.left in 0..100 && telemetry.right in 0..100) {
-            val lText = "${telemetry.left}%${if (telemetry.isLeftCharging) "⚡" else ""}"
-            val rText = "${telemetry.right}%${if (telemetry.isRightCharging) "⚡" else ""}"
+        val displayText = if (activeTelemetry.left in 0..100 && activeTelemetry.right in 0..100) {
+            val lText = "${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}"
+            val rText = "${activeTelemetry.right}%${if (activeTelemetry.isRightCharging) "⚡" else ""}"
             "Trái (L): $lText   ·   Phải (R): $rText"
-        } else if (telemetry.left in 0..100) {
-            val lText = "${telemetry.left}%${if (telemetry.isLeftCharging) "⚡" else ""}"
+        } else if (activeTelemetry.left in 0..100) {
+            val lText = "${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}"
             "Trái (L): $lText · Đang kết nối"
-        } else if (telemetry.right in 0..100) {
-            val rText = "${telemetry.right}%${if (telemetry.isRightCharging) "⚡" else ""}"
+        } else if (activeTelemetry.right in 0..100) {
+            val rText = "${activeTelemetry.right}%${if (activeTelemetry.isRightCharging) "⚡" else ""}"
             "Phải (R): $rText · Đang kết nối"
-        } else if (telemetry.main in 0..100) {
-            if (isWearableDevice) "Pin thiết bị: ${telemetry.main}% · Đang kết nối"
-            else "Pin tai nghe: ${telemetry.main}% · Đang kết nối âm thanh"
+        } else if (activeTelemetry.main in 0..100) {
+            if (isWearableDevice) "Pin thiết bị: ${activeTelemetry.main}% · Đang kết nối"
+            else "Pin tai nghe: ${activeTelemetry.main}% · Đang kết nối âm thanh"
         } else {
             if (isWearableDevice) "Thiết bị đeo · Đã kết nối"
             else "Tai nghe Bluetooth · Đã kết nối"
@@ -1088,20 +1195,20 @@ object EarbudsCard {
 
         // Xây dựng danh sách slot pin co giãn thích ứng
         val slots = mutableListOf<BatterySlot>()
-        if (telemetry.left in 0..100) {
-            slots.add(BatterySlot(shortLabel = "L", fullLabel = "Tai Trái: ${telemetry.left}%", level = telemetry.left, isCharging = telemetry.isLeftCharging))
+        if (activeTelemetry.left in 0..100) {
+            slots.add(BatterySlot(shortLabel = "L", fullLabel = "Tai Trái: ${activeTelemetry.left}%", level = activeTelemetry.left, isCharging = activeTelemetry.isLeftCharging))
         }
-        if (telemetry.right in 0..100) {
-            slots.add(BatterySlot(shortLabel = "R", fullLabel = "Tai Phải: ${telemetry.right}%", level = telemetry.right, isCharging = telemetry.isRightCharging))
+        if (activeTelemetry.right in 0..100) {
+            slots.add(BatterySlot(shortLabel = "R", fullLabel = "Tai Phải: ${activeTelemetry.right}%", level = activeTelemetry.right, isCharging = activeTelemetry.isRightCharging))
         }
-        if (telemetry.case in 0..100) {
-            slots.add(BatterySlot(shortLabel = "Hộp", fullLabel = "Hộp sạc: ${telemetry.case}%", level = telemetry.case, isCharging = telemetry.isCaseCharging))
+        if (activeTelemetry.case in 0..100) {
+            slots.add(BatterySlot(shortLabel = "Hộp", fullLabel = "Hộp sạc: ${activeTelemetry.case}%", level = activeTelemetry.case, isCharging = activeTelemetry.isCaseCharging))
         }
-        if (slots.isEmpty() && telemetry.main in 0..100) {
+        if (slots.isEmpty() && activeTelemetry.main in 0..100) {
             val slotLabel = if (isWearableDevice) {
                 if (name.contains("fit", ignoreCase = true)) "Fit 3" else "Pin"
             } else "Pin"
-            slots.add(BatterySlot(shortLabel = slotLabel, fullLabel = "$slotLabel: ${telemetry.main}%", level = telemetry.main, isCharging = false))
+            slots.add(BatterySlot(shortLabel = slotLabel, fullLabel = "$slotLabel: ${activeTelemetry.main}%", level = activeTelemetry.main, isCharging = false))
         }
 
         val leftContent = if (known) "${effectivePct}%" else (if (isWearableDevice) "Vòng đeo" else "Tai nghe")
