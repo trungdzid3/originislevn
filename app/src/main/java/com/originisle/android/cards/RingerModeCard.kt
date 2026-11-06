@@ -11,6 +11,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.media.AudioManager
 import android.net.Uri
@@ -447,7 +449,8 @@ object RingerModeCard {
     }
 
     /**
-     * Dựng Icon Chuông rung động lam (Vibrate Mode) dạng Canvas vector 96x96 px không có khung vuông.
+     * Dựng Icon Chế độ Rung (Vibrate Mode) dạng Canvas vector 96x96 px chuẩn Material/OriginOS.
+     * Thiết kế thân điện thoại thẳng đứng cân đối ở trung tâm, hai bên là các dải sóng rung hình cánh cung cong mượt mà.
      */
     fun createVibrateIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -455,32 +458,55 @@ object RingerModeCard {
         val scale = width / 24f
         canvas.scale(scale, scale)
 
-        // Quả chuông nghiêng động ở giữa
-        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            this.color = color
-        }
-        val bellPath = PathParser.createPathFromPathData(
-            "M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2z" +
-            "M17,16v-5c0,-2.76 -1.46,-5.06 -4,-5.74V4.5C13,3.67 12.33,3 11.5,3S10,3.67 10,4.5v0.76C7.46,5.94 6,8.24 6,11v5l-1.5,1.5V18h14v-0.5L17,16z"
-        )
-        canvas.save()
-        canvas.rotate(-12f, 12f, 12f)
-        canvas.drawPath(bellPath, fillPaint)
-        canvas.restore()
-
-        // Hai cặp đường sóng rung zigzag sắc nét 2 bên
         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 2.0f
+            this.color = color
+            strokeWidth = 1.7f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
-            this.color = color
         }
-        val leftWaves = PathParser.createPathFromPathData("M3.5,8.5 L1.8,10.5 L3.5,12.5 L1.8,14.5")
-        val rightWaves = PathParser.createPathFromPathData("M20.5,8.5 L22.2,10.5 L20.5,12.5 L22.2,14.5")
-        canvas.drawPath(leftWaves, strokePaint)
-        canvas.drawPath(rightWaves, strokePaint)
+
+        // 1. Khung thân điện thoại thẳng đứng, bo góc mềm mại ở trung tâm (24x24)
+        val phoneRect = RectF(7.6f, 3.8f, 16.4f, 20.2f)
+        canvas.drawRoundRect(phoneRect, 2.4f, 2.4f, strokePaint)
+
+        // Rãnh loa thoại nhỏ ở đỉnh máy
+        canvas.drawLine(10.5f, 6.2f, 13.5f, 6.2f, strokePaint)
+        // Vạch đáy màn hình / nút home
+        canvas.drawLine(10.8f, 17.8f, 13.2f, 17.8f, strokePaint)
+
+        // 2. Hai cặp sóng rung cong mượt mà đối xứng 2 bên (không nghiêng ngả, không zigzag sắc nhọn)
+        val wavePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            this.color = color
+            strokeWidth = 1.6f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        // Cặp sóng bên trái
+        val leftInner = Path().apply {
+            moveTo(5.0f, 9.5f)
+            quadTo(3.5f, 12.0f, 5.0f, 14.5f)
+        }
+        val leftOuter = Path().apply {
+            moveTo(2.5f, 7.6f)
+            quadTo(0.6f, 12.0f, 2.5f, 16.4f)
+        }
+        canvas.drawPath(leftInner, wavePaint)
+        canvas.drawPath(leftOuter, wavePaint)
+
+        // Cặp sóng bên phải
+        val rightInner = Path().apply {
+            moveTo(19.0f, 9.5f)
+            quadTo(20.5f, 12.0f, 19.0f, 14.5f)
+        }
+        val rightOuter = Path().apply {
+            moveTo(21.5f, 7.6f)
+            quadTo(23.4f, 12.0f, 21.5f, 16.4f)
+        }
+        canvas.drawPath(rightInner, wavePaint)
+        canvas.drawPath(rightOuter, wavePaint)
 
         return Icon.createWithBitmap(bitmap)
     }
