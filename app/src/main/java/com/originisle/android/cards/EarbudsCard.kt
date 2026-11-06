@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
@@ -229,6 +232,54 @@ object EarbudsCard {
         }.getOrDefault(false)
     }
 
+    /**
+     * Tìm kiếm BluetoothDevice từ danh sách bondedDevices theo tên, alias hoặc MAC address.
+     * Quét qua BluetoothAdapter.bondedDevices tìm thiết bị có address, name, hoặc alias khớp với name
+     * (chứa "fit 3", "fit3", "galaxy fit", hoặc name).
+     */
+    fun findBluetoothDevice(context: Context, name: String): BluetoothDevice? {
+        if (!hasPermission(context)) return null
+        return runCatching {
+            val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            val adapter = btManager?.adapter ?: BluetoothAdapter.getDefaultAdapter() ?: return@runCatching null
+            if (!adapter.isEnabled) return@runCatching null
+            val bonded = adapter.bondedDevices ?: return@runCatching null
+            val target = name.trim().lowercase()
+
+            // 1. Quét theo MAC hoặc tên/alias khớp trực tiếp
+            bonded.firstOrNull { dev ->
+                val addr = dev.address?.lowercase().orEmpty()
+                if (addr.isNotBlank() && (addr == target || target.contains(addr))) return@firstOrNull true
+                val dName = runCatching { dev.name }.getOrNull()?.trim()?.lowercase().orEmpty()
+                if (dName.isNotBlank() && (dName == target || dName.contains(target) || target.contains(dName))) return@firstOrNull true
+                val dAlias = runCatching { dev.alias }.getOrNull()?.trim()?.lowercase().orEmpty()
+                if (dAlias.isNotBlank() && (dAlias == target || dAlias.contains(target) || target.contains(dAlias))) return@firstOrNull true
+                false
+            } ?: runCatching {
+                // 2. Tìm theo từ khóa Galaxy Fit 3 / Smart Band / Watch nếu target là thiết bị đeo
+                val isWearableTarget = target.contains("fit") || target.contains("watch") || target.contains("band") || target.contains("samsung")
+                val fitKeywords = listOf("fit 3", "fit3", "galaxy fit", "sm-r390", "galaxy watch", "fit")
+                if (isWearableTarget) {
+                    bonded.firstOrNull { dev ->
+                        val dName = runCatching { dev.name }.getOrNull()?.trim()?.lowercase().orEmpty()
+                        val dAlias = runCatching { dev.alias }.getOrNull()?.trim()?.lowercase().orEmpty()
+                        fitKeywords.any { kw -> dName.contains(kw) || dAlias.contains(kw) }
+                    }
+                } else null
+            }.getOrNull() ?: runCatching {
+                // 3. Fallback: tìm thiết bị có tên chứa một phần target (nếu target >= 3 ký tự)
+                if (target.length >= 3) {
+                    bonded.firstOrNull { dev ->
+                        val dName = runCatching { dev.name }.getOrNull()?.trim()?.lowercase().orEmpty()
+                        val dAlias = runCatching { dev.alias }.getOrNull()?.trim()?.lowercase().orEmpty()
+                        (dName.isNotBlank() && (dName.contains(target) || target.contains(dName))) ||
+                            (dAlias.isNotBlank() && (dAlias.contains(target) || target.contains(dAlias)))
+                    }
+                } else null
+            }.getOrNull()
+        }.getOrNull()
+    }
+
     /** Kiểm tra xem thiết bị theo tên hoặc MAC address có đang ở trạng thái kết nối thật hay không. */
     fun isConnected(nameOrAddress: String?): Boolean {
         if (nameOrAddress.isNullOrBlank()) return false
@@ -340,11 +391,24 @@ object EarbudsCard {
 
     /**
      * Đa kênh đọc % pin phần cứng cho Samsung Galaxy Fit 3:
+     * - Kênh 0: Đọc trực tiếp batteryOf(dev) từ BluetoothDevice nếu có trong bondedDevices
      * - Kênh 1: Kích hoạt sync qua Broadcast Widget
      * - Kênh 2: Truy vấn ContentProvider mở (CapsuleProvider & quicksearch)
      * - Kênh 3: Hỗ trợ tiếp cận (KeepAliveAccessibilityService)
      */
     fun querySamsungFit3Battery(context: Context, devName: String = "Galaxy Fit 3"): Int {
+        // 0. Kênh 0: Tìm thiết bị và gọi batteryOf(dev) trước tiên
+        val targetDev = findBluetoothDevice(context, devName)
+        if (targetDev != null) {
+            val btLevel = batteryOf(targetDev)
+            if (btLevel in 0..100) {
+                saveCachedBattery(context, devName, btLevel)
+                targetDev.address?.let { saveCachedBattery(context, it, btLevel) }
+                Log.i(TAG, "querySamsungFit3Battery (BluetoothDevice.getBatteryLevel): $devName = $btLevel%")
+                return btLevel
+            }
+        }
+
         // 1. Kích hoạt sync ngầm qua Broadcast Widget (Kênh 1)
         requestSamsungFit3BatteryUpdate(context)
 
@@ -425,18 +489,18 @@ object EarbudsCard {
     fun readGattBatteryAsync(context: Context, device: BluetoothDevice?, devName: String, isWearable: Boolean) {
         if (device == null || !hasPermission(context)) return
         runCatching {
-            var gattRef: android.bluetooth.BluetoothGatt? = null
-            val gattCallback = object : android.bluetooth.BluetoothGattCallback() {
-                override fun onConnectionStateChange(gatt: android.bluetooth.BluetoothGatt, status: Int, newState: Int) {
-                    if (newState == android.bluetooth.BluetoothProfile.STATE_CONNECTED) {
+            var gattRef: BluetoothGatt? = null
+            val gattCallback = object : BluetoothGattCallback() {
+                override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
                         runCatching { gatt.discoverServices() }
-                    } else if (newState == android.bluetooth.BluetoothProfile.STATE_DISCONNECTED) {
+                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         runCatching { gatt.close() }
                     }
                 }
 
-                override fun onServicesDiscovered(gatt: android.bluetooth.BluetoothGatt, status: Int) {
-                    if (status == android.bluetooth.BluetoothGatt.GATT_SUCCESS) {
+                override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
                         val batteryService = gatt.getService(BATTERY_SERVICE_UUID)
                         val batteryChar = batteryService?.getCharacteristic(BATTERY_LEVEL_CHAR_UUID)
                         if (batteryChar != null) {
@@ -447,16 +511,40 @@ object EarbudsCard {
                     runCatching { gatt.disconnect(); gatt.close() }
                 }
 
-                override fun onCharacteristicRead(gatt: android.bluetooth.BluetoothGatt, characteristic: android.bluetooth.BluetoothGattCharacteristic, status: Int) {
-                    if (status == android.bluetooth.BluetoothGatt.GATT_SUCCESS && characteristic.uuid == BATTERY_LEVEL_CHAR_UUID) {
-                        val level = characteristic.value?.firstOrNull()?.toInt()?.and(0xFF) ?: -1
-                        if (level in 0..100) {
-                            saveCachedBattery(context, devName, level)
-                            device.address?.let { saveCachedBattery(context, it, level) }
-                            handler.post {
-                                onBatteryUpdated(context, devName, EarbudsTelemetry(main = level), isWearable = isWearable)
-                            }
+                private fun processBatteryBytes(bytes: ByteArray?) {
+                    val level = bytes?.firstOrNull()?.toInt()?.and(0xFF) ?: -1
+                    if (level in 0..100) {
+                        saveCachedBattery(context, devName, level)
+                        device.address?.let { saveCachedBattery(context, it, level) }
+                        handler.post {
+                            onBatteryUpdated(context, devName, EarbudsTelemetry(main = level), isWearable = isWearable)
                         }
+                    }
+                }
+
+                // Android 13+ (API 33+)
+                override fun onCharacteristicRead(
+                    gatt: BluetoothGatt,
+                    characteristic: BluetoothGattCharacteristic,
+                    value: ByteArray,
+                    status: Int
+                ) {
+                    if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == BATTERY_LEVEL_CHAR_UUID) {
+                        processBatteryBytes(value)
+                    }
+                    runCatching { gatt.disconnect(); gatt.close() }
+                }
+
+                // Android 12- (API < 33)
+                @Deprecated("Deprecated in Java")
+                override fun onCharacteristicRead(
+                    gatt: BluetoothGatt,
+                    characteristic: BluetoothGattCharacteristic,
+                    status: Int
+                ) {
+                    if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == BATTERY_LEVEL_CHAR_UUID) {
+                        @Suppress("DEPRECATION")
+                        processBatteryBytes(characteristic.value)
                     }
                     runCatching { gatt.disconnect(); gatt.close() }
                 }
@@ -1359,7 +1447,7 @@ object EarbudsCard {
         return false
     }
 
-    private fun batteryOf(device: BluetoothDevice): Int = runCatching {
+    fun batteryOf(device: BluetoothDevice): Int = runCatching {
         BluetoothDevice::class.java.getMethod("getBatteryLevel").invoke(device) as Int
     }.getOrDefault(-1).takeIf { it in 0..100 } ?: -1
 
@@ -1384,7 +1472,16 @@ object EarbudsCard {
         val name = customName ?: runCatching { device?.alias ?: device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: if (isWearableDevice) "Galaxy Fit 3" else "Tai nghe"
 
+        val targetDev = device ?: findBluetoothDevice(context, name)
         var effectivePct = telemetry.effectiveLevel
+
+        if (effectivePct !in 0..100 && targetDev != null) {
+            val devBattery = batteryOf(targetDev)
+            if (devBattery in 0..100) {
+                effectivePct = devBattery
+            }
+        }
+
         if (isWearableDevice && effectivePct !in 0..100) {
             val fit3Battery = querySamsungFit3Battery(context, name)
             if (fit3Battery in 0..100) {
@@ -1397,6 +1494,11 @@ object EarbudsCard {
                 }
             }
         }
+
+        if (effectivePct !in 0..100 && targetDev != null) {
+            readGattBatteryAsync(context, targetDev, name, isWearableDevice)
+        }
+
         val known = effectivePct in 0..100
         val isLow = known && effectivePct <= LOW_LEVEL
 
@@ -1408,7 +1510,7 @@ object EarbudsCard {
 
         if (known) {
             saveCachedBattery(context, name, effectivePct)
-            device?.address?.let { saveCachedBattery(context, it, effectivePct) }
+            (targetDev ?: device)?.address?.let { saveCachedBattery(context, it, effectivePct) }
         }
 
         val glyph = when {
@@ -1606,7 +1708,15 @@ object EarbudsCard {
         val alreadyConnected = isConnected(name)
         setConnectedState(name, true)
 
+        val targetDevice: BluetoothDevice? = findBluetoothDevice(ctx, name)
+
         var effectiveBattery = battery
+        if (effectiveBattery !in 0..100 && targetDevice != null) {
+            val devBattery = batteryOf(targetDevice)
+            if (devBattery in 0..100) {
+                effectiveBattery = devBattery
+            }
+        }
         if (effectiveBattery !in 0..100) {
             val cached = getCachedBattery(ctx, name)
             if (cached in 0..100) {
@@ -1615,6 +1725,9 @@ object EarbudsCard {
         }
         if (effectiveBattery in 0..100) {
             saveCachedBattery(ctx, name, effectiveBattery)
+            targetDevice?.address?.let { saveCachedBattery(ctx, it, effectiveBattery) }
+        } else if (targetDevice != null) {
+            readGattBatteryAsync(ctx, targetDevice, name, isWearable)
         }
 
         val telemetry = if (effectiveBattery in 0..100) {
@@ -1630,7 +1743,7 @@ object EarbudsCard {
                 if (telemetry.effectiveLevel in 0..LOW_LEVEL) warnedLow += name
                 show(
                     context = ctx,
-                    device = null,
+                    device = targetDevice,
                     customName = name,
                     telemetry = telemetry,
                     low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
@@ -1643,7 +1756,7 @@ object EarbudsCard {
         // Chuyển từ ngắt kết nối -> kết nối: Hiển thị đảo
         show(
             context = ctx,
-            device = null,
+            device = targetDevice,
             customName = name,
             telemetry = telemetry,
             low = (telemetry.effectiveLevel in 0..LOW_LEVEL),

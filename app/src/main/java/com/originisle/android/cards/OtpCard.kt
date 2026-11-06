@@ -17,9 +17,10 @@ import java.util.Locale
 
 /**
  * Thẻ thông báo mã OTP / mã xác thực đăng nhập ưu tiên cao trên Đảo Origin.
- * - Mã hiển thị lớn trên thẻ và trong viên thuốc (capsule).
- * - Nút bấm "Sao chép mã" với [CopyCodeReceiver] tự động sao chép mã vào clipboard và thu gọn thẻ.
- * - Màu chữ trắng tương phản hoàn hảo trên nền Teal đặc trưng OriginOS 6 (#00BFA5), sửa lỗi trùng màu nền đen.
+ * - Trên đảo thu gọn (Capsule): Bên trái hiện "OTP", bên phải hiện mã và nút chép ("$code · Chép").
+ * - Chạm vào đảo hoặc nút bên phải sao chép ngay mã vào clipboard qua [CopyCodeReceiver] và thu gọn thẻ.
+ * - Trên thẻ mở rộng: Tiêu đề là mã OTP định dạng dễ đọc, phụ đề là "Mã xác thực · $appLabel", nút action "Sao chép mã".
+ * - Màu chữ trắng tương phản hoàn hảo trên nền Teal đặc trưng OriginOS 6 (#00BFA5).
  */
 object OtpCard {
 
@@ -37,7 +38,9 @@ object OtpCard {
         val appIcon = IconCache.safeAppIcon(app, sbn.packageName)
 
         val isVi = Locale.getDefault().language == "vi"
-        val copyLabel = if (isVi) "Sao chép mã" else "Copy code"
+        val copyActionLabel = if (isVi) "Sao chép mã" else "Copy code"
+        val copyShortLabel = if (isVi) "Chép" else "Copy"
+        val rightPillContent = "$code · $copyShortLabel"
 
         val copy = PendingIntent.getBroadcast(
             app, id,
@@ -47,7 +50,7 @@ object OtpCard {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val copyAction = Notification.Action.Builder(
-            IconCache.safeResourceIcon(app, R.mipmap.ic_launcher_round), copyLabel, copy,
+            IconCache.safeResourceIcon(app, R.mipmap.ic_launcher_round), copyActionLabel, copy,
         ).build()
 
         val fgColorHex = String.format("#%08X", Color.WHITE) // #FFFFFFFF
@@ -59,22 +62,22 @@ object OtpCard {
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4: text + click resp
             putExtra("title", spaced(code))
             putExtra("text", "Mã xác thực · $appLabel")
             putExtra("source_app", appLabel)
             putExtra("source_pkg", sbn.packageName)
             putExtra("oi_left_content", "OTP")
-            putExtra("oi_right_content", code)
-            putExtra("status_chip_text", code)
+            putExtra("oi_right_content", rightPillContent)
+            putExtra("status_chip_text", rightPillContent)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             appIcon?.let {
                 putExtra("oi_left_icon", it)
                 putExtra("oi_large_icon", it)
             }
             putParcelableArrayListExtra("actions", arrayListOf(copyAction))
-            putStringArrayListExtra("oi_button_titles", arrayListOf(copyLabel))
-            putExtra("action_title", copyLabel)
+            putStringArrayListExtra("oi_button_titles", arrayListOf(copyActionLabel))
+            putExtra("action_title", copyActionLabel)
             putExtra("source_content_intent", copy)
             putExtra("click_resp", copy)
             putExtra("oi_force_show", true)

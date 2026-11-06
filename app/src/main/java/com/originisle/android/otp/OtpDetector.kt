@@ -1,5 +1,7 @@
 package com.originisle.android.otp
 
+import android.os.Bundle
+import android.os.Parcelable
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 
@@ -31,6 +33,9 @@ object OtpDetector {
         RegexOption.IGNORE_CASE,
     )
 
+    /** Trích xuất số 4-8 chữ số trực tiếp từ nút hành động (Notification Action) */
+    private val ACTION_CODE_REGEX = Regex("""\b([0-9]{4,8})\b""")
+
     /** Bộ gợi ý từ khóa OTP tiếng Việt (có dấu & không dấu) và quốc tế */
     val OTP_HINT = Regex(
         """(?U)\b(?:""" +
@@ -60,28 +65,50 @@ object OtpDetector {
 
     /**
      * Biểu thức chính quy trực tiếp bắt mã OTP 4-8 chữ số:
-     * - Sau OTP / mã xác thực / mã xác nhận / mã xác minh (có dấu & không dấu)
-     * - Sau mã giao dịch / mã bảo mật / mã đăng nhập / mã kích hoạt / SmartOTP
+     * - Hỗ trợ có ngoặc đơn: Mã xác thực (OTP), Mã xác minh (OTP)...
+     * - Hỗ trợ có tên thương hiệu ở giữa: Mã xác minh Google, Mã xác nhận Shopee, Mã xác thực ZaloPay...
+     * - Hỗ trợ OTP: 490603, Mã OTP: 490603, OTP - 490603...
+     * - Sau mã giao dịch / bảo mật / đăng nhập / kích hoạt / SmartOTP
      * - Sau mật khẩu một lần (mat khau mot lan)
      * - Đứng trước hoặc sau cụm từ hiệu lực trong / expires in
      * - Định dạng prefix G-123456, FB-123456, [123456]
      */
     private val DIRECT_PATTERNS = listOf(
-        Regex("""(?i)(?:(?:mã|ma)\s*)?(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan)?\s*(?:otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)(?:mã|ma)\s*(?:giao\s*dịch|giao\s*dich|bảo\s*mật|bao\s*mat|đăng\s*nhập|dang\s*nhap|kích\s*hoạt|kich\s*hoat)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        // 1. Mã xác thực/minh/nhận/OTP có (OTP) hoặc có tên thương hiệu ở giữa:
+        // ví dụ: "Mã xác thực (OTP) của bạn là 490603", "Mã xác minh Google của bạn là 490603", "Mã xác nhận Shopee là 490603", "OTP của bạn là: 490603"
+        Regex("""(?i)(?:(?:mã|ma)\s*)?(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan|otp|code)?\s*(?:\([^)]*\)\s*)?(?:[a-z0-9_.-]{2,20}\s+)?(?:otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la|:)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 2. OTP / Mã OTP: 490603, OTP - 490603, Mã xác minh (OTP): 490603, Mã OTP của bạn là: 490603
+        Regex("""(?i)\b(?:mã|ma)?\s*(?:otp|code)\s*(?:\([^)]*\))?\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan)\s*(?:\([^)]*\))?\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
+
+        // 3. Mã giao dịch / bảo mật / đăng nhập / kích hoạt
+        Regex("""(?i)(?:mã|ma)\s*(?:giao\s*dịch|giao\s*dich|bảo\s*mật|bao\s*mat|đăng\s*nhập|dang\s*nhap|kích\s*hoạt|kich\s*hoat)\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la|:)?\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 4. SmartOTP
         Regex("""(?i)\b(?:smart\s*otp|smartotp)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 5. Mật khẩu một lần / mat khau mot lan
         Regex("""(?i)(?:mật\s*khẩu\s*một\s*lần|mat\s*khau\s*mot\s*lan|mật\s*khẩu\s*dùng\s*một\s*lần|mat\s*khau\s*dung\s*mot\s*lan)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 6. Passcode, Auth code, Verification code, Security code
         Regex("""(?i)(?:passcode|authen(?:tication)?\s*code)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)(?:otp|code|mã|ma)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:verification|security|confirmation|validation|login|auth|one[- ]time)\s*(?:code|password|passcode)?\s*(?:is\s*)?[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:your\s+code\s+is|use\s+code|enter\s+code)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 7. Số đứng trước từ khóa: "490603 là mã...", "490603 là mã xác nhận Shopee..."
         Regex("""(?i)(?<!\d)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp|smart\s*otp|smartotp)"""),
+
+        // 8. Hiệu lực trong / expires in
         Regex("""(?i)\b([0-9]{4,8})\s*(?:(?:co\s*|có\s*)?(?:hieu\s*luc|hiệu\s*lực)\s*trong|expires\s*in|valid\s*for)"""),
         Regex("""(?i)(?:hieu\s*luc\s*trong|hiệu\s*lực\s*trong|expires\s*in)\s*[^0-9]{0,20}\b([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)\b(?:otp|mã\s*xác\s*thực|ma\s*xac\s*thuc|mã\s*xác\s*nhận|ma\s*xac\s*nhan|mã\s*xác\s*minh|ma\s*xac\s*minh|mã\s*đăng\s*nhập|ma\s*dang\s*nhap|mã\s*giao\s*dịch|ma\s*giao\s*dich|tin\s*nhắn\s*xác\s*minh|tin\s*nhan\s*xac\s*minh|verification\s*code|security\s*code)\b[^\d]{0,40}?([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)\bcode\s*[:：]?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 9. Tiền tố hệ thống quốc tế G-123456, FB-123456...
         Regex("""(?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\[([0-9]{4,8})\]"""),
-        Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan|otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la|:)?\s*([0-9]{4,8})(?!\d)"""),
+
+        // 10. Quét tổng quát có chứa từ khóa OTP trong cự ly gần
+        Regex("""(?i)\b(?:otp|mã\s*xác\s*thực|ma\s*xac\s*thuc|mã\s*xác\s*nhận|ma\s*xac\s*nhan|mã\s*xác\s*minh|ma\s*xac\s*minh|mã\s*đăng\s*nhập|ma\s*dang\s*nhap|mã\s*giao\s*dịch|ma\s*giao\s*dich|tin\s*nhắn\s*xác\s*minh|tin\s*nhan\s*xac\s*minh|verification\s*code|security\s*code)\b[^\d]{0,40}?([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\b([0-9]{4,8})\b(?=.*(?:mã|ma|otp|code|xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|smartotp))"""),
     )
 
@@ -101,12 +128,16 @@ object OtpDetector {
         RegexOption.IGNORE_CASE,
     )
 
+    /**
+     * Tiền tố số điện thoại / hotline: chỉ loại bỏ khi đứng NGAY TRƯỚC candidate code
+     * (kết thúc bằng dấu hai chấm hoặc khoảng trắng sát mã), tránh chặn oan mã OTP
+     * khi tin nhắn có câu "Liên hệ 1900xxxx để được hỗ trợ".
+     */
     private val PHONE_PREFIX = Regex(
-        """(?U)(?:\b(?:sđt|sdt|số\s+điện\s+thoại|so\s+dien\s+thoai|điện\s+thoại|dien\s+thoai|""" +
+        """(?U)\b(?:sđt|sdt|số\s+điện\s+thoại|so\s+dien\s+thoai|điện\s+thoại|dien\s+thoai|""" +
             """tổng\s+đài|tong\s+dai|cskh|hotline|hỗ\s+trợ|ho\s+tro|tư\s+vấn|tu\s+van|""" +
             """tel(?:ephone)?|phone(?:\s*(?:no|num|number))?|mobile(?:\s*(?:no|num|number))?|contact|gọi|goi|call|""" +
-            """1800|1900)\s*[:#.-]?\s*$|""" +
-            """\b(?:liên\s+hệ|lien\s+he)\b.{0,25}$)""",
+            """liên\s+hệ|lien\s+he|1800|1900)\s*[:#.-]?\s*$""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -160,6 +191,7 @@ object OtpDetector {
     /**
      * Bóc tách toàn diện chuỗi văn bản từ [StatusBarNotification], bao gồm:
      * - Extras thông thường (title, text, bigText, lines...)
+     * - MessagingStyle (EXTRA_MESSAGES / android.messages / historic) của tin nhắn SMS hiện đại
      * - Ticker text của notification
      * - publicVersion khi máy bị khóa màn hình hoặc nội dung bị redact/ẩn
      */
@@ -187,6 +219,23 @@ object OtpDetector {
                 extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES)
                     ?.mapNotNull { it?.toString() }
             }.getOrNull()?.filter { it.isNotBlank() }?.let { parts.addAll(it) }
+
+            // Bổ sung: Trích xuất tin nhắn từ MessagingStyle trong extras (Google Messages, Vivo MMS...)
+            extractMessagingTexts(extras).forEach { text ->
+                if (text.isNotBlank()) parts.add(text)
+            }
+        }
+
+        // Trích xuất tin nhắn qua NotificationCompat.MessagingStyle
+        runCatching {
+            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)?.let { style ->
+                style.messages.forEach { msg ->
+                    msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                }
+                style.historicMessages.forEach { msg ->
+                    msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                }
+            }
         }
 
         // 2. Ticker text
@@ -195,33 +244,77 @@ object OtpDetector {
 
         // 3. publicVersion (khi thông báo bị redact/ẩn trên lockscreen)
         val pubN = n.publicVersion
-        if (pubN != null && pubN.extras != null) {
-            listOf(
-                NotificationCompat.EXTRA_TITLE,
-                NotificationCompat.EXTRA_TEXT,
-                NotificationCompat.EXTRA_BIG_TEXT,
-                NotificationCompat.EXTRA_SUB_TEXT,
-            ).forEach { key ->
-                runCatching { pubN.extras.getCharSequence(key)?.toString() }
+        if (pubN != null) {
+            runCatching {
+                NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(pubN)?.let { style ->
+                    style.messages.forEach { msg ->
+                        msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                    }
+                }
+            }
+            if (pubN.extras != null) {
+                listOf(
+                    NotificationCompat.EXTRA_TITLE,
+                    NotificationCompat.EXTRA_TEXT,
+                    NotificationCompat.EXTRA_BIG_TEXT,
+                    NotificationCompat.EXTRA_SUB_TEXT,
+                ).forEach { key ->
+                    runCatching { pubN.extras.getCharSequence(key)?.toString() }
+                        .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                }
+                extractMessagingTexts(pubN.extras).forEach { text ->
+                    if (text.isNotBlank()) parts.add(text)
+                }
+                runCatching { pubN.tickerText?.toString() }
                     .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
             }
-            runCatching { pubN.tickerText?.toString() }
-                .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
         }
 
-        return parts.joinToString("\n")
+        return parts.distinct().joinToString("\n")
+    }
+
+    /**
+     * Trích xuất các đoạn text trong EXTRA_MESSAGES và EXTRA_HISTORIC_MESSAGES (hoặc android.messages)
+     */
+    private fun extractMessagingTexts(bundle: Bundle): List<String> {
+        val results = mutableListOf<String>()
+        val keys = listOf(
+            "android.messages",
+            NotificationCompat.EXTRA_MESSAGES,
+            "android.messages.historic",
+            NotificationCompat.EXTRA_HISTORIC_MESSAGES,
+        )
+        for (key in keys) {
+            runCatching {
+                val rawArray = bundle.getParcelableArray(key)
+                rawArray?.forEach { item ->
+                    if (item is Bundle) {
+                        item.getCharSequence("text")?.toString()?.takeIf { it.isNotBlank() }?.let { results.add(it) }
+                    }
+                }
+            }
+        }
+        return results
     }
 
     /**
      * Trích xuất mã OTP trực tiếp từ StatusBarNotification.
      */
     fun find(sbn: StatusBarNotification, actionTitles: List<String> = emptyList()): String? {
-        val fullText = extractNotificationText(sbn)
         val actions = if (actionTitles.isNotEmpty()) {
             actionTitles
         } else {
-            sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
+            val list = mutableListOf<String>()
+            sbn.notification.actions?.forEach { a ->
+                a.title?.toString()?.takeIf { it.isNotBlank() }?.let { list.add(it) }
+            }
+            for (i in 0 until NotificationCompat.getActionCount(sbn.notification)) {
+                NotificationCompat.getAction(sbn.notification, i)?.title?.toString()
+                    ?.takeIf { it.isNotBlank() }?.let { list.add(it) }
+            }
+            list.distinct()
         }
+        val fullText = extractNotificationText(sbn)
         return find(fullText, actions)
     }
 
@@ -229,6 +322,17 @@ object OtpDetector {
      * Trích xuất mã OTP từ chuỗi văn bản [text] và các nút hành động [actionTitles].
      */
     fun find(text: String, actionTitles: List<String> = emptyList()): String? {
+        // 0. Trích xuất mã OTP trực tiếp từ Action Title của Notification nếu có:
+        // Trong Vivo OriginOS SMS / Google Messages, nút hành động thường chứa: "Sao chép 490603", "Copy 490603" hoặc "490603"
+        for (action in actionTitles) {
+            for (m in ACTION_CODE_REGEX.findAll(action)) {
+                val candidateCode = m.groupValues[1]
+                if (!isHotlineNumber(candidateCode)) {
+                    return candidateCode
+                }
+            }
+        }
+
         val hasCopyAction = actionTitles.any { COPY_ACTION_REGEX.containsMatchIn(it) } ||
             COPY_ACTION_REGEX.containsMatchIn(text)
         val isVivoReminder = VIVO_REMINDER.containsMatchIn(text)

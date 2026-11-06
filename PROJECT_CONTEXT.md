@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.2.2` (mã bản dựng `versionCode = 10202`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.2.3` (mã bản dựng `versionCode = 10203`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Quy chuẩn đánh số phiên bản**:
   - `X` (Số đầu): Thế hệ hiện tại.
   - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
@@ -17,7 +17,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.2 / 10202)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.3 / 10203)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -29,16 +29,16 @@ origin-isle-vn/
 │       │       ├── cards/            # 15 loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
-│       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (Hiện "Đã kết nối", bỏ khung xám ngắt kết nối)
+│       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (findBluetoothDevice, GATT API 33+, bondedDevices batteryOf)
 │       │       │   ├── MediaCard.kt      # Nhạc sóng động & cơ chế nhường Đảo gốc OriginOS 6 (Zero-Overlap)
-│       │       │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép mã)
+│       │       │   ├── OtpCard.kt        # Thẻ OTP tối ưu (trái "OTP", phải "$code · Chép", chạm chép clipboard)
 │       │       │   ├── QuickShareCard.kt # Quick Share logo chính thức từ file SVG tải về
 │       │       │   ├── RideCard.kt       # Tiến trình Gọi xe & Giao đồ ăn VN (Template 2)
 │       │       │   └── RingerModeCard.kt # Chế độ Chuông / Rung / Im lặng / DND độc lập (showNotify=true)
 │       │       ├── download/         # Nhận diện tải xuống nhạy bén
 │       │       ├── island/           # Service SuperX, builder, constants, resolveAllowedScene
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
-│       │       ├── otp/              # Nhận diện OTP tiếng Việt có dấu & không dấu (SMS Brandname)
+│       │       ├── otp/              # Nhận diện OTP MessagingStyle (EXTRA_MESSAGES), Action Title, regex (OTP)
 │       │       ├── quickshare/       # Nhận diện Quick Share & EasyShare & actions
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN (Grab, Be, Xanh SM, ShopeeFood)
 │       │       ├── service/          # NotificationCastListener & Receivers & KeepAliveAccessibilityService
@@ -53,17 +53,22 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.2.2.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 2)
+└── OriginIsle-VN-v1.2.3.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 3)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `OtpDetector.kt` (`app/src/main/java/com/originisle/android/otp/OtpDetector.kt`):
+  - `extractMessagingTexts`: Bóc tách text từ `NotificationCompat.EXTRA_MESSAGES` và `android.messages` (cấu trúc MessagingStyle chuẩn Android 14 Vivo MMS / Google Messages).
+  - Trích xuất trực tiếp mã OTP từ Notification Action titles ("Sao chép 490603", "490603").
+  - Nâng cấp regex bắt `(OTP)`, brand name ở giữa ("Mã xác minh Google của bạn là 490603").
+- `OtpCard.kt` (`app/src/main/java/com/originisle/android/cards/OtpCard.kt`):
+  - Trái hiển thị "OTP", phải hiển thị "$code · Chép". Chạm vào sao chép ngay lập tức vào clipboard và thu gọn đảo.
 - `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
-  - Khi kết nối chưa xác định % pin: Chuyển chữ hiển thị từ "Vòng đeo" sang "Đã kết nối" chuẩn chỉ.
-  - Khi ngắt kết nối: Chuyển template từ `TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` (Template 6) sang `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (Template 4), loại bỏ hoàn toàn khung bo tròn xám (capsule), hiển thị chữ "Đã ngắt" và icon đỏ thanh thoát.
-- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Lọc từ khóa ngắt kết nối, chặn flap.
-- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`): Cơ chế nhường Đảo gốc OriginOS 6.
-- `RingerModeCard.kt` (`app/src/main/java/com/originisle/android/cards/RingerModeCard.kt`): Thẻ Chuông / Rung / Im lặng độc lập.
-- `HomeScreen.kt`, `Theme.kt`, `Components.kt`: Giao diện Cài đặt Vivo OriginOS 6 lồng nhau 5 nhóm chuẩn mực.
+  - `findBluetoothDevice`: Tự động tìm `BluetoothDevice` từ `bondedDevices` khi notification kết nối không truyền device object.
+  - `batteryOf(targetDevice)`: Đọc trực tiếp mức pin từ Bluetooth stack phần cứng (`BluetoothDevice.getBatteryLevel()`).
+  - `readGattBatteryAsync`: Override phương thức 4 tham số chuẩn Android 13+ API 33 (`value: ByteArray`).
+- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
+  - Quét sâu đa trường notification của Samsung Galaxy Wearable, đồng bộ pin ngay khi nhận tín hiệu kết nối.
 
 ## 4. Việc Đang Mở
-- Không còn việc mở. Bản vá lỗi v1.2.2 đã hoàn thành và sẵn sàng sử dụng.
+- Không còn việc mở. Bản vá lỗi v1.2.3 đã hoàn thành và sẵn sàng sử dụng.

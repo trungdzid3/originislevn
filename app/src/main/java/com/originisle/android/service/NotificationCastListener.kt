@@ -314,6 +314,104 @@ class NotificationCastListener : NotificationListenerService() {
         EarbudsCard.setConnectedState(devName, connected)
     }
 
+    /**
+     * Bóc tách chuyên sâu % pin từ notification của Samsung Galaxy Wearable / Fit 3 Plugin:
+     * Quét qua extras, tickerText, EXTRA_TEXT_LINES, android.messages, các sub-bundle, subText, v.v.
+     */
+    private fun extractDeepWearableBattery(sbn: StatusBarNotification): Int {
+        val n = sbn.notification
+        val extras = n.extras ?: return -1
+
+        // 1. Kiểm tra trực tiếp các key số nguyên trong extras
+        val directKeys = listOf(
+            "battery_level", "level", "percentage", "battery", "capacity",
+            "batteryLevel", "EXTRA_BATTERY_LEVEL", "value", "LEVEL", "battery_status"
+        )
+        for (key in directKeys) {
+            val v = extras.get(key)
+            val num = when (v) {
+                is Number -> v.toInt()
+                is String -> v.trim().replace("%", "").toIntOrNull()
+                else -> null
+            }
+            if (num != null && num in 0..100) return num
+        }
+
+        // 2. Thu thập toàn bộ chuỗi văn bản từ notification
+        val textSnippets = mutableListOf<String>()
+
+        n.tickerText?.toString()?.takeIf { it.isNotBlank() }?.let { textSnippets.add(it) }
+
+        val stringKeys = listOf(
+            NotificationCompat.EXTRA_TITLE,
+            NotificationCompat.EXTRA_TEXT,
+            NotificationCompat.EXTRA_SUB_TEXT,
+            NotificationCompat.EXTRA_BIG_TEXT,
+            NotificationCompat.EXTRA_SUMMARY_TEXT,
+            NotificationCompat.EXTRA_INFO_TEXT,
+            NotificationCompat.EXTRA_TITLE_BIG,
+        )
+        for (k in stringKeys) {
+            runCatching { extras.getCharSequence(k)?.toString() }.getOrNull()?.takeIf { it.isNotBlank() }?.let {
+                textSnippets.add(it)
+            }
+        }
+
+        // EXTRA_TEXT_LINES
+        runCatching {
+            extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES)?.forEach { line ->
+                line?.toString()?.takeIf { it.isNotBlank() }?.let { textSnippets.add(it) }
+            }
+        }
+
+        // android.messages & android.messages.historic
+        runCatching {
+            val msgArr = extras.getParcelableArray("android.messages")
+                ?: extras.getParcelableArray("android.messages.historic")
+            msgArr?.forEach { item ->
+                if (item is android.os.Bundle) {
+                    item.getCharSequence("text")?.toString()?.takeIf { it.isNotBlank() }?.let { textSnippets.add(it) }
+                    item.getCharSequence("sender")?.toString()?.takeIf { it.isNotBlank() }?.let { textSnippets.add(it) }
+                }
+            }
+        }
+
+        // Duyệt qua tất cả key trong extras tìm Bundle con hoặc chuỗi văn bản
+        runCatching {
+            for (key in extras.keySet()) {
+                val v = extras.get(key)
+                when (v) {
+                    is CharSequence -> if (v.isNotBlank()) textSnippets.add(v.toString())
+                    is android.os.Bundle -> {
+                        for (subKey in v.keySet()) {
+                            val subVal = v.get(subKey)
+                            if (subVal is CharSequence && subVal.isNotBlank()) {
+                                textSnippets.add(subVal.toString())
+                            } else if (subVal is Number && (subKey.contains("battery", ignoreCase = true) || subKey.contains("level", ignoreCase = true))) {
+                                val num = subVal.toInt()
+                                if (num in 0..100) return num
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Quét regex trên từng text snippet
+        // Định dạng "Pin: 85%", "Galaxy Fit3 · 85%", "Fit 3: 85%", "Mức pin: 85%", hoặc "85%"
+        val labelRegex = Regex("""(?:pin|battery|mức pin|fit\s*3|galaxy\s*fit|watch)\s*[:：·\-]?\s*(\d{1,3})\s*%?""", RegexOption.IGNORE_CASE)
+        val percentRegex = Regex("""(\d{1,3})\s*%""")
+
+        for (text in textSnippets) {
+            val lblMatch = labelRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
+            if (lblMatch != null && lblMatch in 0..100) return lblMatch
+            val pctMatch = percentRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
+            if (pctMatch != null && pctMatch in 0..100) return pctMatch
+        }
+
+        return -1
+    }
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             try {
@@ -574,35 +672,14 @@ class NotificationCastListener : NotificationListenerService() {
                     else -> appLabel(sbn.packageName)
                 }
 
-                val pctRegex = Regex("""(\d{1,3})\s*%""")
-                val labelPctRegex = Regex("""(?:pin|battery|mức pin)\s*[:：\-]?\s*(\d{1,3})""", RegexOption.IGNORE_CASE)
-                var batteryPct = pctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 }
-                    ?: labelPctRegex.find(hay)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 }
-                    ?: extras.getInt("battery_level", -1).takeIf { it in 0..100 }
-                    ?: extras.getInt("level", -1).takeIf { it in 0..100 }
-                    ?: extras.getInt("percentage", -1).takeIf { it in 0..100 }
-                    ?: -1
+                val isWearableDevice = sbn.packageName.contains("fit3", ignoreCase = true) ||
+                    sbn.packageName.contains("watch", ignoreCase = true) ||
+                    devName.contains("Fit", ignoreCase = true) ||
+                    devName.contains("Watch", ignoreCase = true) ||
+                    devName.contains("Band", ignoreCase = true)
 
-                if (batteryPct == -1) {
-                    val keys = runCatching { extras.keySet() }.getOrNull()
-                    if (keys != null) {
-                        for (key in keys) {
-                            val lowerKey = key.lowercase()
-                            if (lowerKey.contains("battery") || lowerKey.contains("level") || lowerKey.contains("capacity")) {
-                                val v = extras.get(key)
-                                val num = when (v) {
-                                    is Number -> v.toInt()
-                                    is String -> v.trim().toIntOrNull()
-                                    else -> null
-                                }
-                                if (num != null && num in 0..100) {
-                                    batteryPct = num
-                                    break
-                                }
-                            }
-                        }
-                    }
-                }
+                // 2.a) Bóc tách sâu notification của Samsung Galaxy Wearable / Fit 3 Plugin
+                var batteryPct = extractDeepWearableBattery(sbn)
 
                 if (batteryPct == -1) {
                     val notifs = runCatching { activeNotifications }.getOrNull()
@@ -615,10 +692,8 @@ class NotificationCastListener : NotificationListenerService() {
                                 activePkg.contains("waterplugin", ignoreCase = true) ||
                                 activePkg.contains("accessory", ignoreCase = true)
                             if (isSamsungWearPkg) {
-                                val text = notificationText(active)
-                                val match = pctRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
-                                    ?: labelPctRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
-                                if (match != null && match in 0..100) {
+                                val match = extractDeepWearableBattery(active)
+                                if (match in 0..100) {
                                     batteryPct = match
                                     break
                                 }
@@ -627,29 +702,15 @@ class NotificationCastListener : NotificationListenerService() {
                     }
                 }
 
-                if (batteryPct == -1) {
-                    val isSamsungWearPkg = sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
-                        sbn.packageName.contains("fit3", ignoreCase = true) ||
-                        sbn.packageName.contains("watchmanager", ignoreCase = true) ||
-                        sbn.packageName.contains("waterplugin", ignoreCase = true) ||
-                        sbn.packageName.contains("accessory", ignoreCase = true)
-                    if (isSamsungWearPkg) {
-                        val fit3Battery = EarbudsCard.querySamsungFit3Battery(applicationContext, devName)
-                        if (fit3Battery in 0..100) {
-                            batteryPct = fit3Battery
-                        }
-                    }
-                }
-
-                if (batteryPct == -1) {
-                    val cached = EarbudsCard.getCachedBattery(applicationContext, devName)
-                    if (cached in 0..100) {
-                        batteryPct = cached
-                    }
-                }
-
+                // Nếu notification của Samsung Wearable chứa % pin ở bất kỳ trường nào, bóc tách ngay và gọi EarbudsCard.onBatteryUpdated
                 if (batteryPct in 0..100) {
                     EarbudsCard.saveCachedBattery(applicationContext, devName, batteryPct)
+                    EarbudsCard.onBatteryUpdated(
+                        applicationContext,
+                        devName,
+                        EarbudsCard.EarbudsTelemetry(main = batteryPct),
+                        isWearable = isWearableDevice,
+                    )
                 }
 
                 val isFullyCharged = listOf("đã sạc đầy", "sạc đầy", "fully charged", "pin đầy", "sạc hoàn tất").any { hay.contains(it) } ||
@@ -663,12 +724,6 @@ class NotificationCastListener : NotificationListenerService() {
                     "thiết bị đã ngắt", "vòng đeo tay đã ngắt", "đồng hồ đã ngắt", "disconnected from"
                 ).any { hay.contains(it) }
                 val hasBattery = batteryPct != -1 || listOf("%", "pin", "battery").any { hay.contains(it) }
-
-                val isWearableDevice = sbn.packageName.contains("fit3", ignoreCase = true) ||
-                    sbn.packageName.contains("watch", ignoreCase = true) ||
-                    devName.contains("Fit", ignoreCase = true) ||
-                    devName.contains("Watch", ignoreCase = true) ||
-                    devName.contains("Band", ignoreCase = true)
 
                 val deviceKey = devName.lowercase().trim()
                 val isCurrentlyConnected = isWearableConnected(deviceKey, devName)
@@ -693,17 +748,11 @@ class NotificationCastListener : NotificationListenerService() {
 
                 var handled = false
                 if (isConnect) {
+                    // 2.b) Nếu batteryPct == -1, chủ động gọi EarbudsCard.querySamsungFit3Battery
                     if (batteryPct == -1) {
-                        val isSamsungWearPkg = sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
-                            sbn.packageName.contains("fit3", ignoreCase = true) ||
-                            sbn.packageName.contains("watchmanager", ignoreCase = true) ||
-                            sbn.packageName.contains("waterplugin", ignoreCase = true) ||
-                            sbn.packageName.contains("accessory", ignoreCase = true)
-                        if (isSamsungWearPkg) {
-                            val fit3Battery = EarbudsCard.querySamsungFit3Battery(applicationContext, devName)
-                            if (fit3Battery in 0..100) {
-                                batteryPct = fit3Battery
-                            }
+                        val fit3Battery = EarbudsCard.querySamsungFit3Battery(applicationContext, devName)
+                        if (fit3Battery in 0..100) {
+                            batteryPct = fit3Battery
                         }
                     }
                     if (batteryPct == -1) {
@@ -711,6 +760,9 @@ class NotificationCastListener : NotificationListenerService() {
                         if (cached in 0..100) {
                             batteryPct = cached
                         }
+                    }
+                    if (batteryPct in 0..100) {
+                        EarbudsCard.saveCachedBattery(applicationContext, devName, batteryPct)
                     }
                     val isAlreadyActive = isCurrentlyConnected || isOldOngoingNotification ||
                         (EarbudsCard.isDeviceHardwareConnected(applicationContext, devName) && EarbudsCard.isConnected(devName))
