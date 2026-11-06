@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -103,6 +104,12 @@ object MediaCard {
             .trim()
             .take(40)
 
+        val durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        val durSec = if (durationMs > 0) durationMs / 1000 else 0L
+        val posMs = controller.playbackState?.position ?: 0L
+        val posSec = if (posMs > 0) posMs / 1000 else 0L
+        val artistWithDuration = if (durationMs > 0) "$artist • ${formatElapsed(durSec)}" else artist
+
         // Tối ưu trạng thái phát nhạc: hỗ trợ các app không gửi PlaybackState đầy đủ
         val playbackStateValue = controller.playbackState?.state
         val playing = when (playbackStateValue) {
@@ -144,6 +151,8 @@ object MediaCard {
         val showChrono = n.extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false)
         val chip = if (showChrono && n.`when` > 0) {
             formatElapsed(abs(System.currentTimeMillis() - n.`when`) / 1000)
+        } else if (durationMs > 0 && posSec > 0) {
+            "${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
         } else if (playing) {
             "Đang phát"
         } else {
@@ -209,7 +218,8 @@ object MediaCard {
 
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", track)
-            putExtra("text", artist)
+            putExtra("text", artistWithDuration)
+            putExtra("subtext", if (durationMs > 0) "$artist • ${formatElapsed(durSec)}" else artist)
             putExtra("source_pkg", sbn.packageName)
             putExtra("oi_left_content", if (albumArt != null) "" else track.take(10))
 
@@ -221,6 +231,7 @@ object MediaCard {
             putExtra("icon_res", R.drawable.ic_media_play)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
             putExtra("oi_fg_color", "#FFFFFFFF")
+            putExtra("oi_bg_color", "#FF262626")
 
             if (playing) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
@@ -278,16 +289,35 @@ object MediaCard {
      * Trích xuất dải màu sắc trực tiếp từ ảnh bìa album để phục vụ sóng âm visualiser (island.superx.rightInfo.waveColor)
      */
     private fun waveColorsFrom(bitmap: Bitmap?): List<String> {
-        if (bitmap == null || bitmap.width == 0 || bitmap.height == 0) return emptyList()
-        if (bitmap.config == Bitmap.Config.HARDWARE) return emptyList()
+        val fallback = listOf("#FF6B8A", "#4AE2B5", "#5C9DFF")
+        if (bitmap == null || bitmap.width == 0 || bitmap.height == 0) return fallback
         return runCatching {
-            val w = bitmap.width
-            val h = bitmap.height
-            listOf(0.25f to 0.5f, 0.5f to 0.3f, 0.75f to 0.5f).map { (fx, fy) ->
-                val x = (fx * (w - 1)).toInt().coerceIn(0, w - 1)
-                val y = (fy * (h - 1)).toInt().coerceIn(0, h - 1)
-                String.format("#%06X", 0xFFFFFF and bitmap.getPixel(x, y))
+            val src = if (bitmap.config == Bitmap.Config.HARDWARE) {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return fallback
+            } else {
+                bitmap
             }
-        }.getOrDefault(emptyList())
+            try {
+                val w = src.width
+                val h = src.height
+                val hsv = FloatArray(3)
+                val colors = listOf(0.25f to 0.5f, 0.5f to 0.3f, 0.75f to 0.5f).map { (fx, fy) ->
+                    val x = (fx * (w - 1)).toInt().coerceIn(0, w - 1)
+                    val y = (fy * (h - 1)).toInt().coerceIn(0, h - 1)
+                    val pixel = src.getPixel(x, y)
+                    Color.colorToHSV(pixel, hsv)
+                    if (hsv[2] < 0.55f) {
+                        hsv[2] = 0.85f
+                    }
+                    val adjusted = Color.HSVToColor(hsv)
+                    String.format("#%06X", 0xFFFFFF and adjusted)
+                }
+                if (colors.size == 3) colors else fallback
+            } finally {
+                if (src != bitmap) {
+                    src.recycle()
+                }
+            }
+        }.getOrDefault(fallback)
     }
 }

@@ -25,6 +25,7 @@ import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
+import com.originisle.android.service.IconCache
 import com.originisle.android.ui.PREFS_NAME
 
 /**
@@ -63,10 +64,15 @@ object RingerModeCard {
 
     private fun readVibrateSetting(context: Context): Int {
         val resolver = context.contentResolver
-        val vibRing = runCatching { Settings.System.getInt(resolver, "vibrate_when_ringing", 0) }.getOrDefault(0).coerceAtLeast(0)
-        val vibSilent = runCatching { Settings.System.getInt(resolver, "vibrate_in_silent", 0) }.getOrDefault(0).coerceAtLeast(0)
-        val vivoVib = runCatching { Settings.System.getInt(resolver, "vivo_vibrate_state", 0) }.getOrDefault(0).coerceAtLeast(0)
-        return ((vibRing and 0xF) shl 8) or ((vibSilent and 0xF) shl 4) or (vivoVib and 0xF)
+        fun readSetting(key: String): Int {
+            return runCatching { Settings.System.getInt(resolver, key) }.getOrNull()
+                ?: runCatching { Settings.Global.getInt(resolver, key) }.getOrDefault(0)
+        }
+        val vibRing = readSetting("vibrate_when_ringing").coerceAtLeast(0)
+        val vibSilent = readSetting("vibrate_in_silent").coerceAtLeast(0)
+        val vivoVib = readSetting("vivo_vibrate_state").coerceAtLeast(0)
+        val modeRinger = readSetting("mode_ringer").coerceAtLeast(0)
+        return ((modeRinger and 0xF) shl 12) or ((vibRing and 0xF) shl 8) or ((vibSilent and 0xF) shl 4) or (vivoVib and 0xF)
     }
 
     private val ringerReceiver = object : BroadcastReceiver() {
@@ -81,8 +87,12 @@ object RingerModeCard {
                 }
                 AudioManager.RINGER_MODE_CHANGED_ACTION,
                 "android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION" -> {
-                    val mode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode?.takeIf { it != -1 }
-                        ?: intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
+                    val modeFromIntent = intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1)
+                    val mode = if (modeFromIntent != -1) {
+                        modeFromIntent
+                    } else {
+                        (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: -1
+                    }
                     if (mode != -1 && mode != lastRingerMode) {
                         lastRingerMode = mode
                         lastRingerChangeAt = System.currentTimeMillis()
@@ -141,9 +151,9 @@ object RingerModeCard {
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 runCatching {
-                    app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-                }.getOrElse {
                     app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_EXPORTED)
+                }.getOrElse {
+                    app.registerReceiver(ringerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
                 }
             } else {
                 app.registerReceiver(ringerReceiver, filter)
@@ -252,8 +262,12 @@ object RingerModeCard {
         } else if (nowVib != lastVibrateSetting) {
             lastVibrateSetting = nowVib
             val resolver = context.contentResolver
-            val vibRing = runCatching { Settings.System.getInt(resolver, "vibrate_when_ringing", 0) }.getOrDefault(0)
-            val vivoVib = runCatching { Settings.System.getInt(resolver, "vivo_vibrate_state", 0) }.getOrDefault(0)
+            fun readSetting(key: String): Int {
+                return runCatching { Settings.System.getInt(resolver, key) }.getOrNull()
+                    ?: runCatching { Settings.Global.getInt(resolver, key) }.getOrDefault(0)
+            }
+            val vibRing = readSetting("vibrate_when_ringing")
+            val vivoVib = readSetting("vivo_vibrate_state")
             if (vibRing == 1 || vivoVib == 1 || nowRinger == MODE_VIBRATE) {
                 triggerCard(context, MODE_VIBRATE)
             } else if (nowRinger == MODE_SILENT) {
@@ -346,7 +360,7 @@ object RingerModeCard {
      * Đẩy thẻ thông báo lên Đảo Origin qua PlaygroundService.
      */
     private fun showRingerCard(context: Context, mode: Int) {
-        val (title, text, _, rightContent, colorHex, icon) = when (mode) {
+        val (title, text, leftContent, rightContent, colorHex, icon) = when (mode) {
             MODE_NORMAL -> RingerStateInfo(
                 title = "Chuông",
                 text = "Đã bật chuông thông báo",
@@ -384,6 +398,8 @@ object RingerModeCard {
 
         CastLog.add("Hệ thống", title, "hiển thị — chế độ âm thanh: $title ($text)", true)
 
+        IconCache.activeSmallIcons.remove(ID)
+
         val soundIntent = Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val clickPi = PendingIntent.getActivity(
             context,
@@ -395,7 +411,7 @@ object RingerModeCard {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
@@ -406,15 +422,14 @@ object RingerModeCard {
             putExtra("title", title)
             putExtra("text", text)
             putExtra("subtext", text)
-            putExtra("oi_left_content", "")
+            putExtra("oi_left_content", leftContent)
             putExtra("oi_right_content", rightContent)
             putExtra("status_chip_text", rightContent)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("oi_bg_color", colorHex)
             putExtra("oi_fg_color", colorHex)
             putExtra("oi_light_color", colorHex)
             putExtra("oi_force_show", true)
-            putExtra("oi_island_notify", true)
-            putExtra("oi_show_notify", false)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("click_resp", clickPi)
             putExtra("source_content_intent", clickPi)
@@ -436,6 +451,7 @@ object RingerModeCard {
     fun cancel(context: Context) {
         dismissTask?.let(handler::removeCallbacks)
         dismissTask = null
+        IconCache.activeSmallIcons.remove(ID)
         context.startService(
             Intent(context, PlaygroundService::class.java)
                 .setAction(PlaygroundService.ACTION_CANCEL)

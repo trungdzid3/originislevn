@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.2.7` (mã bản dựng `versionCode = 10207`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.2.8` (mã bản dựng `versionCode = 10208`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Quy chuẩn đánh số phiên bản**:
   - `X` (Số đầu): Thế hệ hiện tại.
   - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
@@ -17,7 +17,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.7 / 10207)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.8 / 10208)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -30,15 +30,15 @@ origin-isle-vn/
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
 │       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (hiển thị "Đã ngắt" tối giản không khung xám)
-│       │       │   ├── MediaCard.kt      # Nhạc sóng động & cơ chế nhường Đảo gốc Vivo động, trích xuất Album Art đa tầng
-│       │       │   ├── OtpCard.kt        # Thẻ OTP tối ưu (trái "OTP", phải "$code · Chép", chạm chép clipboard)
+│       │       │   ├── MediaCard.kt      # Sóng âm HSV rực rỡ, khôi phục nền tối #FF262626 cho nút bấm, thời lượng bài hát
+│       │       │   ├── OtpCard.kt        # Thẻ OTP chuẩn Ngân hàng (trái "OTP", phải mã OTP màu #00D084, chạm chép clipboard)
 │       │       │   ├── QuickShareCard.kt # Quick Share logo chính thức từ file SVG tải về
 │       │       │   ├── RideCard.kt       # Tiến trình Gọi xe & Giao đồ ăn VN (Template 2)
-│       │       │   └── RingerModeCard.kt # Chế độ Chuông / Rung / Im lặng / DND độc lập (RECEIVER_NOT_EXPORTED, Bitmap icon)
+│       │       │   └── RingerModeCard.kt # Chế độ Chuông / Rung / Im lặng / DND tức thời (RECEIVER_EXPORTED, xóa oi_show_notify=false)
 │       │       ├── download/         # Nhận diện tải xuống nhạy bén
 │       │       ├── island/           # PlaygroundService (quản lý chiếm quyền scene & khôi phục thẻ nền), builder, constants
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
-│       │       ├── otp/              # Nhận diện OTP MessagingStyle (EXTRA_MESSAGES), Action Title, regex (OTP)
+│       │       ├── otp/              # Nhận diện OTP Bank-Style (STRONG_OTP_MARKER, quét MessagingStyle/publicVersion)
 │       │       ├── quickshare/       # Nhận diện Quick Share & EasyShare & actions
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN (Grab, Be, Xanh SM, ShopeeFood)
 │       │       ├── service/          # NotificationCastListener, IconCache (100% Bitmap Icon), KeepAliveAccessibilityService
@@ -53,23 +53,29 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.2.7.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 7)
+└── OriginIsle-VN-v1.2.8.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 8)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`) & `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
-  - Xóa bỏ danh sách cố định `ORIGIN_WHITELISTED_MUSIC_APPS` (trước đây chặn nhầm Zing MP3, Spotify, YouTube Music).
-  - `isOriginNativePlayerActive`: Chỉ trả về `true` khi `com.vivo.musicwidgetmix` (hoặc các gói widget nhạc hệ thống Vivo trong `ORIGIN_NATIVE_MUSIC_PACKAGES`) thực sự xuất hiện trong `activeNotifications`.
-  - Trích xuất ảnh bìa đa tầng (từ `MediaMetadata.METADATA_KEY_ALBUM_ART`, `METADATA_KEY_ART`, `NotificationCompat.EXTRA_LARGE_ICON`, `n.getLargeIcon()`), vẽ ra Bitmap 100% an toàn và gắn `oi_force_show = true`, `oi_left_icon`, `oi_large_icon`.
+- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`):
+  - `waveColorsFrom`: Chuyển đổi `HARDWARE` bitmap sang `ARGB_8888`, áp dụng hệ màu `HSV` tăng cường độ sáng (`V >= 0.85f`) để cột sóng âm bên phải viên nang luôn nhảy động rực rỡ, kèm fallback palette sáng.
+  - `post`: Khôi phục `oi_bg_color = "#FF262626"` để 3 nút điều khiển ở `TEMPLATE_BUTTONS (8)` có nền tối nổi bật icon trắng; trích xuất thời lượng bài hát hiển thị trên `subtext`.
+- `OriginIslandConstants.kt` & `OriginIslandBuilder.kt`:
+  - Bổ sung `MUSIC` và `AUDIO` vào `SUPERX_SCENES`.
+  - Nhánh `rightTemplate == 1` luôn ghi `waveColor` hợp lệ vào Bundle SuperX.
+- `OtpDetector.kt` & `OtpCard.kt`:
+  - `OtpDetector`: Bổ sung quy tắc nhận diện nhanh Bank-Style qua `STRONG_OTP_MARKER`, quét trọn vẹn cụm 4–8 chữ số độc lập (lọc số tiền, hotline, SĐT, năm sinh).
+  - `NotificationCastListener.kt`: Gọi `OtpDetector.find(sbn, actionTitles)` quét cả `MessagingStyle` (`EXTRA_MESSAGES`) và `publicVersion`.
+  - `OtpCard.kt`: Tái cấu trúc theo chuẩn `TEMPLATE_BASE (4)` y hệt `PaymentCard.postBankTransaction`: bên trái hiện icon + chữ `"OTP"`, bên phải hiện mã OTP màu `#00D084`, chạm vào chép ngay mã vào Clipboard.
 - `RingerModeCard.kt` (`app/src/main/java/com/originisle/android/cards/RingerModeCard.kt`):
-  - `register`: Đăng ký `RECEIVER_NOT_EXPORTED` trên Android 13+, kết hợp `ContentObserver` và `poll`.
-- `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`):
-  - Quản lý `sceneCurrentId[scene]` cho mọi ID thẻ và tự động khôi phục thẻ nền sau 150ms khi thẻ ngắn hạn đóng lại.
+  - Đăng ký `RECEIVER_EXPORTED` trên Android 13+, ưu tiên đọc `EXTRA_RINGER_MODE` tức thời từ Intent.
+  - Đọc thiết lập rung từ cả `Settings.System` và `Settings.Global`.
+  - Xóa bỏ cờ `oi_show_notify = false` (gỡ bỏ chặn hiển thị trên Vivo), dọn `IconCache.activeSmallIcons` và đặt `is_ongoing = false`.
 
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
 - **ApplicationId cố định**: Bắt buộc giữ `com.autonavi.minimap` trong `app/build.gradle.kts` để qua whitelist của Vivo Origin Island.
 - **Tài nguyên Icon SuperX**: Mọi `Icon` đặt trong `Bundle` SuperX phải là `Icon.createWithBitmap` (`TYPE_BITMAP`), còn `NotificationCompat.Builder.setSmallIcon` dùng `R.mipmap.ic_launcher_round`.
-- **Quy định xuất bản APK**: File APK thành phẩm lưu trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.2.7.apk`.
+- **Quy định xuất bản APK**: File APK thành phẩm lưu trực tiếp tại thư mục gốc dự án: `OriginIsle-VN-v1.2.8.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Không có lỗi tồn đọng. Bản dựng `v1.2.7` đã vượt qua 100% kiểm thử đơn vị và biên dịch thành công.
+- Không có lỗi tồn đọng. Bản dựng `v1.2.8` đã vượt qua 100% kiểm thử đơn vị và biên dịch thành công.

@@ -30,6 +30,52 @@ class OtpDetectorTest {
         )
     )
 
+    // Bank-Style Fast OTP & Vietnamese SMS/Zalo tests
+    @Test fun techcombankOtp() = assertEquals(
+        "482913",
+        OtpDetector.find("Techcombank: 482913 la ma OTP cua ban. Khong chia se ma nay voi bat ky ai.")
+    )
+    @Test fun vietcombankOtp() = assertEquals(
+        "829103",
+        OtpDetector.find("VCB: Ma xac thuc (OTP) cua Quy khach la 829103. Hieu luc trong 3 phut.")
+    )
+    @Test fun mbbankSmartOtp() = assertEquals(
+        "918273",
+        OtpDetector.find("MBBank: Ma xac thuc SmartOTP la 918273 cho giao dich chuyen tien 2,000,000 VND.")
+    )
+    @Test fun tpbankOtpWithHotlineAndAmount() = assertEquals(
+        "618293",
+        OtpDetector.find("TPBank: Ma bao mat OTP 618293. Giao dich chuyen tien 500k. Hotline 1900585885.")
+    )
+    @Test fun vpbankOneTimePassword() = assertEquals(
+        "102938",
+        OtpDetector.find("VPBank: Mat khau mot lan (OTP) la 102938 cho gd tai khoan 12345678.")
+    )
+    @Test fun zaloLoginOtp() = assertEquals(
+        "392018",
+        OtpDetector.find("Zalo: Ma xac minh dang nhap cua ban la 392018. Tuyet doi khong chia se ma nay cho nguoi khac.")
+    )
+    @Test fun shopeeOtp() = assertEquals(
+        "719283",
+        OtpDetector.find("Shopee: 719283 la ma xac nhan cua ban. Ma co hieu luc trong 15 phut.")
+    )
+    @Test fun vcbDigibankLogin() = assertEquals(
+        "491823",
+        OtpDetector.find("Vietcombank: Ma dang nhap VCB Digibank cua ban la 491823. Vui long khong cung cap cho bat ky ai.")
+    )
+    @Test fun otpStartingWithZero() = assertEquals(
+        "049281",
+        OtpDetector.find("BIDV: Ma OTP cua ban la 049281. Hieu luc trong 2 phut.")
+    )
+    @Test fun smsWithVnMobilePhone() = assertEquals(
+        "582914",
+        OtpDetector.find("Tu 0901234567: Ma xac thuc OTP la 582914.")
+    )
+    @Test fun smsWithAmountAndDong() = assertEquals(
+        "381920",
+        OtpDetector.find("Techcombank: Ma OTP 381920 xac nhan thanh toan 350000d qua the Visa.")
+    )
+
     @Test fun noKeyword() = assertNull(OtpDetector.find("Meet me at 1830 near gate 4"))
     @Test fun chatNumber() = assertNull(OtpDetector.find("I paid 1500 for the tickets"))
     @Test fun price() = assertNull(OtpDetector.find("Confirm your payment of €1299"))

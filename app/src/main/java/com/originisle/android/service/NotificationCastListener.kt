@@ -657,7 +657,7 @@ class NotificationCastListener : NotificationListenerService() {
             //    KHÔNG dùng lại time-guard: notification OTP thường được update tại chỗ với cùng postTime.
             if (prefs.getBoolean("cast_otp", true)) {
                 val actionTitles = sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
-                OtpDetector.find(notificationText(sbn), actionTitles)?.let { code ->
+                OtpDetector.find(sbn, actionTitles)?.let { code ->
                     val title = sbn.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
                     val sender = title.ifBlank { appLabel(sbn.packageName) }
                     OtpCard.post(applicationContext, sbn, code, sender)

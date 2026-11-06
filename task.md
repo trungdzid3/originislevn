@@ -1,17 +1,8 @@
-# DANH SÁCH CÔNG VIỆC (TASK MATRIX) - BẢN NÂNG CẤP v1.2.7
+# DANH SÁCH CÔNG VIỆC (TASK LIST) - ORIGIN ISLE VN v1.2.8
 
-[CONTRACT LOCKED]
-- Phiên bản mục tiêu: `v1.2.7` (`versionCode = 10207`, `versionName = "1.2.7"`).
-- Khóa phạm vi file độc lập giữa các Subagent.
+## Trạng thái: HOÀN THÀNH TOÀN DIỆN (100% PASS)
 
-## Ma trận Phân quyền Thực thi
-
-- [x] **Task 1: Khắc phục triệt để hiển thị nhạc Zing MP3 & các app bên thứ 3 (Gỡ bỏ chặn nhầm ORIGIN_WHITELISTED_MUSIC_APPS, chỉ nhường khi com.vivo.musicwidgetmix thực sự active, trích xuất Album Art đa tầng & an toàn 100% Bitmap icon)**
-  - `[Agent: Subagent-Zing-Media]`
-  - `[Skill: android-cli]`
-  - `[Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]`
-
-- [x] **Task 2: Nâng cấp build.gradle.kts lên v1.2.7 (10207), Unit Test QA, build APK & Đồng bộ Git**
-  - `[Agent: Lead-Orchestrator]`
-  - `[Skill: pr-feedback-quality-gate]`
-  - `[Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]`
+- [x] Task 1: Khắc phục Đảo Nhạc — Sóng âm bên phải viên nang (`waveColorsFrom` chuyển `HARDWARE` sang `ARGB_8888`, nâng độ sáng HSV, fallback palette), khôi phục nền tối `oi_bg_color = "#FF262626"` cho 3 nút điều khiển ở `TEMPLATE_BUTTONS (8)`, và bổ sung thời lượng bài hát vào `subtext` | [Agent: Subagent-Media-Fix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt, app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt, app/src/main/java/com/originisle/android/island/OriginIslandConstants.kt]
+- [x] Task 2: Tái cấu trúc Nhận diện & Hiển thị OTP theo cơ chế Ngân hàng — Gọi `OtpDetector.find(sbn, actionTitles)` để quét `MessagingStyle`, thêm quy tắc bắt nhanh `STRONG_OTP_MARKER` kèm 4-8 chữ số trong `OtpDetector.kt`, và chuyển `OtpCard.kt` sang cấu hình `TEMPLATE_BASE (4)` + `oi_show_right_icon = false` + trái `"OTP"` + phải `code` màu `#00D084` y hệt `PaymentCard.postBankTransaction` | [Agent: Subagent-OTP-BankStyle] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/otp/OtpDetector.kt, app/src/main/java/com/originisle/android/cards/OtpCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt, app/src/test/java/com/originisle/android/otp/OtpDetectorTest.kt]
+- [x] Task 3: Khắc phục hiển thị trạng thái Chuông / Rung / Im lặng / DND lên Đảo động — Xóa `oi_show_notify = false` (nguyên nhân làm Vivo chặn hiển thị thẻ `TEMPLATE_BASE`), ưu tiên `Context.RECEIVER_EXPORTED` và `EXTRA_RINGER_MODE`, đồng bộ cấu hình Intent của `RingerModeCard.showRingerCard` theo chuẩn `PaymentCard` / `EarbudsCard` | [Agent: Subagent-Ringer-IslandFix] | [Skill: android-cli] | [Locked Files: app/src/main/java/com/originisle/android/cards/RingerModeCard.kt]
+- [x] Task 4: Nâng phiên bản lên `1.2.8` (`10208`), chạy kiểm thử `./gradlew testDebugUnitTest assembleDebug`, xuất bản `OriginIsle-VN-v1.2.8.apk`, cập nhật `PROJECT_CONTEXT.md` và đồng bộ GitHub | [Agent: Lead-Orchestrator] | [Skill: android-cli] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, OriginIsle-VN-v1.2.8.apk]

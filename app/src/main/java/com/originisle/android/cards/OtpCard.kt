@@ -4,7 +4,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
+import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.StatusBarNotification
@@ -16,18 +16,19 @@ import com.originisle.android.service.IconCache
 import java.util.Locale
 
 /**
- * Thẻ thông báo mã OTP / mã xác thực đăng nhập ưu tiên cao trên Đảo Origin.
- * - Trên đảo thu gọn (Capsule): Bên trái hiện "OTP", bên phải hiện mã và nút chép ("$code · Chép").
- * - Chạm vào đảo hoặc nút bên phải sao chép ngay mã vào clipboard qua [CopyCodeReceiver] và thu gọn thẻ.
- * - Trên thẻ mở rộng: Tiêu đề là mã OTP định dạng dễ đọc, phụ đề là "Mã xác thực · $appLabel", nút action "Sao chép mã".
- * - Màu chữ trắng tương phản hoàn hảo trên nền Teal đặc trưng OriginOS 6 (#00BFA5).
+ * Thẻ thông báo mã OTP / mã xác thực đăng nhập ưu tiên cao trên Đảo Origin theo cấu trúc Ngân hàng (Bank-Style).
+ * - Sao chép 100% cấu trúc kỹ thuật của PaymentCard.postBankTransaction.
+ * - Sử dụng TEMPLATE_BASE (4) và TEMPLATE_RIGHT_ISLAND_TEXT_ICON (4) ổn định tuyệt đối.
+ * - oi_show_right_icon = false để dành trọn diện tích viên nang bên phải cho mã OTP.
+ * - Tone màu xanh bảo mật Emerald / Bank-Style (#00D084).
+ * - Chạm để sao chép mã OTP vào clipboard qua [CopyCodeReceiver].
  */
 object OtpCard {
 
     /** Thời gian tối đa lưu giữ thẻ OTP (2 phút) để tránh mã quá hạn nằm lâu trên Đảo. */
     private const val HOLD_MS = 120_000L
 
-    private const val COLOR_TEAL_ORIGIN_OS = 0xFF00BFA5.toInt()
+    const val COLOR_OTP = "#00D084"
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -39,8 +40,6 @@ object OtpCard {
 
         val isVi = Locale.getDefault().language == "vi"
         val copyActionLabel = if (isVi) "Sao chép mã" else "Copy code"
-        val copyShortLabel = if (isVi) "Chép" else "Copy"
-        val rightPillContent = "$code · $copyShortLabel"
 
         val copy = PendingIntent.getBroadcast(
             app, id,
@@ -53,42 +52,41 @@ object OtpCard {
             IconCache.safeResourceIcon(app, R.mipmap.ic_launcher_round), copyActionLabel, copy,
         ).build()
 
-        val fgColorHex = String.format("#%08X", Color.WHITE) // #FFFFFFFF
-        val bgColorHex = String.format("#%08X", COLOR_TEAL_ORIGIN_OS) // #FF00BFA5
+        val fallbackIcon = Icon.createWithResource(app, R.mipmap.ic_launcher_round)
+        val leftIcon = appIcon ?: fallbackIcon
 
         val intent = Intent(app, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4: text + click resp
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4 (Chuẩn cơ bản không bao giờ bị lỗi)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("oi_show_right_icon", false) // BẮT BUỘC: không để hiện icon bên phải để dành trọn diện tích cho mã OTP
+            putExtra("oi_left_content", "OTP")
+            putExtra("oi_right_content", code)
+            putExtra("status_chip_text", code)
             putExtra("title", spaced(code))
-            putExtra("text", "Mã xác thực · $appLabel")
+            putExtra("text", "Chạm để sao chép mã OTP")
+            putExtra("subtext", "Mã xác thực · $appLabel")
             putExtra("source_app", appLabel)
             putExtra("source_pkg", sbn.packageName)
-            putExtra("oi_left_content", "OTP")
-            putExtra("oi_right_content", rightPillContent)
-            putExtra("status_chip_text", rightPillContent)
+            putExtra("oi_bg_color", COLOR_OTP)
+            putExtra("oi_fg_color", COLOR_OTP)
+            putExtra("oi_light_color", COLOR_OTP)
+            putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            appIcon?.let {
-                putExtra("oi_left_icon", it)
-                putExtra("oi_large_icon", it)
-            }
+            putExtra("oi_left_icon", leftIcon)
+            putExtra("oi_large_icon", leftIcon)
             putParcelableArrayListExtra("actions", arrayListOf(copyAction))
             putStringArrayListExtra("oi_button_titles", arrayListOf(copyActionLabel))
             putExtra("action_title", copyActionLabel)
-            putExtra("source_content_intent", copy)
             putExtra("click_resp", copy)
+            putExtra("source_content_intent", copy)
             putExtra("oi_force_show", true)
             putExtra("oi_island_show_time", 15)
             putExtra("oi_keep_duration", 30)
             putExtra("oi_dismiss_when_kill", true)
-
-            // Khắc phục dứt điểm lỗi chữ đen trùng màu nền đen
-            putExtra("oi_fg_color", fgColorHex)
-            putExtra("oi_bg_color", bgColorHex)
-            putExtra("oi_light_color", bgColorHex)
         }
         app.startService(intent)
 

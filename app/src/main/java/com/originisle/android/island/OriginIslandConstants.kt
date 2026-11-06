@@ -245,6 +245,6 @@ object OriginIslandConstants {
     val SUPERX_SCENES: List<String> = listOf(
         "NAVIGATION", "MOVIE", "HEALTH_REGISTER", "TAXI", "TAKEOUT", "DELIEVERY",
         "CAR_STATE", "METTING", "TRAIN", "FLIGHT", "INCALLING", "VOIPCALL",
-        "TIMER", "RIDE_GUIDE", "CRITICAL",
+        "TIMER", "RIDE_GUIDE", "CRITICAL", "MUSIC", "AUDIO",
     )
 }

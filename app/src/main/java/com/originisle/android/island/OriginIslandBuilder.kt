@@ -397,10 +397,8 @@ object OriginIslandBuilder {
         when (rightTemplate) {
             1 -> {
                 val colors = waveColorList?.takeIf { it.isNotEmpty() }
-                    ?: if (!isDefaultColor(fgColor)) listOf(String.format("#%06X", 0xFFFFFF and fgColor)) else null
-                if (colors != null) {
-                    right.putStringArrayList(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_COLOR, ArrayList(colors))
-                }
+                    ?: listOf("#FF6B8A", "#4AE2B5", "#5C9DFF")
+                right.putStringArrayList(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_COLOR, ArrayList(colors))
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_STATE, waveState)
             }
             2 -> {

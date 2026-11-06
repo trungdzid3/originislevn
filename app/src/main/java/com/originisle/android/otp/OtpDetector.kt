@@ -36,6 +36,12 @@ object OtpDetector {
     /** Trích xuất số 4-8 chữ số trực tiếp từ nút hành động (Notification Action) */
     private val ACTION_CODE_REGEX = Regex("""\b([0-9]{4,8})\b""")
 
+    /** Từ khóa chỉ dấu OTP mạnh kiểu Ngân hàng & dịch vụ tại Việt Nam (Bank-Style Fast OTP Marker) */
+    val STRONG_OTP_MARKER = Regex(
+        """(?U)\b(?:otp|smartotp|smart\s+otp|mã\s+xác\s+thực|ma\s+xac\s+thuc|mã\s+xác\s+minh|ma\s+xac\s+minh|mã\s+xác\s+nhận|ma\s+xac\s+nhan|mã\s+đăng\s+nhập|ma\s+dang\s+nhap|mã\s+bảo\s+mật|ma\s+bao\s+mat|mật\s+khẩu\s+một\s+lần|mat\s+khau\s+mot\s+lan|verification\s+code|security\s+code|auth\s+code|login\s+code|one[- ]time)\b|验证码""",
+        RegexOption.IGNORE_CASE,
+    )
+
     /** Bộ gợi ý từ khóa OTP tiếng Việt (có dấu & không dấu) và quốc tế */
     val OTP_HINT = Regex(
         """(?U)\b(?:""" +
@@ -152,7 +158,7 @@ object OtpDetector {
     )
 
     private val CURRENCY_SUFFIX = Regex(
-        """^\s*(?:[€$£¥₫đ]|EUR|USD|GBP|CHF|VND|VNĐ|dong|đồng|k)\b""",
+        """^\s*(?:[€$£¥₫đd]|EUR|USD|GBP|CHF|VND|VNĐ|dong|đồng|k)\b""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -183,6 +189,20 @@ object OtpDetector {
             return true
         }
         if (digits.startsWith("0") && digits.length in 9..11) {
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Nhận diện số điện thoại di động 10 số tại Việt Nam (09x, 03x, 07x, 08x, 05x)
+     * hoặc đầu số quốc tế (+84...) để loại trừ triệt để.
+     */
+    private fun isPhoneNumber(digits: String): Boolean {
+        if (digits.length == 10 && Regex("""^0[35789]\d{8}$""").matches(digits)) {
+            return true
+        }
+        if (digits.startsWith("84") && digits.length in 11..12) {
             return true
         }
         return false
@@ -327,8 +347,32 @@ object OtpDetector {
         for (action in actionTitles) {
             for (m in ACTION_CODE_REGEX.findAll(action)) {
                 val candidateCode = m.groupValues[1]
-                if (!isHotlineNumber(candidateCode)) {
+                if (!isHotlineNumber(candidateCode) && !isPhoneNumber(candidateCode)) {
                     return candidateCode
+                }
+            }
+        }
+
+        // 1. Quy tắc nhận diện nhanh kiểu Ngân hàng (Bank-Style Fast OTP Rule):
+        // Nếu text chứa từ khóa chỉ dấu OTP mạnh (STRONG_OTP_MARKER), quét tìm các cụm 4-8 số độc lập,
+        // loại bỏ số tiền (có chữ đ, vnd, k sát cạnh), hotline (1800/1900), SĐT 10 số (09x/03x/07x/08x/05x), năm sinh, số tài khoản.
+        // Trả về ngay cụm 4-8 số gần nhất với từ khóa OTP.
+        val strongMarkers = STRONG_OTP_MARKER.findAll(text).map { it.range }.toList()
+        if (strongMarkers.isNotEmpty()) {
+            val fastCandidates = CANDIDATE.findAll(text)
+                .filter { m -> isValidCandidate(text, m, isVivoReminder = false) }
+                .map { m ->
+                    val dist = strongMarkers.minOf { k -> distance(m.range, k) }
+                    m to dist
+                }
+                .filter { (_, d) -> d <= MAX_DISTANCE }
+                .toList()
+
+            if (fastCandidates.isNotEmpty()) {
+                val best = fastCandidates.minByOrNull { (_, d) -> d }
+                val code = best?.first?.groupValues?.get(1)?.filter(Char::isDigit)
+                if (code != null) {
+                    return code
                 }
             }
         }
@@ -337,7 +381,7 @@ object OtpDetector {
             COPY_ACTION_REGEX.containsMatchIn(text)
         val isVivoReminder = VIVO_REMINDER.containsMatchIn(text)
 
-        // 1. Thử bắt bằng các biểu thức chính quy trực tiếp (quét toàn bộ các match để tránh vướng số đt / tiền tệ)
+        // 2. Thử bắt bằng các biểu thức chính quy trực tiếp (quét toàn bộ các match để tránh vướng số đt / tiền tệ)
         for (pattern in DIRECT_PATTERNS) {
             for (m in pattern.findAll(text)) {
                 val candidateCode = m.groupValues[1].filter(Char::isDigit)
@@ -412,7 +456,7 @@ object OtpDetector {
         val raw = match.groupValues[1]
         val digits = raw.filter(Char::isDigit)
         if (digits.length !in 4..8) return false
-        if (isHotlineNumber(digits)) return false
+        if (isHotlineNumber(digits) || isPhoneNumber(digits)) return false
 
         val prefix = text.substring(0, match.range.first).takeLast(40)
         val suffix = text.substring(match.range.last + 1).take(20)
