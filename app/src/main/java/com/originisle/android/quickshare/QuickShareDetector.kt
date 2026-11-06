@@ -174,6 +174,12 @@ object QuickShareDetector {
             allTextLower.contains("chia sẻ tệp với bạn") ||
             allTextLower.contains("muốn gửi")
 
+        val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
+
+        // 4. File name detection (moved up for isFinished evaluation)
+        val fm = FILE_PATTERN.matcher(allCombined)
+        val fileName = if (fm.find()) fm.group(1)?.trim() else null
+
         // 2. Progress & Finished detection
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val curr = extras.getInt(NotificationCompat.EXTRA_PROGRESS, 0)
@@ -192,15 +198,29 @@ object QuickShareDetector {
             }
         }
 
-        val isFinished = progress >= 100 ||
-            allTextLower.contains("đã nhận") ||
+        val hasFinishKeywords = allTextLower.contains("đã nhận") ||
             allTextLower.contains("hoàn tất") ||
             allTextLower.contains("đã gửi") ||
             allTextLower.contains("complete") ||
+            allTextLower.contains("completed") ||
             allTextLower.contains("sent") ||
             allTextLower.contains("received") ||
             allTextLower.contains("thành công") ||
-            allTextLower.contains("đã chia sẻ")
+            allTextLower.contains("success") ||
+            allTextLower.contains("đã chia sẻ") ||
+            allTextLower.contains("đã lưu") ||
+            allTextLower.contains("lưu vào") ||
+            allTextLower.contains("saved") ||
+            allTextLower.contains("sẵn sàng") ||
+            allTextLower.contains("ready") ||
+            allTextLower.contains("chạm để mở") ||
+            allTextLower.contains("chạm để xem") ||
+            allTextLower.contains("tap to view") ||
+            allTextLower.contains("tap to open")
+
+        val isFinished = progress >= 100 ||
+            hasFinishKeywords ||
+            (!isOngoing && !isRequestByText && (max <= 0 || progress <= 0) && (fileName != null || allTextLower.contains("tệp") || allTextLower.contains("file")))
 
         val isCanceled = !isFinished && (
             allTextLower.contains("đã hủy") ||
@@ -224,18 +244,16 @@ object QuickShareDetector {
             allTextLower.contains("chuẩn bị") ||
             allTextLower.contains("preparing")
 
-        if (!isFinished && !isCanceled && (isIndeterminate || (isConnectingOrWaiting && max <= 0) || (progress <= 0 && !isFinished))) {
-            isIndeterminate = true
-            if (progress <= 0) progress = 10
+        if (!isFinished && !isCanceled) {
+            if (isOngoing && (isIndeterminate || isConnectingOrWaiting || (max > 0 && progress <= 0))) {
+                isIndeterminate = true
+                if (progress <= 0) progress = 10
+            }
         }
 
         // 3. Speed detection
         val sm = SPEED_PATTERN.matcher(allCombined)
         val speedText = if (sm.find()) sm.group(1) else null
-
-        // 4. File name detection
-        val fm = FILE_PATTERN.matcher(allCombined)
-        val fileName = if (fm.find()) fm.group(1)?.trim() else null
 
         // 5. Device name detection
         val genericNames = listOf("quick share", "chia sẻ lân cận", "nearby share", "easyshare", "chia sẻ nhanh", "easy share")

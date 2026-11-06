@@ -1,5 +1,6 @@
 package com.originisle.android.cards
 
+import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -27,6 +28,7 @@ object QuickShareCard {
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
     private val finishedIds = ConcurrentHashMap.newKeySet<Int>()
+    private val watchdogTasks: MutableMap<Int, Runnable> = ConcurrentHashMap()
 
     @Volatile
     private var cachedOfficialIcon: Icon? = null
@@ -91,7 +93,9 @@ object QuickShareCard {
         val lastTime = lastPostTimeMap[id] ?: 0L
         val lastProg = lastProgressMap[id] ?: -1
 
-        val isTerminal = info.isFinished || info.isCanceled
+        val isOngoingNotif = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
+        val isFinishedEffective = info.isFinished || (!isOngoingNotif && !info.isRequest && !info.isCanceled)
+        val isTerminal = isFinishedEffective || info.isCanceled
 
         // Throttle chống spam thông báo khi đang truyền tệp:
         // Đăng ngay nếu là yêu cầu (REQUEST), hoặc hoàn tất/hủy, hoặc sau 500ms, hoặc tiến độ đổi >= 2%
@@ -103,11 +107,13 @@ object QuickShareCard {
             return
         }
 
-        if (info.isFinished) {
+        if (isFinishedEffective) {
+            watchdogTasks.remove(id)?.let(handler::removeCallbacks)
             finishedIds.add(id)
             lastPostTimeMap.remove(id)
             lastProgressMap[id] = 100
         } else if (info.isCanceled) {
+            watchdogTasks.remove(id)?.let(handler::removeCallbacks)
             finishedIds.remove(id)
             lastPostTimeMap.remove(id)
             lastProgressMap[id] = 0
@@ -157,7 +163,7 @@ object QuickShareCard {
                     putExtra("text", "✕")
                     putExtra("is_ongoing", false)
                 }
-                info.isFinished -> {
+                isFinishedEffective -> {
                     // Trạng thái hoàn tất truyền tệp (tích xanh)
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_PRIORITY_INFO) // 1
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
@@ -218,7 +224,7 @@ object QuickShareCard {
                     if (!info.speedText.isNullOrBlank()) {
                         putExtra("subtext", "Tốc độ: ${info.speedText}")
                     }
-                    putExtra("is_ongoing", true)
+                    putExtra("is_ongoing", isOngoingNotif)
                 }
             }
         }
@@ -226,7 +232,7 @@ object QuickShareCard {
         context.startService(intent)
 
         // Tự động dọn dẹp đảo sau khi xong (3.5s) hoặc hủy (2.5s)
-        if (info.isFinished) {
+        if (isFinishedEffective) {
             handler.postDelayed({
                 context.startService(
                     Intent(context, PlaygroundService::class.java)
@@ -244,6 +250,20 @@ object QuickShareCard {
                         .putExtra("oi_scene", "NAVIGATION")
                 )
             }, 2500L)
+        } else if (!info.isRequest) {
+            // Watchdog auto-dismiss cho nhánh đang truyền tệp (45s không cập nhật -> auto cancel)
+            watchdogTasks.remove(id)?.let(handler::removeCallbacks)
+            val watchdog = Runnable {
+                clear(id)
+                context.startService(
+                    Intent(context, PlaygroundService::class.java)
+                        .setAction(PlaygroundService.ACTION_CANCEL)
+                        .putExtra("id", id)
+                        .putExtra("oi_scene", "NAVIGATION")
+                )
+            }
+            watchdogTasks[id] = watchdog
+            handler.postDelayed(watchdog, 45000L)
         }
     }
 
@@ -342,6 +362,7 @@ object QuickShareCard {
     fun isFinished(id: Int): Boolean = finishedIds.contains(id)
 
     fun clear(id: Int) {
+        watchdogTasks.remove(id)?.let(handler::removeCallbacks)
         lastPostTimeMap.remove(id)
         lastProgressMap.remove(id)
         finishedIds.remove(id)

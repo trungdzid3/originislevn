@@ -1161,16 +1161,17 @@ class NotificationCastListener : NotificationListenerService() {
             lastMatchIcons.remove(id)
 
             if (isQs) {
-                if (isFinished || lastProg >= 80) {
+                if (isFinished || lastProg >= 80 || lastProg == 10 || !sbn.isOngoing) {
                     QuickShareCard.postFinished(applicationContext, id, appPkg, title)
-                } else if (lastProg >= 0) {
+                } else if (lastProg > 10) {
                     QuickShareCard.postCanceled(applicationContext, id, appPkg)
                 } else {
                     QuickShareCard.clear(id)
                     startService(
                         Intent(this, PlaygroundService::class.java)
                             .setAction(PlaygroundService.ACTION_CANCEL)
-                            .putExtra("id", id),
+                            .putExtra("id", id)
+                            .putExtra("oi_scene", "NAVIGATION"),
                     )
                 }
                 return

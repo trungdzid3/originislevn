@@ -60,14 +60,18 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `QuickShareDetector.kt` (`app/src/main/java/com/originisle/android/quickshare/QuickShareDetector.kt`):
+  - `parse` (L45-125): Kiểm tra cờ `FLAG_ONGOING_EVENT`. Khi thông báo không còn ongoing và `max <= 0`, xác định là hoàn tất (`isFinished = true`), mở rộng từ khóa hoàn tất ("đã lưu", "lưu vào", "sẵn sàng", "chạm để mở", "saved", "ready"), xóa bỏ hoàn toàn việc gán ép `progress = 10` & `isIndeterminate = true`.
 - `QuickShareCard.kt` (`app/src/main/java/com/originisle/android/cards/QuickShareCard.kt`):
   - `createQuickShareOfficialIcon` (L38-115): Sử dụng `androidx.core.graphics.PathParser` vẽ chính xác 100% hai nhánh mũi tên xoay tròn và hình tròn xanh `#4285F4` từ tệp SVG `Quickshare.svg` người dùng cung cấp; liên kết `R.drawable.ic_quick_share`.
+  - `show` (L120-210): Đồng bộ cờ `is_ongoing` với `sbn.isOngoing`. Nếu không ongoing hoặc `info.isFinished`, chuyển ngay sang thẻ Hoàn tất (tích xanh, dismiss sau 3.5s). Tích hợp cơ chế Watchdog timeout 45 giây chống kẹt thẻ.
 - `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
   - `saveCachedBattery` / `getCachedBattery` (L164-210): Tự động khử tên đuôi `(xxxx)`, so khớp mờ và lưu trữ pin vào key toàn cầu `wearable_last_known_battery`.
   - `readGattBatteryAsync` (L215-280): Đọc pin phần cứng trực tiếp từ thiết bị BLE qua GATT Service `0x180F` (Battery Service) / Characteristic `0x2A19`.
   - `show` (L1100-1200): Cơ chế fallback pin thông minh, nếu pin tức thời chưa về kịp thì nạp ngay mức pin đã biết gần nhất để luôn hiển thị `% pin` trên viên con nhộng và vòng tròn tiến độ camera selfie.
 - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
   - `onNotificationPosted` (L550-685): Quét sâu `extras.keySet()` của ứng dụng Samsung Wearable để trích xuất pin ẩn; nạp cache pin ngay khi nhận sự kiện kết nối.
+  - `onNotificationRemoved` (L750-800): Ngăn chặn `postCanceled` sai khi notification hoàn tất được gỡ bỏ.
 
 ## 4. Lưu Ý Kỹ Thuật (Gotchas)
 - **ApplicationId & Scene**: Bắt buộc giữ `applicationId = "com.autonavi.minimap"` và ưu tiên `oi_scene = "NAVIGATION"`.
@@ -75,4 +79,4 @@ origin-isle-vn/
 - **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn SemVer: `OriginIsle-VN-v1.1.0.apk`.
 
 ## 5. Việc Đang Mở (Lean Context)
-- Đã cập nhật logo Quick Share chính thức từ file SVG tải về và tối ưu hiển thị % pin cho vòng đeo tay Galaxy Fit 3.
+- Không có việc tồn đọng. Bản dựng v1.1.0 hoạt động ổn định và sẵn sàng sử dụng.
