@@ -281,6 +281,14 @@ object QuickShareDetector {
 
         val hasActiveTransferKeywords = allTextLower.contains("đang gửi") ||
             allTextLower.contains("đang nhận") ||
+            allTextLower.contains("chuẩn bị nhận") ||
+            allTextLower.contains("đang chuẩn bị nhận") ||
+            allTextLower.contains("nhận tệp") ||
+            allTextLower.contains("nhận ảnh") ||
+            allTextLower.contains("nhận video") ||
+            allTextLower.contains("nhận ") ||
+            allTextLower.contains("tệp từ") ||
+            allTextLower.contains("nhận từ") ||
             allTextLower.contains("đang kết nối") ||
             allTextLower.contains("đang truyền") ||
             allTextLower.contains("đang chuẩn bị") ||
@@ -288,19 +296,17 @@ object QuickShareDetector {
             allTextLower.contains("chờ xác nhận") ||
             allTextLower.contains("sending") ||
             allTextLower.contains("receiving") ||
+            allTextLower.contains("incoming") ||
+            allTextLower.contains("preparing to receive") ||
             allTextLower.contains("connecting") ||
             allTextLower.contains("transferring") ||
             allTextLower.contains("preparing") ||
             allTextLower.contains("waiting") ||
+            allTextLower.contains("từ ") ||
+            allTextLower.contains("from ") ||
             actionTitles.any { it.contains("hủy") || it.contains("cancel") }
 
-        val isFinished = (max > 0 && curr >= max) ||
-            progress >= 100 ||
-            hasFinishKeywords ||
-            hasFinishAction ||
-            (!isRequestByText && !hasAccept && !hasDecline && !hasActiveTransferKeywords && max <= 0 && !isIndeterminate && !allTextLower.contains("hủy") && !allTextLower.contains("cancel") && !allTextLower.contains("thất bại") && !allTextLower.contains("failed") && !allTextLower.contains("từ chối") && !allTextLower.contains("declined"))
-
-        val isCanceled = !isFinished && (
+        val isCanceled = (
             allTextLower.contains("đã hủy") ||
             allTextLower.contains("từ chối") ||
             allTextLower.contains("declined") ||
@@ -309,9 +315,16 @@ object QuickShareDetector {
             allTextLower.contains("failed") ||
             allTextLower.contains("thất bại") ||
             allTextLower.contains("không thành công")
-        ) && !hasAccept
+        ) && !hasAccept && !hasFinishKeywords
 
-        val isRequest = !isFinished && !isCanceled && (hasAccept || hasDecline || isRequestByText)
+        val isRequest = !isCanceled && (hasAccept || hasDecline || isRequestByText)
+
+        val isFinished = !isRequest && !hasAccept && !hasDecline && !isCanceled && (
+            (max > 0 && curr >= max) ||
+            progress >= 100 ||
+            hasFinishKeywords ||
+            (hasFinishAction && !hasActiveTransferKeywords)
+        )
 
         // Nếu indeterminate hoặc đang kết nối chờ xác nhận, gán indeterminate = true, progress = 0
         val isConnectingOrWaiting = isRequest ||
@@ -320,7 +333,11 @@ object QuickShareDetector {
             allTextLower.contains("chờ xác nhận") ||
             allTextLower.contains("waiting") ||
             allTextLower.contains("chuẩn bị") ||
-            allTextLower.contains("preparing")
+            allTextLower.contains("preparing") ||
+            allTextLower.contains("chuẩn bị nhận") ||
+            allTextLower.contains("đang chuẩn bị nhận") ||
+            allTextLower.contains("preparing to receive") ||
+            allTextLower.contains("incoming")
 
         if (!isFinished && !isCanceled) {
             if (isOngoing && (isIndeterminate || isConnectingOrWaiting || (max > 0 && progress <= 0))) {

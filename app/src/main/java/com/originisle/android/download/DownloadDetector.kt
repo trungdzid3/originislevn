@@ -84,6 +84,29 @@ object DownloadDetector {
         "com.lalamove",
     )
 
+    private val NON_DOWNLOAD_APPS = setOf(
+        "com.google.android.gm", // Gmail
+        "com.microsoft.office.outlook",
+        "com.yahoo.mobile.client.android.mail",
+        "com.android.email",
+        "com.samsung.android.email.provider",
+        "com.google.android.apps.messaging",
+        "com.facebook.orca",
+        "com.facebook.katana",
+        "com.instagram.android",
+        "com.zing.zalo",
+        "org.telegram.messenger",
+        "org.telegram.plus",
+        "org.thunderdog.challegram",
+        "com.whatsapp",
+        "com.whatsapp.w4b",
+        "com.viber.voip",
+        "com.twitter.android",
+        "com.tiktok.android",
+        "com.shopee.vn",
+        "com.lazada.android"
+    )
+
     private val PERCENT_PATTERN = Pattern.compile("(\\d{1,3})\\s*%")
     private val SIZE_PATTERN = Pattern.compile(
         "(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)?\\s*(?:/|of|của|trong(?:\\s+số)?|trên)\\s*(\\d+(?:[.,]\\d+)?)\\s*(MB|GB|KB|kB|M|G|K|B)",
@@ -117,12 +140,29 @@ object DownloadDetector {
         val extras = n.extras
         val pkg = sbn.packageName
 
+        // a) Bỏ qua ngay lập tức nếu là thông báo nhóm (Group Summary)
+        // (Điều này triệt tiêu hoàn toàn lỗi nhân bản 2 thẻ thông báo giống hệt nhau)
+        if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            return false
+        }
+
+        // b) Nếu sbn.packageName nằm trong NON_DOWNLOAD_APPS:
+        // Chỉ chấp nhận là download KHI VÀ CHỈ KHI có thanh tiến trình thật sự đang chạy:
+        if (pkg in NON_DOWNLOAD_APPS) {
+            val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
+            val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
+            if (max <= 0 || !isOngoing) return false
+            return true
+        }
+
         val channelId = n.channelId?.lowercase().orEmpty()
         val isExplicitDownloadChannel = channelId.contains("download") ||
             channelId.contains("tai_xuong") ||
             channelId.contains("tải") ||
             channelId.contains("tệp") ||
             channelId.contains("transfer")
+
+        val isDownloadPkg = isDownloadPackage(pkg)
 
         // Kiểm tra nội dung text
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
@@ -131,31 +171,47 @@ object DownloadDetector {
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val allText = "$title $text $bigText $subText".lowercase()
 
-        val hasDownloadKeywords = allText.contains("đang tải") ||
-            allText.contains("tải xuống") ||
-            allText.contains("tải về") ||
-            allText.contains("downloading") ||
+        // c) Trong hasDownloadKeywords:
+        // Loại bỏ từ khóa quá chung chung "download" đứng một mình, hoặc chỉ áp dụng từ khóa text cho các ứng dụng trình duyệt (isDownloadPkg).
+        // Với các ứng dụng khác, phải có từ khóa rõ ràng.
+        val hasDownloadKeywords = if (isDownloadPkg) {
             allText.contains("download") ||
-            allText.contains("đang cài đặt") ||
-            allText.contains("installing") ||
-            allText.contains("đang chờ") ||
-            allText.contains("pending") ||
-            allText.contains("đã tải xong") ||
-            allText.contains("đã cài đặt") ||
-            allText.contains("installed") ||
-            allText.contains("hoàn tất tải") ||
-            allText.contains("tải hoàn tất") ||
-            allText.contains("download complete") ||
-            allText.contains("download finished") ||
-            allText.contains("đã tải về") ||
-            allText.contains("tải thành công") ||
-            allText.contains("tải thất bại") ||
-            allText.contains("hủy tải") ||
-            allText.contains("download failed") ||
-            allText.contains("download canceled") ||
-            allText.contains("download cancelled")
-
-        val isDownloadPkg = isDownloadPackage(pkg)
+                allText.contains("đang tải") ||
+                allText.contains("tải xuống") ||
+                allText.contains("tải về") ||
+                allText.contains("downloading") ||
+                allText.contains("đang cài đặt") ||
+                allText.contains("installing") ||
+                allText.contains("đang chờ") ||
+                allText.contains("pending") ||
+                allText.contains("đã tải xong") ||
+                allText.contains("đã cài đặt") ||
+                allText.contains("installed") ||
+                allText.contains("hoàn tất tải") ||
+                allText.contains("tải hoàn tất") ||
+                allText.contains("download complete") ||
+                allText.contains("download finished") ||
+                allText.contains("đã tải về") ||
+                allText.contains("tải thành công") ||
+                allText.contains("tải thất bại") ||
+                allText.contains("hủy tải") ||
+                allText.contains("download failed") ||
+                allText.contains("download canceled") ||
+                allText.contains("download cancelled")
+        } else {
+            allText.contains("đang tải xuống") ||
+                allText.contains("đang tải về") ||
+                allText.contains("downloading") ||
+                allText.contains("tải xuống hoàn tất") ||
+                allText.contains("download complete") ||
+                allText.contains("download finished") ||
+                allText.contains("tải về hoàn tất") ||
+                allText.contains("đã tải xong") ||
+                allText.contains("đã tải về") ||
+                allText.contains("hoàn tất tải") ||
+                allText.contains("tải hoàn tất") ||
+                allText.contains("tải thành công")
+        }
 
         // 0. Bỏ qua ngay các danh mục điều hướng, di chuyển, gọi thoại, báo thức, đồng hồ bấm giờ hoặc dịch vụ ngầm
         if (n.category == Notification.CATEGORY_NAVIGATION ||
@@ -217,7 +273,7 @@ object DownloadDetector {
 
         // 5. Nếu từ gói tải xuống/trình duyệt
         if (isDownloadPkg) {
-            val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
+            val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
 
             // Play Store hoặc Android Download Manager mà có FLAG_ONGOING_EVENT thì chắc chắn là tải xuống/cài đặt
             if (isOngoing && (pkg == "com.android.vending" || pkg.startsWith("com.android.providers.downloads"))) {

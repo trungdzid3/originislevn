@@ -107,12 +107,12 @@ object QuickShareCard {
         val lastProg = lastProgressMap[cardId] ?: lastProgressMap[sbnId] ?: -1
 
         val isOngoingNotif = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
-        val isFinishedEffective = info.isFinished || (!isOngoingNotif && !info.isRequest && !info.isCanceled)
+        val isFinishedEffective = info.isFinished || (info.progress >= 100) || (!isOngoingNotif && !info.isRequest && !info.isCanceled && (info.progress >= 80 || lastProg >= 80))
         val isTerminal = isFinishedEffective || info.isCanceled
 
         // Throttle chống spam thông báo khi đang truyền tệp:
-        // Đăng ngay nếu là yêu cầu (REQUEST), hoặc hoàn tất/hủy, hoặc sau 500ms, hoặc tiến độ đổi >= 2%
-        val shouldPost = info.isRequest || isTerminal ||
+        // Đăng ngay nếu là yêu cầu (REQUEST), hoặc hoàn tất/hủy, hoặc khi bắt đầu nhận tệp, hoặc sau 500ms, hoặc tiến độ đổi >= 2%
+        val shouldPost = info.isRequest || isTerminal || !activeTransfer ||
             (now - lastTime >= 500L) ||
             (abs(info.progress - lastProg) >= 2)
 
@@ -248,14 +248,15 @@ object QuickShareCard {
                     putExtra("oi_bg_color", "#4C2B66FF")
                     putExtra("is_ongoing", isOngoingNotif)
 
-                    if (info.isIndeterminate && info.progress <= 0) {
+                    if (info.progress <= 0 || info.isIndeterminate) {
+                        val transferLabel = if (info.text.contains("kết nối", ignoreCase = true) || info.title.contains("kết nối", ignoreCase = true)) "Đang kết nối" else "Đang nhận tệp"
                         putExtra("oi_left_content", "")
-                        putExtra("oi_right_content", "Đang truyền")
-                        putExtra("status_chip_text", "Đang truyền")
+                        putExtra("oi_right_content", transferLabel)
+                        putExtra("status_chip_text", transferLabel)
                         putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                         putExtra("oi_show_right_icon", false)
-                        putExtra("title", "Quick Share · Đang truyền")
-                        putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
+                        putExtra("title", "Quick Share · $transferLabel")
+                        putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang nhận tệp" }}")
                         putExtra("progress_indeterminate", true)
                     } else {
                         val pct = info.progress.coerceIn(1, 99)
@@ -269,7 +270,7 @@ object QuickShareCard {
                         putExtra("oi_right_content", "")
                         putExtra("status_chip_text", "$pct%")
                         putExtra("title", "Quick Share · $pct%")
-                        putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
+                        putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang nhận tệp" }}")
                     }
 
                     if (!info.speedText.isNullOrBlank()) {
@@ -324,6 +325,11 @@ object QuickShareCard {
      * Phát hoạt ảnh hoàn tất khi notification bị gỡ bỏ lúc đã truyền xong (>= 80%).
      */
     fun postFinished(context: Context, id: Int = ID, appPkg: String, title: String = "Quick Share") {
+        val lastProg = getLastProgress(id)
+        if (lastProg in 0..79 && !isFinished(id)) {
+            postCanceled(context, id, appPkg)
+            return
+        }
         activeTransfer = false
         clear(id)
         clear(ID)

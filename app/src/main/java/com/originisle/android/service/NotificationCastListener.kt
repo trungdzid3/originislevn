@@ -597,13 +597,13 @@ class NotificationCastListener : NotificationListenerService() {
                         } else {
                             val qsInfo = QuickShareDetector.parse(sbn)
                             if (qsInfo != null) {
-                                if (qsInfo.isFinished || qsInfo.isCanceled) {
+                                if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
                                     activeQuickShareIds.remove(id)
-                                } else if (!qsInfo.isRequest) {
+                                } else {
                                     activeQuickShareIds.add(id)
                                 }
-                                transferProgressMap[id] = qsInfo.progress
-                                transferFinishedMap[id] = qsInfo.isFinished
+                                transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
+                                transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
                                 QuickShareCard.post(applicationContext, qsInfo, sbn)
                             }
                         }
@@ -813,13 +813,13 @@ class NotificationCastListener : NotificationListenerService() {
                 val qsInfo = QuickShareDetector.parse(sbn)
                 if (qsInfo != null) {
                     val id = IconCache.castIdFor(sbn)
-                    if (qsInfo.isFinished || qsInfo.isCanceled) {
+                    if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
                         activeQuickShareIds.remove(id)
-                    } else if (!qsInfo.isRequest) {
+                    } else {
                         activeQuickShareIds.add(id)
                     }
-                    transferProgressMap[id] = qsInfo.progress
-                    transferFinishedMap[id] = qsInfo.isFinished
+                    transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
+                    transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
                     QuickShareCard.post(applicationContext, qsInfo, sbn)
                     val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
                     log(sbn, "hiển thị — Quick Share $mode", true)
@@ -1517,10 +1517,17 @@ class NotificationCastListener : NotificationListenerService() {
                     rawText.contains("từ chối") || rawText.contains("decline") ||
                     rawText.contains("thất bại") || rawText.contains("failed")
 
-                if (wasCanceledText) {
-                    QuickShareCard.postCanceled(applicationContext, id, appPkg)
-                } else if (!QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                val isRequest = QuickShareDetector.parse(sbn)?.isRequest == true
+                val prog = if (lastProg >= 0) lastProg else QuickShareCard.getLastProgress(id)
+                val isFinishedEffective = isFinished || QuickShareCard.isFinished(id)
+                val isActuallyFinished = !isRequest &&
+                    !QuickShareDetector.isIdleVisibilityNotification(sbn) &&
+                    (isFinishedEffective || prog >= 80)
+
+                if (isActuallyFinished) {
                     QuickShareCard.postFinished(applicationContext, id, appPkg, title)
+                } else if (wasCanceledText) {
+                    QuickShareCard.postCanceled(applicationContext, id, appPkg)
                 } else {
                     QuickShareCard.clear(id)
                     startService(
