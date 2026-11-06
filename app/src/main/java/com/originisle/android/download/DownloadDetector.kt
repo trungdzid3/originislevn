@@ -147,12 +147,9 @@ object DownloadDetector {
         }
 
         // b) Nếu sbn.packageName nằm trong NON_DOWNLOAD_APPS:
-        // Chỉ chấp nhận là download KHI VÀ CHỈ KHI có thanh tiến trình thật sự đang chạy:
+        // Chặn tuyệt đối 100% không nhận diện là download (email, tin nhắn, MXH tải tệp qua DownloadManager).
         if (pkg in NON_DOWNLOAD_APPS) {
-            val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
-            val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
-            if (max <= 0 || !isOngoing) return false
-            return true
+            return false
         }
 
         val channelId = n.channelId?.lowercase().orEmpty()

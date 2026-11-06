@@ -73,10 +73,9 @@ object DownloadCard {
         val isIndeterminate = info.isIndeterminate
 
         // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
-        // Đăng ngay nếu hoàn tất hoặc bị hủy, hoặc trôi qua >= 500ms, hoặc tiến độ thay đổi >= 2%
+        // Đăng ngay nếu hoàn tất hoặc bị hủy, hoặc trôi qua >= 1000ms VÀ tiến độ thay đổi >= 2%
         val shouldPost = isTerminated ||
-            (now - lastTime >= 500L) ||
-            (abs(info.progress - lastProg) >= 2)
+            (now - lastTime >= 1000L && abs(info.progress - lastProg) >= 2)
 
         if (!shouldPost) {
             return
@@ -125,6 +124,7 @@ object DownloadCard {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_show_notify", false)
             putExtra("source_pkg", sbn.packageName)
             putExtra("source_app", appLabel)
             putExtra("source_content_intent", clickPi)

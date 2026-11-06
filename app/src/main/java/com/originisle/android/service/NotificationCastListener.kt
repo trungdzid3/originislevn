@@ -590,7 +590,7 @@ class NotificationCastListener : NotificationListenerService() {
                             // Notification thông báo trạng thái sẵn sàng phát hiện / chạy nền của Quick Share, bỏ qua không coi là hoàn tất truyền tệp
                             return@forEach
                         }
-                        val id = IconCache.castIdFor(sbn)
+                        val id = QuickShareCard.ID
                         val qsInfo = QuickShareDetector.parse(sbn)
                         if (qsInfo != null) {
                             if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
@@ -793,26 +793,23 @@ class NotificationCastListener : NotificationListenerService() {
             // 2) Quick Share (Google Play Services, Google Quick Share, Vivo EasyShare, Samsung Quick Share)
             //    BẮT BUỘC chạy trước OTP và Tải xuống để không bị OTP Detector bắt nhầm dung lượng/số file/PIN.
             if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
-                if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
-                    // Notification thông báo trạng thái sẵn sàng phát hiện / chạy nền của Quick Share, bỏ qua không coi là hoàn tất truyền tệp
-                    return
-                }
-
-                val qsInfo = QuickShareDetector.parse(sbn)
-                if (qsInfo != null) {
-                    val id = IconCache.castIdFor(sbn)
-                    if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
-                        activeQuickShareIds.remove(id)
-                    } else {
-                        activeQuickShareIds.add(id)
+                if (!QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                    val qsInfo = QuickShareDetector.parse(sbn)
+                    if (qsInfo != null) {
+                        val id = QuickShareCard.ID
+                        if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
+                            activeQuickShareIds.remove(id)
+                        } else {
+                            activeQuickShareIds.add(id)
+                        }
+                        transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
+                        transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
+                        QuickShareCard.post(applicationContext, qsInfo, sbn)
+                        val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
+                        log(sbn, "hiển thị — Quick Share $mode", true)
                     }
-                    transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
-                    transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
-                    QuickShareCard.post(applicationContext, qsInfo, sbn)
-                    val mode = if (qsInfo.isRequest) "yêu cầu nhận tệp" else "tiến trình truyền tệp"
-                    log(sbn, "hiển thị — Quick Share $mode", true)
-                    return
                 }
+                return // BẮT BUỘC return ở đây! Tuyệt đối không để bất kỳ thông báo Quick Share nào trôi xuống GenericCard!
             }
 
             // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
@@ -1484,24 +1481,27 @@ class NotificationCastListener : NotificationListenerService() {
             return
         }
 
-        val isQs = QuickShareDetector.isQuickShare(sbn) || activeQuickShareIds.remove(id)
+        val isQs = QuickShareDetector.isQuickShare(sbn) || activeQuickShareIds.remove(id) || activeQuickShareIds.remove(QuickShareCard.ID)
         val isDl = DownloadDetector.isDownload(sbn) || activeDownloadIds.remove(id)
 
         if (isQs || isDl) {
-            val lastProg = transferProgressMap.remove(id) ?: -1
-            val isFinished = transferFinishedMap.remove(id) ?: false
+            val lastProg = transferProgressMap.remove(id) ?: (if (isQs) transferProgressMap.remove(QuickShareCard.ID) else null) ?: -1
+            val isFinished = transferFinishedMap.remove(id) ?: (if (isQs) transferFinishedMap.remove(QuickShareCard.ID) else null) ?: false
             val appPkg = sbn.packageName
             val title = sbn.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
                 .ifBlank { if (isQs) "Quick Share" else "Tải xuống" }
 
             IconCache.clear(id)
+            IconCache.clear(QuickShareCard.ID)
             lastMatchIcons.remove(id)
+            lastMatchIcons.remove(QuickShareCard.ID)
 
             if (isQs) {
                 if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
                     return
                 }
                 activeQuickShareIds.remove(id)
+                activeQuickShareIds.remove(QuickShareCard.ID)
                 val ex = sbn.notification.extras
                 val rawText = "${ex.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()} ${ex.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()}".lowercase()
                 val wasCanceledText = rawText.contains("hủy") || rawText.contains("cancel") ||
@@ -1509,8 +1509,8 @@ class NotificationCastListener : NotificationListenerService() {
                     rawText.contains("thất bại") || rawText.contains("failed")
 
                 val isRequest = QuickShareDetector.parse(sbn)?.isRequest == true
-                val prog = if (lastProg >= 0) lastProg else QuickShareCard.getLastProgress(id)
-                val isFinishedEffective = isFinished || QuickShareCard.isFinished(id)
+                val prog = if (lastProg >= 0) lastProg else QuickShareCard.getLastProgress(QuickShareCard.ID)
+                val isFinishedEffective = isFinished || QuickShareCard.isFinished(QuickShareCard.ID)
                 val isActuallyFinished = !isRequest &&
                     !QuickShareDetector.isIdleVisibilityNotification(sbn) &&
                     (isFinishedEffective || prog >= 80)

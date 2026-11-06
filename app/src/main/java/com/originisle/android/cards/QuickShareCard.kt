@@ -154,10 +154,9 @@ object QuickShareCard {
         val isTerminal = isFinishedEffective || info.isCanceled
 
         // Throttle chống spam thông báo khi đang truyền tệp:
-        // Đăng ngay nếu là yêu cầu (REQUEST), hoặc hoàn tất/hủy, hoặc khi bắt đầu nhận tệp, hoặc sau 500ms, hoặc tiến độ đổi >= 2%
+        // Đăng ngay nếu là yêu cầu (REQUEST), hoặc hoàn tất/hủy, hoặc khi bắt đầu nhận tệp, hoặc sau 1000ms VÀ tiến độ đổi >= 2%
         val shouldPost = info.isRequest || isTerminal || !activeTransfer ||
-            (now - lastTime >= 500L) ||
-            (abs(info.progress - lastProg) >= 2)
+            (now - lastTime >= 1000L && abs(info.progress - lastProg) >= 2)
 
         if (!shouldPost) {
             return
@@ -203,20 +202,11 @@ object QuickShareCard {
             ?: n.contentIntent
             ?: fallbackClickIntent(context, sbn.packageName)
 
-        // Nếu sbnId != cardId, hủy bỏ sbnId trên Đảo nếu trước đó từng xuất hiện để dọn sạch mọi thẻ cũ
-        if (sbnId != cardId) {
-            context.startService(
-                Intent(context, PlaygroundService::class.java)
-                    .setAction(PlaygroundService.ACTION_CANCEL)
-                    .putExtra("id", sbnId)
-                    .putExtra("oi_scene", "NAVIGATION")
-            )
-        }
-
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_show_notify", false)
             putExtra("source_pkg", sbn.packageName)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", appIcon)
@@ -394,6 +384,7 @@ object QuickShareCard {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_show_notify", false)
             putExtra("source_pkg", appPkg)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", appIcon)
@@ -455,6 +446,7 @@ object QuickShareCard {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_show_notify", false)
             putExtra("source_pkg", appPkg)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", appIcon)
