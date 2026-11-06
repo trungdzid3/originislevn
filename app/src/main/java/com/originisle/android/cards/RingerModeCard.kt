@@ -11,8 +11,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.media.AudioManager
 import android.net.Uri
@@ -21,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import androidx.core.graphics.PathParser
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
@@ -31,7 +30,7 @@ import com.originisle.android.ui.PREFS_NAME
 /**
  * Thẻ thông báo Đảo Origin khi thay đổi chế độ Chuông / Rung / Im lặng / Không làm phiền (Ringer & DND Mode Card).
  * Hỗ trợ 4 chế độ: Normal (Chuông), Vibrate (Rung), Silent (Im lặng), DND (Không làm phiền / Zen Mode) trên Vivo OriginOS 6.
- * Lắng nghe đa tầng qua BroadcastReceiver, ContentObserver, polling mỗi giây và callback trực tiếp từ NotificationListenerService.
+ * Lắng nghe qua BroadcastReceiver, ContentObserver và callback trực tiếp từ NotificationListenerService.
  */
 object RingerModeCard {
 
@@ -48,32 +47,20 @@ object RingerModeCard {
     private const val COLOR_SILENT = "#FF5247"  // Đỏ cảnh báo
     private const val COLOR_DND = "#7B61FF"     // Tím Indigo
 
-    private const val DEBOUNCE_DELAY_MS = 150L
+    private const val DEBOUNCE_DELAY_MS = 200L
     private const val AUTO_DISMISS_MS = 2800L
 
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var lastRingerMode: Int = -1
     @Volatile private var lastDndState: Boolean? = null
-    @Volatile private var lastVibrateSetting: Int = -1
     @Volatile private var lastRingerChangeAt: Long = 0L
+    @Volatile private var lastDndChangeAt: Long = 0L
+    @Volatile private var lastShownMode: Int = -1
     private var isRegistered = false
 
     private var debounceTask: Runnable? = null
     private var dismissTask: Runnable? = null
     private var contentObserver: ContentObserver? = null
-
-    private fun readVibrateSetting(context: Context): Int {
-        val resolver = context.contentResolver
-        fun readSetting(key: String): Int {
-            return runCatching { Settings.System.getInt(resolver, key) }.getOrNull()
-                ?: runCatching { Settings.Global.getInt(resolver, key) }.getOrDefault(0)
-        }
-        val vibRing = readSetting("vibrate_when_ringing").coerceAtLeast(0)
-        val vibSilent = readSetting("vibrate_in_silent").coerceAtLeast(0)
-        val vivoVib = readSetting("vivo_vibrate_state").coerceAtLeast(0)
-        val modeRinger = readSetting("mode_ringer").coerceAtLeast(0)
-        return ((modeRinger and 0xF) shl 12) or ((vibRing and 0xF) shl 8) or ((vibSilent and 0xF) shl 4) or (vivoVib and 0xF)
-    }
 
     private val ringerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -93,20 +80,27 @@ object RingerModeCard {
                     } else {
                         (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: -1
                     }
-                    if (mode != -1 && mode != lastRingerMode) {
+                    if (mode == -1) return
+
+                    val dndActive = isDndActive(context)
+                    if (dndActive && lastDndState != true) {
+                        lastDndState = true
+                        lastDndChangeAt = System.currentTimeMillis()
+                        lastRingerMode = mode
+                        triggerCard(context, MODE_DND)
+                        return
+                    }
+
+                    if (System.currentTimeMillis() - lastDndChangeAt < 1200L) {
+                        lastRingerMode = mode
+                        return
+                    }
+
+                    if (mode != lastRingerMode) {
                         lastRingerMode = mode
                         lastRingerChangeAt = System.currentTimeMillis()
-                        lastDndState = isDndActive(context)
-                        lastVibrateSetting = readVibrateSetting(context)
                         triggerCard(context, mode)
                     }
-                }
-                "android.media.VIBRATE_SETTING_CHANGED" -> {
-                    poll(context, "vibrate")
-                }
-                "android.media.VOLUME_CHANGED_ACTION",
-                "android.media.STREAM_MUTE_CHANGED_ACTION" -> {
-                    poll(context, "volume")
                 }
             }
         }
@@ -135,14 +129,10 @@ object RingerModeCard {
         val am = app.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         lastRingerMode = am?.ringerMode ?: -1
         lastDndState = isDndActive(app)
-        lastVibrateSetting = readVibrateSetting(app)
 
         val filter = IntentFilter().apply {
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION")
-            addAction("android.media.VIBRATE_SETTING_CHANGED")
-            addAction("android.media.VOLUME_CHANGED_ACTION")
-            addAction("android.media.STREAM_MUTE_CHANGED_ACTION")
             addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
             addAction(NotificationManager.ACTION_NOTIFICATION_POLICY_CHANGED)
             addAction("android.app.action.INTERRUPTION_FILTER_CHANGED")
@@ -163,7 +153,6 @@ object RingerModeCard {
             Log.e(TAG, "Lỗi đăng ký RingerReceiver", it)
         }
 
-        // Đăng ký ContentObserver theo dõi các URI cài đặt hệ thống trên OriginOS
         val observer = object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
                 super.onChange(selfChange, uri)
@@ -176,14 +165,7 @@ object RingerModeCard {
         listOfNotNull(
             Settings.Global.getUriFor("mode_ringer"),
             Settings.System.getUriFor("mode_ringer"),
-            Settings.System.getUriFor("vibrate_in_silent"),
-            Settings.Global.getUriFor("vibrate_in_silent"),
             Settings.Global.getUriFor("zen_mode"),
-            Settings.System.getUriFor("vibrate_when_ringing"),
-            Settings.System.getUriFor("vivo_vibrate_state"),
-            Settings.Global.getUriFor("vivo_vibrate_state"),
-            Settings.System.getUriFor("volume_ring_speaker"),
-            Settings.System.getUriFor("volume_ring"),
         ).forEach { uri ->
             runCatching {
                 resolver.registerContentObserver(uri, false, observer)
@@ -224,6 +206,22 @@ object RingerModeCard {
      * Kiểm tra định kỳ hoặc tức thì khi có sự kiện thay đổi Chuông / Rung / Im lặng / DND.
      */
     fun poll(context: Context, triggerUri: String? = null) {
+        val nowDnd = isDndActive(context)
+        if (lastDndState == null) {
+            lastDndState = nowDnd
+        } else if (nowDnd != lastDndState) {
+            lastDndState = nowDnd
+            lastDndChangeAt = System.currentTimeMillis()
+            val currentRinger = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: MODE_NORMAL
+            lastRingerMode = currentRinger
+            if (nowDnd) {
+                triggerCard(context, MODE_DND)
+            } else {
+                triggerCard(context, currentRinger)
+            }
+            return
+        }
+
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val nowRinger = am?.ringerMode ?: -1
         if (nowRinger != -1) {
@@ -231,49 +229,12 @@ object RingerModeCard {
                 lastRingerMode = nowRinger
             } else if (nowRinger != lastRingerMode) {
                 lastRingerMode = nowRinger
+                if (System.currentTimeMillis() - lastDndChangeAt < 1200L) {
+                    return
+                }
                 lastRingerChangeAt = System.currentTimeMillis()
-                lastDndState = isDndActive(context)
-                lastVibrateSetting = readVibrateSetting(context)
                 triggerCard(context, nowRinger)
                 return
-            }
-        }
-
-        val nowDnd = isDndActive(context)
-        if (lastDndState == null) {
-            lastDndState = nowDnd
-        } else if (nowDnd != lastDndState) {
-            lastDndState = nowDnd
-            if (System.currentTimeMillis() - lastRingerChangeAt >= 500L) {
-                if (nowDnd) {
-                    triggerCard(context, MODE_DND)
-                } else {
-                    val currentMode = if (nowRinger != -1) nowRinger else MODE_NORMAL
-                    lastRingerMode = currentMode
-                    triggerCard(context, currentMode)
-                }
-                return
-            }
-        }
-
-        val nowVib = readVibrateSetting(context)
-        if (lastVibrateSetting == -1) {
-            lastVibrateSetting = nowVib
-        } else if (nowVib != lastVibrateSetting) {
-            lastVibrateSetting = nowVib
-            val resolver = context.contentResolver
-            fun readSetting(key: String): Int {
-                return runCatching { Settings.System.getInt(resolver, key) }.getOrNull()
-                    ?: runCatching { Settings.Global.getInt(resolver, key) }.getOrDefault(0)
-            }
-            val vibRing = readSetting("vibrate_when_ringing")
-            val vivoVib = readSetting("vivo_vibrate_state")
-            if (vibRing == 1 || vivoVib == 1 || nowRinger == MODE_VIBRATE) {
-                triggerCard(context, MODE_VIBRATE)
-            } else if (nowRinger == MODE_SILENT) {
-                triggerCard(context, MODE_SILENT)
-            } else {
-                triggerCard(context, MODE_NORMAL)
             }
         }
     }
@@ -296,15 +257,15 @@ object RingerModeCard {
 
         if (lastDndState == isDnd) return
         lastDndState = isDnd
+        lastDndChangeAt = System.currentTimeMillis()
 
-        if (System.currentTimeMillis() - lastRingerChangeAt < 500L) return
+        val currentRinger = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: MODE_NORMAL
+        lastRingerMode = currentRinger
 
         if (isDnd) {
             triggerCard(context, MODE_DND)
         } else {
-            val currentMode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode ?: MODE_NORMAL
-            lastRingerMode = currentMode
-            triggerCard(context, currentMode)
+            triggerCard(context, currentRinger)
         }
     }
 
@@ -350,6 +311,7 @@ object RingerModeCard {
 
         debounceTask?.let(handler::removeCallbacks)
         val task = Runnable {
+            lastShownMode = mode
             showRingerCard(app, mode)
         }
         debounceTask = task
@@ -362,33 +324,33 @@ object RingerModeCard {
     private fun showRingerCard(context: Context, mode: Int) {
         val (title, text, leftContent, rightContent, colorHex, icon) = when (mode) {
             MODE_NORMAL -> RingerStateInfo(
-                title = "Chuông",
-                text = "Đã bật chuông thông báo",
-                leftContent = "Chuông",
-                rightContent = "Bật",
+                title = "Chuông báo",
+                text = "Đã bật âm thanh thông báo",
+                leftContent = "",
+                rightContent = "Chuông",
                 colorHex = COLOR_NORMAL,
                 icon = createBellIcon(Color.parseColor(COLOR_NORMAL)),
             )
             MODE_VIBRATE -> RingerStateInfo(
-                title = "Rung",
-                text = "Đã bật chế độ rung",
-                leftContent = "Rung",
+                title = "Chế độ Rung",
+                text = "Chỉ rung khi có thông báo",
+                leftContent = "",
                 rightContent = "Rung",
                 colorHex = COLOR_VIBRATE,
                 icon = createVibrateIcon(Color.parseColor(COLOR_VIBRATE)),
             )
             MODE_SILENT -> RingerStateInfo(
                 title = "Im lặng",
-                text = "Đã tắt toàn bộ âm thanh",
-                leftContent = "Im lặng",
-                rightContent = "Tắt",
+                text = "Đã tắt âm thanh thông báo",
+                leftContent = "",
+                rightContent = "Im lặng",
                 colorHex = COLOR_SILENT,
                 icon = createSilentIcon(Color.parseColor(COLOR_SILENT)),
             )
             MODE_DND -> RingerStateInfo(
                 title = "Không làm phiền",
                 text = "Đã bật chế độ Không làm phiền",
-                leftContent = "Không làm phiền",
+                leftContent = "",
                 rightContent = "DND",
                 colorHex = COLOR_DND,
                 icon = createDndIcon(Color.parseColor(COLOR_DND)),
@@ -426,7 +388,6 @@ object RingerModeCard {
             putExtra("oi_right_content", rightContent)
             putExtra("status_chip_text", rightContent)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("oi_bg_color", colorHex)
             putExtra("oi_fg_color", colorHex)
             putExtra("oi_light_color", colorHex)
             putExtra("oi_force_show", true)
@@ -461,145 +422,89 @@ object RingerModeCard {
     }
 
     /**
-     * Dựng Icon Chuông vàng (Normal Mode) dạng Canvas vector 96x96 px.
+     * Dựng Icon Chuông vàng (Normal Mode) dạng Canvas vector 96x96 px (notifications_active).
      */
     fun createBellIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        val scale = width / 24f
+        canvas.scale(scale, scale)
 
-        val loopPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 4.5f
-            strokeCap = Paint.Cap.ROUND
-            this.color = color
-        }
-        canvas.drawArc(RectF(42f, 16f, 54f, 28f), 180f, 180f, false, loopPaint)
-
-        val bellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             this.color = color
         }
-        val path = Path().apply {
-            moveTo(48f, 26f)
-            cubicTo(40f, 26f, 32f, 42f, 30f, 58f)
-            lineTo(24f, 66f)
-            quadTo(22f, 70f, 27f, 70f)
-            lineTo(69f, 70f)
-            quadTo(74f, 70f, 72f, 66f)
-            lineTo(66f, 58f)
-            cubicTo(64f, 42f, 56f, 26f, 48f, 26f)
-            close()
-        }
-        canvas.drawPath(path, bellPaint)
-        canvas.drawCircle(48f, 75f, 6f, bellPaint)
+
+        val path = PathParser.createPathFromPathData(
+            "M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2z" +
+            "M18,16v-5c0,-3.07 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.5,0.67 -1.5,1.5v0.68C7.63,5.36 6,7.92 6,11v5l-2,2v1h16v-1l-2,-2z" +
+            "M7.58,4.08L6.15,2.65C3.75,4.48 2.17,7.3 2.03,10.5h2c0.15,-2.65 1.51,-4.97 3.55,-6.42z" +
+            "M19.97,10.5h2c-0.15,-3.2 -1.73,-6.02 -4.12,-7.85l-1.42,1.43c2.02,1.45 3.39,3.77 3.54,6.42z"
+        )
+        canvas.drawPath(path, paint)
 
         return Icon.createWithBitmap(bitmap)
     }
 
     /**
-     * Dựng Icon Điện thoại Rung lam (Vibrate Mode) dạng Canvas vector 96x96 px.
+     * Dựng Icon Chuông rung động lam (Vibrate Mode) dạng Canvas vector 96x96 px không có khung vuông.
      */
     fun createVibrateIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        val scale = width / 24f
+        canvas.scale(scale, scale)
 
-        val fillPhone = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Quả chuông nghiêng động ở giữa
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            this.color = Color.argb(45, Color.red(color), Color.green(color), Color.blue(color))
-        }
-        val phoneRect = RectF(34f, 22f, 62f, 74f)
-        canvas.drawRoundRect(phoneRect, 6f, 6f, fillPhone)
-
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 4.5f
-            strokeCap = Paint.Cap.ROUND
             this.color = color
         }
-        canvas.drawRoundRect(phoneRect, 6f, 6f, strokePaint)
+        val bellPath = PathParser.createPathFromPathData(
+            "M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2z" +
+            "M17,16v-5c0,-2.76 -1.46,-5.06 -4,-5.74V4.5C13,3.67 12.33,3 11.5,3S10,3.67 10,4.5v0.76C7.46,5.94 6,8.24 6,11v5l-1.5,1.5V18h14v-0.5L17,16z"
+        )
+        canvas.save()
+        canvas.rotate(-12f, 12f, 12f)
+        canvas.drawPath(bellPath, fillPaint)
+        canvas.restore()
 
-        // Loa thoại trên & nút home dưới
-        canvas.drawLine(44f, 28f, 52f, 28f, strokePaint)
-        canvas.drawCircle(48f, 68f, 2.5f, strokePaint)
-
-        // Sóng rung 2 bên
-        val leftInner = Path().apply {
-            moveTo(24f, 36f)
-            quadTo(18f, 48f, 24f, 60f)
+        // Hai cặp đường sóng rung zigzag sắc nét 2 bên
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.0f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            this.color = color
         }
-        canvas.drawPath(leftInner, strokePaint)
-
-        val leftOuter = Path().apply {
-            moveTo(16f, 30f)
-            quadTo(9f, 48f, 16f, 66f)
-        }
-        canvas.drawPath(leftOuter, strokePaint)
-
-        val rightInner = Path().apply {
-            moveTo(72f, 36f)
-            quadTo(78f, 48f, 72f, 60f)
-        }
-        canvas.drawPath(rightInner, strokePaint)
-
-        val rightOuter = Path().apply {
-            moveTo(80f, 30f)
-            quadTo(87f, 48f, 80f, 66f)
-        }
-        canvas.drawPath(rightOuter, strokePaint)
+        val leftWaves = PathParser.createPathFromPathData("M3.5,8.5 L1.8,10.5 L3.5,12.5 L1.8,14.5")
+        val rightWaves = PathParser.createPathFromPathData("M20.5,8.5 L22.2,10.5 L20.5,12.5 L22.2,14.5")
+        canvas.drawPath(leftWaves, strokePaint)
+        canvas.drawPath(rightWaves, strokePaint)
 
         return Icon.createWithBitmap(bitmap)
     }
 
     /**
-     * Dựng Icon Chuông gạch chéo đỏ (Silent Mode) dạng Canvas vector 96x96 px.
+     * Dựng Icon Chuông gạch chéo đỏ (Silent Mode) dạng Canvas vector 96x96 px (notifications_off).
      */
     fun createSilentIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        val scale = width / 24f
+        canvas.scale(scale, scale)
 
-        val bellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             this.color = color
         }
 
-        val loopPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 4.5f
-            strokeCap = Paint.Cap.ROUND
-            this.color = color
-        }
-        canvas.drawArc(RectF(42f, 16f, 54f, 28f), 180f, 180f, false, loopPaint)
-
-        val path = Path().apply {
-            moveTo(48f, 26f)
-            cubicTo(40f, 26f, 32f, 42f, 30f, 58f)
-            lineTo(24f, 66f)
-            quadTo(22f, 70f, 27f, 70f)
-            lineTo(69f, 70f)
-            quadTo(74f, 70f, 72f, 66f)
-            lineTo(66f, 58f)
-            cubicTo(64f, 42f, 56f, 26f, 48f, 26f)
-            close()
-        }
-        canvas.drawPath(path, bellPaint)
-        canvas.drawCircle(48f, 75f, 6f, bellPaint)
-
-        // Đường gạch chéo sắc nét với viền đen nền
-        val slashMask = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 9f
-            strokeCap = Paint.Cap.ROUND
-            this.color = Color.BLACK
-        }
-        canvas.drawLine(20f, 20f, 76f, 76f, slashMask)
-
-        val slashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 5.5f
-            strokeCap = Paint.Cap.ROUND
-            this.color = Color.WHITE
-        }
-        canvas.drawLine(20f, 20f, 76f, 76f, slashPaint)
+        val path = PathParser.createPathFromPathData(
+            "M20,18.69L7.84,6.14L5.27,3.49L4,4.76l2.8,2.8v0.01c-0.52,0.99 -0.8,2.16 -0.8,3.42v5l-2,2v1h13.73l2,2L21,19.72L20,18.69z" +
+            "M12,22c1.11,0 2,-0.89 2,-2h-4C10,21.11 10.89,22 12,22z" +
+            "M18,14.68V11c0,-3.08 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5S10.5,3.17 10.5,4v0.68c-0.24,0.06 -0.47,0.15 -0.69,0.23L18,14.68z"
+        )
+        canvas.drawPath(path, paint)
 
         return Icon.createWithBitmap(bitmap)
     }
@@ -610,29 +515,18 @@ object RingerModeCard {
     fun createDndIcon(color: Int, width: Int = 96, height: Int = 96): Icon {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        val scale = width / 24f
+        canvas.scale(scale, scale)
 
-        val dndPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             this.color = color
         }
 
-        // Mặt trăng khuyết: hình tròn chính tại (46, 48) r=28 trừ đi hình tròn cắt tại (58, 40) r=23
-        val moonOuter = Path().apply {
-            addCircle(46f, 48f, 28f, Path.Direction.CW)
-        }
-        val moonInner = Path().apply {
-            addCircle(58f, 40f, 23f, Path.Direction.CW)
-        }
-        moonOuter.op(moonInner, Path.Op.DIFFERENCE)
-        canvas.drawPath(moonOuter, dndPaint)
-
-        // Hai ngôi sao nhỏ điểm xuyết
-        val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            this.color = color
-        }
-        canvas.drawCircle(70f, 30f, 2.8f, starPaint)
-        canvas.drawCircle(78f, 46f, 2.0f, starPaint)
+        val path = PathParser.createPathFromPathData(
+            "M12.3,4.9c0.4,-0.2 0.6,-0.7 0.5,-1.1S12.2,3 11.7,3C6.8,3.2 3,7.2 3,12c0,5 4,9 9,9c3.8,0 7.1,-2.4 8.4,-5.9c0.2,-0.4 0,-0.9 -0.4,-1.2c-0.4,-0.3 -0.9,-0.2 -1.2,0.1c-1,0.9 -2.3,1.5 -3.8,1.5c-3.3,0 -6,-2.7 -6,-6C9,7.4 10.4,5.7 12.3,4.9z"
+        )
+        canvas.drawPath(path, paint)
 
         return Icon.createWithBitmap(bitmap)
     }

@@ -44,7 +44,42 @@ object QuickShareDetector {
         Pattern.CASE_INSENSITIVE,
     )
 
+    fun isIdleVisibilityNotification(sbn: StatusBarNotification): Boolean {
+        val extras = sbn.notification.extras
+        val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+        val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+        val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+        val allTextLower = "$title $text $bigText $subText".lowercase()
+
+        val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
+        val isIndeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
+        if (max > 0 || isIndeterminate || PERCENT_PATTERN.matcher(allTextLower).find()) {
+            return false
+        }
+
+        val idleKeywords = listOf(
+            "đang hiển thị với",
+            "hiển thị với mọi người",
+            "hiển thị với danh bạ",
+            "hiển thị với thiết bị",
+            "ai có thể chia sẻ",
+            "chế độ hiển thị",
+            "visible to nearby",
+            "visible to everyone",
+            "visible to contacts",
+            "who can share",
+            "tap to change visibility",
+            "nhấn để thay đổi",
+            "chạm để thay đổi",
+            "ready to receive",
+            "sẵn sàng nhận tệp từ",
+        )
+        return idleKeywords.any { allTextLower.contains(it) }
+    }
+
     fun isQuickShare(sbn: StatusBarNotification): Boolean {
+        if (isIdleVisibilityNotification(sbn)) return false
         val pkg = sbn.packageName.lowercase()
         val n = sbn.notification
         val channelId = n.channelId?.lowercase().orEmpty()
@@ -136,7 +171,7 @@ object QuickShareDetector {
     fun detect(sbn: StatusBarNotification, context: Context? = null): QuickShareInfo? = parse(sbn)
 
     fun parse(sbn: StatusBarNotification): QuickShareInfo? {
-        if (!isQuickShare(sbn)) return null
+        if (!isQuickShare(sbn) || isIdleVisibilityNotification(sbn)) return null
 
         val n = sbn.notification
         val extras = n.extras
@@ -144,7 +179,8 @@ object QuickShareDetector {
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
         val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString()?.trim().orEmpty()
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString()?.trim().orEmpty()
-        val allCombined = "$title $text $bigText $subText"
+        val ticker = n.tickerText?.toString()?.trim().orEmpty()
+        val allCombined = "$title $text $bigText $subText $ticker"
         val allTextLower = allCombined.lowercase()
 
         // 1. Actions usable
@@ -164,6 +200,15 @@ object QuickShareDetector {
         val hasDecline = actionTitles.any {
             it.contains("từ chối") || it.contains("decline") ||
                 it.contains("reject")
+        }
+        val hasFinishAction = !hasAccept && actionTitles.any { a ->
+            a.contains("mở") || a.contains("open") ||
+                a.contains("xem") || a.contains("view") ||
+                a.contains("chia sẻ") || a.contains("share") ||
+                a.contains("xong") || a.contains("done") ||
+                a.contains("đóng") || a.contains("close") ||
+                a.contains("dismiss") || a.contains("sao chép") ||
+                a.contains("copy")
         }
 
         val isRequestByText = allTextLower.contains("muốn chia sẻ") ||
@@ -198,29 +243,62 @@ object QuickShareDetector {
             }
         }
 
-        val hasFinishKeywords = allTextLower.contains("đã nhận") ||
-            allTextLower.contains("hoàn tất") ||
+        val hasFinishKeywords = allTextLower.contains("hoàn thành") ||
+            allTextLower.contains("xong") ||
+            allTextLower.contains("đã truyền") ||
+            allTextLower.contains("đã nhận") ||
             allTextLower.contains("đã gửi") ||
-            allTextLower.contains("complete") ||
-            allTextLower.contains("completed") ||
-            allTextLower.contains("sent") ||
-            allTextLower.contains("received") ||
+            allTextLower.contains("hoàn tất") ||
             allTextLower.contains("thành công") ||
-            allTextLower.contains("success") ||
             allTextLower.contains("đã chia sẻ") ||
             allTextLower.contains("đã lưu") ||
             allTextLower.contains("lưu vào") ||
-            allTextLower.contains("saved") ||
             allTextLower.contains("sẵn sàng") ||
             allTextLower.contains("ready") ||
             allTextLower.contains("chạm để mở") ||
             allTextLower.contains("chạm để xem") ||
+            allTextLower.contains("nhấn để mở") ||
+            allTextLower.contains("nhấn để xem") ||
+            allTextLower.contains("mở tệp") ||
+            allTextLower.contains("xem tệp") ||
+            allTextLower.contains("mở ảnh") ||
+            allTextLower.contains("xem ảnh") ||
+            allTextLower.contains("đã sao chép") ||
+            allTextLower.contains("complete") ||
+            allTextLower.contains("completed") ||
+            allTextLower.contains("finished") ||
+            allTextLower.contains("done") ||
+            allTextLower.contains("sent") ||
+            allTextLower.contains("received") ||
+            allTextLower.contains("success") ||
+            allTextLower.contains("successful") ||
+            allTextLower.contains("shared") ||
+            allTextLower.contains("saved") ||
+            allTextLower.contains("copied") ||
             allTextLower.contains("tap to view") ||
-            allTextLower.contains("tap to open")
+            allTextLower.contains("tap to open") ||
+            allTextLower.contains("click to open")
 
-        val isFinished = progress >= 100 ||
+        val hasActiveTransferKeywords = allTextLower.contains("đang gửi") ||
+            allTextLower.contains("đang nhận") ||
+            allTextLower.contains("đang kết nối") ||
+            allTextLower.contains("đang truyền") ||
+            allTextLower.contains("đang chuẩn bị") ||
+            allTextLower.contains("đang chờ") ||
+            allTextLower.contains("chờ xác nhận") ||
+            allTextLower.contains("sending") ||
+            allTextLower.contains("receiving") ||
+            allTextLower.contains("connecting") ||
+            allTextLower.contains("transferring") ||
+            allTextLower.contains("preparing") ||
+            allTextLower.contains("waiting") ||
+            actionTitles.any { it.contains("hủy") || it.contains("cancel") }
+
+        val isFinished = (max > 0 && curr >= max) ||
+            progress >= 100 ||
             hasFinishKeywords ||
-            (!isOngoing && !isRequestByText && (max <= 0 || progress <= 0) && (fileName != null || allTextLower.contains("tệp") || allTextLower.contains("file")))
+            hasFinishAction ||
+            (!isRequestByText && !hasAccept && !hasDecline && !hasActiveTransferKeywords && max <= 0 && !isIndeterminate && !allTextLower.contains("hủy") && !allTextLower.contains("cancel") && !allTextLower.contains("thất bại") && !allTextLower.contains("failed") && !allTextLower.contains("từ chối") && !allTextLower.contains("declined"))
 
         val isCanceled = !isFinished && (
             allTextLower.contains("đã hủy") ||

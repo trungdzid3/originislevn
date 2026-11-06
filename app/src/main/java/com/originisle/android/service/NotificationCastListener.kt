@@ -297,6 +297,7 @@ class NotificationCastListener : NotificationListenerService() {
     private val transferProgressMap = ConcurrentHashMap<Int, Int>()
     private val transferFinishedMap = ConcurrentHashMap<Int, Boolean>()
     private val activeDownloadIds = ConcurrentHashMap.newKeySet<Int>()
+    private val activeQuickShareIds = ConcurrentHashMap.newKeySet<Int>()
 
     /** Lưu trạng thái kết nối cuối cùng và mốc báo sạc đầy của thiết bị đeo để chống pop-up ảo. */
     private val wearableConnectionState = ConcurrentHashMap<String, Boolean>()
@@ -462,6 +463,30 @@ class NotificationCastListener : NotificationListenerService() {
                             transferProgressMap[id] = dlInfo.progress
                             transferFinishedMap[id] = dlInfo.isFinished
                             DownloadCard.post(applicationContext, dlInfo, sbn)
+                        }
+                    } else if (castNotifs && prefs.getBoolean("cast_quickshare", true) &&
+                        QuickShareDetector.isQuickShare(sbn) && isAppEnabled(prefs, sbn.packageName)
+                    ) {
+                        val id = IconCache.castIdFor(sbn)
+                        if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                            if (activeQuickShareIds.remove(id) || QuickShareCard.isTransferring()) {
+                                activeQuickShareIds.clear()
+                                transferProgressMap.remove(id)
+                                transferFinishedMap.remove(id)
+                                QuickShareCard.postFinished(applicationContext, id, sbn.packageName, "Quick Share")
+                            }
+                        } else {
+                            val qsInfo = QuickShareDetector.parse(sbn)
+                            if (qsInfo != null) {
+                                if (qsInfo.isFinished || qsInfo.isCanceled) {
+                                    activeQuickShareIds.remove(id)
+                                } else if (!qsInfo.isRequest) {
+                                    activeQuickShareIds.add(id)
+                                }
+                                transferProgressMap[id] = qsInfo.progress
+                                transferFinishedMap[id] = qsInfo.isFinished
+                                QuickShareCard.post(applicationContext, qsInfo, sbn)
+                            }
                         }
                     }
                 }
@@ -651,9 +676,26 @@ class NotificationCastListener : NotificationListenerService() {
             // 2) Quick Share (Google Play Services, Google Quick Share, Vivo EasyShare, Samsung Quick Share)
             //    BẮT BUỘC chạy trước OTP và Tải xuống để không bị OTP Detector bắt nhầm dung lượng/số file/PIN.
             if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
+                if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                    if (activeQuickShareIds.isNotEmpty() || QuickShareCard.isTransferring()) {
+                        val id = IconCache.castIdFor(sbn)
+                        activeQuickShareIds.clear()
+                        transferProgressMap.remove(id)
+                        transferFinishedMap.remove(id)
+                        QuickShareCard.postFinished(applicationContext, id, sbn.packageName, "Quick Share")
+                        log(sbn, "hiển thị — Quick Share hoàn tất truyền tệp", true)
+                    }
+                    return
+                }
+
                 val qsInfo = QuickShareDetector.parse(sbn)
                 if (qsInfo != null) {
                     val id = IconCache.castIdFor(sbn)
+                    if (qsInfo.isFinished || qsInfo.isCanceled) {
+                        activeQuickShareIds.remove(id)
+                    } else if (!qsInfo.isRequest) {
+                        activeQuickShareIds.add(id)
+                    }
                     transferProgressMap[id] = qsInfo.progress
                     transferFinishedMap[id] = qsInfo.isFinished
                     QuickShareCard.post(applicationContext, qsInfo, sbn)
@@ -1321,7 +1363,7 @@ class NotificationCastListener : NotificationListenerService() {
             return
         }
 
-        val isQs = QuickShareDetector.isQuickShare(sbn)
+        val isQs = QuickShareDetector.isQuickShare(sbn) || activeQuickShareIds.remove(id)
         val isDl = DownloadDetector.isDownload(sbn) || activeDownloadIds.remove(id)
 
         if (isQs || isDl) {
@@ -1335,10 +1377,17 @@ class NotificationCastListener : NotificationListenerService() {
             lastMatchIcons.remove(id)
 
             if (isQs) {
-                if (isFinished || lastProg >= 80 || lastProg == 10 || !sbn.isOngoing) {
-                    QuickShareCard.postFinished(applicationContext, id, appPkg, title)
-                } else if (lastProg > 10) {
+                activeQuickShareIds.remove(id)
+                val ex = sbn.notification.extras
+                val rawText = "${ex.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()} ${ex.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()}".lowercase()
+                val wasCanceledText = rawText.contains("hủy") || rawText.contains("cancel") ||
+                    rawText.contains("từ chối") || rawText.contains("decline") ||
+                    rawText.contains("thất bại") || rawText.contains("failed")
+
+                if (wasCanceledText) {
                     QuickShareCard.postCanceled(applicationContext, id, appPkg)
+                } else if (!QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                    QuickShareCard.postFinished(applicationContext, id, appPkg, title)
                 } else {
                     QuickShareCard.clear(id)
                     startService(

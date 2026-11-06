@@ -24,6 +24,8 @@ import kotlin.math.abs
 
 object QuickShareCard {
 
+    const val ID = 35009
+
     private val handler = Handler(Looper.getMainLooper())
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
@@ -31,7 +33,17 @@ object QuickShareCard {
     private val watchdogTasks: MutableMap<Int, Runnable> = ConcurrentHashMap()
 
     @Volatile
+    private var activeTransfer: Boolean = false
+
+    @Volatile
+    private var lastActivePackage: String = "com.google.android.gms"
+
+    @Volatile
     private var cachedOfficialIcon: Icon? = null
+
+    fun isTransferring(): Boolean = activeTransfer
+
+    fun getLastActivePackage(): String = lastActivePackage
 
     /**
      * Tạo biểu tượng Quick Share chính thức dạng Canvas Bitmap:
@@ -88,10 +100,11 @@ object QuickShareCard {
     fun post(context: Context, sbn: StatusBarNotification, info: QuickShareInfo) = post(context, info, sbn)
 
     fun post(context: Context, info: QuickShareInfo, sbn: StatusBarNotification) {
-        val id = IconCache.castIdFor(sbn)
+        val sbnId = IconCache.castIdFor(sbn)
+        val cardId = ID
         val now = System.currentTimeMillis()
-        val lastTime = lastPostTimeMap[id] ?: 0L
-        val lastProg = lastProgressMap[id] ?: -1
+        val lastTime = lastPostTimeMap[cardId] ?: lastPostTimeMap[sbnId] ?: 0L
+        val lastProg = lastProgressMap[cardId] ?: lastProgressMap[sbnId] ?: -1
 
         val isOngoingNotif = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
         val isFinishedEffective = info.isFinished || (!isOngoingNotif && !info.isRequest && !info.isCanceled)
@@ -108,33 +121,58 @@ object QuickShareCard {
         }
 
         if (isFinishedEffective) {
-            watchdogTasks.remove(id)?.let(handler::removeCallbacks)
-            finishedIds.add(id)
-            lastPostTimeMap.remove(id)
-            lastProgressMap[id] = 100
+            activeTransfer = false
+            watchdogTasks.remove(sbnId)?.let(handler::removeCallbacks)
+            watchdogTasks.remove(cardId)?.let(handler::removeCallbacks)
+            finishedIds.add(sbnId)
+            finishedIds.add(cardId)
+            lastPostTimeMap.remove(sbnId)
+            lastPostTimeMap.remove(cardId)
+            lastProgressMap[sbnId] = 100
+            lastProgressMap[cardId] = 100
         } else if (info.isCanceled) {
-            watchdogTasks.remove(id)?.let(handler::removeCallbacks)
-            finishedIds.remove(id)
-            lastPostTimeMap.remove(id)
-            lastProgressMap[id] = 0
+            activeTransfer = false
+            watchdogTasks.remove(sbnId)?.let(handler::removeCallbacks)
+            watchdogTasks.remove(cardId)?.let(handler::removeCallbacks)
+            finishedIds.remove(sbnId)
+            finishedIds.remove(cardId)
+            lastPostTimeMap.remove(sbnId)
+            lastPostTimeMap.remove(cardId)
+            lastProgressMap[sbnId] = 0
+            lastProgressMap[cardId] = 0
         } else {
-            lastPostTimeMap[id] = now
-            lastProgressMap[id] = info.progress
+            lastPostTimeMap[sbnId] = now
+            lastPostTimeMap[cardId] = now
+            lastProgressMap[sbnId] = info.progress
+            lastProgressMap[cardId] = info.progress
         }
 
         val n = sbn.notification
         // Quản lý Icon chuẩn Resource theo GenericCard:
-        IconCache.activeSmallIcons.remove(id)
+        IconCache.activeSmallIcons.remove(cardId)
+        if (sbnId != cardId) IconCache.activeSmallIcons.remove(sbnId)
+
         val appIcon: Icon = resolveShareIcon(context, sbn.packageName)
-        IconCache.activeLargeIcons[id] = appIcon
+        IconCache.activeLargeIcons[cardId] = appIcon
+        if (sbnId != cardId) IconCache.activeLargeIcons[sbnId] = appIcon
 
         val clickPi = info.contentIntent
             ?: n.contentIntent
             ?: fallbackClickIntent(context, sbn.packageName)
 
+        // Nếu sbnId != cardId, hủy bỏ sbnId trên Đảo nếu trước đó từng xuất hiện để dọn sạch mọi thẻ cũ
+        if (sbnId != cardId) {
+            context.startService(
+                Intent(context, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", sbnId)
+                    .putExtra("oi_scene", "NAVIGATION")
+            )
+        }
+
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", id)
+            putExtra("id", cardId)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", sbn.packageName)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
@@ -203,26 +241,40 @@ object QuickShareCard {
                 }
                 else -> {
                     // Trạng thái đang truyền/kết nối tệp (PROGRESS / INDETERMINATE)
-                    val pct = if (info.isIndeterminate) 0 else info.progress.coerceIn(0, 99)
+                    activeTransfer = true
+                    lastActivePackage = sbn.packageName
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-                    putExtra("oi_card_ring", pct)
                     putExtra("oi_fg_color", "#2B66FF")
                     putExtra("oi_bg_color", "#4C2B66FF")
-                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-                    putExtra("oi_progress", pct)
-                    putExtra("show_progress", true)
-                    putExtra("progress", pct)
-                    putExtra("progress_max", 100)
-                    if (info.isIndeterminate) putExtra("progress_indeterminate", true)
-                    putExtra("oi_left_content", "$pct%")
-                    putExtra("oi_right_content", "")
-                    putExtra("status_chip_text", "$pct%")
-                    putExtra("title", "Quick Share · ${if (info.isIndeterminate) "Đang kết nối" else "$pct%"}")
-                    putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
+                    putExtra("is_ongoing", isOngoingNotif)
+
+                    if (info.isIndeterminate && info.progress <= 0) {
+                        putExtra("oi_left_content", "")
+                        putExtra("oi_right_content", "Đang truyền")
+                        putExtra("status_chip_text", "Đang truyền")
+                        putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                        putExtra("oi_show_right_icon", false)
+                        putExtra("title", "Quick Share · Đang truyền")
+                        putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
+                        putExtra("progress_indeterminate", true)
+                    } else {
+                        val pct = info.progress.coerceIn(1, 99)
+                        putExtra("oi_card_ring", pct)
+                        putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
+                        putExtra("oi_progress", pct)
+                        putExtra("show_progress", true)
+                        putExtra("progress", pct)
+                        putExtra("progress_max", 100)
+                        putExtra("oi_left_content", "$pct%")
+                        putExtra("oi_right_content", "")
+                        putExtra("status_chip_text", "$pct%")
+                        putExtra("title", "Quick Share · $pct%")
+                        putExtra("text", "${info.title.take(22)} · ${info.text.ifBlank { "Đang truyền tệp" }}")
+                    }
+
                     if (!info.speedText.isNullOrBlank()) {
                         putExtra("subtext", "Tốc độ: ${info.speedText}")
                     }
-                    putExtra("is_ongoing", isOngoingNotif)
                 }
             }
         }
@@ -235,7 +287,7 @@ object QuickShareCard {
                 context.startService(
                     Intent(context, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", id)
+                        .putExtra("id", cardId)
                         .putExtra("oi_scene", "NAVIGATION")
                 )
             }, 3500L)
@@ -244,39 +296,52 @@ object QuickShareCard {
                 context.startService(
                     Intent(context, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", id)
+                        .putExtra("id", cardId)
                         .putExtra("oi_scene", "NAVIGATION")
                 )
             }, 2500L)
         } else if (!info.isRequest) {
-            // Watchdog auto-dismiss cho nhánh đang truyền tệp (45s không cập nhật -> auto cancel)
-            watchdogTasks.remove(id)?.let(handler::removeCallbacks)
+            // Watchdog auto-dismiss cho nhánh đang truyền tệp (15s không cập nhật -> auto cancel)
+            watchdogTasks.remove(sbnId)?.let(handler::removeCallbacks)
+            watchdogTasks.remove(cardId)?.let(handler::removeCallbacks)
             val watchdog = Runnable {
-                clear(id)
+                clear(cardId)
+                clear(sbnId)
                 context.startService(
                     Intent(context, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", id)
+                        .putExtra("id", cardId)
                         .putExtra("oi_scene", "NAVIGATION")
                 )
             }
-            watchdogTasks[id] = watchdog
-            handler.postDelayed(watchdog, 45000L)
+            watchdogTasks[cardId] = watchdog
+            watchdogTasks[sbnId] = watchdog
+            handler.postDelayed(watchdog, 15000L)
         }
     }
 
     /**
      * Phát hoạt ảnh hoàn tất khi notification bị gỡ bỏ lúc đã truyền xong (>= 80%).
      */
-    fun postFinished(context: Context, id: Int, appPkg: String, title: String = "Quick Share") {
+    fun postFinished(context: Context, id: Int = ID, appPkg: String, title: String = "Quick Share") {
+        activeTransfer = false
         clear(id)
-        IconCache.activeSmallIcons.remove(id)
+        clear(ID)
+        if (id != ID) {
+            context.startService(
+                Intent(context, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION")
+            )
+        }
+        IconCache.activeSmallIcons.remove(ID)
         val appIcon: Icon = resolveShareIcon(context, appPkg)
-        IconCache.activeLargeIcons[id] = appIcon
+        IconCache.activeLargeIcons[ID] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", id)
+            putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
@@ -298,7 +363,7 @@ object QuickShareCard {
             putExtra("oi_light_color", "#00D084")
             putExtra("oi_bg_color", "#00D084")
             putExtra("oi_fg_color", "#00D084")
-            putExtra("title", "Quick Share · Hoàn tất")
+            putExtra("title", "$title · Hoàn tất")
             putExtra("text", "Đã nhận tệp")
         }
         context.startService(intent)
@@ -306,7 +371,7 @@ object QuickShareCard {
             context.startService(
                 Intent(context, PlaygroundService::class.java)
                     .setAction(PlaygroundService.ACTION_CANCEL)
-                    .putExtra("id", id)
+                    .putExtra("id", ID)
                     .putExtra("oi_scene", "NAVIGATION")
             )
         }, 3500L)
@@ -315,15 +380,25 @@ object QuickShareCard {
     /**
      * Phát hoạt ảnh hủy / lỗi khi notification bị gỡ bỏ khi đang truyền dở (< 80%).
      */
-    fun postCanceled(context: Context, id: Int, appPkg: String) {
+    fun postCanceled(context: Context, id: Int = ID, appPkg: String) {
+        activeTransfer = false
         clear(id)
-        IconCache.activeSmallIcons.remove(id)
+        clear(ID)
+        if (id != ID) {
+            context.startService(
+                Intent(context, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION")
+            )
+        }
+        IconCache.activeSmallIcons.remove(ID)
         val appIcon: Icon = resolveShareIcon(context, appPkg)
-        IconCache.activeLargeIcons[id] = appIcon
+        IconCache.activeLargeIcons[ID] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", id)
+            putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", appPkg)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
@@ -352,20 +427,27 @@ object QuickShareCard {
             context.startService(
                 Intent(context, PlaygroundService::class.java)
                     .setAction(PlaygroundService.ACTION_CANCEL)
-                    .putExtra("id", id)
+                    .putExtra("id", ID)
                     .putExtra("oi_scene", "NAVIGATION")
             )
         }, 2500L)
     }
 
-    fun getLastProgress(id: Int): Int = lastProgressMap[id] ?: -1
+    fun getLastProgress(id: Int = ID): Int = lastProgressMap[id] ?: lastProgressMap[ID] ?: -1
 
-    fun isFinished(id: Int): Boolean = finishedIds.contains(id)
+    fun isFinished(id: Int = ID): Boolean = finishedIds.contains(id) || finishedIds.contains(ID)
 
-    fun clear(id: Int) {
+    fun clear(id: Int = ID) {
+        activeTransfer = false
         watchdogTasks.remove(id)?.let(handler::removeCallbacks)
         lastPostTimeMap.remove(id)
         lastProgressMap.remove(id)
         finishedIds.remove(id)
+        if (id != ID) {
+            watchdogTasks.remove(ID)?.let(handler::removeCallbacks)
+            lastPostTimeMap.remove(ID)
+            lastProgressMap.remove(ID)
+            finishedIds.remove(ID)
+        }
     }
 }

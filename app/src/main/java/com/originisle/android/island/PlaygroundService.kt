@@ -479,6 +479,7 @@ class PlaygroundService : Service() {
                 otherId < 40000 &&
                 otherId != 35004 &&
                 otherId != 35008 &&
+                otherId != 35009 &&
                 originScenes[otherId] == scene &&
                 lastPosts[otherId]?.getBooleanExtra("is_ongoing", false) == true
         }
