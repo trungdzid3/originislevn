@@ -1,8 +1,17 @@
 package com.originisle.android.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -26,8 +36,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -86,7 +94,7 @@ fun CircleIconButton(
         shape = CircleShape,
         color = background,
         contentColor = tint,
-        modifier = Modifier.size(44.dp).semantics { role = Role.Button },
+        modifier = Modifier.size(48.dp).semantics { role = Role.Button },
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription, Modifier.size(iconSize), tint = tint)
@@ -133,7 +141,7 @@ fun PillButton(
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        modifier = modifier.padding(horizontal = 16.dp),
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
         color = IsleColors.TextSecondary,
@@ -199,8 +207,8 @@ fun SettingRow(
         modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .heightIn(min = 60.dp)
-            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            .heightIn(min = 58.dp)
+            .padding(start = 16.dp, end = 14.dp, top = 11.dp, bottom = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -208,7 +216,7 @@ fun SettingRow(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
             if (subtitle != null) {
-                Text(subtitle, fontSize = 13.sp, color = IsleColors.TextSecondary, lineHeight = 17.sp)
+                Text(subtitle, fontSize = 13.sp, color = IsleColors.TextSecondary, lineHeight = 18.sp)
             }
         }
         trailing()
@@ -250,6 +258,69 @@ fun NavRow(
 }
 
 /**
+ * Khung cài đặt lồng nhau chuẩn Vivo OriginOS 6:
+ * Khi tùy chọn cha được bật, các tùy chọn con mở ra mượt mà qua AnimatedVisibility,
+ * nằm gọn trong card con (SurfaceHigh, bo góc 16.dp, chỉ dẫn tinh tế bên trái),
+ * không gây xô lệch hay đứt gãy bố cục ngoài.
+ */
+@Composable
+fun NestedSettingContainer(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(
+            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+            expandFrom = Alignment.Top,
+        ) + fadeIn(
+            animationSpec = tween(durationMillis = 180),
+        ),
+        exit = shrinkVertically(
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+            shrinkTowards = Alignment.Top,
+        ) + fadeOut(
+            animationSpec = tween(durationMillis = 140),
+        ),
+    ) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 2.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(IsleColors.SurfaceHigh)
+                .border(
+                    width = 0.8.dp,
+                    color = IsleColors.BorderHairline,
+                    shape = RoundedCornerShape(16.dp),
+                )
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Chỉ dẫn dọc mảnh tinh tế màu Accent chuẩn OriginOS 6
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(IsleColors.Accent.copy(alpha = 0.6f)),
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    content = content,
+                )
+            }
+        }
+    }
+}
+
+/**
  * OriginOS 6/7 Custom Switch (100% pixel-matched to Vivo OriginOS 6/7 physical switch):
  * - Track: soft capsule pill (48.dp width x 24.dp height, RoundedCornerShape(12.dp)).
  *   ON: Soft Pastel Cyan / Mint (#A0D0CF).
@@ -259,6 +330,7 @@ fun NavRow(
  *   Outer border ring: 4.8.dp thick.
  *   ON: Deep rich Teal (#006D77).
  *   OFF: Slate gray (#8A9096 in Light Mode / #71767C in Dark Mode).
+ * Đảm bảo kích thước chạm tối thiểu đạt chuẩn tiếp cận 48.dp.
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
@@ -267,60 +339,66 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
     val thumbSize = 32.dp
     val isDark = IsleColors.isDark
 
-    val thumbOffset by androidx.compose.animation.core.animateDpAsState(
+    val thumbOffset by animateDpAsState(
         targetValue = if (checked) trackWidth - thumbSize else 0.dp,
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 180),
+        animationSpec = tween(durationMillis = 180),
         label = "thumbOffset",
     )
     val trackColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (checked) Color(0xFFA0D0CF) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E6E8),
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 180),
+        animationSpec = tween(durationMillis = 180),
         label = "trackColor",
     )
     val ringColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (checked) Color(0xFF006D77) else if (isDark) Color(0xFF71767C) else Color(0xFF8A9096),
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 180),
+        animationSpec = tween(durationMillis = 180),
         label = "ringColor",
     )
 
     Box(
         modifier = modifier
-            .width(trackWidth)
-            .height(thumbSize)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .then(
                 if (onCheckedChange != null) {
                     Modifier.clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         role = Role.Switch,
                         onClick = { onCheckedChange(!checked) },
                     )
                 } else Modifier
             ),
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = Alignment.Center,
     ) {
-        // Track: soft rounded capsule centered horizontally and vertically
         Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth()
-                .height(trackHeight)
-                .clip(RoundedCornerShape(12.dp))
-                .background(trackColor)
-        )
-        // Thumb: pure white center with thick outer ring border that overhangs track
-        Box(
-            modifier = Modifier
-                .offset(x = thumbOffset)
-                .size(thumbSize)
-                .clip(CircleShape)
-                .background(Color.White)
-                .border(
-                    width = 4.8.dp,
-                    color = ringColor,
-                    shape = CircleShape,
-                )
-        )
+                .width(trackWidth)
+                .height(thumbSize),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            // Track: soft rounded capsule centered horizontally and vertically
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .height(trackHeight)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(trackColor)
+            )
+            // Thumb: pure white center with thick outer ring border that overhangs track
+            Box(
+                modifier = Modifier
+                    .offset(x = thumbOffset)
+                    .size(thumbSize)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .border(
+                        width = 4.8.dp,
+                        color = ringColor,
+                        shape = CircleShape,
+                    )
+            )
+        }
     }
 }
 
@@ -332,7 +410,7 @@ fun SegmentedControl(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     track: Color = IsleColors.SurfaceHigh,
-    height: Dp = 44.dp,
+    height: Dp = 46.dp,
 ) {
     Row(
         modifier
@@ -358,7 +436,7 @@ fun SegmentedControl(
                 Text(
                     label,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
                     color = if (on) IsleColors.Text else IsleColors.TextSecondary,
                 )
             }
@@ -366,7 +444,7 @@ fun SegmentedControl(
     }
 }
 
-/** A small rounded choice button (delay picker, sample picker). */
+/** A small rounded choice button (delay picker, sample picker), min 48.dp touch size. */
 @Composable
 fun ChoiceChip(
     label: String,
@@ -377,21 +455,21 @@ fun ChoiceChip(
     selectedContent: Color = Color.White,
     shape: Shape = RoundedCornerShape(12.dp),
     height: Dp = 44.dp,
-    horizontalPadding: Dp = 0.dp,
+    horizontalPadding: Dp = 8.dp,
 ) {
     Box(
         modifier
-            .height(height)
+            .heightIn(min = height)
             .clip(shape)
-            .background(if (selected) selectedContainer else IsleColors.SurfaceHigh)
+            .background(if (selected) selectedContainer else IsleColors.SurfaceHigher)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = horizontalPadding),
+            .padding(horizontal = horizontalPadding, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) selectedContent else IsleColors.TextChip,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

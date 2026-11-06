@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.originisle.android.R
 
@@ -81,19 +82,19 @@ data class IsleColorPalette(
 
 val DarkPalette = IsleColorPalette(
     isDark = true,
-    background = Color(0xFF000000),
-    surface = Color(0xFF17181C),
+    background = Color(0xFF000000), // Nền đen OLED tuyệt đối
+    surface = Color(0xFF17181C),    // Bề mặt thẻ OriginOS 6
     surfaceHigh = Color(0xFF22242A),
     surfaceHigher = Color(0xFF2C2E35),
     menu = Color(0xFF1C1E24),
-    borderHairline = Color(0x1FFFFFFF),
+    borderHairline = Color(0x1FFFFFFF), // Hairline siêu mỏng 0.8dp
     borderActive = Color(0x3800BFA5),
     text = Color(0xFFFFFFFF),
     textSecondary = Color(0xFF8E8E93),
     textTertiary = Color(0xFF6B6E7A),
     textChip = Color(0xFFD5D7DF),
     chevron = Color(0xFF60636E),
-    accent = Color(0xFF00BFA5),
+    accent = Color(0xFF00BFA5),     // Vivo OriginOS 6 Teal Cyan Mint
     glowAccent = Color(0xFF33DFCB),
     accentText = Color(0xFF00D2B8),
     switchOff = Color(0xFF2C2D35),
@@ -127,19 +128,19 @@ val DarkPalette = IsleColorPalette(
 
 val LightPalette = IsleColorPalette(
     isDark = false,
-    background = Color(0xFFF2F4F7),
+    background = Color(0xFFF2F4F7), // Bầu không khí xám nhạt OriginOS 6
     surface = Color(0xFFFFFFFF),
     surfaceHigh = Color(0xFFE8EAEF),
     surfaceHigher = Color(0xFFDFE2E8),
     menu = Color(0xFFFFFFFF),
-    borderHairline = Color(0x0F000000),
+    borderHairline = Color(0x0F000000), // Hairline sáng
     borderActive = Color(0x2800BFA5),
     text = Color(0xFF17181D),
     textSecondary = Color(0xFF6C707A),
     textTertiary = Color(0xFF8E929E),
     textChip = Color(0xFF4B4F58),
     chevron = Color(0xFFB0B4BE),
-    accent = Color(0xFF00BFA5),
+    accent = Color(0xFF00BFA5),     // Vivo OriginOS 6 Teal Cyan Mint
     glowAccent = Color(0xFF00A892),
     accentText = Color(0xFF00897B),
     switchOff = Color(0xFFD1D5DB),
@@ -183,7 +184,7 @@ object IsleColors {
     val SurfaceHigher: Color @Composable get() = LocalIsleColors.current.surfaceHigher
     val Menu: Color @Composable get() = LocalIsleColors.current.menu
 
-    // Viền hairline siêu mảnh chuẩn OriginOS 6
+    // Viền hairline siêu mảnh chuẩn OriginOS 6 (0.8dp)
     val BorderHairline: Color @Composable get() = LocalIsleColors.current.borderHairline
     val BorderActive: Color @Composable get() = LocalIsleColors.current.borderActive
 
@@ -239,7 +240,7 @@ private fun jakarta(weight: FontWeight) = Font(
     variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
 )
 
-val JakartaSans = FontFamily(
+val JakartaSans: FontFamily = FontFamily(
     jakarta(FontWeight.Normal),
     jakarta(FontWeight.Medium),
     jakarta(FontWeight.SemiBold),
@@ -248,32 +249,79 @@ val JakartaSans = FontFamily(
 )
 
 /**
- * Vivo Sans system font family: Automatically loads Vivo's official system font "vivo-sans"
- * on Vivo OriginOS devices, falling back gracefully to Jakarta Sans on other systems.
+ * Vivo Sans system font family: Tự động sử dụng font hệ thống Vivo ("vivo-sans" / "sans-serif-medium")
+ * trên các thiết bị Vivo/iQOO OriginOS, đồng thời tự điều chỉnh tương thích với FontFamily.SansSerif
+ * nhằm đảm bảo tôn trọng 100% tỷ lệ co giãn phông chữ (fontScale), kích thước hiển thị và các biến thể độ đậm.
  */
 val VivoSans: FontFamily = runCatching {
     val vivoTypeface = android.graphics.Typeface.create("vivo-sans", android.graphics.Typeface.NORMAL)
     if (vivoTypeface != android.graphics.Typeface.DEFAULT) {
         FontFamily(androidx.compose.ui.text.font.Typeface(vivoTypeface))
     } else {
-        JakartaSans
+        FontFamily.SansSerif
     }
-}.getOrElse { JakartaSans }
+}.getOrElse { FontFamily.SansSerif }
 
-private fun TextStyle.originFont() = copy(fontFamily = VivoSans)
-
-private val IsleTypography = Typography().run {
-    copy(
-        displayLarge = displayLarge.originFont(), displayMedium = displayMedium.originFont(),
-        displaySmall = displaySmall.originFont(), headlineLarge = headlineLarge.originFont(),
-        headlineMedium = headlineMedium.originFont(), headlineSmall = headlineSmall.originFont(),
-        titleLarge = titleLarge.originFont(), titleMedium = titleMedium.originFont(),
-        titleSmall = titleSmall.originFont(), bodyLarge = bodyLarge.originFont(),
-        bodyMedium = bodyMedium.originFont(), bodySmall = bodySmall.originFont(),
-        labelLarge = labelLarge.originFont(), labelMedium = labelMedium.originFont(),
-        labelSmall = labelSmall.originFont(),
-    )
-}
+private val IsleTypography = Typography(
+    headlineLarge = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        letterSpacing = (-0.5).sp,
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 24.sp,
+        letterSpacing = (-0.3).sp,
+    ),
+    titleLarge = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+    ),
+    titleSmall = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+    ),
+    bodySmall = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 13.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = VivoSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 11.sp,
+    ),
+)
 
 @Composable
 fun OriginIsleTheme(content: @Composable () -> Unit) {

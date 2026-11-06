@@ -95,6 +95,10 @@ object EarbudsCard {
     private const val ACTION_SAMSUNG_BATTERY_CHANGED = "com.samsung.battery.ACTION_BATTERY_INFO_CHANGED"
     private const val ACTION_SAMSUNG_BATTERY_ADDED = "com.samsung.battery.ACTION_BATTERY_INFO_ADDED"
     private const val ACTION_SAMSUNG_WATCH_LEVEL = "com.samsung.android.app.watchmanager.widget.getwearablebatterystatus.LEVEL"
+    private const val ACTION_SAMSUNG_PLUGIN_RESPONSE = "com.samsung.android.watchmanager.ACTION_PLUGIN_RESPONSE"
+    private const val ACTION_SAMSUNG_PLUGIN_REQUEST = "com.samsung.android.watchmanager.ACTION_PLUGIN_REQUEST"
+    private const val ACTION_SAMSUNG_REQUEST_GEAR_STATE = "com.samsung.android.hostmanager.action.REQUEST_GEAR_CONNECTION_STATE"
+    private const val FIT3_PLUGIN_PACKAGE = "com.samsung.wearable.fit3plugin"
 
     private const val TAG = "EarbudsCard"
 
@@ -148,9 +152,15 @@ object EarbudsCard {
         if (nameOrAddress.isNullOrBlank()) return false
         val key = nameOrAddress.trim().lowercase()
         if (lastConnectionState[key] == true || lastConnectionState[nameOrAddress] == true) return true
-        return lastConnectionState.entries.any { (k, v) ->
+        if (lastConnectionState.entries.any { (k, v) ->
             v && k.length >= 4 && (k.contains(key, ignoreCase = true) || key.contains(k, ignoreCase = true))
+        }) return true
+        val ctx = app
+        if (ctx != null) {
+            val prefs = ctx.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+            if (prefs.getBoolean("wearable_conn_state_$key", false)) return true
         }
+        return false
     }
 
     /** Cập nhật trạng thái kết nối của thiết bị. */
@@ -159,6 +169,10 @@ object EarbudsCard {
         val key = nameOrAddress.trim().lowercase()
         lastConnectionState[key] = connected
         lastConnectionState[nameOrAddress] = connected
+        app?.let { ctx ->
+            val prefs = ctx.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("wearable_conn_state_$key", connected).apply()
+        }
     }
 
     private const val PREFS_BATTERY_CACHE = "wearable_battery_cache"
@@ -213,63 +227,114 @@ object EarbudsCard {
 
     private val FIT3_BATTERY_URI = Uri.parse("content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb")
     private val FIT3_SYNC_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.BatteryInfoProvider")
+    private val FIT3_CAPSULE_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.CapsuleProvider")
+    private val FIT3_QUICKSEARCH_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.quicksearch")
     private var fit3Observer: ContentObserver? = null
 
     /**
-     * Đọc % pin phần cứng cho Samsung Galaxy Fit 3 từ ContentProvider của Samsung Fit3 Plugin:
-     * - Kích hoạt sync ngầm qua content://com.samsung.wearable.fit3plugin.BatteryInfoProvider
-     * - Query content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb
-     *   lấy cột 'Value', parse sang Int. Nếu hợp lệ (0..100), lưu cache và trả về mức pin.
+     * Kênh 1: Gửi broadcast yêu cầu đồng bộ pin phần cứng tới Samsung Fit 3 Plugin.
+     */
+    fun requestSamsungFit3BatteryUpdate(context: Context) {
+        runCatching {
+            val intent1 = Intent(ACTION_SAMSUNG_PLUGIN_REQUEST).apply {
+                setPackage(FIT3_PLUGIN_PACKAGE)
+                putExtra("request_type", "battery")
+                putExtra("action", "get_battery")
+                putExtra("action_type", "battery_status")
+            }
+            context.sendBroadcast(intent1)
+        }.onFailure { Log.w(TAG, "send ACTION_PLUGIN_REQUEST failed", it) }
+
+        runCatching {
+            val intent2 = Intent(ACTION_SAMSUNG_REQUEST_GEAR_STATE).apply {
+                setPackage(FIT3_PLUGIN_PACKAGE)
+            }
+            context.sendBroadcast(intent2)
+        }.onFailure { Log.w(TAG, "send REQUEST_GEAR_CONNECTION_STATE failed", it) }
+    }
+
+    /**
+     * Đa kênh đọc % pin phần cứng cho Samsung Galaxy Fit 3:
+     * - Kênh 1: Kích hoạt sync qua Broadcast Widget
+     * - Kênh 2: Truy vấn ContentProvider mở (CapsuleProvider & quicksearch)
+     * - Kênh 3: Hỗ trợ tiếp cận (KeepAliveAccessibilityService)
      */
     fun querySamsungFit3Battery(context: Context, devName: String = "Galaxy Fit 3"): Int {
-        // 1. Kích hoạt sync ngầm từ Fit 3 Plugin
+        // 1. Kích hoạt sync ngầm qua Broadcast Widget (Kênh 1)
+        requestSamsungFit3BatteryUpdate(context)
+
+        // 2. Kích hoạt sync ngầm qua Fit 3 Plugin cũ (nếu có)
         runCatching {
             val syncBundle = Bundle().apply { putInt("sync_battery_data", 1) }
             context.contentResolver.call(FIT3_SYNC_URI, "sync_request", null, syncBundle)
         }
 
-        // 2. Query ContentProvider lấy mức pin thật
+        // 3. Kênh 2: Thử gọi call() trên CapsuleProvider
+        runCatching {
+            val bundle = context.contentResolver.call(FIT3_CAPSULE_URI, "getBattery", null, null)
+                ?: context.contentResolver.call(FIT3_CAPSULE_URI, "get_battery_level", null, null)
+            if (bundle != null) {
+                val b = extractBattery(bundle, "battery", "level", "battery_level", "value", "LEVEL")
+                if (b in 0..100) {
+                    saveCachedBattery(context, devName, b)
+                    return b
+                }
+            }
+        }
+
+        // 4. Kênh 2: Truy vấn ContentProvider CapsuleProvider
+        val fromCapsule = queryProviderForBattery(context, FIT3_CAPSULE_URI, devName)
+        if (fromCapsule in 0..100) return fromCapsule
+
+        // 5. Kênh 2: Truy vấn ContentProvider QuickSearch
+        val fromQuickSearch = queryProviderForBattery(context, FIT3_QUICKSEARCH_URI, devName)
+        if (fromQuickSearch in 0..100) return fromQuickSearch
+
+        // 6. Truy vấn ContentProvider cũ FIT3_BATTERY_URI
+        val fromLegacy = queryProviderForBattery(context, FIT3_BATTERY_URI, devName)
+        if (fromLegacy in 0..100) return fromLegacy
+
+        return -1
+    }
+
+    private fun queryProviderForBattery(context: Context, uri: Uri, devName: String): Int {
         return runCatching {
-            val cursor = context.contentResolver.query(
-                FIT3_BATTERY_URI,
-                arrayOf("Value", "_btAddress", "Time"),
-                null,
-                null,
-                null
-            ) ?: context.contentResolver.query(
-                FIT3_BATTERY_URI,
-                null,
-                null,
-                null,
-                null
-            )
-
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
             cursor?.use { c ->
-                val colIndex = c.getColumnIndex("Value").takeIf { it != -1 }
-                    ?: c.getColumnIndex("value").takeIf { it != -1 }
-                    ?: c.getColumnIndex("battery_level").takeIf { it != -1 }
-                    ?: -1
+                val batteryColNames = listOf("Value", "value", "battery_level", "battery", "level", "batteryLevel", "percentage", "capacity")
+                var matchedColIndex = -1
+                for (name in batteryColNames) {
+                    val idx = c.getColumnIndex(name)
+                    if (idx != -1) {
+                        matchedColIndex = idx
+                        break
+                    }
+                }
 
-                if (colIndex != -1 && c.moveToFirst()) {
-                    val str = runCatching { c.getString(colIndex) }.getOrNull()
-                    val level = str?.trim()?.toIntOrNull()
-                        ?: runCatching { c.getInt(colIndex) }.getOrNull()?.takeIf { it in 0..100 }
-                        ?: -1
-
-                    if (level in 0..100) {
-                        saveCachedBattery(context, devName, level)
-                        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
-                        prefs.edit().putInt("wearable_last_known_battery", level).apply()
-                        Log.i(TAG, "querySamsungFit3Battery: $devName = $level%")
-                        return level
+                if (c.moveToFirst()) {
+                    if (matchedColIndex != -1) {
+                        val str = runCatching { c.getString(matchedColIndex) }.getOrNull()
+                        val num = str?.trim()?.replace("%", "")?.toIntOrNull()
+                            ?: runCatching { c.getInt(matchedColIndex) }.getOrNull()?.takeIf { it in 0..100 }
+                        if (num != null && num in 0..100) {
+                            saveCachedBattery(context, devName, num)
+                            Log.i(TAG, "queryProviderForBattery ($uri): $devName = $num%")
+                            return num
+                        }
+                    }
+                    for (i in 0 until c.columnCount) {
+                        val str = runCatching { c.getString(i) }.getOrNull()
+                        val num = str?.trim()?.replace("%", "")?.toIntOrNull()
+                        if (num != null && num in 0..100) {
+                            saveCachedBattery(context, devName, num)
+                            Log.i(TAG, "queryProviderForBattery ($uri, col $i): $devName = $num%")
+                            return num
+                        }
                     }
                 }
                 -1
             } ?: -1
-        }.getOrElse {
-            Log.w(TAG, "querySamsungFit3Battery failed", it)
-            -1
-        }
+        }.getOrElse { -1 }
     }
 
     fun readGattBatteryAsync(context: Context, device: BluetoothDevice?, devName: String, isWearable: Boolean) {
@@ -389,6 +454,7 @@ object EarbudsCard {
             addAction(ACTION_SAMSUNG_BATTERY_CHANGED)
             addAction(ACTION_SAMSUNG_BATTERY_ADDED)
             addAction(ACTION_SAMSUNG_WATCH_LEVEL)
+            addAction(ACTION_SAMSUNG_PLUGIN_RESPONSE)
         }
         runCatching { ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED) }
 
@@ -505,7 +571,7 @@ object EarbudsCard {
             ?: intent.getStringExtra("device_title")
             ?: extractSamsungDeviceName(intent)
 
-        val isWearableDevice = isWearable(device, rawName, pkg)
+        val isWearableDevice = isWearable(device, rawName, pkg) || isSamsungWearableAction(action)
         if (!isSupportedDevice(device, rawName, pkg) && !isSamsungWearableAction(action)) return
 
         val address = device?.address ?: rawAddress ?: rawName ?: "device_unknown"
@@ -634,6 +700,9 @@ object EarbudsCard {
                 val updated = readTelemetry(device, intent)
                 if (updated.effectiveLevel in 0..100) {
                     saveCachedBattery(context, devName, updated.effectiveLevel)
+                    if (isWearableDevice) {
+                        onBatteryUpdated(context, devName, updated, isWearable = true)
+                    }
                 }
                 val before = deviceTelemetry.put(address, updated)
                 val eff = updated.effectiveLevel
@@ -665,6 +734,7 @@ object EarbudsCard {
             ACTION_SAMSUNG_BATTERY_CHANGED,
             ACTION_SAMSUNG_BATTERY_ADDED,
             ACTION_SAMSUNG_WATCH_LEVEL,
+            ACTION_SAMSUNG_PLUGIN_RESPONSE,
         )
 
     private fun isSamsungAccessoryConnected(intent: Intent): Boolean {
@@ -808,17 +878,23 @@ object EarbudsCard {
 
     private fun extractSamsungBattery(intent: Intent): Int {
         val extras = intent.extras ?: return -1
-        for (key in listOf("LEVEL", "level", "battery", "battery_level", "capacity", "battery_status")) {
+        for (key in listOf("LEVEL", "level", "battery", "battery_level", "capacity", "battery_status", "EXTRA_BATTERY_LEVEL", "percentage", "batteryPct", "value")) {
             val v = extras.get(key)
             val num = when (v) {
                 is Number -> v.toInt()
-                is String -> v.trim().toIntOrNull()
+                is String -> v.trim().replace("%", "").toIntOrNull()
                 else -> null
             }
             if (num != null && num in 0..100) return num
         }
 
-        val infoObj = extras.get("com.samsung.battery.EXTRA_BATTERY_INFO") ?: extras.get("EXTRA_BATTERY_INFO")
+        val infoObj = extras.get("com.samsung.battery.EXTRA_BATTERY_INFO")
+            ?: extras.get("EXTRA_BATTERY_INFO")
+            ?: extras.get("battery_info")
+            ?: extras.get("response_data")
+            ?: extras.get("data")
+            ?: extras.get("result")
+            ?: extras.get("bundle")
         if (infoObj != null) {
             when (infoObj) {
                 is Number -> if (infoObj.toInt() in 0..100) return infoObj.toInt()

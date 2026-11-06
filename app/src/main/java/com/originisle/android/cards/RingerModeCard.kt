@@ -98,6 +98,20 @@ object RingerModeCard {
     }
 
     /**
+     * Bắt đầu giám sát chế độ chuông và phím gạt im lặng trên OriginOS 6.
+     */
+    fun start(context: Context) {
+        register(context)
+    }
+
+    /**
+     * Dừng giám sát chế độ chuông.
+     */
+    fun stop(context: Context) {
+        unregister(context)
+    }
+
+    /**
      * Đăng ký lắng nghe broadcast và ContentObserver thay đổi chế độ chuông / DND hệ thống.
      */
     fun register(context: Context) {
@@ -138,19 +152,19 @@ object RingerModeCard {
         }
         contentObserver = observer
         val resolver = app.contentResolver
-        listOf(
+        listOfNotNull(
             Settings.Global.getUriFor("mode_ringer"),
+            Settings.System.getUriFor("mode_ringer"),
+            Settings.System.getUriFor("vibrate_in_silent"),
+            Settings.Global.getUriFor("vibrate_in_silent"),
             Settings.Global.getUriFor("zen_mode"),
             Settings.System.getUriFor("vibrate_when_ringing"),
-            Settings.System.getUriFor("vibrate_in_silent"),
             Settings.System.getUriFor("vivo_vibrate_state"),
         ).forEach { uri ->
-            if (uri != null) {
-                runCatching {
-                    resolver.registerContentObserver(uri, false, observer)
-                }.onFailure {
-                    Log.w(TAG, "Không thể đăng ký ContentObserver cho $uri", it)
-                }
+            runCatching {
+                resolver.registerContentObserver(uri, false, observer)
+            }.onFailure {
+                Log.w(TAG, "Không thể đăng ký ContentObserver cho $uri", it)
             }
         }
 
@@ -378,7 +392,6 @@ object RingerModeCard {
             putExtra("oi_light_color", colorHex)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
-            putExtra("oi_show_notify", false)
         }
         context.startService(intent)
 

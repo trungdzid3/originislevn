@@ -1,19 +1,17 @@
 package com.originisle.android.otp
 
+import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationCompat
+
 /**
- * Pulls a one-time login / verification code out of a notification's text ("Your code is 482913",
- * "G-123456 is your Google verification code", "Code de vérification : 1234", "Mã xác thực của bạn là 849201",
- * "Nha Thuoc FPT Long Chau: Ma xac thuc OTP cua ban la 918119...").
+ * Trích xuất mã xác thực OTP / đăng nhập một lần từ nội dung thông báo.
+ * Hỗ trợ tiếng Việt có dấu, tiếng Việt KHÔNG DẤU, tiếng Anh, tiếng Trung và format OriginOS 6 (Vivo).
  *
- * A code only counts when a code-ish keyword sits near it — a bare number in a chat message, an
- * order number, a price, or a customer service hotline (1800xxxx, 1900xxxx) must never turn into a login-code card.
- *
- * On OriginOS 6 (Vivo), SMS notifications with "Verification Reminder" or "Nhắc nhở mã xác minh"
- * bypass the maximum distance check and regular prefix restrictions to reliably capture login codes.
+ * Tích hợp bộ lọc tin nhắn rác, quảng cáo ngân hàng, hotline và giao dịch số dư để không bắt nhầm.
  */
 object OtpDetector {
 
-    /** How far (in chars) a candidate may sit from the nearest keyword and still count. */
+    /** Cự ly tối đa (số ký tự) giữa từ khóa và mã ứng viên. */
     private const val MAX_DISTANCE = 120
 
     /** Vivo OriginOS 6 SMS verification reminder header (English, Vietnamese, Chinese). */
@@ -27,66 +25,69 @@ object OtpDetector {
         RegexOption.IGNORE_CASE,
     )
 
-    /** Notification action button phrases indicating an OTP code to copy. */
+    /** Các cụm từ trên nút hành động (Notification Actions) biểu thị mã OTP cần sao chép. */
     private val COPY_ACTION_REGEX = Regex(
         """(?U)\b(?:sao\s+chép(?:\s+mã|\s+ma|\s+otp|\s+mã\s+xác\s+thực)?|sao\s+chep(?:\s+ma|\s+otp|\s+ma\s+xac\s+thuc)?|copy(?:\s+code|\s+otp)?)\b""",
         RegexOption.IGNORE_CASE,
     )
 
-    private val KEYWORD = Regex(
+    /** Bộ gợi ý từ khóa OTP tiếng Việt (có dấu & không dấu) và quốc tế */
+    val OTP_HINT = Regex(
         """(?U)\b(?:""" +
-            // Vivo / Reminder headers
-            """verification\s+reminder|verification\s+notice|security\s+reminder|""" +
-            """nhắc\s+nhở\s+mã\s+xác\s+minh|nhac\s+nho\s+ma\s+xac\s+minh|""" +
-            """tin\s+nhắn\s+xác\s+minh|tin\s+nhan\s+xac\s+minh|""" +
-            // Vietnamese compound keywords (accented and unaccented)
-            """mã\s+xác\s+minh|mã\s+xác\s+thực|mã\s+xác\s+nhận|mã\s+bảo\s+mật|mã\s+kích\s+hoạt|mã\s+otp|mã\s+đăng\s+nhập|mã\s+truy\s+cập|""" +
-            """ma\s+xac\s+minh|ma\s+xac\s+thuc|ma\s+xac\s+nhan|ma\s+bao\s+mat|ma\s+kich\s+hoat|ma\s+otp|ma\s+dang\s+nhap|ma\s+truy\s+cap|""" +
-            """mã\s+xác\s+thực\s+otp|ma\s+xac\s+thuc\s+otp|mã\s+xác\s+nhận\s+otp|ma\s+xac\s+nhan\s+otp|""" +
-            """mã\s+giao\s+dịch|ma\s+giao\s+dich|mã\s+pin|ma\s+pin|""" +
-            """mật\s+khẩu\s+tạm\s+thời|mat\s+khau\s+tam\s+thoi|mật\s+khẩu\s+dùng\s+một\s+lần|mat\s+khau\s+dung\s+mot\s+lan|""" +
-            """xác\s+minh|xác\s+thực|xác\s+nhận|xac\s+minh|xac\s+thuc|xac\s+nhan|""" +
-            // English phrases
+            // Tiếng Việt có dấu & KHÔNG DẤU
+            """mã\s+xác\s+thực|ma\s+xac\s+thuc|mã\s+xác\s+nhận|ma\s+xac\s+nhan|""" +
+            """mã\s+kích\s+hoạt|ma\s+kich\s+hoat|mã\s+đăng\s+nhập|ma\s+dang\s+nhap|""" +
+            """mã\s+bảo\s+mật|ma\s+bao\s+mat|mã\s+giao\s+dịch|ma\s+giao\s+dich|""" +
+            """mã\s+xác\s+minh|ma\s+xac\s+minh|mã\s+otp|ma\s+otp|mã\s+số|ma\s+so|mã\s+pin|ma\s+pin|""" +
+            """mật\s+khẩu\s+dùng\s+một\s+lần|mat\s+khau\s+dung\s+mot\s+lan|""" +
+            """mật\s+khẩu\s+một\s+lần|mat\s+khau\s+mot\s+lan|""" +
+            """mật\s+khẩu\s+tạm\s+thời|mat\s+khau\s+tam\s+thoi|""" +
+            """smartotp|smart\s+otp|""" +
+            """hiệu\s+lực\s+trong|hieu\s+luc\s+trong|hết\s+hạn\s+trong|het\s+han\s+trong|""" +
+            // Tiếng Anh & quốc tế
             """verification\s+code|security\s+code|access\s+code|confirmation\s+code|validation\s+code|login\s+code|auth\s+code|""" +
-            """one[- ]time\s+pass(?:word|code)|one[- ]time\s+code|one[- ]time|""" +
-            """temp\s+password|temporary\s+password|""" +
+            """one[- ]time\s+pass(?:word|code)|one[- ]time\s+code|one[- ]time|temp\s+password|temporary\s+password|""" +
             """your\s+code\s+is|is\s+your\s+code|use\s+code|enter\s+code|your\s+code|""" +
-            // Single keywords & international
-            """code|codes|otp|passcode|pin|2fa|mfa|password|""" +
-            """verif\w*|authenticat\w*|confirm\w*|login|log[- ]in|sign[- ]in|""" +
+            """expires\s+in|valid\s+for|valid\s+within|expire\s+after|""" +
+            """authen|authentication|authenticator|passcode|code|codes|otp|pin|2fa|mfa|password|""" +
+            """verif\w*|confirm\w*|login|log[- ]in|sign[- ]in|""" +
             """c[oó]digo|codice|kod|bestätigung\w*|v[ée]rification|verificaci[oó]n|verifica""" +
             """)\b|验证码提醒|验证码|認証|인증""",
         RegexOption.IGNORE_CASE,
     )
 
+    private val KEYWORD = OTP_HINT
+
     /**
      * Biểu thức chính quy trực tiếp bắt mã OTP 4-8 chữ số:
-     * - Sau OTP / mã xác thực / mã xác nhận / mã xác minh kèm "của bạn là", "là", ":", v.v.
-     * - Sau mã giao dịch / mã bảo mật / mã đăng nhập / mã kích hoạt
-     * - Sau "otp", "code", "mã", "ma" kèm dấu phân tách
-     * - Trước "là mã", "la ma", "là OTP", "is code"
-     * - Từ khóa OTP/xác thực/xác nhận nằm trong cự ly 40 ký tự
-     * - Dạng prefix G-123456, FB-123456
-     * - Đóng trong ngoặc vuông [123456]
+     * - Sau OTP / mã xác thực / mã xác nhận / mã xác minh (có dấu & không dấu)
+     * - Sau mã giao dịch / mã bảo mật / mã đăng nhập / mã kích hoạt / SmartOTP
+     * - Sau mật khẩu một lần (mat khau mot lan)
+     * - Đứng trước hoặc sau cụm từ hiệu lực trong / expires in
+     * - Định dạng prefix G-123456, FB-123456, [123456]
      */
     private val DIRECT_PATTERNS = listOf(
         Regex("""(?i)(?:(?:mã|ma)\s*)?(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan)?\s*(?:otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:mã|ma)\s*(?:giao\s*dịch|giao\s*dich|bảo\s*mật|bao\s*mat|đăng\s*nhập|dang\s*nhap|kích\s*hoạt|kich\s*hoat)?\s*(?:otp)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)\b(?:smart\s*otp|smartotp)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:mật\s*khẩu\s*một\s*lần|mat\s*khau\s*mot\s*lan|mật\s*khẩu\s*dùng\s*một\s*lần|mat\s*khau\s*dung\s*mot\s*lan)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
+        Regex("""(?i)(?:passcode|authen(?:tication)?\s*code)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:otp|code|mã|ma)\s*[:：-]\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)(?<!\d)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp)"""),
+        Regex("""(?i)(?<!\d)([0-9]{4,8})\s+(?:là|la|is)\s+(?:mã|ma|code|otp|smart\s*otp|smartotp)"""),
+        Regex("""(?i)\b([0-9]{4,8})\s*(?:(?:co\s*|có\s*)?(?:hieu\s*luc|hiệu\s*lực)\s*trong|expires\s*in|valid\s*for)"""),
+        Regex("""(?i)(?:hieu\s*luc\s*trong|hiệu\s*lực\s*trong|expires\s*in)\s*[^0-9]{0,20}\b([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\b(?:otp|mã\s*xác\s*thực|ma\s*xac\s*thuc|mã\s*xác\s*nhận|ma\s*xac\s*nhan|mã\s*xác\s*minh|ma\s*xac\s*minh|mã\s*đăng\s*nhập|ma\s*dang\s*nhap|mã\s*giao\s*dịch|ma\s*giao\s*dich|tin\s*nhắn\s*xác\s*minh|tin\s*nhan\s*xac\s*minh|verification\s*code|security\s*code)\b[^\d]{0,40}?([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\bcode\s*[:：]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:\blà\b|\bla\b|\bis\b)\s*[:：-]?\s*([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)(?:G-|FB-|TG-|VK-)([0-9]{4,8})(?!\d)"""),
         Regex("""(?i)\[([0-9]{4,8})\]"""),
         Regex("""(?i)(?:mã|ma)\s*(?:xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|xác\s*nhận|xac\s*nhan|otp|code)?\s*(?:của\s*bạn|cua\s*ban)?\s*(?:là|la|:)?\s*([0-9]{4,8})(?!\d)"""),
-        Regex("""(?i)\b([0-9]{4,8})\b(?=.*(?:mã|ma|otp|code|xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh))"""),
+        Regex("""(?i)\b([0-9]{4,8})\b(?=.*(?:mã|ma|otp|code|xác\s*thực|xac\s*thuc|xác\s*minh|xac\s*minh|smartotp))"""),
     )
 
     /**
-     * 4–8 digits, or two groups of 3–4 split by a space/dash ("123 456", "123-456"), optionally
-     * with common OTP prefixes such as "G-", "FB-", "TG-", "VK-", etc. Not part of a longer
-     * number, a decimal, a time, a price, a percentage or a phone number.
+     * 4–8 chữ số, hoặc 2 nhóm 3–4 số cách nhau bởi dấu cách/gạch nối ("123 456", "123-456"),
+     * có thể kèm prefix G-, FB-, TG-, VK-...
      */
     private val CANDIDATE = Regex(
         """(?<![\d.,/#+€$£¥₫đ-])(?<!\d:)(?<!\d[ -])(?:(?<![A-Za-z])[A-Za-z]{1,4}-)?(\d{3,4}[ -]\d{3,4}|\d{4,8})""" +
@@ -137,9 +138,14 @@ object OtpDetector {
         RegexOption.IGNORE_CASE,
     )
 
+    /** Từ khóa tin nhắn rác / quảng cáo cần loại trừ nếu không có từ khóa OTP cụ thể */
+    private val SPAM_PROMO_REGEX = Regex(
+        """(?i)\b(?:khuyen\s+mai|khuyến\s+mại|uu\s+dai|ưu\s+đãi|voucher|giam\s+gia|giảm\s+giá|tra\s+gop\s+0%|trả\s+góp\s+0%|lai\s+suat|lãi\s+suất)\b""",
+    )
+
     /**
-     * Vietnam hotline numbers (1800xxxx, 1900xxxx) are toll-free or paid customer service numbers
-     * that must never be mistaken for an OTP verification code.
+     * Hotline tại Việt Nam (1800xxxx, 1900xxxx) và số điện thoại di động
+     * tuyệt đối không được nhận nhầm là mã xác thực OTP.
      */
     private fun isHotlineNumber(digits: String): Boolean {
         if ((digits.startsWith("1800") || digits.startsWith("1900")) && digits.length >= 6) {
@@ -151,7 +157,77 @@ object OtpDetector {
         return false
     }
 
-    /** The code (digits only) in [text], or null if it doesn't read like a login code. */
+    /**
+     * Bóc tách toàn diện chuỗi văn bản từ [StatusBarNotification], bao gồm:
+     * - Extras thông thường (title, text, bigText, lines...)
+     * - Ticker text của notification
+     * - publicVersion khi máy bị khóa màn hình hoặc nội dung bị redact/ẩn
+     */
+    fun extractNotificationText(sbn: StatusBarNotification): String {
+        val n = sbn.notification
+        val parts = mutableListOf<String>()
+
+        // 1. Extras thông thường
+        val extras = n.extras
+        if (extras != null) {
+            listOf(
+                NotificationCompat.EXTRA_TITLE,
+                NotificationCompat.EXTRA_TEXT,
+                NotificationCompat.EXTRA_BIG_TEXT,
+                NotificationCompat.EXTRA_SUB_TEXT,
+                NotificationCompat.EXTRA_SUMMARY_TEXT,
+                NotificationCompat.EXTRA_INFO_TEXT,
+                NotificationCompat.EXTRA_TITLE_BIG,
+            ).forEach { key ->
+                runCatching { extras.getCharSequence(key)?.toString() }
+                    .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+            }
+
+            runCatching {
+                extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES)
+                    ?.mapNotNull { it?.toString() }
+            }.getOrNull()?.filter { it.isNotBlank() }?.let { parts.addAll(it) }
+        }
+
+        // 2. Ticker text
+        runCatching { n.tickerText?.toString() }
+            .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+
+        // 3. publicVersion (khi thông báo bị redact/ẩn trên lockscreen)
+        val pubN = n.publicVersion
+        if (pubN != null && pubN.extras != null) {
+            listOf(
+                NotificationCompat.EXTRA_TITLE,
+                NotificationCompat.EXTRA_TEXT,
+                NotificationCompat.EXTRA_BIG_TEXT,
+                NotificationCompat.EXTRA_SUB_TEXT,
+            ).forEach { key ->
+                runCatching { pubN.extras.getCharSequence(key)?.toString() }
+                    .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+            }
+            runCatching { pubN.tickerText?.toString() }
+                .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+        }
+
+        return parts.joinToString("\n")
+    }
+
+    /**
+     * Trích xuất mã OTP trực tiếp từ StatusBarNotification.
+     */
+    fun find(sbn: StatusBarNotification, actionTitles: List<String> = emptyList()): String? {
+        val fullText = extractNotificationText(sbn)
+        val actions = if (actionTitles.isNotEmpty()) {
+            actionTitles
+        } else {
+            sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
+        }
+        return find(fullText, actions)
+    }
+
+    /**
+     * Trích xuất mã OTP từ chuỗi văn bản [text] và các nút hành động [actionTitles].
+     */
     fun find(text: String, actionTitles: List<String> = emptyList()): String? {
         val hasCopyAction = actionTitles.any { COPY_ACTION_REGEX.containsMatchIn(it) } ||
             COPY_ACTION_REGEX.containsMatchIn(text)
@@ -212,7 +288,7 @@ object OtpDetector {
             }
         }
 
-        // 3. Cơ chế tìm kiếm theo từ khóa thông thường
+        // 4. Cơ chế tìm kiếm theo từ khóa thông thường
         val keywords = KEYWORD.findAll(text).map { it.range }.toList()
         if (keywords.isEmpty()) return null
 
@@ -255,14 +331,14 @@ object OtpDetector {
         return true
     }
 
-    /** Gap between two ranges, 0 if they touch or overlap. */
+    /** Khoảng cách giữa 2 range, bằng 0 nếu chạm nhau hoặc giao nhau. */
     private fun distance(a: IntRange, b: IntRange): Int = when {
         a.last < b.first -> b.first - a.last
         b.last < a.first -> a.first - b.last
         else -> 0
     }
 
-    /** "2026" next to "code" is far more often a date ("code valid until 2026") or birth year than a code. */
+    /** Kiểm tra xem chuỗi có phải là năm (ví dụ "2026") hay không để tránh bắt nhầm. */
     private fun looksLikeYear(s: String): Boolean =
         s.length == 4 && s.toIntOrNull()?.let { it in 1900..2099 } == true
 }

@@ -16,23 +16,95 @@ import androidx.core.app.NotificationCompat
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
+import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
 import com.originisle.android.service.MediaControlReceiver
+import com.originisle.android.service.NotificationCastListener
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 
 /**
- * Casts an active media session (music, podcasts, video) as a card with play-pause — plus prev/next
- * when the session actually supports skipping — wired back to the source app through
- * [MediaControlReceiver].
+ * Điều khiển và truyền phát thẻ âm nhạc lên Đảo Origin (Media Session Card).
+ * Tích hợp cơ chế phát hiện Đảo gốc OriginOS 6 để nhường quyền, chống đè 2 thẻ phát nhạc.
  */
 object MediaCard {
+
+    /** Các gói dịch vụ điều khiển đảo nhạc gốc trên OriginOS 6 (Vivo / iQOO) */
+    val ORIGIN_NATIVE_MUSIC_PACKAGES = setOf(
+        "com.vivo.musicwidgetmix",
+        "com.vivo.mediacontrol",
+        "com.android.bbkmusic",
+    )
+
+    /** Danh sách app nhạc được Vivo OriginOS 6 hỗ trợ hiển thị gốc trên Đảo Nguyên Tử */
+    val ORIGIN_WHITELISTED_MUSIC_APPS = setOf(
+        "com.spotify.music",
+        "com.spotify.lite",
+        "com.apple.android.music",
+        "com.zing.mp3",
+        "com.kugou.player",
+        "com.kugou.android",
+        "com.kugou.viper",
+        "com.soda.music",
+        "com.tencent.soda",
+        "com.netease.cloudmusic",
+        "com.tencent.qqmusic",
+        "cn.kuwo.player",
+        "com.ximalaya.ting.android",
+        "com.android.bbkmusic",
+    )
 
     private val handler = Handler(Looper.getMainLooper())
     private val pendingDismissTasks = ConcurrentHashMap<Int, Runnable>()
 
+    /**
+     * Kiểm tra xem Đảo gốc OriginOS 6 có đang hiển thị trình phát nhạc hay không:
+     * - Quét các tiến trình widget gốc: com.vivo.musicwidgetmix, com.vivo.mediacontrol, com.android.bbkmusic
+     * - Hoặc có thông báo chứa cờ SuperX islandNotify == true
+     * - Hoặc các ứng dụng thuộc whitelist gốc của Vivo đang ở trạng thái ongoing / phát nhạc
+     */
+    fun isOriginNativePlayerActive(context: Context): Boolean {
+        val listener = NotificationCastListener.instance ?: return false
+        val activeNotifs = runCatching { listener.activeNotifications }.getOrNull() ?: return false
+        for (active in activeNotifs) {
+            val pkg = active.packageName.lowercase()
+            // 1. Gói widget điều khiển nhạc gốc của Vivo
+            if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
+                if (active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) {
+                    return true
+                }
+            }
+            // 2. Cờ islandNotify từ Vivo SuperX (nếu có thông báo mang cờ này)
+            val extras = active.notification.extras
+            if (extras != null) {
+                if (extras.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) ||
+                    extras.getBoolean("notification.superx.islandNotify", false)
+                ) {
+                    return true
+                }
+            }
+            // 3. Ứng dụng âm nhạc nằm trong whitelist gốc đang phát nhạc trực tiếp
+            if (pkg in ORIGIN_WHITELISTED_MUSIC_APPS) {
+                if (active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     fun post(context: Context, sbn: StatusBarNotification, controller: MediaController) {
         val id = IconCache.castIdFor(sbn)
+        val pkg = sbn.packageName.lowercase()
+
+        // Khi Đảo gốc đang hiển thị nhạc hoặc app này nằm trong whitelist gốc của Vivo,
+        // Origin Isle VN chủ động thu hồi/dismiss thẻ để KHÔNG BAO GIỜ bị đè 2 thẻ nhạc trên Đảo.
+        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || pkg in ORIGIN_WHITELISTED_MUSIC_APPS || isOriginNativePlayerActive(context)) {
+            clear(context, id)
+            CastLog.add("Nhạc", appLabel(context, sbn.packageName), "thu hồi thẻ — nhường Đảo gốc OriginOS 6 hiển thị", false)
+            return
+        }
+
         val n = sbn.notification
         IconCache.activeControllers[id] = controller
 
@@ -40,13 +112,19 @@ object MediaCard {
         val track = md?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
             .ifBlank { extrasTitle(sbn) }
             .ifBlank { appLabel(context, sbn.packageName) }
+            .replace("\r\n", " ")
+            .replace("\n", " ")
+            .trim()
+            .take(60)
 
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)?.trim().orEmpty()
             .ifBlank { "Đang phát nhạc" }
-        // Some apps/browsers never report a PlaybackState at all (playbackState == null), which made
-        // the wave never show for them even while actually playing. Treat missing state as "trust the
-        // notification's own ongoing flag" instead of defaulting to false. Buffering/connecting also
-        // count as playing — otherwise the wave flickers to the paused icon on every buffer stall.
+            .replace("\r\n", " ")
+            .replace("\n", " ")
+            .trim()
+            .take(40)
+
+        // Tối ưu trạng thái phát nhạc: hỗ trợ các app không gửi PlaybackState đầy đủ
         val playbackStateValue = controller.playbackState?.state
         val playing = when (playbackStateValue) {
             PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
@@ -134,7 +212,7 @@ object MediaCard {
             putExtra("title", track)
             putExtra("text", artist)
             putExtra("source_pkg", sbn.packageName)
-            putExtra("oi_left_content", if (albumArt != null) "" else track)
+            putExtra("oi_left_content", if (albumArt != null) "" else track.take(10))
 
             putExtra("status_chip_text", chip)
 
@@ -163,6 +241,7 @@ object MediaCard {
             )
         }
         context.startService(intent)
+        CastLog.add("Nhạc", track, "hiển thị — $track ($artist)", true)
     }
 
     fun clear(context: Context, id: Int) {
@@ -187,15 +266,9 @@ object MediaCard {
         Notification.Action.Builder(Icon.createWithResource(context, iconRes), "", pi).build()
 
     /**
-     * Sample a few points across the album art to get a small palette for the wave visualiser
-     * (island.superx.rightInfo.waveColor), instead of the single flat colour OriginIslandBuilder
-     * falls back to when no list is supplied. No Palette dependency — just direct pixel sampling.
+     * Trích xuất dải màu sắc trực tiếp từ ảnh bìa album để phục vụ sóng âm visualiser (island.superx.rightInfo.waveColor)
      */
     private fun waveColorsFrom(bitmap: Bitmap?): List<String> {
-        // Bitmap.getPixel() throws IllegalStateException on a hardware-backed bitmap
-        // (Bitmap.Config.HARDWARE), which shrinkForIcon() can hand back unchanged for anything
-        // already under its size cap. That exception must never escape and take the whole post()
-        // down with it — this is a cosmetic add-on, not something worth losing the card update over.
         if (bitmap == null || bitmap.width == 0 || bitmap.height == 0) return emptyList()
         if (bitmap.config == Bitmap.Config.HARDWARE) return emptyList()
         return runCatching {

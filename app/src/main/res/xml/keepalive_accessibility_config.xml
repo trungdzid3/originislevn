@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Keep-alive only. canRetrieveWindowContent=false + an empty onAccessibilityEvent mean this
-     service reads NOTHING; it exists solely to keep the app process alive without a status-bar
-     icon. Declares the minimum needed to be enable-able. -->
+<!-- Keep-alive & Kênh 3 đọc pin phần cứng Samsung Fit 3 khi mở Galaxy Wearable / Fit3 Plugin. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/keepalive_accessibility_desc"
-    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:notificationTimeout="1000"
-    android:canRetrieveWindowContent="false" />
+    android:notificationTimeout="500"
+    android:packageNames="com.samsung.android.app.watchmanager,com.samsung.wearable.fit3plugin"
+    android:canRetrieveWindowContent="true" />

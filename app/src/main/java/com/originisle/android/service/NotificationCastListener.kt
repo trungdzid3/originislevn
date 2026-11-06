@@ -298,6 +298,22 @@ class NotificationCastListener : NotificationListenerService() {
     private val wearableConnectionState = ConcurrentHashMap<String, Boolean>()
     private val fullyChargedNoticeMap = ConcurrentHashMap<String, Long>()
 
+    private fun isWearableConnected(deviceKey: String, devName: String): Boolean {
+        val inRam = wearableConnectionState[deviceKey]
+        if (inRam != null) return inRam
+        val prefs = getSharedPreferences(PREFS, 0)
+        val inPrefs = prefs.getBoolean("wearable_conn_state_$deviceKey", false)
+        wearableConnectionState[deviceKey] = inPrefs
+        return inPrefs || EarbudsCard.isConnected(devName)
+    }
+
+    private fun setWearableConnected(deviceKey: String, devName: String, connected: Boolean) {
+        wearableConnectionState[deviceKey] = connected
+        val prefs = getSharedPreferences(PREFS, 0)
+        prefs.edit().putBoolean("wearable_conn_state_$deviceKey", connected).apply()
+        EarbudsCard.setConnectedState(devName, connected)
+    }
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             try {
@@ -649,7 +665,9 @@ class NotificationCastListener : NotificationListenerService() {
                     devName.contains("Band", ignoreCase = true)
 
                 val deviceKey = devName.lowercase().trim()
-                val isCurrentlyConnected = wearableConnectionState[deviceKey] == true || EarbudsCard.isConnected(devName)
+                val isCurrentlyConnected = isWearableConnected(deviceKey, devName)
+                val notifAge = System.currentTimeMillis() - sbn.postTime
+                val isOldOngoingNotification = isOngoingNotification && notifAge > 10_000L
 
                 // 5.1) Xử lý thông báo báo sạc đầy pin 100%
                 if (isFullyCharged) {
@@ -657,7 +675,7 @@ class NotificationCastListener : NotificationListenerService() {
                     val lastNotified = fullyChargedNoticeMap[deviceKey] ?: 0L
                     if (now - lastNotified > 300_000L) { // Cooldown 5 phút tránh pop-up liên tục khi vẫn cắm sạc
                         fullyChargedNoticeMap[deviceKey] = now
-                        wearableConnectionState[deviceKey] = true
+                        setWearableConnected(deviceKey, devName, true)
                         EarbudsCard.onDeviceFullyCharged(applicationContext, devName, isWearable = isWearableDevice)
                         log(sbn, "hiển thị — thiết bị đeo đã sạc đầy pin 100%", true)
                         return
@@ -688,9 +706,10 @@ class NotificationCastListener : NotificationListenerService() {
                             batteryPct = cached
                         }
                     }
-                    if (isCurrentlyConnected) {
-                        // Thiết bị đã kết nối: Thông báo nền thường trực của Fit 3 chỉ cập nhật bước chân/calo/pin
+                    if (isCurrentlyConnected || isOldOngoingNotification) {
+                        // Thiết bị đã kết nối hoặc thông báo nền thường trực cũ (>10s) được redeliver khi vuốt đa nhiệm:
                         // Tuyệt đối không gọi onDeviceConnected để tránh pop-up đảo lặp đi lặp lại
+                        setWearableConnected(deviceKey, devName, true)
                         if (batteryPct != -1) {
                             EarbudsCard.onBatteryUpdated(
                                 applicationContext,
@@ -699,12 +718,12 @@ class NotificationCastListener : NotificationListenerService() {
                                 isWearable = isWearableDevice,
                             )
                         }
-                        log(sbn, "bỏ qua — thông báo nền thiết bị đeo duy trì kết nối", false)
+                        log(sbn, "bỏ qua — thông báo nền thiết bị đeo duy trì kết nối (age=${notifAge}ms)", false)
                         return
                     }
 
-                    // Chuyển từ DISCONNECTED -> CONNECTED hoặc lần đầu kết nối
-                    wearableConnectionState[deviceKey] = true
+                    // Chuyển từ DISCONNECTED -> CONNECTED với sự kiện mới thật (< 10s)
+                    setWearableConnected(deviceKey, devName, true)
                     EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
                     handled = true
                 } else if (isDisconnect) {
@@ -713,20 +732,21 @@ class NotificationCastListener : NotificationListenerService() {
                         log(sbn, "bỏ qua — thiết bị đeo đã ở trạng thái ngắt kết nối", false)
                         return
                     }
-                    wearableConnectionState[deviceKey] = false
+                    setWearableConnected(deviceKey, devName, false)
                     EarbudsCard.onDeviceDisconnected(applicationContext, devName, isWearable = isWearableDevice)
                     handled = true
                 } else if (hasBattery && batteryPct != -1) {
-                    if (!isCurrentlyConnected) {
-                        wearableConnectionState[deviceKey] = true
-                        EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
-                    } else {
+                    if (isCurrentlyConnected || isOldOngoingNotification) {
+                        setWearableConnected(deviceKey, devName, true)
                         EarbudsCard.onBatteryUpdated(
                             applicationContext,
                             devName,
                             EarbudsCard.EarbudsTelemetry(main = batteryPct),
                             isWearable = isWearableDevice,
                         )
+                    } else {
+                        setWearableConnected(deviceKey, devName, true)
+                        EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
                     }
                     handled = true
                 } else if (isOngoingNotification) {

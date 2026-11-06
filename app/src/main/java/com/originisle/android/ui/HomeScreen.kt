@@ -11,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,14 +67,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * OriginOS 6 Settings Home:
- * - Tiêu đề "Cài đặt" & Thanh tìm kiếm Pill 42dp
- * - Thẻ chọn chế độ Sáng / Tối dạng phone mockup 3D
- * - Thẻ trạng thái Đảo Origin (Avatar tròn, trạng thái kết nối)
- * - Nhóm thẻ tính năng cốt lõi (Thông báo, Tải xuống, OTP, Số dư ngân hàng)
- * - Nhóm thẻ tiện ích & hệ thống (Âm nhạc, Camera & Mic, Tai nghe Bluetooth, Pin sạc)
- * - Nhóm thẻ quản lý & hỗ trợ (Ứng dụng, Quyền hệ thống, Nhật ký, Cập nhật)
- * - Trải nghiệm thử trên đảo và các nút điều khiển
+ * OriginOS 6 Settings Home (Đại tu giao diện chuẩn Vivo OriginOS 6):
+ * - Phân nhóm cấu trúc 5 tầng chuẩn Cài đặt Vivo OriginOS
+ * - Tối ưu hóa kích thước hiển thị và khoảng cách padding / hairline 0.8dp
+ * - Sử dụng NestedSettingContainer cho các cài đặt con mở rộng mượt mà
  */
 @Composable
 fun HomeScreen(
@@ -85,40 +80,50 @@ fun HomeScreen(
     onOpenApps: () -> Unit,
     onOpenActivity: () -> Unit,
 ) {
-    // Theme mode listener
+    // 1. Quản lý trạng thái Theme (Sáng / Tối / Hệ thống)
     var themePref by remember { mutableStateOf(prefs.getString("app_theme", "SYSTEM") ?: "SYSTEM") }
+    var islandPosition by remember { mutableStateOf(prefs.getString("island_position", "CENTER") ?: "CENTER") }
+
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
-            if (key == "app_theme") {
-                themePref = sp.getString("app_theme", "SYSTEM") ?: "SYSTEM"
+            when (key) {
+                "app_theme" -> themePref = sp.getString("app_theme", "SYSTEM") ?: "SYSTEM"
+                "island_position" -> islandPosition = sp.getString("island_position", "CENTER") ?: "CENTER"
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    val systemDark = isSystemInDarkTheme()
-    val isDarkActive = when (themePref) {
-        "LIGHT" -> false
-        "DARK" -> true
-        else -> systemDark
-    }
 
+    // 2. Nhóm công tắc dịch vụ cốt lõi & Việt Nam
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
-    var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
-    var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
-    var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
-    var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
-    var autoDismissSec by remember { mutableStateOf(prefs.getInt("cast_auto_dismiss_seconds", 0)) }
+    var ridesOn by remember { mutableStateOf(prefs.getBoolean("cast_rides", true)) }
+    var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", true)) }
     var otpOn by remember { mutableStateOf(prefs.getBoolean("cast_otp", true)) }
     var downloadOn by remember { mutableStateOf(prefs.getBoolean("cast_downloads", true)) }
-    var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", true)) }
-    var actionsOn by remember { mutableStateOf(prefs.getBoolean("cast_show_actions", true)) }
-    var chargingOn by remember { mutableStateOf(prefs.getBoolean("cast_charging", true)) }
-    var chargingKeep by remember { mutableStateOf(prefs.getBoolean("cast_charging_keep", false)) }
-    var privacyDotOn by remember { mutableStateOf(prefs.getBoolean("cast_privacy_dot", true)) }
+    var callsOn by remember { mutableStateOf(prefs.getBoolean("cast_calls", true)) }
+
+    // 3. Nhóm tiện ích hệ thống & phần cứng
+    var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
     var earbudsOn by remember {
         mutableStateOf(prefs.getBoolean("cast_earbuds", true) && EarbudsCard.hasPermission(context))
     }
+    var chargingOn by remember { mutableStateOf(prefs.getBoolean("cast_charging", true)) }
+    var chargingKeep by remember { mutableStateOf(prefs.getBoolean("cast_charging_keep", false)) }
+    var ringerModeOn by remember { mutableStateOf(prefs.getBoolean("cast_ringer_mode", true)) }
+    var flashlightOn by remember { mutableStateOf(prefs.getBoolean("cast_flashlight", true)) }
+    var privacyDotOn by remember { mutableStateOf(prefs.getBoolean("cast_privacy_dot", true)) }
+
+    // 4. Nhóm quy tắc hiển thị & Giờ yên tĩnh
+    var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
+    var autoDismissSec by remember { mutableStateOf(prefs.getInt("cast_auto_dismiss_seconds", 0)) }
+    var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
+    var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
+    var quietDnd by remember { mutableStateOf(prefs.getBoolean("cast_quiet_dnd", false)) }
+    var quietSchedule by remember { mutableStateOf(prefs.getBoolean("cast_quiet_schedule", false)) }
+    var quietStart by remember { mutableIntStateOf(prefs.getInt("cast_quiet_start", QuietHours.DEFAULT_START)) }
+    var quietEnd by remember { mutableIntStateOf(prefs.getInt("cast_quiet_end", QuietHours.DEFAULT_END)) }
+    var actionsOn by remember { mutableStateOf(prefs.getBoolean("cast_show_actions", true)) }
 
     val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         earbudsOn = granted
@@ -134,10 +139,6 @@ fun HomeScreen(
         }
     }
 
-    var quietDnd by remember { mutableStateOf(prefs.getBoolean("cast_quiet_dnd", false)) }
-    var quietSchedule by remember { mutableStateOf(prefs.getBoolean("cast_quiet_schedule", false)) }
-    var quietStart by remember { mutableIntStateOf(prefs.getInt("cast_quiet_start", QuietHours.DEFAULT_START)) }
-    var quietEnd by remember { mutableIntStateOf(prefs.getInt("cast_quiet_end", QuietHours.DEFAULT_END)) }
     val appsOff = remember { prefs.getStringSet("cast_ignored_apps", emptySet()).orEmpty().size }
     val tick = rememberResumeTick()
 
@@ -174,7 +175,7 @@ fun HomeScreen(
         contentPadding = ScreenPadding,
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        // 1. Tiêu đề "Cài đặt" + Menu More + Thanh tìm kiếm Pill
+        // Tiêu đề "Cài đặt" + Menu More + Thanh tìm kiếm Pill
         item {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(
@@ -183,7 +184,7 @@ fun HomeScreen(
                 ) {
                     Text(
                         "Cài đặt",
-                        fontSize = 28.sp,
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
                         color = IsleColors.Text,
                         modifier = Modifier.weight(1f),
@@ -224,7 +225,7 @@ fun HomeScreen(
                     }
                 }
 
-                // Thanh tìm kiếm Pill shape 42dp bo tròn 21dp
+                // Thanh tìm kiếm Pill shape bo tròn chuẩn Vivo Settings
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -245,9 +246,9 @@ fun HomeScreen(
                             modifier = Modifier.size(18.dp),
                         )
                         Text(
-                            text = "Tìm kiếm cài đặt",
+                            text = "Tìm kiếm cài đặt Đảo Origin",
                             color = IsleColors.TextSecondary,
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
                         )
                     }
                 }
@@ -263,8 +264,9 @@ fun HomeScreen(
             }
         }
 
-        // Cảnh báo nếu quyền listener hoặc pin bị OriginOS hạn chế, hoặc khi NotificationCastListener chưa liên kết
-        if (!connected || !listenerOk || !batteryOk) {
+        // BANNER QUYỀN THÔNG MINH: Chỉ hiển thị khi thiếu quyền hoặc bị chặn bởi OriginOS
+        val missingPermissions = !connected || !listenerOk || !batteryOk
+        if (missingPermissions) {
             item {
                 VivoOriginAttentionBanner(
                     connected = connected,
@@ -286,210 +288,237 @@ fun HomeScreen(
             }
         }
 
-        // 2. THẺ CHỌN CHẾ ĐỘ SÁNG / TỐI (Phone Mockups chuẩn Screenshot 2)
+        // ==========================================
+        // NHÓM 1: TRẠNG THÁI & DỊCH VỤ CỐT LÕI
+        // ==========================================
         item {
-            GroupCard {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        // Phone Mockup bên trái: Sáng
-                        ThemePhoneMockup(
-                            title = "Chế độ sáng",
-                            isDarkMockup = false,
-                            selected = themePref == "LIGHT" || (!isDarkActive && themePref != "DARK"),
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                themePref = "LIGHT"
-                                prefs.edit().putString("app_theme", "LIGHT").apply()
-                            },
-                        )
-
-                        // Phone Mockup bên phải: Tối
-                        ThemePhoneMockup(
-                            title = "Chế độ tối",
-                            isDarkMockup = true,
-                            selected = themePref == "DARK" || (isDarkActive && themePref != "LIGHT"),
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                themePref = "DARK"
-                                prefs.edit().putString("app_theme", "DARK").apply()
-                            },
-                        )
-                    }
-
-                    Spacer(Modifier.height(14.dp))
-                    GroupDivider(inset = 0.dp)
-
-                    // Dòng "Nút chuyển theo lịch" -> "Tắt >" hoặc "Theo hệ thống >"
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel("Trạng thái & Dịch vụ cốt lõi")
+                GroupCard {
+                    // Thẻ công tắc Đảo tổng & trạng thái kết nối
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(role = Role.Button) {
-                                val nextPref = if (themePref == "SYSTEM") "DARK" else "SYSTEM"
-                                themePref = nextPref
-                                prefs.edit().putString("app_theme", nextPref).apply()
-                            }
-                            .padding(vertical = 14.dp),
+                            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Nút chuyển theo lịch",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = IsleColors.Text,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            if (themePref == "SYSTEM") "Theo hệ thống" else "Tắt",
-                            fontSize = 14.sp,
-                            color = IsleColors.TextSecondary,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Icon(IsleIcons.ChevronRight, null, Modifier.size(16.dp), tint = IsleColors.Chevron)
-                    }
-
-                    GroupDivider(inset = 0.dp)
-
-                    // Dòng "Cài đặt chế độ tối" -> ">"
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(role = Role.Button) {
-                                val nextPref = if (isDarkActive) "LIGHT" else "DARK"
-                                themePref = nextPref
-                                prefs.edit().putString("app_theme", nextPref).apply()
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Cài đặt chế độ tối",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = IsleColors.Text,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(IsleIcons.ChevronRight, null, Modifier.size(16.dp), tint = IsleColors.Chevron)
-                    }
-                }
-            }
-        }
-
-        // 3. THẺ TRẠNG THÁI ĐẢO ORIGIN (Profile/Account Style chuẩn OriginOS 6)
-        item {
-            GroupCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(role = Role.Button, onClick = onOpenActivity)
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    // Avatar tròn với icon đảo
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(IsleColors.Accent),
-                        contentAlignment = Alignment.Center,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         Box(
                             modifier = Modifier
-                                .width(24.dp)
-                                .height(12.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White),
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (castOn) IsleColors.Accent else IsleColors.SwitchOff),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(22.dp)
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(Color.White),
+                            )
+                        }
+
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                "Dịch vụ Đảo Origin",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = IsleColors.Text,
+                            )
+                            Text(
+                                if (!castOn) "Đang tắt tất cả thẻ hiển thị"
+                                else if (connected) "Trạng thái: Hoạt động · Đã kết nối"
+                                else "Trạng thái: Chưa liên kết dịch vụ",
+                                fontSize = 13.sp,
+                                color = if (!castOn) IsleColors.TextSecondary else if (connected) IsleColors.GoodText else IsleColors.Danger,
+                            )
+                        }
+
+                        IsleSwitch(
+                            checked = castOn,
+                            onCheckedChange = {
+                                castOn = it
+                                prefs.edit().putBoolean("cast_notifications", it).apply()
+                                if (it) PlaygroundService.keepAlive(context)
+                                PrivacyCard.refresh()
+                                FlashlightCard.refresh()
+                                EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
+                            },
                         )
                     }
 
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    GroupDivider()
+
+                    // Tùy chọn Giao diện Sáng / Tối / Theo hệ thống tinh gọn chuẩn Vivo
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(
-                            "Đảo Origin",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
+                            "Giao diện ứng dụng & Đảo",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = IsleColors.Text,
                         )
-                        Text(
-                            if (connected) "Trạng thái: Hoạt động · Đã kết nối" else "Trạng thái: Chưa kết nối dịch vụ",
-                            fontSize = 13.sp,
-                            color = if (connected) IsleColors.GoodText else IsleColors.Danger,
+                        val themeIndex = when (themePref) {
+                            "LIGHT" -> 1
+                            "DARK" -> 2
+                            else -> 0
+                        }
+                        SegmentedControl(
+                            options = listOf("Theo hệ thống", "Sáng", "Tối"),
+                            selected = themeIndex,
+                            onSelect = { idx ->
+                                val selectedTheme = when (idx) {
+                                    1 -> "LIGHT"
+                                    2 -> "DARK"
+                                    else -> "SYSTEM"
+                                }
+                                themePref = selectedTheme
+                                prefs.edit().putString("app_theme", selectedTheme).apply()
+                            },
                         )
                     }
 
-                    Icon(IsleIcons.ChevronRight, null, Modifier.size(20.dp), tint = IsleColors.Chevron)
-                }
-            }
-        }
+                    GroupDivider()
 
-        // 4. NHÓM TÍNH NĂNG CỐT LÕI (Core Features Group)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionLabel("Tính năng cốt lõi")
-                GroupCard {
-                    ToggleRow(
-                        IsleIcons.Bell, IsleColors.Accent, "Thông báo chung", castOn,
-                        subtitle = "Hiển thị thông báo đến dạng thẻ đảo động",
+                    // Tùy chọn Vị trí Đảo (Trái / Giữa / Phải)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        castOn = it; prefs.edit().putBoolean("cast_notifications", it).apply()
-                        if (it) PlaygroundService.keepAlive(context)
-                        PrivacyCard.refresh()
-                        FlashlightCard.refresh()
-                        EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
-                    }
-                    GroupDivider()
-                    ToggleRow(
-                        IsleIcons.Download, IsleColors.Accent, "Tiến trình tải xuống", downloadOn,
-                        subtitle = "Chrome, Edge, Canary và tệp tin đang tải",
-                    ) {
-                        downloadOn = it; prefs.edit().putBoolean("cast_downloads", it).apply()
-                    }
-                    GroupDivider()
-                    ToggleRow(
-                        IsleIcons.Key, IsleColors.Accent, "Mã xác thực OTP", otpOn,
-                        subtitle = "Tự động phát hiện mã xác minh (SMS)",
-                    ) {
-                        otpOn = it; prefs.edit().putBoolean("cast_otp", it).apply()
-                    }
-                    GroupDivider()
-                    ToggleRow(
-                        IsleIcons.CreditCard, IsleColors.Accent, "Biến động số dư ngân hàng", paymentOn,
-                        subtitle = "Thông báo tiền vào (+), tiền ra (-) ngân hàng Việt Nam",
-                    ) {
-                        paymentOn = it; prefs.edit().putBoolean("cast_payment", it).apply()
+                        Text(
+                            "Vị trí Đảo trên màn hình",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IsleColors.Text,
+                        )
+                        val posIndex = when (islandPosition) {
+                            "LEFT" -> 0
+                            "RIGHT" -> 2
+                            else -> 1
+                        }
+                        SegmentedControl(
+                            options = listOf("Bên trái", "Ở giữa", "Bên phải"),
+                            selected = posIndex,
+                            onSelect = { idx ->
+                                val selectedPos = when (idx) {
+                                    0 -> "LEFT"
+                                    2 -> "RIGHT"
+                                    else -> "CENTER"
+                                }
+                                islandPosition = selectedPos
+                                prefs.edit().putString("island_position", selectedPos).apply()
+                            },
+                        )
                     }
                 }
             }
         }
 
-        // 5. NHÓM TIỆN ÍCH & HỆ THỐNG (Utilities & System Group)
+        // ==========================================
+        // NHÓM 2: DỊCH VỤ TRỰC TIẾP & TIỆN ÍCH VIỆT NAM
+        // ==========================================
         item {
             Column(
-                Modifier.alpha(if (castOn) 1f else 0.4f),
+                modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionLabel("Tiện ích & Hệ thống")
+                SectionLabel("Dịch vụ Trực tiếp & Tiện ích Việt Nam")
                 GroupCard {
                     ToggleRow(
-                        IsleIcons.Music, IsleColors.Accent, "Trình phát nhạc & Sóng âm thanh", mediaOn,
-                        subtitle = "Hiển thị sóng nhạc động và điều khiển nhạc (Spotify, YouTube, Zing MP3...); tự thu gọn sau 3s khi tạm dừng.",
+                        IsleIcons.Smartphone, IsleColors.Accent,
+                        title = "Gọi xe & Giao đồ ăn Việt Nam",
+                        checked = ridesOn,
+                        subtitle = "Grab, Be, Xanh SM, ShopeeFood (tiến trình chuyến đi & giao hàng)",
                     ) {
-                        mediaOn = it; prefs.edit().putBoolean("cast_media_sessions", it).apply()
+                        ridesOn = it
+                        prefs.edit().putBoolean("cast_rides", it).apply()
                     }
+
                     GroupDivider()
+
                     ToggleRow(
-                        IsleIcons.Camera, IsleColors.Accent, "Chỉ báo Camera & Micro", privacyDotOn,
-                        subtitle = "Chấm bảo mật: Camera đỏ, Micro xanh lá bo góc",
+                        IsleIcons.CreditCard, IsleColors.Accent,
+                        title = "Biến động số dư Ngân hàng",
+                        checked = paymentOn,
+                        subtitle = "Thông báo tiền vào (+), tiền ra (-) các ngân hàng Việt Nam",
                     ) {
-                        privacyDotOn = it; prefs.edit().putBoolean("cast_privacy_dot", it).apply()
-                        PrivacyCard.refresh()
+                        paymentOn = it
+                        prefs.edit().putBoolean("cast_payment", it).apply()
                     }
+
                     GroupDivider()
+
                     ToggleRow(
-                        IsleIcons.Headphones, IsleColors.Accent, "Tai nghe Bluetooth", earbudsOn,
-                        subtitle = "Hiển thị trực tiếp mức pin Tai trái, Tai phải và Hộp sạc thật trên OriginOS 6",
+                        IsleIcons.Key, IsleColors.Accent,
+                        title = "Mã xác thực OTP SMS",
+                        checked = otpOn,
+                        subtitle = "Tự động nhận diện mã OTP và sao chép nhanh 1 chạm",
+                    ) {
+                        otpOn = it
+                        prefs.edit().putBoolean("cast_otp", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Download, IsleColors.Accent,
+                        title = "Tiến trình Tải xuống & Quick Share",
+                        checked = downloadOn,
+                        subtitle = "Hiển thị phần trăm tải tệp trình duyệt và chia sẻ nhanh",
+                    ) {
+                        downloadOn = it
+                        prefs.edit().putBoolean("cast_downloads", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Pulse, IsleColors.Accent,
+                        title = "Trạng thái Cuộc gọi & Đàm thoại",
+                        checked = callsOn,
+                        subtitle = "Hiển thị cuộc gọi đến, thời gian đàm thoại trực tiếp trên Đảo",
+                    ) {
+                        callsOn = it
+                        prefs.edit().putBoolean("cast_calls", it).apply()
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // NHÓM 3: TIỆN ÍCH HỆ THỐNG & PHẦN CỨNG
+        // ==========================================
+        item {
+            Column(
+                modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SectionLabel("Tiện ích Hệ thống & Phần cứng")
+                GroupCard {
+                    ToggleRow(
+                        IsleIcons.Music, IsleColors.Accent,
+                        title = "Trình phát nhạc Đảo gốc OriginOS 6",
+                        checked = mediaOn,
+                        subtitle = "Hiển thị sóng nhạc động và điều khiển (Spotify, YouTube Music, Zing MP3...)",
+                    ) {
+                        mediaOn = it
+                        prefs.edit().putBoolean("cast_media_sessions", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Headphones, IsleColors.Accent,
+                        title = "Tai nghe & Thiết bị đeo",
+                        checked = earbudsOn,
+                        subtitle = "Samsung Galaxy Fit 3, Galaxy Watch, Buds... hiển thị pin chi tiết",
                     ) {
                         prefs.edit().putBoolean("cast_earbuds", it).apply()
                         if (it && !EarbudsCard.hasPermission(context)) {
@@ -499,20 +528,29 @@ fun HomeScreen(
                             EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
                         }
                     }
+
                     GroupDivider()
+
                     ToggleRow(
-                        IsleIcons.Bolt, IsleColors.Accent, "Pin & Trạng thái sạc", chargingOn,
-                        subtitle = "Hiển thị thẻ sạc pin trực quan",
+                        IsleIcons.Bolt, IsleColors.Accent,
+                        title = "Pin & Trạng thái sạc",
+                        checked = chargingOn,
+                        subtitle = "Hiển thị thẻ sạc pin trực quan chuẩn Vivo",
                     ) {
-                        chargingOn = it; prefs.edit().putBoolean("cast_charging", it).apply()
+                        chargingOn = it
+                        prefs.edit().putBoolean("cast_charging", it).apply()
                         ChargingCard.onSettingsChanged(context)
                     }
-                    if (chargingOn) {
-                        Row(
-                            Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            listOf(false to "Thoáng qua", true to "Suốt thời gian sạc").forEach { (keep, label) ->
+
+                    // Tùy chọn con lồng nhau mượt mà cho Sạc pin
+                    NestedSettingContainer(visible = chargingOn) {
+                        Text(
+                            "Thời gian hiển thị thẻ sạc trên Đảo:",
+                            fontSize = 13.sp,
+                            color = IsleColors.TextSecondary,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(false to "Thoáng qua (5s)", true to "Suốt thời gian sạc").forEach { (keep, label) ->
                                 ChoiceChip(
                                     label,
                                     selected = chargingKeep == keep,
@@ -526,49 +564,91 @@ fun HomeScreen(
                             }
                         }
                     }
+
                     GroupDivider()
+
+                    // Công tắc cho Chế độ Âm thanh (Chuông / Rung / Im lặng / DND)
                     ToggleRow(
-                        IsleIcons.Buttons, IsleColors.Accent, "Nút thao tác thông báo", actionsOn,
-                        subtitle = "Hiển thị các nút trả lời nhanh, hủy, v.v.",
+                        IsleIcons.Bell, IsleColors.Accent,
+                        title = "Chế độ Âm thanh Chuông / Rung / Im lặng",
+                        checked = ringerModeOn,
+                        subtitle = "Hiển thị thẻ đảo khi chuyển đổi chuông, rung hoặc chế độ im lặng",
                     ) {
-                        actionsOn = it; prefs.edit().putBoolean("cast_show_actions", it).apply()
+                        ringerModeOn = it
+                        prefs.edit().putBoolean("cast_ringer_mode", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    // Công tắc cho Đèn pin
+                    ToggleRow(
+                        IsleIcons.Sun, IsleColors.Accent,
+                        title = "Đèn pin",
+                        checked = flashlightOn,
+                        subtitle = "Thẻ điều khiển tắt đèn pin trực tiếp nhanh chóng từ Đảo",
+                    ) {
+                        flashlightOn = it
+                        prefs.edit().putBoolean("cast_flashlight", it).apply()
+                        FlashlightCard.refresh()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Camera, IsleColors.Accent,
+                        title = "Chỉ báo bảo mật Camera & Micro",
+                        checked = privacyDotOn,
+                        subtitle = "Chấm bảo mật quyền riêng tư: Camera đỏ, Micro xanh lá bo góc",
+                    ) {
+                        privacyDotOn = it
+                        prefs.edit().putBoolean("cast_privacy_dot", it).apply()
+                        PrivacyCard.refresh()
                     }
                 }
             }
         }
 
-        // Tùy chọn thông báo nâng cao
+        // ==========================================
+        // NHÓM 4: QUY TẮC HIỂN THỊ & GIỜ YÊN TĨNH
+        // ==========================================
         item {
             Column(
-                Modifier.alpha(if (castOn) 1f else 0.4f),
+                modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionLabel("Tùy chọn hiển thị")
+                SectionLabel("Quy tắc Hiển thị & Giờ yên tĩnh")
                 GroupCard {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Chế độ lọc thông báo
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "Chế độ lọc thông báo",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IsleColors.Text,
+                        )
                         SegmentedControl(
-                            listOf("Chỉ thẻ động", "Tất cả"),
+                            options = listOf("Chỉ thẻ động trực tiếp", "Tất cả thông báo"),
                             selected = if (includeMessages) 1 else 0,
-                            onSelect = {
-                                includeMessages = it == 1
+                            onSelect = { idx ->
+                                includeMessages = idx == 1
                                 prefs.edit().putBoolean("cast_include_messages", includeMessages).apply()
                             },
                         )
+                    }
+
+                    // Tùy chọn con lồng nhau: Thời gian tự ẩn cho thẻ tin nhắn thường
+                    NestedSettingContainer(visible = includeMessages) {
                         Text(
-                            if (includeMessages) "Tất cả thông báo, bao gồm tin nhắn văn bản thông thường."
-                            else "Chỉ thẻ động trực tiếp — gọi xe, giao hàng, thanh toán, tỷ số, v.v.",
-                            modifier = Modifier.padding(horizontal = 4.dp),
+                            "Tự ẩn sau (dành cho thẻ thông báo tin nhắn thường):",
                             fontSize = 13.sp,
                             color = IsleColors.TextSecondary,
                         )
-                    }
-                    if (includeMessages) {
-                        GroupDivider()
-                        SettingRow(IsleIcons.Clock, IsleColors.Accent, "Tự ẩn sau", subtitle = "Dành cho thẻ thông báo thường")
-                        Row(
-                            Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf(0 to "Không ẩn", 5 to "5s", 10 to "10s", 15 to "15s", 30 to "30s").forEach { (sec, label) ->
                                 ChoiceChip(
                                     label,
@@ -582,57 +662,70 @@ fun HomeScreen(
                             }
                         }
                     }
+
                     GroupDivider()
+
                     ToggleRow(
-                        IsleIcons.Moon, IsleColors.Accent, "Bỏ qua thông báo im lặng", ignoreSilent,
-                        subtitle = "Không hiển thị thông báo không có chuông/rung",
+                        IsleIcons.Moon, IsleColors.Accent,
+                        title = "Bỏ qua thông báo im lặng",
+                        checked = ignoreSilent,
+                        subtitle = "Không hiển thị thông báo không có chuông hoặc rung",
                     ) {
-                        ignoreSilent = it; prefs.edit().putBoolean("cast_ignore_silent", it).apply()
+                        ignoreSilent = it
+                        prefs.edit().putBoolean("cast_ignore_silent", it).apply()
                     }
+
                     GroupDivider()
+
                     ToggleRow(
-                        IsleIcons.Lock, IsleColors.Accent, "Màn hình khóa", lockscreenLiveCard,
-                        subtitle = "Hiển thị thẻ động trên màn hình khóa",
+                        IsleIcons.Lock, IsleColors.Accent,
+                        title = "Hiển thị trên màn hình khóa",
+                        checked = lockscreenLiveCard,
+                        subtitle = "Hiển thị thẻ đảo động ngay cả khi thiết bị đang khóa màn hình",
                     ) {
                         lockscreenLiveCard = it
                         prefs.edit().putBoolean("cast_lockscreen_live_card", it).apply()
                     }
-                }
-            }
-        }
 
-        // Giờ yên tĩnh
-        item {
-            Column(
-                Modifier.alpha(if (castOn) 1f else 0.4f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SectionLabel("Giờ yên tĩnh")
-                GroupCard {
-                    ToggleRow(
-                        IsleIcons.Moon, IsleColors.Accent, "Theo chế độ Không làm phiền", quietDnd,
-                        subtitle = "Tự động tắt đảo khi bật Không làm phiền",
-                    ) {
-                        quietDnd = it; prefs.edit().putBoolean("cast_quiet_dnd", it).apply()
-                    }
                     GroupDivider()
+
                     ToggleRow(
-                        IsleIcons.Clock, IsleColors.Accent, "Lịch đặt giờ", quietSchedule,
+                        IsleIcons.Moon, IsleColors.Accent,
+                        title = "Theo chế độ Không làm phiền (DND)",
+                        checked = quietDnd,
+                        subtitle = "Tự động tắt Đảo khi thiết bị bật chế độ Không làm phiền",
+                    ) {
+                        quietDnd = it
+                        prefs.edit().putBoolean("cast_quiet_dnd", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Clock, IsleColors.Accent,
+                        title = "Lịch đặt giờ yên tĩnh",
+                        checked = quietSchedule,
                         subtitle = "${QuietHours.format(quietStart)} – ${QuietHours.format(quietEnd)} hàng ngày",
                     ) {
-                        quietSchedule = it; prefs.edit().putBoolean("cast_quiet_schedule", it).apply()
+                        quietSchedule = it
+                        prefs.edit().putBoolean("cast_quiet_schedule", it).apply()
                     }
-                    if (quietSchedule) {
-                        Row(
-                            Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+
+                    // Tùy chọn con lồng nhau: Chọn khung giờ yên tĩnh
+                    NestedSettingContainer(visible = quietSchedule) {
+                        Text(
+                            "Khung giờ tắt thông báo Đảo hàng ngày:",
+                            fontSize = 13.sp,
+                            color = IsleColors.TextSecondary,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ChoiceChip(
                                 "Từ ${QuietHours.format(quietStart)}",
                                 selected = false,
                                 onClick = {
                                     pickTime(context, quietStart) {
-                                        quietStart = it; prefs.edit().putInt("cast_quiet_start", it).apply()
+                                        quietStart = it
+                                        prefs.edit().putInt("cast_quiet_start", it).apply()
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
@@ -642,41 +735,60 @@ fun HomeScreen(
                                 selected = false,
                                 onClick = {
                                     pickTime(context, quietEnd) {
-                                        quietEnd = it; prefs.edit().putInt("cast_quiet_end", it).apply()
+                                        quietEnd = it
+                                        prefs.edit().putInt("cast_quiet_end", it).apply()
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
                             )
                         }
                     }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Buttons, IsleColors.Accent,
+                        title = "Nút thao tác trên thẻ",
+                        checked = actionsOn,
+                        subtitle = "Hiển thị các nút trả lời nhanh, sao chép, hủy bỏ",
+                    ) {
+                        actionsOn = it
+                        prefs.edit().putBoolean("cast_show_actions", it).apply()
+                    }
                 }
             }
         }
 
-        // 6. NHÓM QUẢN LÝ & HỖ TRỢ (Management & Support Group)
+        // ==========================================
+        // NHÓM 5: QUẢN LÝ & TRẢI NGHIỆM ĐẢO
+        // ==========================================
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel("Quản lý & Hỗ trợ")
                 GroupCard {
                     NavRow(
-                        IsleIcons.Grid, IsleColors.Accent, "Ứng dụng",
+                        IsleIcons.Grid, IsleColors.Accent,
+                        title = "Ứng dụng được phép",
                         value = if (appsOff == 0) "Đang bật tất cả" else "Đã tắt $appsOff",
                         onClick = onOpenApps,
                     )
                     GroupDivider()
                     NavRow(
-                        IsleIcons.Shield, IsleColors.Accent, "Quyền hệ thống",
+                        IsleIcons.Shield, IsleColors.Accent,
+                        title = "Quyền hệ thống",
                         value = if (listenerOk && batteryOk) "Đã hoàn tất" else "Cần cấp quyền",
                         onClick = { permissionsOpen = true },
                     )
                     GroupDivider()
                     NavRow(
-                        IsleIcons.Pulse, IsleColors.Accent, "Nhật ký hoạt động",
+                        IsleIcons.Pulse, IsleColors.Accent,
+                        title = "Nhật ký hoạt động",
                         onClick = onOpenActivity,
                     )
                     GroupDivider()
                     NavRow(
-                        IsleIcons.Refresh, IsleColors.Accent, "Kiểm tra cập nhật",
+                        IsleIcons.Refresh, IsleColors.Accent,
+                        title = "Kiểm tra cập nhật",
                         value = updateStatus,
                         onClick = {
                             coroutineScope.launch {
@@ -697,187 +809,28 @@ fun HomeScreen(
             }
         }
 
-        // 7. TRẢI NGHIỆM TRÊN ĐẢO & ĐIỀU KHIỂN
+        // Phòng thử nghiệm mẫu Đảo & Nút điều khiển
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionLabel("Trải nghiệm trước trên đảo")
+                SectionLabel("Phòng thử nghiệm mẫu Đảo")
                 SampleTester(context)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PillButton(
-                        "Hiện lại tất cả", onClick = { recastAll(context) },
-                        modifier = Modifier.weight(1f), icon = IsleIcons.Refresh,
+                        "Hiện lại tất cả",
+                        onClick = { recastAll(context) },
+                        modifier = Modifier.weight(1f),
+                        icon = IsleIcons.Refresh,
                         enabled = castOn || mediaOn,
                     )
                     PillButton(
-                        "Dừng tất cả", onClick = { stopAll(context) },
-                        modifier = Modifier.weight(1f), icon = IsleIcons.Stop, iconSize = 16.dp,
+                        "Dừng tất cả",
+                        onClick = { stopAll(context) },
+                        modifier = Modifier.weight(1f),
+                        icon = IsleIcons.Stop,
+                        iconSize = 16.dp,
                         content = IsleColors.Danger,
                     )
                 }
-            }
-        }
-    }
-}
-
-/** Phone mockup mini hiển thị phong cách Sáng / Tối chuẩn Screenshot 2. */
-@Composable
-private fun ThemePhoneMockup(
-    title: String,
-    isDarkMockup: Boolean,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Khung điện thoại mini
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(130.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (isDarkMockup) Color(0xFF000000) else Color(0xFFF2F4F7))
-                .border(
-                    width = if (selected) 1.5.dp else 0.8.dp,
-                    color = if (selected) IsleColors.Accent else if (isDarkMockup) Color(0x33FFFFFF) else Color(0x1F000000),
-                    shape = RoundedCornerShape(14.dp),
-                )
-                .padding(6.dp),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                // Mini Island capsule
-                Box(
-                    modifier = Modifier
-                        .width(26.dp)
-                        .height(6.5.dp)
-                        .clip(RoundedCornerShape(3.25.dp))
-                        .background(if (isDarkMockup) Color(0xFF1E2028) else Color(0xFF000000)),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    if (isDarkMockup) {
-                        Box(
-                            Modifier
-                                .padding(end = 2.dp)
-                                .size(2.5.dp)
-                                .clip(CircleShape)
-                                .background(IsleColors.Accent),
-                        )
-                    }
-                }
-
-                // Mini Card 1
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(30.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDarkMockup) Color(0xFF17181C) else Color(0xFFFFFFFF))
-                        .border(
-                            0.5.dp,
-                            if (isDarkMockup) Color(0x22FFFFFF) else Color(0x0F000000),
-                            RoundedCornerShape(8.dp),
-                        )
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(IsleColors.Accent),
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Box(
-                                Modifier
-                                    .width(34.dp)
-                                    .height(3.dp)
-                                    .background(if (isDarkMockup) Color(0xFF8E8E93) else Color(0xFF94A3B8)),
-                            )
-                            Box(
-                                Modifier
-                                    .width(20.dp)
-                                    .height(2.dp)
-                                    .background(if (isDarkMockup) Color(0xFF454854) else Color(0xFFCBD5E1)),
-                            )
-                        }
-                    }
-                }
-
-                // Mini Card 2
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDarkMockup) Color(0xFF17181C) else Color(0xFFFFFFFF))
-                        .border(
-                            0.5.dp,
-                            if (isDarkMockup) Color(0x22FFFFFF) else Color(0x0F000000),
-                            RoundedCornerShape(8.dp),
-                        )
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF00D084)),
-                        )
-                        Box(
-                            Modifier
-                                .width(38.dp)
-                                .height(2.5.dp)
-                                .background(if (isDarkMockup) Color(0xFF6B6E7A) else Color(0xFF94A3B8)),
-                        )
-                    }
-                }
-            }
-        }
-
-        Text(
-            title,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = IsleColors.Text,
-        )
-
-        // Radio button tròn Teal
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .border(
-                    width = if (selected) 2.dp else 1.2.dp,
-                    color = if (selected) IsleColors.Accent else IsleColors.Divider,
-                    shape = CircleShape,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) {
-                Box(
-                    Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(IsleColors.Accent),
-                )
             }
         }
     }
