@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.2.0` (mã bản dựng `versionCode = 10200`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.2.1` (mã bản dựng `versionCode = 10201`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Quy chuẩn đánh số phiên bản**:
   - `X` (Số đầu): Thế hệ hiện tại.
   - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
@@ -17,7 +17,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.0 / 10200)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.1 / 10201)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -29,7 +29,7 @@ origin-isle-vn/
 │       │       ├── cards/            # 15 loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (Scene: NAVIGATION, oi_show_notify=false)
-│       │       │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (Đa kênh Broadcast, ContentProvider, Cache)
+│       │       │   ├── EarbudsCard.kt    # Tai nghe & Galaxy Fit 3 (Chống flap, debounce 8s, verify BluetoothManager)
 │       │       │   ├── MediaCard.kt      # Nhạc sóng động & cơ chế nhường Đảo gốc OriginOS 6 (Zero-Overlap)
 │       │       │   ├── OtpCard.kt        # Thẻ OTP ưu tiên cao (is_ongoing=true, nút sao chép mã)
 │       │       │   ├── QuickShareCard.kt # Quick Share logo chính thức từ file SVG tải về
@@ -53,32 +53,23 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.2.0.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 0)
+└── OriginIsle-VN-v1.2.1.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 1)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`):
-  - `isOriginNativePlayerActive` (L50-95): Nhận diện Đảo gốc `com.vivo.musicwidgetmix` hoặc các app whitelisted gốc (`Spotify`, `Apple Music`, `Zing MP3`, `Kugou`...). Khi phát hiện Đảo gốc đang chạy, chủ động thu hồi thẻ Origin Isle VN để không bao giờ bị đè 2 bản phát nhạc.
-- `RingerModeCard.kt` (`app/src/main/java/com/originisle/android/cards/RingerModeCard.kt`):
-  - `show` (L380-410): Đặt mặc định `showNotify = true`, loại bỏ cờ `false` bị Vivo từ chối SuperX.
-  - `start` (L300-340): Đăng ký `ContentObserver` cho `mode_ringer` và `vibrate_in_silent` bắt trọn vẹn thao tác đổi chế độ âm thanh trên Vivo Control Center.
-- `OtpDetector.kt` & `OtpCard.kt` (`app/src/main/java/com/originisle/android/otp/`):
-  - `OTP_HINT` & `OTP_REGEX`: Bổ sung toàn bộ từ khóa tiếng Việt không dấu (`ma xac thuc`, `ma xac nhan`, `ma giao dich`...), đọc thêm `tickerText` và `publicVersion`.
-  - `OtpCard.show`: Đặt `oi_fg_color = Color.WHITE`, `oi_bg_color = Teal`, thêm nút sao chép mã.
-- `EarbudsCard.kt` & `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/cards/`):
-  - `wearable_conn_state`: Lưu bền vững vào `SharedPreferences`. Bỏ qua thông báo nền `isOngoing` cũ (`> 10s`) khi vuốt YouTube Music xuống đa nhiệm, chống bung thẻ kết nối ảo.
-  - `querySamsungFit3Battery`: Kênh Broadcast Widget `getwearablebatterystatus.LEVEL` + CapsuleProvider + Quét UI qua `KeepAliveAccessibilityService`.
-- `VietnamRideDetector.kt` & `RideCard.kt` (`app/src/main/java/com/originisle/android/ride/`):
-  - Nhận diện đầy đủ Grab, Be, Xanh SM, ShopeeFood, Gojek, Ahamove (Food, Bike, Car, Express) với 5 mốc chặng tiến trình (20% -> 45% -> 75% -> 90% -> 100%), hiển thị `TEMPLATE_PROGRESS_VISUAL`.
-- `Theme.kt`, `Components.kt`, `HomeScreen.kt` (`app/src/main/java/com/originisle/android/ui/`):
-  - Phông chữ hệ thống Vivo đa trọng số tôn trọng `fontScale`.
-  - Component `NestedSettingContainer` mở mượt các tùy chọn con lồng nhau.
-  - Tái cấu trúc 5 nhóm tính năng chuẩn Vivo Settings, bổ sung công tắc Chuông/Rung/Im lặng và Đèn pin.
+- `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
+  - `isDeviceHardwareConnected`: Kiểm tra thực tế phần cứng Bluetooth (GATT, GATT_SERVER, A2DP, HEADSET) qua `BluetoothManager`.
+  - `DISCONNECT_DEBOUNCE_MS = 8000L`: Hoãn ngắt kết nối 8s để chờ RFCOMM/SAP tái lập phiên.
+  - `ANTI_FLAP_COOLDOWN_MS = 10_000L`: Chặn pop-up đảo lặp đi lặp lại giữa kết nối và ngắt kết nối trong 10s.
+  - `onDeviceDisconnected` / `disconnectTask`: Hoãn hạ cờ `setConnectedState(false)` vào bên trong Runnable sau khi xác nhận ngắt thật.
+- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`):
+  - Lọc từ khóa `isDisconnect` chuẩn xác, loại trừ 100% lỗi mạng/máy chủ/Wi-Fi/tài khoản.
+  - Chặn đè kết nối lại khi thiết bị đã ở trạng thái kết nối hoặc phần cứng BT còn active.
+- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`): Cơ chế nhường Đảo gốc OriginOS 6.
+- `RingerModeCard.kt` (`app/src/main/java/com/originisle/android/cards/RingerModeCard.kt`): Thẻ Chuông / Rung / Im lặng độc lập.
+- `OtpDetector.kt` (`app/src/main/java/com/originisle/android/otp/OtpDetector.kt`): Bóc tách OTP tiếng Việt có dấu & không dấu.
+- `VietnamRideDetector.kt` & `RideCard.kt`: Bóc tách Grab, Be, Xanh SM, ShopeeFood.
+- `HomeScreen.kt`, `Theme.kt`, `Components.kt`: Giao diện Cài đặt Vivo OriginOS 6 lồng nhau 5 nhóm chuẩn mực.
 
-## 4. Lưu Ý Kỹ Thuật (Gotchas)
-- **ApplicationId & Scene**: Bắt buộc giữ `applicationId = "com.autonavi.minimap"` và ưu tiên `oi_scene = "NAVIGATION"`.
-- **Tài nguyên Small Icon**: Mọi thông báo gửi tới Vivo SuperX phải sử dụng mipmap resource (`R.mipmap.ic_launcher_round`).
-- **Quy định xuất bản APK**: Luôn lưu APK thành phẩm trực tiếp tại thư mục gốc dự án theo chuẩn `OriginIsle-VN-v<ThếHệ>.<NângCấp>.<VáLỗi>.apk`.
-
-## 5. Việc Đang Mở (Lean Context)
-- Không có việc tồn đọng. Bản dựng v1.2.0 hoàn tất toàn diện 5 nhóm yêu cầu.
+## 4. Việc Đang Mở
+- Không còn việc mở. Bản vá lỗi v1.2.1 đã hoàn thành và sẵn sàng sử dụng.

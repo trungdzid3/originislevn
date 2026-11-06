@@ -655,7 +655,13 @@ class NotificationCastListener : NotificationListenerService() {
                 val isFullyCharged = listOf("đã sạc đầy", "sạc đầy", "fully charged", "pin đầy", "sạc hoàn tất").any { hay.contains(it) } ||
                     (batteryPct == 100 && listOf("sạc", "charging", "sạc pin").any { hay.contains(it) })
                 val isConnect = listOf("đã kết nối", "connected", "kết nối thành công").any { hay.contains(it) }
-                val isDisconnect = listOf("đã ngắt", "disconnected", "mất kết nối", "không thể kết nối").any { hay.contains(it) }
+                val isExcludedDisconnect = listOf(
+                    "máy chủ", "server", "wifi", "wi-fi", "mạng", "internet", "cloud", "tài khoản", "account"
+                ).any { hay.contains(it) }
+                val isDisconnect = !isExcludedDisconnect && listOf(
+                    "đã ngắt kết nối", "mất kết nối với", "mất kết nối thiết bị",
+                    "thiết bị đã ngắt", "vòng đeo tay đã ngắt", "đồng hồ đã ngắt", "disconnected from"
+                ).any { hay.contains(it) }
                 val hasBattery = batteryPct != -1 || listOf("%", "pin", "battery").any { hay.contains(it) }
 
                 val isWearableDevice = sbn.packageName.contains("fit3", ignoreCase = true) ||
@@ -706,7 +712,10 @@ class NotificationCastListener : NotificationListenerService() {
                             batteryPct = cached
                         }
                     }
-                    if (isCurrentlyConnected || isOldOngoingNotification) {
+                    val isAlreadyActive = isCurrentlyConnected || isOldOngoingNotification ||
+                        (EarbudsCard.isDeviceHardwareConnected(applicationContext, devName) && EarbudsCard.isConnected(devName))
+
+                    if (isAlreadyActive) {
                         // Thiết bị đã kết nối hoặc thông báo nền thường trực cũ (>10s) được redeliver khi vuốt đa nhiệm:
                         // Tuyệt đối không gọi onDeviceConnected để tránh pop-up đảo lặp đi lặp lại
                         setWearableConnected(deviceKey, devName, true)
@@ -727,16 +736,24 @@ class NotificationCastListener : NotificationListenerService() {
                     EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
                     handled = true
                 } else if (isDisconnect) {
+                    if (EarbudsCard.isDeviceHardwareConnected(applicationContext, devName)) {
+                        log(sbn, "bỏ qua — phần cứng vẫn đang kết nối", false)
+                        return
+                    }
                     if (!isCurrentlyConnected) {
                         // Đã ở trạng thái ngắt rồi, bỏ qua để tránh pop-up mất kết nối ảo
                         log(sbn, "bỏ qua — thiết bị đeo đã ở trạng thái ngắt kết nối", false)
                         return
                     }
-                    setWearableConnected(deviceKey, devName, false)
+                    // KHÔNG gọi setWearableConnected(deviceKey, devName, false) ngay lập tức;
+                    // để EarbudsCard.onDeviceDisconnected kiểm soát debounce và xác thực phần cứng
                     EarbudsCard.onDeviceDisconnected(applicationContext, devName, isWearable = isWearableDevice)
                     handled = true
                 } else if (hasBattery && batteryPct != -1) {
-                    if (isCurrentlyConnected || isOldOngoingNotification) {
+                    val isAlreadyActive = isCurrentlyConnected || isOldOngoingNotification ||
+                        (EarbudsCard.isDeviceHardwareConnected(applicationContext, devName) && EarbudsCard.isConnected(devName))
+
+                    if (isAlreadyActive) {
                         setWearableConnected(deviceKey, devName, true)
                         EarbudsCard.onBatteryUpdated(
                             applicationContext,

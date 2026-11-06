@@ -56,8 +56,9 @@ object EarbudsCard {
 
     private const val BATTERY_WAIT_MS = 2500L
     private const val SHOW_MS = 5000L
-    private const val DISCONNECT_DEBOUNCE_MS = 1500L
+    private const val DISCONNECT_DEBOUNCE_MS = 8000L
     private const val DISCONNECT_SHOW_MS = 3000L
+    private const val ANTI_FLAP_COOLDOWN_MS = 10_000L
     private const val LOW_LEVEL = 15
 
     // Màu sắc tiêu chuẩn OriginOS & Trạng thái
@@ -144,8 +145,89 @@ object EarbudsCard {
     private val warnedLow = mutableSetOf<String>()
     private val wearableRegistry = mutableSetOf<String>()
     private val lastConnectionState = ConcurrentHashMap<String, Boolean>()
+    private val lastConnectedTimestamp = ConcurrentHashMap<String, Long>()
     private var showingAddress: String? = null
     private var hideTask: Runnable? = null
+
+    /** Ghi nhận thời điểm kết nối gần nhất của thiết bị để phục vụ cơ chế chống dập tắt (Anti-Flap Cooldown). */
+    fun markDeviceConnectedTime(nameOrAddress: String) {
+        if (nameOrAddress.isBlank()) return
+        val now = System.currentTimeMillis()
+        val key = nameOrAddress.trim().lowercase()
+        lastConnectedTimestamp[key] = now
+        lastConnectedTimestamp[nameOrAddress] = now
+    }
+
+    /** Kiểm tra xem thiết bị có đang trong thời gian hạ nhiệt chống dập tắt (10 giây sau khi vừa kết nối) hay không. */
+    fun isWithinAntiFlapCooldown(nameOrAddress: String?): Boolean {
+        if (nameOrAddress.isNullOrBlank()) return false
+        val key = nameOrAddress.trim().lowercase()
+        val now = System.currentTimeMillis()
+        val t1 = lastConnectedTimestamp[key] ?: 0L
+        val t2 = lastConnectedTimestamp[nameOrAddress] ?: 0L
+        val lastConn = maxOf(t1, t2)
+        return (now - lastConn) in 0 until ANTI_FLAP_COOLDOWN_MS
+    }
+
+    /**
+     * Kiểm tra trạng thái phần cứng Bluetooth thực tế qua BluetoothManager và BluetoothAdapter.
+     * Quét qua GATT, GATT_SERVER, A2DP, HEADSET và bondedDevices.
+     */
+    fun isDeviceHardwareConnected(context: Context, nameOrAddress: String?): Boolean {
+        if (nameOrAddress.isNullOrBlank()) return false
+        val target = nameOrAddress.trim().lowercase()
+        return runCatching {
+            val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return@runCatching false
+            val adapter = btManager.adapter ?: BluetoothAdapter.getDefaultAdapter() ?: return@runCatching false
+            if (!adapter.isEnabled) return@runCatching false
+
+            fun matchesDevice(dev: BluetoothDevice): Boolean {
+                val addr = dev.address?.lowercase().orEmpty()
+                if (addr.isNotBlank() && (addr == target || target.contains(addr))) return true
+                val dName = runCatching { dev.name }.getOrNull()?.trim()?.lowercase().orEmpty()
+                if (dName.isNotBlank() && (dName.contains(target) || target.contains(dName))) return true
+                val dAlias = runCatching { dev.alias }.getOrNull()?.trim()?.lowercase().orEmpty()
+                if (dAlias.isNotBlank() && (dAlias.contains(target) || target.contains(dAlias))) return true
+                return false
+            }
+
+            val profiles = intArrayOf(
+                BluetoothProfile.GATT,
+                BluetoothProfile.GATT_SERVER,
+                BluetoothProfile.A2DP,
+                BluetoothProfile.HEADSET,
+            )
+
+            for (p in profiles) {
+                val connectedDevices = runCatching { btManager.getConnectedDevices(p) }.getOrNull()
+                if (connectedDevices != null && connectedDevices.any { matchesDevice(it) }) {
+                    return@runCatching true
+                }
+            }
+
+            val bonded = runCatching { adapter.bondedDevices }.getOrNull().orEmpty()
+            val isConnectedMethod = runCatching { BluetoothDevice::class.java.getMethod("isConnected") }.getOrNull()
+
+            for (dev in bonded) {
+                if (matchesDevice(dev)) {
+                    for (p in profiles) {
+                        val state = runCatching { btManager.getConnectionState(dev, p) }.getOrDefault(-1)
+                        if (state == BluetoothProfile.STATE_CONNECTED) {
+                            return@runCatching true
+                        }
+                    }
+                    if (isConnectedMethod != null) {
+                        val connected = runCatching { isConnectedMethod.invoke(dev) as? Boolean }.getOrDefault(false)
+                        if (connected == true) {
+                            return@runCatching true
+                        }
+                    }
+                }
+            }
+
+            false
+        }.getOrDefault(false)
+    }
 
     /** Kiểm tra xem thiết bị theo tên hoặc MAC address có đang ở trạng thái kết nối thật hay không. */
     fun isConnected(nameOrAddress: String?): Boolean {
@@ -169,6 +251,9 @@ object EarbudsCard {
         val key = nameOrAddress.trim().lowercase()
         lastConnectionState[key] = connected
         lastConnectionState[nameOrAddress] = connected
+        if (connected) {
+            markDeviceConnectedTime(nameOrAddress)
+        }
         app?.let { ctx ->
             val prefs = ctx.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
             prefs.edit().putBoolean("wearable_conn_state_$key", connected).apply()
@@ -491,6 +576,7 @@ object EarbudsCard {
         disconnectDebounce.values.forEach(handler::removeCallbacks)
         disconnectDebounce.clear()
         lastConnectionState.clear()
+        lastConnectedTimestamp.clear()
         if (showingAddress != null) hide(ctx)
         app = null
     }
@@ -637,7 +723,7 @@ object EarbudsCard {
                 }
             }
 
-            // --- MẤT KẾT NỐI (DISCONNECTED) VỚI DEBOUNCE 1500MS ---
+            // --- MẤT KẾT NỐI (DISCONNECTED) VỚI DEBOUNCE 8000MS & XÁC THỰC PHẦN CỨNG ---
             action == BluetoothDevice.ACTION_ACL_DISCONNECTED ||
             action == ACTION_SAMSUNG_FIT_DISCONNECTED ||
             action == ACTION_SAMSUNG_WEARABLE_DISCONNECTED ||
@@ -647,9 +733,6 @@ object EarbudsCard {
                 disconnectDebounce.remove(address)?.let(handler::removeCallbacks)
                 disconnectDebounce.remove(devName)?.let(handler::removeCallbacks)
 
-                setConnectedState(address, false)
-                setConnectedState(devName, false)
-
                 if (!wasConnected) {
                     return
                 }
@@ -657,6 +740,19 @@ object EarbudsCard {
                 val disconnectTask = Runnable {
                     disconnectDebounce.remove(address)
                     disconnectDebounce.remove(devName)
+                    if (isDeviceHardwareConnected(context, devName) || isDeviceHardwareConnected(context, address)) {
+                        setConnectedState(address, true)
+                        setConnectedState(devName, true)
+                        return@Runnable
+                    }
+                    if (isWithinAntiFlapCooldown(address) || isWithinAntiFlapCooldown(devName)) {
+                        Log.i(TAG, "Anti-flap: skip disconnect popup for $devName within cooldown")
+                        setConnectedState(address, true)
+                        setConnectedState(devName, true)
+                        return@Runnable
+                    }
+                    setConnectedState(address, false)
+                    setConnectedState(devName, false)
                     deviceTelemetry -= address
                     deviceTelemetry -= devName
                     warnedLow -= address
@@ -1451,6 +1547,10 @@ object EarbudsCard {
     fun showDisconnected(context: Context, name: String, isWearable: Boolean = false) {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
         if (!prefs.getBoolean("cast_earbuds", true)) return
+        if (isDeviceHardwareConnected(context, name) || isWithinAntiFlapCooldown(name)) {
+            setConnectedState(name, true)
+            return
+        }
 
         hideTask?.let(handler::removeCallbacks)
         val glyph = if (isWearable) R.drawable.ic_smartband else R.drawable.ic_earbuds
@@ -1557,13 +1657,22 @@ object EarbudsCard {
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
         val wasConnected = isConnected(name)
-        setConnectedState(name, false)
         if (!wasConnected) {
             // Thiết bị chưa từng kết nối hoặc đã ở trạng thái ngắt, không hiển thị pop-up ảo
             return
         }
         val task = Runnable {
             disconnectDebounce.remove(name)
+            if (isDeviceHardwareConnected(ctx, name)) {
+                setConnectedState(name, true)
+                return@Runnable
+            }
+            if (isWithinAntiFlapCooldown(name)) {
+                Log.i(TAG, "Anti-flap: skip onDeviceDisconnected for $name within cooldown")
+                setConnectedState(name, true)
+                return@Runnable
+            }
+            setConnectedState(name, false)
             deviceTelemetry -= name
             warnedLow -= name
             showDisconnected(ctx, name, isWearable)
