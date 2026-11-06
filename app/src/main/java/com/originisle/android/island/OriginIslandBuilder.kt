@@ -159,7 +159,7 @@ object OriginIslandBuilder {
         // with this false — confirmed via `dumpsys notification` while it was live — and never shows
         // up in the notification shade, unlike every card this app posts with it hardcoded true.
         // Testing whether flipping it is what actually gates shade visibility.
-        showNotify: Boolean = true,
+        showNotify: Boolean = false,
         islandNotify: Boolean = false,
     ): Bundle {
         val C = OriginIslandConstants

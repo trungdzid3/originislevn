@@ -586,26 +586,21 @@ class NotificationCastListener : NotificationListenerService() {
                     } else if (castNotifs && prefs.getBoolean("cast_quickshare", true) &&
                         QuickShareDetector.isQuickShare(sbn) && isAppEnabled(prefs, sbn.packageName)
                     ) {
-                        val id = IconCache.castIdFor(sbn)
                         if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
-                            if (activeQuickShareIds.remove(id) || QuickShareCard.isTransferring()) {
-                                activeQuickShareIds.clear()
-                                transferProgressMap.remove(id)
-                                transferFinishedMap.remove(id)
-                                QuickShareCard.postFinished(applicationContext, id, sbn.packageName, "Quick Share")
+                            // Notification thông báo trạng thái sẵn sàng phát hiện / chạy nền của Quick Share, bỏ qua không coi là hoàn tất truyền tệp
+                            return@forEach
+                        }
+                        val id = IconCache.castIdFor(sbn)
+                        val qsInfo = QuickShareDetector.parse(sbn)
+                        if (qsInfo != null) {
+                            if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
+                                activeQuickShareIds.remove(id)
+                            } else {
+                                activeQuickShareIds.add(id)
                             }
-                        } else {
-                            val qsInfo = QuickShareDetector.parse(sbn)
-                            if (qsInfo != null) {
-                                if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
-                                    activeQuickShareIds.remove(id)
-                                } else {
-                                    activeQuickShareIds.add(id)
-                                }
-                                transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
-                                transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
-                                QuickShareCard.post(applicationContext, qsInfo, sbn)
-                            }
+                            transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
+                            transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
+                            QuickShareCard.post(applicationContext, qsInfo, sbn)
                         }
                     }
                 }
@@ -799,14 +794,7 @@ class NotificationCastListener : NotificationListenerService() {
             //    BẮT BUỘC chạy trước OTP và Tải xuống để không bị OTP Detector bắt nhầm dung lượng/số file/PIN.
             if (prefs.getBoolean("cast_quickshare", true) && QuickShareDetector.isQuickShare(sbn)) {
                 if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
-                    if (activeQuickShareIds.isNotEmpty() || QuickShareCard.isTransferring()) {
-                        val id = IconCache.castIdFor(sbn)
-                        activeQuickShareIds.clear()
-                        transferProgressMap.remove(id)
-                        transferFinishedMap.remove(id)
-                        QuickShareCard.postFinished(applicationContext, id, sbn.packageName, "Quick Share")
-                        log(sbn, "hiển thị — Quick Share hoàn tất truyền tệp", true)
-                    }
+                    // Notification thông báo trạng thái sẵn sàng phát hiện / chạy nền của Quick Share, bỏ qua không coi là hoàn tất truyền tệp
                     return
                 }
 
@@ -1510,6 +1498,9 @@ class NotificationCastListener : NotificationListenerService() {
             lastMatchIcons.remove(id)
 
             if (isQs) {
+                if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                    return
+                }
                 activeQuickShareIds.remove(id)
                 val ex = sbn.notification.extras
                 val rawText = "${ex.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()} ${ex.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()}".lowercase()
@@ -1525,15 +1516,16 @@ class NotificationCastListener : NotificationListenerService() {
                     (isFinishedEffective || prog >= 80)
 
                 if (isActuallyFinished) {
-                    QuickShareCard.postFinished(applicationContext, id, appPkg, title)
+                    QuickShareCard.postFinished(applicationContext, QuickShareCard.ID, appPkg, title)
                 } else if (wasCanceledText) {
-                    QuickShareCard.postCanceled(applicationContext, id, appPkg)
+                    QuickShareCard.postCanceled(applicationContext, QuickShareCard.ID, appPkg)
                 } else {
+                    QuickShareCard.clear(QuickShareCard.ID)
                     QuickShareCard.clear(id)
                     startService(
                         Intent(this, PlaygroundService::class.java)
                             .setAction(PlaygroundService.ACTION_CANCEL)
-                            .putExtra("id", id)
+                            .putExtra("id", QuickShareCard.ID)
                             .putExtra("oi_scene", "NAVIGATION"),
                     )
                 }
@@ -1551,6 +1543,7 @@ class NotificationCastListener : NotificationListenerService() {
         }
 
         if (QuickShareDetector.isQuickShare(sbn)) {
+            QuickShareCard.clear(QuickShareCard.ID)
             QuickShareCard.clear(id)
         }
         IconCache.clear(id)

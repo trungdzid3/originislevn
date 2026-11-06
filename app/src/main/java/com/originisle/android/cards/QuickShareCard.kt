@@ -31,6 +31,7 @@ object QuickShareCard {
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
     private val finishedIds = ConcurrentHashMap.newKeySet<Int>()
     private val watchdogTasks: MutableMap<Int, Runnable> = ConcurrentHashMap()
+    private val pendingCancelTasks: MutableMap<Int, Runnable> = ConcurrentHashMap()
 
     @Volatile
     private var activeTransfer: Boolean = false
@@ -97,11 +98,53 @@ object QuickShareCard {
         }
     }
 
+    private fun cancelPendingDismiss(id: Int = ID) {
+        pendingCancelTasks.remove(id)?.let(handler::removeCallbacks)
+        if (id != ID) {
+            pendingCancelTasks.remove(ID)?.let(handler::removeCallbacks)
+        }
+    }
+
+    private fun scheduleDelayedCancel(context: Context, id: Int = ID, sbnId: Int? = null, delayMs: Long) {
+        cancelPendingDismiss(id)
+        cancelPendingDismiss(ID)
+        sbnId?.let { cancelPendingDismiss(it) }
+        val cancelRunnable = Runnable {
+            pendingCancelTasks.remove(id)
+            pendingCancelTasks.remove(ID)
+            sbnId?.let { pendingCancelTasks.remove(it) }
+            context.startService(
+                Intent(context, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", ID)
+                    .putExtra("oi_scene", "NAVIGATION")
+            )
+        }
+        pendingCancelTasks[id] = cancelRunnable
+        pendingCancelTasks[ID] = cancelRunnable
+        sbnId?.let { pendingCancelTasks[it] = cancelRunnable }
+        handler.postDelayed(cancelRunnable, delayMs)
+    }
+
     fun post(context: Context, sbn: StatusBarNotification, info: QuickShareInfo) = post(context, info, sbn)
 
     fun post(context: Context, info: QuickShareInfo, sbn: StatusBarNotification) {
         val sbnId = IconCache.castIdFor(sbn)
-        val cardId = ID
+        val cardId = ID // 35009
+
+        // Nếu có phiên nhận tệp mới (request hoặc đang truyền thực tế 1..99%), xóa trạng thái finished cũ
+        if (info.isRequest || (info.progress in 1..99 && !info.isFinished) || (info.isIndeterminate && !info.isFinished)) {
+            finishedIds.remove(cardId)
+            finishedIds.remove(sbnId)
+            cancelPendingDismiss(cardId)
+            cancelPendingDismiss(sbnId)
+        }
+
+        // Nếu đã hoàn tất (đã post thẻ 100%), KHÔNG BAO GIỜ post lại thẻ để tránh vòng lặp thu/mở liên tục từ pollRunnable!
+        if (finishedIds.contains(cardId) || finishedIds.contains(sbnId)) {
+            return
+        }
+
         val now = System.currentTimeMillis()
         val lastTime = lastPostTimeMap[cardId] ?: lastPostTimeMap[sbnId] ?: 0L
         val lastProg = lastProgressMap[cardId] ?: lastProgressMap[sbnId] ?: -1
@@ -172,7 +215,7 @@ object QuickShareCard {
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", cardId)
+            putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("source_pkg", sbn.packageName)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
@@ -284,34 +327,22 @@ object QuickShareCard {
 
         // Tự động dọn dẹp đảo sau khi xong (3.5s) hoặc hủy (2.5s)
         if (isFinishedEffective) {
-            handler.postDelayed({
-                context.startService(
-                    Intent(context, PlaygroundService::class.java)
-                        .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", cardId)
-                        .putExtra("oi_scene", "NAVIGATION")
-                )
-            }, 3500L)
+            scheduleDelayedCancel(context, cardId, sbnId, 3500L)
         } else if (info.isCanceled) {
-            handler.postDelayed({
-                context.startService(
-                    Intent(context, PlaygroundService::class.java)
-                        .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", cardId)
-                        .putExtra("oi_scene", "NAVIGATION")
-                )
-            }, 2500L)
+            scheduleDelayedCancel(context, cardId, sbnId, 2500L)
         } else if (!info.isRequest) {
             // Watchdog auto-dismiss cho nhánh đang truyền tệp (15s không cập nhật -> auto cancel)
             watchdogTasks.remove(sbnId)?.let(handler::removeCallbacks)
             watchdogTasks.remove(cardId)?.let(handler::removeCallbacks)
             val watchdog = Runnable {
+                watchdogTasks.remove(cardId)
+                watchdogTasks.remove(sbnId)
                 clear(cardId)
                 clear(sbnId)
                 context.startService(
                     Intent(context, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", cardId)
+                        .putExtra("id", ID)
                         .putExtra("oi_scene", "NAVIGATION")
                 )
             }
@@ -330,9 +361,21 @@ object QuickShareCard {
             postCanceled(context, id, appPkg)
             return
         }
+        if (finishedIds.contains(ID) || finishedIds.contains(id)) {
+            return
+        }
         activeTransfer = false
-        clear(id)
-        clear(ID)
+        watchdogTasks.remove(id)?.let(handler::removeCallbacks)
+        watchdogTasks.remove(ID)?.let(handler::removeCallbacks)
+        cancelPendingDismiss(id)
+        cancelPendingDismiss(ID)
+        finishedIds.add(ID)
+        finishedIds.add(id)
+        lastPostTimeMap.remove(id)
+        lastPostTimeMap.remove(ID)
+        lastProgressMap[id] = 100
+        lastProgressMap[ID] = 100
+
         if (id != ID) {
             context.startService(
                 Intent(context, PlaygroundService::class.java)
@@ -342,8 +385,10 @@ object QuickShareCard {
             )
         }
         IconCache.activeSmallIcons.remove(ID)
+        if (id != ID) IconCache.activeSmallIcons.remove(id)
         val appIcon: Icon = resolveShareIcon(context, appPkg)
         IconCache.activeLargeIcons[ID] = appIcon
+        if (id != ID) IconCache.activeLargeIcons[id] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -373,14 +418,7 @@ object QuickShareCard {
             putExtra("text", "Đã nhận tệp")
         }
         context.startService(intent)
-        handler.postDelayed({
-            context.startService(
-                Intent(context, PlaygroundService::class.java)
-                    .setAction(PlaygroundService.ACTION_CANCEL)
-                    .putExtra("id", ID)
-                    .putExtra("oi_scene", "NAVIGATION")
-            )
-        }, 3500L)
+        scheduleDelayedCancel(context, ID, id, 3500L)
     }
 
     /**
@@ -388,8 +426,17 @@ object QuickShareCard {
      */
     fun postCanceled(context: Context, id: Int = ID, appPkg: String) {
         activeTransfer = false
-        clear(id)
-        clear(ID)
+        watchdogTasks.remove(id)?.let(handler::removeCallbacks)
+        watchdogTasks.remove(ID)?.let(handler::removeCallbacks)
+        cancelPendingDismiss(id)
+        cancelPendingDismiss(ID)
+        finishedIds.remove(id)
+        finishedIds.remove(ID)
+        lastPostTimeMap.remove(id)
+        lastPostTimeMap.remove(ID)
+        lastProgressMap[id] = 0
+        lastProgressMap[ID] = 0
+
         if (id != ID) {
             context.startService(
                 Intent(context, PlaygroundService::class.java)
@@ -399,8 +446,10 @@ object QuickShareCard {
             )
         }
         IconCache.activeSmallIcons.remove(ID)
+        if (id != ID) IconCache.activeSmallIcons.remove(id)
         val appIcon: Icon = resolveShareIcon(context, appPkg)
         IconCache.activeLargeIcons[ID] = appIcon
+        if (id != ID) IconCache.activeLargeIcons[id] = appIcon
         val clickPi = fallbackClickIntent(context, appPkg)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -429,14 +478,7 @@ object QuickShareCard {
             putExtra("oi_fg_color", "#FF5247")
         }
         context.startService(intent)
-        handler.postDelayed({
-            context.startService(
-                Intent(context, PlaygroundService::class.java)
-                    .setAction(PlaygroundService.ACTION_CANCEL)
-                    .putExtra("id", ID)
-                    .putExtra("oi_scene", "NAVIGATION")
-            )
-        }, 2500L)
+        scheduleDelayedCancel(context, ID, id, 2500L)
     }
 
     fun getLastProgress(id: Int = ID): Int = lastProgressMap[id] ?: lastProgressMap[ID] ?: -1
@@ -446,11 +488,13 @@ object QuickShareCard {
     fun clear(id: Int = ID) {
         activeTransfer = false
         watchdogTasks.remove(id)?.let(handler::removeCallbacks)
+        cancelPendingDismiss(id)
         lastPostTimeMap.remove(id)
         lastProgressMap.remove(id)
         finishedIds.remove(id)
         if (id != ID) {
             watchdogTasks.remove(ID)?.let(handler::removeCallbacks)
+            cancelPendingDismiss(ID)
             lastPostTimeMap.remove(ID)
             lastProgressMap.remove(ID)
             finishedIds.remove(ID)

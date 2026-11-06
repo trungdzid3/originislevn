@@ -18,8 +18,9 @@ import androidx.core.app.NotificationCompat
 import com.originisle.android.R
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
-import com.originisle.android.ui.PREFS_NAME
 import java.util.concurrent.ConcurrentHashMap
+
+private const val PREFS_NAME = "experimental_prefs"
 
 /**
  * Posts, updates and ends OriginIsland "SuperX" cards.
@@ -249,7 +250,7 @@ class PlaygroundService : Service() {
             .getBoolean("cast_lockscreen_live_card", false)
         val displays = (baseDisplays and OriginIslandConstants.DISPLAY_LOCKSCREEN.inv()) or
             (if (lockscreenOptIn) OriginIslandConstants.DISPLAY_LOCKSCREEN else 0)
-        val showNotify = intent.getBooleanExtra("oi_show_notify", true)
+        val showNotify = intent.getBooleanExtra("oi_show_notify", false)
         val islandNotify = intent.getBooleanExtra("oi_island_notify", false)
         val islandShowTime = intent.getIntExtra("oi_island_show_time", 0)
         val forceShow = intent.getBooleanExtra("oi_force_show", false)
