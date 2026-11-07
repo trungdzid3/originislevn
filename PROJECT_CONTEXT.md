@@ -22,13 +22,12 @@ origin-isle-vn/
 │       │   │   └── xml/keepalive_accessibility_config.xml
 │       │   └── java/com/originisle/android/
 │       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS
-│       │       ├── call/             # MessengerCallDetector.kt, ZaloCallDetector.kt (bóc tách chuyên sâu cuộc gọi & CallStyle)
+│       │       ├── call/             # ZaloCallDetector.kt (bóc tách chuyên sâu cuộc gọi & CallStyle)
 │       │       ├── cards/            # Các loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (thay "100%" bằng icon tích xanh lá ic_success_tick_green khi hoàn tất)
 │       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (hiển thị "Đã ngắt" tối giản không khung xám)
 │       │       │   ├── MediaCard.kt      # Cố định ID = 35010, oi_scene = "NAVIGATION", 3 nút chuẩn SuperX, hỗ trợ postFromController cho Zing MP3 / NCT
-│       │       │   ├── MessengerCallCard.kt # Cố định ID = 35013, hiển thị cuộc gọi Messenger (avatar tròn kèm badge Messenger, nút Từ chối / Trả lời / Kết thúc)
 │       │       │   ├── PaymentCard.kt    # Chuẩn hóa giao diện mở rộng: xóa hoàn toàn khối chữ xám to đùng "Tiền ra / Tiền vào", hiển thị tiền gọn gàng sắc nét
 │       │       │   ├── QuickShareCard.kt # Cố định ID = 35009, chuyển trạng thái hoàn tất sang icon tích xanh lá ic_success_tick_green
 │       │       │   ├── RideCard.kt       # Tiến trình Gọi xe & Giao đồ ăn VN (Template 2)
@@ -40,7 +39,7 @@ origin-isle-vn/
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
 │       │       ├── quickshare/       # Nhận diện Quick Share
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
-│       │       ├── service/          # NotificationCastListener (ưu tiên Zalo & Messenger Call -> Ngân hàng -> Quick Share -> Download)
+│       │       ├── service/          # NotificationCastListener (ưu tiên Zalo Call -> Ngân hàng -> Quick Share -> Download; bỏ qua hoàn toàn Messenger để OriginOS 6 tự xử lý)
 │       │       ├── smart/            # Bóc tách thông tin màn hình
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
@@ -57,13 +56,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- `MessengerCallDetector.kt` (`app/src/main/java/com/originisle/android/call/MessengerCallDetector.kt`): Nhận diện cuộc gọi Messenger (`com.facebook.orca`), bắt `CallStyle` (`CATEGORY_CALL`), trích xuất tên người gọi, avatar (`largeIcon`), phân biệt cuộc gọi đến (`incoming`) và đang đàm thoại (`ongoing`), lấy `actionIntent` của Trả lời (`answer`) và Từ chối / Kết thúc (`decline` / `end`).
-- `MessengerCallCard.kt` (`app/src/main/java/com/originisle/android/cards/MessengerCallCard.kt`): Cố định `ID = 35013`, vẽ avatar tròn kèm huy hiệu Messenger ở góc dưới phải, hiển thị nút Trả lời/Từ chối hoặc Kết thúc/Mở app, hỗ trợ `postSample(context)`.
 - `OriginIslandBuilder.kt` (`app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt`): Sửa nhánh `template == 4` chỉ đặt `BASE_SUB_INFO = 1` khi `subText` thực sự có nội dung; nếu rỗng thì đặt `BASE_SUB_INFO = 0` (loại bỏ hoàn toàn khối chữ xám to thô kệch bên phải thẻ mở rộng).
 - `PaymentCard.kt` (`app/src/main/java/com/originisle/android/cards/PaymentCard.kt`): Bỏ chuỗi `subtext = "Tiền vào · ..."` / `"Tiền ra · ..."`, hiển thị số tiền to rõ nét, bố cục thẻ mở rộng chuẩn phong cách OriginOS 6.
 - `QuickShareCard.kt` & `DownloadCard.kt`: Khi tải/truyền xong, hiển thị icon dấu tích tròn xanh lá `ic_success_tick_green.xml` thay cho chuỗi ký tự thô `"100%"` / `"Xong"`.
-- `NotificationCastListener.kt` & `MediaCard.kt`: Sửa triệt để luồng Zing MP3 và NhacCuaTui: không drop notification khi thiếu token, truy vấn `findMediaControllerFallback` khi đang phát hoặc ongoing, bypass kiểm tra `isOriginNativePlayerActive` cho toàn bộ ứng dụng trong `THIRD_PARTY_MUSIC_PACKAGES`.
-- `HomeScreen.kt` & `ActivityScreen.kt`: Thêm công tắc `cast_messenger_call` và nút thử nghiệm `Thử Gọi Messenger`.
+- `NotificationCastListener.kt` & `MediaCard.kt`: Sửa triệt để luồng Zing MP3 và NhacCuaTui: không drop notification khi thiếu token, truy vấn `findMediaControllerFallback` khi đang phát hoặc ongoing, bypass kiểm tra `isOriginNativePlayerActive` cho toàn bộ ứng dụng trong `THIRD_PARTY_MUSIC_PACKAGES`. Chặn hoàn toàn cuộc gọi Facebook Messenger (`com.facebook.orca`) để nhường trọn vẹn cho Đảo gốc OriginOS 6.
 
 ## 4. Những Điểm Cần Chú Ý Kỹ Thuật (Gotchas)
 - Cuộc gọi Facebook Messenger: Đã được OriginOS 6 hỗ trợ trực tiếp từ gốc (native island). OriginIsle chủ động bỏ qua thông báo cuộc gọi `com.facebook.orca` (`category == CATEGORY_CALL`) để nhường trọn vẹn cho hệ thống gốc, tránh xung đột hiển thị 2 tiến trình/2 đảo đồng thời.
