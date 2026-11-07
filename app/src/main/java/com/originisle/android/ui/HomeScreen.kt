@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -48,7 +49,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
@@ -100,6 +103,10 @@ fun HomeScreen(
     var ridesOn by remember { mutableStateOf(prefs.getBoolean("cast_rides", true)) }
     var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", true)) }
     var zaloCallOn by remember { mutableStateOf(prefs.getBoolean("cast_zalo_call", true)) }
+    var tiktokStreakOn by remember { mutableStateOf(prefs.getBoolean("cast_tiktok_streak", true)) }
+    var tiktokStreakMessage by remember {
+        mutableStateOf(prefs.getString("tiktok_streak_custom_message", "🔥") ?: "🔥")
+    }
     var downloadOn by remember { mutableStateOf(prefs.getBoolean("cast_downloads", true)) }
     var callsOn by remember { mutableStateOf(prefs.getBoolean("cast_calls", true)) }
 
@@ -463,6 +470,57 @@ fun HomeScreen(
                     ) {
                         zaloCallOn = it
                         prefs.edit().putBoolean("cast_zalo_call", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Bolt, Color(0xFFFF5E00),
+                        title = "Nhắc nhở chuỗi TikTok",
+                        checked = tiktokStreakOn,
+                        subtitle = "Bắt thông báo nhắc chuỗi TikTok, hiện đảo ngọn lửa để gửi tin nhắn duy trì nhanh",
+                    ) {
+                        tiktokStreakOn = it
+                        prefs.edit().putBoolean("cast_tiktok_streak", it).apply()
+                    }
+
+                    NestedSettingContainer(visible = tiktokStreakOn) {
+                        Text(
+                            "Nội dung tin nhắn gửi chuỗi:",
+                            fontSize = 13.sp,
+                            color = IsleColors.TextSecondary,
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(IsleColors.Surface)
+                                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            BasicTextField(
+                                value = tiktokStreakMessage,
+                                onValueChange = {
+                                    tiktokStreakMessage = it
+                                    prefs.edit().putString("tiktok_streak_custom_message", it).apply()
+                                },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 14.sp,
+                                    color = IsleColors.Text,
+                                ),
+                                cursorBrush = SolidColor(Color(0xFFFF5E00)),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Text(
+                            "Tin nhắn trên sẽ tự động sao chép vào bộ nhớ tạm (Clipboard) khi nhấn nút ngọn lửa.",
+                            fontSize = 12.sp,
+                            color = IsleColors.TextSecondary,
+                            lineHeight = 16.sp,
+                        )
                     }
 
                     GroupDivider()

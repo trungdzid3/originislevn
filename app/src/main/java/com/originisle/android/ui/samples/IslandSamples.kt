@@ -83,6 +83,32 @@ object IslandSamples {
             }
         },
         OriginSample(
+            "Chuỗi TikTok", "Nhắc nhở chuỗi trò chuyện TikTok · 42 ngày 🔥",
+            IslandPreview(R.drawable.ic_tiktok_streak_fire, "Nguyễn Văn A", IslandPreview.Right.Capsule("🔥 Chuỗi")),
+        ) { ctx ->
+            start(ctx, 35012) {
+                putExtra("icon_res", R.drawable.ic_tiktok_streak_fire)
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+                putExtra("oi_left_content", "Chuỗi 🔥")
+                putExtra("oi_right_content", "🔥 Chuỗi")
+                putExtra("status_chip_text", "🔥 Chuỗi")
+                putExtra("title", "TikTok · Chuỗi 🔥")
+                putExtra("text", "Nguyễn Văn A: Duy trì chuỗi với Nguyễn Văn A ngay nào!")
+                putExtra("subtext", "Chạm hoặc bấm Duy trì để gửi tin nhắn chuỗi")
+                putExtra("source_app", "TikTok")
+                putExtra("oi_light_color", "#FFFF5E00")
+                putExtra("oi_bg_color", "#FFFF5E00")
+                putExtra("oi_fg_color", "#FFFF5E00")
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Duy trì"))
+                putExtra("oi_force_show", true)
+                putExtra("oi_show_right_icon", true)
+                putExtra("is_high_priority", true)
+                putExtra("oi_dismiss_when_kill", true)
+            }
+        },
+        OriginSample(
             "Điều hướng", "Chỉ đường lái xe · Quãng đường & Thời gian",
             IslandPreview(R.drawable.ic_navigation, "350 m", IslandPreview.Right.Capsule("12 phút")),
         ) { ctx ->

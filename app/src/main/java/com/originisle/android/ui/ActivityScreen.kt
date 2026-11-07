@@ -26,8 +26,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.NotificationCastListener
@@ -105,6 +110,9 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
                 }
 
                 ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
+
+                // Cài đặt chuỗi TikTok
+                TikTokStreakSettingsCard(context = context)
 
                 // Thẻ công cụ gửi thông báo thử nghiệm
                 TestNotificationCard(context = context, connected = connected)
@@ -310,6 +318,110 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
                 height = 40.dp,
             )
         }
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PillButton(
+                text = "Thử Chuỗi TikTok",
+                onClick = { sendTestTikTokStreakNotification(context) },
+                modifier = Modifier.fillMaxWidth(),
+                icon = IsleIcons.Bolt,
+                container = IsleColors.SurfaceHigh,
+                content = Color(0xFFFF5E00),
+                height = 40.dp,
+            )
+        }
+    }
+}
+
+/** Thẻ cài đặt tính năng Nhắc nhở chuỗi TikTok và tin nhắn tùy chỉnh */
+@Composable
+private fun TikTokStreakSettingsCard(context: Context) {
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    var streakOn by remember { mutableStateOf(prefs.getBoolean("cast_tiktok_streak", true)) }
+    var streakMessage by remember {
+        mutableStateOf(prefs.getString("tiktok_streak_custom_message", "🔥") ?: "🔥")
+    }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(IsleColors.Surface)
+            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(24.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = streakOn,
+                    role = Role.Switch,
+                    onValueChange = {
+                        streakOn = it
+                        prefs.edit().putBoolean("cast_tiktok_streak", it).apply()
+                    },
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFFF5E00).copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(IsleIcons.Bolt, contentDescription = null, tint = Color(0xFFFF5E00), modifier = Modifier.size(16.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Nhắc nhở chuỗi TikTok", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
+                Text(
+                    "Bắt thông báo nhắc chuỗi TikTok, hiện đảo ngọn lửa để gửi tin nhắn duy trì nhanh",
+                    fontSize = 12.sp,
+                    color = IsleColors.TextSecondary,
+                    lineHeight = 16.sp,
+                )
+            }
+            IsleSwitch(checked = streakOn, onCheckedChange = null)
+        }
+
+        if (streakOn) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(IsleColors.SurfaceHigh)
+                    .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Nội dung tin nhắn gửi chuỗi:", fontSize = 12.sp, color = IsleColors.TextSecondary)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(IsleColors.Surface)
+                        .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BasicTextField(
+                        value = streakMessage,
+                        onValueChange = {
+                            streakMessage = it
+                            prefs.edit().putString("tiktok_streak_custom_message", it).apply()
+                        },
+                        singleLine = true,
+                        textStyle = TextStyle(fontSize = 14.sp, color = IsleColors.Text),
+                        cursorBrush = SolidColor(Color(0xFFFF5E00)),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Text("Tự động sao chép vào bộ nhớ tạm khi nhấn nút ngọn lửa", fontSize = 11.sp, color = IsleColors.TextSecondary)
+            }
+        }
     }
 }
 
@@ -428,6 +540,44 @@ private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
         context = context,
     )
     Toast.makeText(context, "Đã phát thẻ Tiến trình tải xuống lên Đảo Origin!", Toast.LENGTH_SHORT).show()
+}
+
+private fun sendTestTikTokStreakNotification(context: Context) {
+    runCatching {
+        val app = context.applicationContext
+        val intent = Intent(app, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", 35012)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+            putExtra("title", "TikTok · Chuỗi 🔥")
+            putExtra("text", "Nguyễn Văn A: Duy trì chuỗi với Nguyễn Văn A ngay nào!")
+            putExtra("subtext", "Chạm hoặc bấm Duy trì để gửi tin nhắn chuỗi")
+            putExtra("oi_left_content", "Chuỗi 🔥")
+            putExtra("oi_right_content", "🔥 Chuỗi")
+            putExtra("status_chip_text", "🔥 Chuỗi")
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_force_show", true)
+            putExtra("is_high_priority", true)
+            putExtra("oi_dismiss_when_kill", true)
+            putExtra("icon_res", com.originisle.android.R.drawable.ic_tiktok_streak_fire)
+            putExtra("oi_light_color", "#FFFF5E00")
+            putExtra("oi_bg_color", "#FFFF5E00")
+            putExtra("oi_fg_color", "#FFFF5E00")
+            putStringArrayListExtra("oi_button_titles", arrayListOf("Duy trì"))
+        }
+        app.startService(intent)
+    }
+
+    CastLog.add(
+        app = "TikTok",
+        title = "Chuỗi 🔥",
+        outcome = "hiển thị — chuỗi TikTok: Nguyễn Văn A",
+        cast = true,
+        context = context,
+    )
+    Toast.makeText(context, "Đã phát thẻ Chuỗi TikTok lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
 @Composable

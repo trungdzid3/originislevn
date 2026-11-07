@@ -1,15 +1,20 @@
-# Danh sách Công việc (Task Matrix) — OriginIsle-VN v1.3.2
+# Danh sách Công việc (Task Matrix) — OriginIsle-VN v1.4.0
 
 ## Hợp đồng Dữ liệu & Giao diện Đã Chốt (Contract Freeze Gate)
-1. **Loại bỏ Hoàn toàn Cơ chế Suy đoán Ảo Quick Share (`QuickShareCard.kt`, `QuickShareDetector.kt`, `NotificationCastListener.kt`)**:
-   - Thêm trạng thái `isFailed` trong `QuickShareInfo` nhận diện chính xác các từ khóa lỗi: `"lỗi"`, `"thất bại"`, `"không thể"`, `"failed"`, `"error"`, `"không thành công"`.
-   - Bỏ điều kiện đoán mò `(info.progress >= 99)` hoặc `(info.progress >= 80)` trong `isFinishedEffective`. Chỉ công nhận hoàn tất khi:
-     (1) `info.isFinished == true` (thông báo ghi rõ từ khóa hoàn tất/thành công hoặc có action mở/xem tệp không kèm cờ ongoing), HOẶC
-     (2) `progress == 100`.
-   - Bỏ watchdog 2.5s tự động ép sang 100% khi ở 90..99%. Nếu sau 15s không có thông báo mới thì tự đóng đảo mà KHÔNG báo 100%.
-   - Trong `onNotificationRemoved`: Nếu thông báo bị xóa lúc chưa hoàn tất hoặc mang dấu hiệu lỗi/hủy, phát hoạt ảnh `postCanceled` (Đã hủy / Lỗi) hoặc đóng thẻ ngay, tuyệt đối không gọi `postFinished` khi chỉ mới ở 80..99%.
+1. **Nhận diện Thông báo Chuỗi TikTok (`TikTokStreakDetector.kt`)**:
+   - Gói TikTok: `com.ss.android.ugc.trill`, `com.zhiliaoapp.musically`, `com.ss.android.ugc.aweme`.
+   - Bắt kênh `dm_streaks_push`, `enable_streak_notification`, `streak_remind`, hoặc tiêu đề/nội dung chứa: `"chuỗi"`, `"streak"`, `"lửa"`, `"ngọn lửa"`, biểu tượng emoji lửa 🔥.
+   - Trích xuất: Tên người gửi/bạn bè chuỗi, nội dung nhắc nhở, số ngày chuỗi (nếu có), `PendingIntent` mở cuộc trò chuyện.
+2. **Thẻ Đảo Động Chuỗi TikTok (`TikTokStreakCard.kt`)**:
+   - `ID = 35012`
+   - Giao diện: Icon ngọn lửa 🔥 (`ic_tiktok_streak_fire.xml`), nền hiệu ứng gradient cam lửa `#FF5E00` -> `#FF9900`.
+   - Nút hành động "Duy trì chuỗi": Bấm vào kích hoạt `TikTokStreakActionReceiver` copy tin nhắn tùy chỉnh vào Clipboard và kích hoạt mở thẳng cuộc trò chuyện TikTok.
+3. **Cấu hình & Tùy biến (`HomeScreen.kt`, `ActivityScreen.kt`, `IslandSamples.kt`)**:
+   - Khóa SharedPreferences: `cast_tiktok_streak` (mặc định `true`), `tiktok_streak_custom_message` (mặc định `"🔥"`).
+   - Thêm ô nhập nội dung tin nhắn tùy chỉnh trong giao diện Cài đặt.
+   - Thêm mẫu thử "Chuỗi TikTok" trên màn hình Thử nghiệm.
 
 ## Phân quyền Subagent & Khóa File (Locked Files)
-- [x] Task 1: Bổ sung `isFailed` và hoàn thiện bóc tách trạng thái lỗi/hủy/hoàn tất thực sự trong `QuickShareDetector.kt` | [Agent: Subagent-QuickShare-ExactState] | [Skill: reverse-engineer-anything] | [Locked Files: app/src/main/java/com/originisle/android/quickshare/QuickShareDetector.kt]
-- [x] Task 2: Loại bỏ đoán mò 99% / 80%, gỡ bỏ watchdog tự bung 100%, hiển thị thẻ Thất bại/Lỗi màu đỏ trong `QuickShareCard.kt` và xử lý `onNotificationRemoved` trong `NotificationCastListener.kt` | [Agent: Subagent-QuickShare-NoGuessing] | [Skill: frontend-design] | [Locked Files: app/src/main/java/com/originisle/android/cards/QuickShareCard.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
-- [ ] Task 3: Nâng phiên bản `1.3.2` (`versionCode = 10302`), kiểm thử Unit Test, đóng gói `OriginIsle-VN-v1.3.2.apk`, cập nhật `PROJECT_CONTEXT.md` và đồng bộ Git | [Agent: Lead Orchestrator] | [Skill: pr-feedback-quality-gate] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md]
+- [x] Task 1: Xây dựng `TikTokStreakDetector.kt` và `TikTokStreakCard.kt` (`ID = 35012`), đăng ký `TikTokStreakActionReceiver` trong `AndroidManifest.xml` | [Agent: Subagent-TikTokStreak-Core] | [Skill: reverse-engineer-anything] | [Locked Files: app/src/main/java/com/originisle/android/tiktok/TikTokStreakDetector.kt, app/src/main/java/com/originisle/android/cards/TikTokStreakCard.kt, app/src/main/java/com/originisle/android/tiktok/TikTokStreakActionReceiver.kt, app/src/main/AndroidManifest.xml]
+- [x] Task 2: Tích hợp `TikTokStreakDetector` vào `NotificationCastListener.kt` (ưu tiên cao, hiển thị thẻ Đảo `ID = 35012`) và bổ sung giao diện cấu hình/mẫu thử trong `HomeScreen.kt`, `ActivityScreen.kt`, `IslandSamples.kt` | [Agent: Subagent-TikTokStreak-UIIntegration] | [Skill: minimalist-ui] | [Locked Files: app/src/main/java/com/originisle/android/service/NotificationCastListener.kt, app/src/main/java/com/originisle/android/ui/HomeScreen.kt, app/src/main/java/com/originisle/android/ui/ActivityScreen.kt, app/src/main/java/com/originisle/android/ui/samples/IslandSamples.kt]
+- [ ] Task 3: Nâng phiên bản `1.4.0` (`versionCode = 10400`), chạy Unit Tests, đóng gói `OriginIsle-VN-v1.4.0.apk`, cập nhật `PROJECT_CONTEXT.md` và đồng bộ Git | [Agent: Lead Orchestrator] | [Skill: pr-feedback-quality-gate] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md]

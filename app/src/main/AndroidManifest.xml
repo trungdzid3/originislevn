@@ -105,5 +105,14 @@
             android:name=".service.TorchOffReceiver"
             android:exported="false" />
 
+        <!-- TikTok Streak Action Receiver -->
+        <receiver
+            android:name=".tiktok.TikTokStreakActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.originisle.android.ACTION_SEND_TIKTOK_STREAK" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

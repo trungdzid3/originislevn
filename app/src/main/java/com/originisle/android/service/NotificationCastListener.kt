@@ -41,7 +41,9 @@ import com.originisle.android.cards.RideCard
 import com.originisle.android.cards.RingerModeCard
 import com.originisle.android.cards.DownloadCard
 import com.originisle.android.cards.QuickShareCard
+import com.originisle.android.cards.TikTokStreakCard
 import com.originisle.android.quickshare.QuickShareDetector
+import com.originisle.android.tiktok.TikTokStreakDetector
 import com.originisle.android.download.DownloadDetector
 import com.originisle.android.bank.VietnamBankDetector
 import com.originisle.android.ride.VietnamRideDetector
@@ -978,6 +980,19 @@ class NotificationCastListener : NotificationListenerService() {
                 return // BẮT BUỘC return ở đây! Tuyệt đối không để bất kỳ thông báo Quick Share nào trôi xuống GenericCard!
             }
 
+            // 2.2) Nhắc nhở chuỗi trò chuyện TikTok (TikTok Streak)
+            if (prefs.getBoolean("cast_tiktok_streak", true) &&
+                TikTokStreakDetector.isTikTokStreak(sbn) &&
+                isAppEnabled(prefs, sbn.packageName)
+            ) {
+                val streakInfo = TikTokStreakDetector.parse(sbn)
+                if (streakInfo != null) {
+                    TikTokStreakCard.post(applicationContext, streakInfo, sbn)
+                    log(sbn, "hiển thị — chuỗi TikTok: ${streakInfo.friendName}", true)
+                    return
+                }
+            }
+
             // 2.5) Cô lập tuyệt đối thông báo âm nhạc / đa phương tiện (Zing MP3, Spotify, NCT, YouTube Music, MediaStyle...)
             //      Không bao giờ cho phép lọt vào DownloadDetector hoặc GenericCard.
             val token = extractMediaSessionToken(extras)
@@ -1634,6 +1649,17 @@ class NotificationCastListener : NotificationListenerService() {
         lastOutcome.remove(sbn.key)
         lastScorePostTime.remove(sbn.key)
         lastCastPostTime.remove(sbn.key)
+
+        if (TikTokStreakDetector.isTikTokStreak(sbn)) {
+            TikTokStreakCard.clear(applicationContext)
+            startService(
+                Intent(this, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", 35012)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+            return
+        }
 
         if (sbn.packageName == ZaloCallDetector.ZALO_PKG && (ZaloCallDetector.isZaloCall(sbn) || ZaloCallCard.isActive())) {
             val hasRemainingZaloCall = runCatching {
