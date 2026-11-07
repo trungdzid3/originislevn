@@ -16,6 +16,7 @@ data class QuickShareInfo(
     val isIndeterminate: Boolean = false,
     val isFinished: Boolean = false,
     val isCanceled: Boolean = false,
+    val isFailed: Boolean = false,
     val speedText: String? = null,
     val isRequest: Boolean = false,
     val actions: List<Notification.Action> = emptyList(),
@@ -162,7 +163,11 @@ object QuickShareDetector {
             allText.contains("đã chia sẻ") ||
             allText.contains("hủy") ||
             allText.contains("cancel") ||
-            allText.contains("declined")
+            allText.contains("declined") ||
+            allText.contains("thất bại") ||
+            allText.contains("failed") ||
+            allText.contains("lỗi") ||
+            allText.contains("error")
 
         // 5. Kiểm tra Progress
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
@@ -337,21 +342,34 @@ object QuickShareDetector {
             allTextLower.contains("from ") ||
             actionTitles.any { it.contains("hủy") || it.contains("cancel") }
 
+        val isFailed = (
+            allTextLower.contains("thất bại") ||
+            allTextLower.contains("lỗi") ||
+            allTextLower.contains("không thể gửi") ||
+            allTextLower.contains("không thể nhận") ||
+            allTextLower.contains("không thành công") ||
+            allTextLower.contains("bị gián đoạn") ||
+            allTextLower.contains("failed") ||
+            allTextLower.contains("error") ||
+            allTextLower.contains("interrupted") ||
+            allTextLower.contains("couldn't send") ||
+            allTextLower.contains("couldn't receive")
+        ) && !hasAccept
+
         val isCanceled = (
             allTextLower.contains("đã hủy") ||
             allTextLower.contains("từ chối") ||
+            allTextLower.contains("bị hủy") ||
             allTextLower.contains("declined") ||
             allTextLower.contains("canceled") ||
             allTextLower.contains("cancelled") ||
-            allTextLower.contains("failed") ||
-            allTextLower.contains("thất bại") ||
-            allTextLower.contains("không thành công")
-        ) && !hasAccept && !hasFinishKeywords
+            allTextLower.contains("rejected")
+        ) && !hasAccept && !isFailed
 
-        val isRequest = !isCanceled && (hasAccept || hasDecline || isRequestByText)
+        val isRequest = !isCanceled && !isFailed && (hasAccept || hasDecline || isRequestByText)
 
-        val isFinished = !isRequest && !hasAccept && !hasDecline && !isCanceled && (
-            (max > 0 && curr >= max) ||
+        val isFinished = !isRequest && !hasAccept && !hasDecline && !isCanceled && !isFailed && (
+            (max > 0 && curr >= max && max == 100) ||
             progress >= 100 ||
             hasFinishKeywords ||
             (hasFinishAction && !hasActiveTransferKeywords)
@@ -370,7 +388,7 @@ object QuickShareDetector {
             allTextLower.contains("preparing to receive") ||
             allTextLower.contains("incoming")
 
-        if (!isFinished && !isCanceled) {
+        if (!isFinished && !isCanceled && !isFailed) {
             if (isOngoing && (isIndeterminate || isConnectingOrWaiting || (max > 0 && progress <= 0))) {
                 isIndeterminate = true
                 if (progress <= 0) progress = 0
@@ -396,6 +414,7 @@ object QuickShareDetector {
         }
 
         val displayTitle = when {
+            isFailed -> "Thất bại"
             isCanceled -> "Đã hủy"
             isRequest && deviceName != null -> "Chia sẻ từ $deviceName"
             isRequest -> title.ifBlank { "Yêu cầu Quick Share" }
@@ -405,7 +424,8 @@ object QuickShareDetector {
         }
 
         val displayStatus = when {
-            isCanceled -> "✕"
+            isFailed -> text.ifBlank { "Lỗi truyền tệp" }
+            isCanceled -> text.ifBlank { "Đã hủy truyền tệp" }
             isRequest -> text.ifBlank { "Chạm hoặc chọn Chấp nhận để nhận tệp" }
             isFinished -> "Đã hoàn tất truyền tệp"
             !speedText.isNullOrBlank() && fileName != null -> "$fileName · $speedText"
@@ -424,6 +444,7 @@ object QuickShareDetector {
             isIndeterminate = isIndeterminate,
             isFinished = isFinished,
             isCanceled = isCanceled,
+            isFailed = isFailed,
             speedText = speedText,
             isRequest = isRequest,
             actions = rawActions.take(3),

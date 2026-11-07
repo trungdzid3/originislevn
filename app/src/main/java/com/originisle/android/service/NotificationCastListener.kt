@@ -695,7 +695,7 @@ class NotificationCastListener : NotificationListenerService() {
                             val id = QuickShareCard.ID
                             val qsInfo = QuickShareDetector.parse(sbn)
                             if (qsInfo != null) {
-                                if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
+                                if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isFailed || qsInfo.isRequest) {
                                     activeQuickShareIds.remove(id)
                                 } else {
                                     activeQuickShareIds.add(id)
@@ -963,7 +963,7 @@ class NotificationCastListener : NotificationListenerService() {
                     val qsInfo = QuickShareDetector.parse(sbn)
                     if (qsInfo != null) {
                         val id = QuickShareCard.ID
-                        if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
+                        if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isFailed || qsInfo.isRequest) {
                             activeQuickShareIds.remove(id)
                         } else {
                             activeQuickShareIds.add(id)
@@ -1710,18 +1710,21 @@ class NotificationCastListener : NotificationListenerService() {
                 }
                 activeQuickShareIds.remove(id)
                 activeQuickShareIds.remove(QuickShareCard.ID)
+                val info = QuickShareDetector.parse(sbn)
                 val ex = sbn.notification.extras
                 val rawText = "${ex.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()} ${ex.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()}".lowercase()
-                val wasCanceledText = rawText.contains("hủy") || rawText.contains("cancel") ||
+                val isFailOrCancelKeyword = rawText.contains("hủy") || rawText.contains("cancel") ||
                     rawText.contains("từ chối") || rawText.contains("decline") ||
-                    rawText.contains("thất bại") || rawText.contains("failed")
+                    rawText.contains("thất bại") || rawText.contains("failed") ||
+                    rawText.contains("lỗi")
+                val wasCanceledText = isFailOrCancelKeyword || info?.isFailed == true || info?.isCanceled == true
 
-                val isRequest = QuickShareDetector.parse(sbn)?.isRequest == true
+                val isRequest = info?.isRequest == true
                 val prog = if (lastProg >= 0) lastProg else QuickShareCard.getLastProgress(QuickShareCard.ID)
-                val isFinishedEffective = isFinished || QuickShareCard.isFinished(QuickShareCard.ID)
+                val isFinishedEffective = isFinished || QuickShareCard.isFinished(QuickShareCard.ID) || info?.isFinished == true
                 val isActuallyFinished = !isRequest &&
                     !QuickShareDetector.isIdleVisibilityNotification(sbn) &&
-                    (isFinishedEffective || prog >= 80)
+                    (isFinishedEffective || prog == 100)
 
                 // Dọn dẹp sạch ID cục bộ (IconCache.castIdFor(sbn)) nếu trước đó từng được tạo thẻ tải xuống hoặc thông báo thường
                 DownloadCard.clear(id)
@@ -1737,7 +1740,8 @@ class NotificationCastListener : NotificationListenerService() {
                 if (isActuallyFinished) {
                     QuickShareCard.postFinished(applicationContext, QuickShareCard.ID, appPkg, title)
                 } else if (wasCanceledText) {
-                    QuickShareCard.postCanceled(applicationContext, QuickShareCard.ID, appPkg)
+                    val isFail = info?.isFailed == true || rawText.contains("thất bại") || rawText.contains("failed") || rawText.contains("lỗi")
+                    QuickShareCard.postCanceled(applicationContext, QuickShareCard.ID, appPkg, isFailed = isFail)
                 } else {
                     QuickShareCard.clear(QuickShareCard.ID)
                     QuickShareCard.clear(id)
