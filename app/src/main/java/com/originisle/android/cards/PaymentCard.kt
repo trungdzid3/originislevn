@@ -126,11 +126,8 @@ object PaymentCard {
             .trim()
         val title = if (isIncome) "+$rawAmountClean" else "-$rawAmountClean"
 
-        val subtitle = if (isIncome) {
-            "Tiền vào · ${transaction.bankName}"
-        } else {
-            "Tiền ra · ${transaction.bankName}"
-        }
+        // Bỏ hoàn toàn khối chữ xám to đùng ở subtext
+        val subtitle = ""
 
         val content = transaction.description.ifBlank {
             if (isIncome) "Nhận tiền" else "Giao dịch thành công"

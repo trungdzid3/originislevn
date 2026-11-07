@@ -244,10 +244,13 @@ object OriginIslandBuilder {
                 )
             }
             template == 4 -> {
-                base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 1)
-                var str = subText?.takeIf { it.isNotBlank() } ?: extra1
-                if (str.isBlank()) str = " "
-                base.putString(C.BUNDLE_KEY_BASE_SUB_TEXT, str)
+                val str = subText?.takeIf { it.isNotBlank() && it.trim().isNotEmpty() }
+                if (!str.isNullOrBlank()) {
+                    base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 1)
+                    base.putString(C.BUNDLE_KEY_BASE_SUB_TEXT, str)
+                } else {
+                    base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
+                }
             }
             !subText.isNullOrBlank() -> {
                 base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 1)

@@ -103,6 +103,7 @@ fun HomeScreen(
     var ridesOn by remember { mutableStateOf(prefs.getBoolean("cast_rides", true)) }
     var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", true)) }
     var zaloCallOn by remember { mutableStateOf(prefs.getBoolean("cast_zalo_call", true)) }
+    var messengerCallOn by remember { mutableStateOf(prefs.getBoolean("cast_messenger_call", true)) }
     var tiktokStreakOn by remember { mutableStateOf(prefs.getBoolean("cast_tiktok_streak", true)) }
     var tiktokStreakMessage by remember {
         mutableStateOf(prefs.getString("tiktok_streak_custom_message", "🔥") ?: "🔥")
@@ -470,6 +471,18 @@ fun HomeScreen(
                     ) {
                         zaloCallOn = it
                         prefs.edit().putBoolean("cast_zalo_call", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Phone, Color(0xFF0084FF),
+                        title = "Báo cuộc gọi Messenger trên Đảo",
+                        checked = messengerCallOn,
+                        subtitle = "Hiển thị người gọi, avatar badge Messenger và nút Từ chối / Trả lời",
+                    ) {
+                        messengerCallOn = it
+                        prefs.edit().putBoolean("cast_messenger_call", it).apply()
                     }
 
                     GroupDivider()

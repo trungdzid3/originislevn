@@ -137,24 +137,25 @@ object DownloadCard {
             when {
                 // 3. Khi hoàn tất (info.isFinished)
                 isCompleted -> {
+                    val tickIcon = Icon.createWithResource(context, R.drawable.ic_success_tick_green)
                     putExtra("is_ongoing", false)
                     putExtra("icon_res", R.mipmap.ic_launcher_round)
                     putExtra("oi_left_icon", leftIcon)
                     putExtra("oi_large_icon", leftIcon)
+                    putExtra("oi_right_icon", tickIcon)
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-                    putExtra("oi_show_right_icon", false)
-                    putExtra("oi_left_content", "Tải xong")
-                    putExtra("oi_right_content", "100%")
-                    putExtra("status_chip_text", "100%")
-                    putExtra("oi_card_ring", 100)
+                    putExtra("oi_show_right_icon", true)
+                    putExtra("oi_left_content", "")
+                    putExtra("oi_right_content", "")
+                    putExtra("status_chip_text", "✓")
                     putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
                     putExtra("oi_light_color", "#00D084")
                     putExtra("oi_bg_color", "#4C00D084")
                     putExtra("oi_fg_color", "#00D084")
-                    putExtra("title", "Đã tải xong")
+                    putExtra("title", "$appLabel · Đã tải xong")
                     putExtra("text", info.title.take(40))
-                    putExtra("subtext", "$appLabel · Hoàn tất")
+                    putExtra("subtext", "")
                 }
                 // 4. Khi hủy / thất bại (info.isCanceled)
                 isCanceled -> {

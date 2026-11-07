@@ -1,20 +1,21 @@
-# Danh sách Công việc (Task Matrix) — OriginIsle-VN v1.4.0
+# Danh sách Công việc (Task Matrix) — OriginIsle-VN v1.5.0
 
 ## Hợp đồng Dữ liệu & Giao diện Đã Chốt (Contract Freeze Gate)
-1. **Nhận diện Thông báo Chuỗi TikTok (`TikTokStreakDetector.kt`)**:
-   - Gói TikTok: `com.ss.android.ugc.trill`, `com.zhiliaoapp.musically`, `com.ss.android.ugc.aweme`.
-   - Bắt kênh `dm_streaks_push`, `enable_streak_notification`, `streak_remind`, hoặc tiêu đề/nội dung chứa: `"chuỗi"`, `"streak"`, `"lửa"`, `"ngọn lửa"`, biểu tượng emoji lửa 🔥.
-   - Trích xuất: Tên người gửi/bạn bè chuỗi, nội dung nhắc nhở, số ngày chuỗi (nếu có), `PendingIntent` mở cuộc trò chuyện.
-2. **Thẻ Đảo Động Chuỗi TikTok (`TikTokStreakCard.kt`)**:
-   - `ID = 35012`
-   - Giao diện: Icon ngọn lửa 🔥 (`ic_tiktok_streak_fire.xml`), nền hiệu ứng gradient cam lửa `#FF5E00` -> `#FF9900`.
-   - Nút hành động "Duy trì chuỗi": Bấm vào kích hoạt `TikTokStreakActionReceiver` copy tin nhắn tùy chỉnh vào Clipboard và kích hoạt mở thẳng cuộc trò chuyện TikTok.
-3. **Cấu hình & Tùy biến (`HomeScreen.kt`, `ActivityScreen.kt`, `IslandSamples.kt`)**:
-   - Khóa SharedPreferences: `cast_tiktok_streak` (mặc định `true`), `tiktok_streak_custom_message` (mặc định `"🔥"`).
-   - Thêm ô nhập nội dung tin nhắn tùy chỉnh trong giao diện Cài đặt.
-   - Thêm mẫu thử "Chuỗi TikTok" trên màn hình Thử nghiệm.
+1. **Tích hợp Cuộc Gọi Messenger (`MessengerCallDetector.kt` & `MessengerCallCard.kt`)**:
+   - `MessengerCallDetector.kt`: Nhận diện cuộc gọi Messenger (`com.facebook.orca`), bắt `CallStyle` (`CATEGORY_CALL`), trích xuất tên người gọi, avatar (`largeIcon`), phân biệt cuộc gọi đến (`incoming`) và đang trong cuộc gọi (`ongoing`), lấy `actionIntent` của Trả lời (`answer`) và Từ chối / Kết thúc (`decline` / `end`).
+   - `MessengerCallCard.kt`: Cố định `ID = 35013`, vẽ avatar tròn kèm huy hiệu Messenger ở góc, hiển thị 2 nút bấm điều khiển (Từ chối / Trả lời hoặc Kết thúc / Mở app).
+2. **Khắc phục Triệt để Lỗi Zing MP3 Không Lên Đảo (`NotificationCastListener.kt` & `MediaCard.kt`)**:
+   - Trong `NotificationCastListener.kt`: Không bao giờ return sớm ở nhánh `isMusicApp && !isActualMedia` khi chưa quét `findMediaControllerFallback(sbn.packageName)`.
+   - Nếu `findMediaControllerFallback` tìm thấy session đang phát của Zing MP3 -> Gọi ngay `MediaCard.postFromController`.
+   - Trong `isOriginNativePlayerActive`: Luôn bỏ qua `com.zing.mp3` và các ứng dụng trong `THIRD_PARTY_MUSIC_PACKAGES`.
+   - Trong `MediaCard.kt`: Đảm bảo `oi_scene = "NAVIGATION"` và `oi_force_show = true`, loại bỏ các điều kiện chặn spam quá chặt khi đổi bài hát hoặc chuyển trạng thái phát.
+3. **Chuẩn hóa Giao diện Mở Rộng & Thay thế Biểu tượng Gọn gàng (`PaymentCard.kt`, `QuickShareCard.kt`, `DownloadCard.kt`, `OriginIslandBuilder.kt`)**:
+   - Xóa bỏ khối chữ xám to đùng `"Tiền ra · ..."` / `"Tiền vào · ..."` bên phải thẻ mở rộng trong `PaymentCard.kt`. Chuyển sang bố cục tinh tế: tiêu đề tiền to rõ nét (`+500.000 đ` xanh lá / `-150.000 đ` trắng/đỏ), tên ngân hàng hiển thị gọn gàng, `subText` chỉ để nội dung giao dịch súc tích.
+   - Khi hoàn tất (Quick Share xong, tải xuống xong): Thay chữ `"100%"` / `"Xong"` bằng icon dấu tích tròn xanh lá `ic_success_tick_green.xml`.
+   - Rà soát các thẻ mở rộng khác (`RideCard`, `ZaloCallCard`, `TikTokStreakCard`) để đảm bảo không còn khối chữ xám to đùng thô kệch.
 
 ## Phân quyền Subagent & Khóa File (Locked Files)
-- [x] Task 1: Xây dựng `TikTokStreakDetector.kt` và `TikTokStreakCard.kt` (`ID = 35012`), đăng ký `TikTokStreakActionReceiver` trong `AndroidManifest.xml` | [Agent: Subagent-TikTokStreak-Core] | [Skill: reverse-engineer-anything] | [Locked Files: app/src/main/java/com/originisle/android/tiktok/TikTokStreakDetector.kt, app/src/main/java/com/originisle/android/cards/TikTokStreakCard.kt, app/src/main/java/com/originisle/android/tiktok/TikTokStreakActionReceiver.kt, app/src/main/AndroidManifest.xml]
-- [x] Task 2: Tích hợp `TikTokStreakDetector` vào `NotificationCastListener.kt` (ưu tiên cao, hiển thị thẻ Đảo `ID = 35012`) và bổ sung giao diện cấu hình/mẫu thử trong `HomeScreen.kt`, `ActivityScreen.kt`, `IslandSamples.kt` | [Agent: Subagent-TikTokStreak-UIIntegration] | [Skill: minimalist-ui] | [Locked Files: app/src/main/java/com/originisle/android/service/NotificationCastListener.kt, app/src/main/java/com/originisle/android/ui/HomeScreen.kt, app/src/main/java/com/originisle/android/ui/ActivityScreen.kt, app/src/main/java/com/originisle/android/ui/samples/IslandSamples.kt]
-- [ ] Task 3: Nâng phiên bản `1.4.0` (`versionCode = 10400`), chạy Unit Tests, đóng gói `OriginIsle-VN-v1.4.0.apk`, cập nhật `PROJECT_CONTEXT.md` và đồng bộ Git | [Agent: Lead Orchestrator] | [Skill: pr-feedback-quality-gate] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md]
+- [x] Task 1: Xây dựng `MessengerCallDetector.kt` và `MessengerCallCard.kt` (`ID = 35013`) bóc tách cuộc gọi Messenger | [Agent: Subagent-MessengerCall-Core] | [Skill: reverse-engineer-anything] | [Locked Files: app/src/main/java/com/originisle/android/call/MessengerCallDetector.kt, app/src/main/java/com/originisle/android/cards/MessengerCallCard.kt]
+- [x] Task 2: Khắc phục triệt để luồng Zing MP3 và tích hợp `MessengerCallDetector` vào `NotificationCastListener.kt` | [Agent: Subagent-Listener-ZingAndMessenger] | [Skill: reverse-engineer-anything] | [Locked Files: app/src/main/java/com/originisle/android/service/NotificationCastListener.kt, app/src/main/java/com/originisle/android/cards/MediaCard.kt]
+- [x] Task 3: Chuẩn hóa khu vực thẻ mở rộng (xóa chữ xám to thô) trong `PaymentCard.kt`, `OriginIslandBuilder.kt`, và tích hợp icon dấu tích xanh `ic_success_tick_green` cho hoàn tất trong `QuickShareCard.kt`, `DownloadCard.kt` | [Agent: Subagent-UI-PolishAndTickIcon] | [Skill: frontend-design] | [Locked Files: app/src/main/java/com/originisle/android/cards/PaymentCard.kt, app/src/main/java/com/originisle/android/cards/QuickShareCard.kt, app/src/main/java/com/originisle/android/cards/DownloadCard.kt, app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt]
+- [x] Task 4: Nâng phiên bản `1.5.0` (`versionCode = 10500`), cập nhật giao diện Cài đặt và Mẫu thử trong `HomeScreen.kt`, `ActivityScreen.kt`, chạy Unit Tests, đóng gói `OriginIsle-VN-v1.5.0.apk`, cập nhật `PROJECT_CONTEXT.md` và đồng bộ Git | [Agent: Lead Orchestrator] | [Skill: pr-feedback-quality-gate] | [Locked Files: app/build.gradle.kts, app/src/main/java/com/originisle/android/ui/HomeScreen.kt, app/src/main/java/com/originisle/android/ui/ActivityScreen.kt, PROJECT_CONTEXT.md]

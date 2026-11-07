@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- Vòng tròn nền màu xanh lá rực rỡ #00D084 / #28C76F -->
+  <path
+      android:fillColor="#FF00D084"
+      android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z"/>
+  <!-- Dấu tích trắng nổi bật bo góc mềm mại -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M10.2,16.2l-3.9,-3.9c-0.39,-0.39 -0.39,-1.02 0,-1.41 0.39,-0.39 1.02,-0.39 1.41,0l3.19,3.19 6.89,-6.89c0.39,-0.39 1.02,-0.39 1.41,0 0.39,0.39 0.39,1.02 0,1.41l-7.6,7.6c-0.38,0.39 -1.02,0.39 -1.4,0z"/>
+</vector>

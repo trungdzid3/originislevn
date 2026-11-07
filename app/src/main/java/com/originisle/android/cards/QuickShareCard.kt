@@ -238,13 +238,15 @@ object QuickShareCard {
                 }
                 isFinishedEffective -> {
                     // Trạng thái hoàn tất truyền tệp
+                    val tickIcon = Icon.createWithResource(context, R.drawable.ic_success_tick_green)
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-                    putExtra("oi_show_right_icon", false)
-                    putExtra("oi_left_content", "Xong")
-                    putExtra("oi_right_content", "100%")
-                    putExtra("status_chip_text", "100%")
-                    putExtra("oi_card_ring", 100)
+                    putExtra("oi_left_icon", tickIcon)
+                    putExtra("oi_right_icon", tickIcon)
+                    putExtra("oi_show_right_icon", true)
+                    putExtra("oi_left_content", "")
+                    putExtra("oi_right_content", "")
+                    putExtra("status_chip_text", "✓")
                     putExtra("oi_light_color", "#00D084")
                     putExtra("oi_bg_color", "#00D084")
                     putExtra("oi_fg_color", "#00D084")
@@ -398,17 +400,19 @@ object QuickShareCard {
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("is_ongoing", false)
+            val tickIcon = Icon.createWithResource(context, R.drawable.ic_success_tick_green)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-            putExtra("oi_show_right_icon", false)
-            putExtra("oi_left_content", "Xong")
-            putExtra("oi_right_content", "100%")
-            putExtra("status_chip_text", "100%")
-            putExtra("oi_card_ring", 100)
+            putExtra("oi_left_icon", tickIcon)
+            putExtra("oi_right_icon", tickIcon)
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_left_content", "")
+            putExtra("oi_right_content", "")
+            putExtra("status_chip_text", "✓")
             putExtra("oi_light_color", "#00D084")
             putExtra("oi_bg_color", "#00D084")
             putExtra("oi_fg_color", "#00D084")
-            putExtra("title", "$title · Hoàn tất")
+            putExtra("title", "Quick Share · Hoàn tất")
             putExtra("text", "Đã nhận tệp")
         }
         context.startService(intent)

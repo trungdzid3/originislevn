@@ -59,14 +59,22 @@ object MediaCard {
     /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
     val THIRD_PARTY_MUSIC_PACKAGES = setOf(
         "com.zing.mp3",
+        "com.vng.zingmp3",
+        "ht.bkit.nhaccuatui",
+        "com.nhaccuatui.player",
         "com.spotify.music",
         "com.spotify.music.lite",
-        "com.nhaccuatui.player",
+        "com.spotify.music.canary",
         "com.google.android.apps.youtube.music",
         "com.soundcloud.android",
         "com.apple.android.music",
         "deezer.android.app",
         "com.amazon.mp3",
+        "com.aspiro.tidal",
+        "com.audiomack",
+        "tunein.player",
+        "fm.player",
+        "vstudio.android.musicplayer",
     )
 
     private val handler = Handler(Looper.getMainLooper())
@@ -84,7 +92,7 @@ object MediaCard {
         for (active in activeNotifs) {
             val pkg = active.packageName.lowercase()
             if (pkg == context.packageName.lowercase()) continue
-            if (pkg in THIRD_PARTY_MUSIC_PACKAGES) continue
+            if (pkg in THIRD_PARTY_MUSIC_PACKAGES || NotificationCastListener.isKnownMusicApp(pkg)) continue
 
             val isOngoing = active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
             if (!isOngoing) continue

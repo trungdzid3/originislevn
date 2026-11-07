@@ -33,9 +33,11 @@ import com.originisle.android.cards.GenericCard
 import com.originisle.android.cards.MediaCard
 import com.originisle.android.cards.MessageCard
 import com.originisle.android.call.ZaloCallDetector
+import com.originisle.android.call.MessengerCallDetector
 import com.originisle.android.cards.NavigationCard
 import com.originisle.android.cards.PaymentCard
 import com.originisle.android.cards.ZaloCallCard
+import com.originisle.android.cards.MessengerCallCard
 import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.cards.RideCard
 import com.originisle.android.cards.RingerModeCard
@@ -493,14 +495,19 @@ class NotificationCastListener : NotificationListenerService() {
         // Kiểm tra xem có app nhạc bên thứ 3 (Zing MP3, Spotify, Nhaccuatui...) đang phát / có thông báo nhạc không
         val hasActiveThirdPartyMusic = notifs.any { active ->
             val p = active.packageName.lowercase()
-            if (p in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES || p == packageName || p in SYSTEM_PKGS) {
+            val isKnown = isKnownMusicApp(p) || p in MediaCard.THIRD_PARTY_MUSIC_PACKAGES
+            if (isKnown) {
+                val hasToken = active.notification.extras?.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) == true
+                val isMedia = isMediaStyleOrTransport(active.notification)
+                val hasController = findMediaControllerFallback(active.packageName) != null
+                val isOngoing = active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
+                isOngoing || hasToken || isMedia || hasController
+            } else if (p in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES || p == packageName || p in SYSTEM_PKGS) {
                 false
             } else {
-                val isKnown = isKnownMusicApp(p) || p in MediaCard.THIRD_PARTY_MUSIC_PACKAGES
-                val hasToken = active.notification.extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION)
+                val hasToken = active.notification.extras?.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) == true
                 val isMedia = isMediaStyleOrTransport(active.notification)
-                val hasController = isKnown && findMediaControllerFallback(active.packageName) != null
-                (isKnown || hasToken || isMedia) && (active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || hasController)
+                (hasToken || isMedia) && (active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0)
             }
         }
 
@@ -651,15 +658,48 @@ class NotificationCastListener : NotificationListenerService() {
                         }
                         return@forEach
                     }
+                    if (castNotifs && prefs.getBoolean("cast_calls", true) &&
+                        prefs.getBoolean("cast_messenger_call", true) &&
+                        MessengerCallDetector.isMessengerCall(sbn) &&
+                        isAppEnabled(prefs, sbn.packageName)
+                    ) {
+                        val callInfo = MessengerCallDetector.parse(applicationContext, sbn)
+                        if (callInfo != null) {
+                            MessengerCallCard.post(applicationContext, callInfo, sbn)
+                        }
+                        return@forEach
+                    }
                     val extras = sbn.notification.extras
                     val token = extractMediaSessionToken(extras)
                     val isMusicApp = DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)
-                    val isActualMedia = isActualMediaPlaybackNotification(sbn, token)
+                    var isActualMedia = isActualMediaPlaybackNotification(sbn, token)
+                    var fallbackController: MediaController? = null
                     if (isMusicApp && !isActualMedia) {
-                        // Thông báo phụ của app nhạc (ví dụ: "Đang tải nhạc 6/13 bài" của Zing MP3):
-                        // Bỏ qua hoàn toàn để không tạo thẻ Media thứ 2 và không rơi xuống DownloadCard!
-                        cancelStrayDownloadCard(IconCache.castIdFor(sbn))
-                        return@forEach
+                        if (isAuxiliaryMusicDownloadNotif(sbn, token)) {
+                            cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                            return@forEach
+                        }
+                        val c = findMediaControllerFallback(sbn.packageName)
+                        val pbState = c?.playbackState?.state
+                        val meta = c?.metadata
+                        val hasMetadata = meta != null &&
+                            (!meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE).isNullOrBlank() ||
+                             !meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST).isNullOrBlank())
+                        val isPlayingOrValidMedia = when (pbState) {
+                            PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
+                            PlaybackState.STATE_FAST_FORWARDING, PlaybackState.STATE_REWINDING,
+                            PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
+                            PlaybackState.STATE_CONNECTING -> true
+                            PlaybackState.STATE_PAUSED -> hasMetadata
+                            else -> false
+                        }
+                        if (c != null && (isPlayingOrValidMedia || sbn.isOngoing)) {
+                            fallbackController = c
+                            isActualMedia = true
+                        } else {
+                            cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                            return@forEach
+                        }
                     }
                     if (isActualMedia) {
                         cancelStrayDownloadCard(IconCache.castIdFor(sbn))
@@ -673,12 +713,14 @@ class NotificationCastListener : NotificationListenerService() {
                             return@forEach
                         }
                         if (castMedia && isAppEnabled(prefs, sbn.packageName)) {
-                            val controller = try {
+                            val controller = fallbackController ?: try {
                                 if (token != null) MediaController(this@NotificationCastListener, token)
                                 else findMediaControllerFallback(sbn.packageName)
                             } catch (_: Exception) { null }
                             handledMediaInPoll = true
-                            MediaCard.post(applicationContext, sbn, controller, forceRefresh = false)
+                            if (controller != null) {
+                                MediaCard.post(applicationContext, sbn, controller, forceRefresh = false)
+                            }
                         }
                         return@forEach
                     } else if (castNotifs && sbn.isOngoing &&
@@ -944,6 +986,20 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
+            // 0.1) Cuộc gọi Messenger (Thoại & Video đến / Đang đàm thoại)
+            if (prefs.getBoolean("cast_calls", true) &&
+                prefs.getBoolean("cast_messenger_call", true) &&
+                MessengerCallDetector.isMessengerCall(sbn) &&
+                isAppEnabled(prefs, sbn.packageName)
+            ) {
+                val callInfo = MessengerCallDetector.parse(applicationContext, sbn)
+                if (callInfo != null) {
+                    MessengerCallCard.post(applicationContext, callInfo, sbn)
+                    log(sbn, "hiển thị — cuộc gọi Messenger: ${callInfo.callerName}", true)
+                    return
+                }
+            }
+
             // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
             //    Phải kiểm tra đầu tiên để không bị nhận diện nhầm mã giao dịch/số tài khoản.
             val bankTx = VietnamBankDetector.parse(sbn)
@@ -997,14 +1053,47 @@ class NotificationCastListener : NotificationListenerService() {
             //      Không bao giờ cho phép lọt vào DownloadDetector hoặc GenericCard.
             val token = extractMediaSessionToken(extras)
             val isMusicApp = DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)
-            val isActualMedia = !isCall && isActualMediaPlaybackNotification(sbn, token)
+            var isActualMedia = !isCall && isActualMediaPlaybackNotification(sbn, token)
+            var fallbackController: MediaController? = null
+
             if (isMusicApp && !isActualMedia) {
-                // Thông báo phụ của ứng dụng nhạc (như tiến trình tải nhạc nền của Zing MP3):
-                // Không phải trình phát nhạc MediaStyle và cũng không được phép tạo DownloadCard.
-                cancelStrayDownloadCard(IconCache.castIdFor(sbn))
-                log(sbn, "bỏ qua — thông báo phụ của ứng dụng nhạc", false)
-                return
+                // Chỉ return khi thực sự là thông báo tải ngoại tuyến
+                if (isAuxiliaryMusicDownloadNotif(sbn, token)) {
+                    cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                    log(sbn, "bỏ qua — thông báo tải nhạc ngoại tuyến", false)
+                    return
+                }
+
+                // TUYỆT ĐỐI KHÔNG vội return ngay nếu chưa thử tìm controller = findMediaControllerFallback(sbn.packageName)
+                val c = findMediaControllerFallback(sbn.packageName)
+                val pbState = c?.playbackState?.state
+                val meta = c?.metadata
+                val hasMetadata = meta != null &&
+                    (!meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE).isNullOrBlank() ||
+                     !meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST).isNullOrBlank())
+                val isPlayingOrValidMedia = when (pbState) {
+                    PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
+                    PlaybackState.STATE_FAST_FORWARDING, PlaybackState.STATE_REWINDING,
+                    PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
+                    PlaybackState.STATE_CONNECTING -> true
+                    PlaybackState.STATE_PAUSED -> hasMetadata
+                    else -> false
+                }
+
+                if (c != null && isPlayingOrValidMedia) {
+                    fallbackController = c
+                    isActualMedia = true
+                } else if (sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0) {
+                    // Nếu là thông báo ongoing từ app nhạc nhưng chưa có state rõ ràng
+                    fallbackController = c
+                    isActualMedia = true
+                } else {
+                    cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                    log(sbn, "bỏ qua — thông báo phụ của ứng dụng nhạc", false)
+                    return
+                }
             }
+
             if (isActualMedia) {
                 cancelStrayDownloadCard(IconCache.castIdFor(sbn))
                 if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
@@ -1028,12 +1117,12 @@ class NotificationCastListener : NotificationListenerService() {
                     log(sbn, "trình phát gốc Origin đang hoạt động — bỏ qua để tránh trùng", false)
                     return
                 }
-                val controller = try {
+                val controller = fallbackController ?: try {
                     if (token != null) MediaController(this, token)
                     else findMediaControllerFallback(sbn.packageName)
                 } catch (_: Exception) { null }
                 if (controller != null) {
-                    log(sbn, "hiển thị — trình phát nhạc", true)
+                    log(sbn, "hiển thị — trình phát nhạc: ${appLabel(sbn.packageName)}", true)
                     MediaCard.post(applicationContext, sbn, controller, forceRefresh = true)
                 } else {
                     pollHandler.postDelayed({
@@ -1671,6 +1760,26 @@ class NotificationCastListener : NotificationListenerService() {
             }.getOrDefault(false)
             if (!hasRemainingZaloCall) {
                 ZaloCallCard.clear(applicationContext)
+                return
+            }
+        }
+
+        if (sbn.packageName == MessengerCallDetector.MESSENGER_PKG && (MessengerCallDetector.isMessengerCall(sbn) || MessengerCallCard.isActive())) {
+            val hasRemainingMessengerCall = runCatching {
+                activeNotifications?.any { active ->
+                    active.key != sbn.key &&
+                        active.packageName == MessengerCallDetector.MESSENGER_PKG &&
+                        MessengerCallDetector.isMessengerCall(active)
+                } == true
+            }.getOrDefault(false)
+            if (!hasRemainingMessengerCall) {
+                MessengerCallCard.clear(applicationContext)
+                startService(
+                    Intent(this, PlaygroundService::class.java)
+                        .setAction(PlaygroundService.ACTION_CANCEL)
+                        .putExtra("id", MessengerCallCard.ID)
+                        .putExtra("oi_scene", "NAVIGATION"),
+                )
                 return
             }
         }
