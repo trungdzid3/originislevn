@@ -58,10 +58,6 @@ object MediaCard {
 
     /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
     val THIRD_PARTY_MUSIC_PACKAGES = setOf(
-        "com.zing.mp3",
-        "com.vng.zingmp3",
-        "ht.bkit.nhaccuatui",
-        "com.nhaccuatui.player",
         "com.spotify.music",
         "com.spotify.music.lite",
         "com.spotify.music.canary",
@@ -84,7 +80,7 @@ object MediaCard {
     /**
      * Kiểm tra xem Đảo gốc OriginOS 6 có đang hiển thị trình phát nhạc hay không:
      * Chỉ trả về true khi và chỉ khi Đảo nhạc gốc của Vivo THỰC SỰ đang chạy và đang ongoing.
-     * Tuyệt đối không tính các ứng dụng nhạc ngoài như Zing MP3, Spotify, Nhaccuatui, YouTube Music.
+     * Tuyệt đối không tính các ứng dụng nhạc ngoài như Spotify, Apple Music, YouTube Music.
      */
     fun isOriginNativePlayerActive(context: Context): Boolean {
         val listener = NotificationCastListener.instance ?: return false
@@ -134,7 +130,7 @@ object MediaCard {
             return
         }
 
-        // 2. Tuyệt đối KHÔNG thu hồi thẻ của các ứng dụng nhạc ngoài (Zing MP3, Spotify, Nhaccuatui, YouTube Music, ...)
+        // 2. Tuyệt đối KHÔNG thu hồi thẻ của các ứng dụng nhạc ngoài (Spotify, Apple Music, YouTube Music, ...)
         val isThirdParty = pkg in THIRD_PARTY_MUSIC_PACKAGES ||
             (!pkg.startsWith("com.vivo.") && !pkg.startsWith("com.bbk.") && !pkg.startsWith("com.android.bbk"))
 

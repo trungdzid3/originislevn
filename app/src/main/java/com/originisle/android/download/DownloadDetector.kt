@@ -40,11 +40,6 @@ object DownloadDetector {
     )
 
     private val MEDIA_PACKAGES = setOf(
-        "com.zing.mp3",
-        "com.vng.zingmp3",
-        "vn.nhaccuatui",
-        "ht.bkit.nhaccuatui",
-        "com.nhaccuatui.player",
         "com.spotify.music",
         "com.spotify.music.canary",
         "com.spotify.lite",
@@ -164,7 +159,6 @@ object DownloadDetector {
         if (lower in MEDIA_PACKAGES) return true
         if (lower.contains("music") || lower.contains("mp3") || lower.contains("audio") ||
             lower.contains("podcast") || lower.contains("radio") || lower.contains("mediaplayer") ||
-            lower.contains("nhaccuatui") || lower.contains("zingmp3") || lower.contains("zing.mp3") ||
             lower.contains("spotify") || lower.contains("soundcloud") || lower.contains("youtubemusic")
         ) {
             return true

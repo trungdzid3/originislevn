@@ -257,11 +257,8 @@ class NotificationCastListener : NotificationListenerService() {
             RegexOption.IGNORE_CASE,
         )
 
-        /** Danh sách các ứng dụng âm nhạc phổ biến (Zing MP3, Nhaccuatui, Spotify, YouTube Music, Soundcloud, ...). */
+        /** Danh sách các ứng dụng âm nhạc phổ biến (Spotify, YouTube Music, Soundcloud, ...). */
         val KNOWN_MUSIC_APPS = setOf(
-            "com.zing.mp3",
-            "com.vng.zingmp3",
-            "ht.bkit.nhaccuatui",
             "com.spotify.music",
             "com.spotify.music.canary",
             "com.google.android.apps.youtube.music",
@@ -480,7 +477,7 @@ class NotificationCastListener : NotificationListenerService() {
     /**
      * Kiểm tra xem Đảo nhạc gốc của Vivo THỰC SỰ đang active với bài hát của hệ thống hay không.
      * Đảm bảo chỉ trả về true khi gói nhạc hệ thống Vivo thực sự đang phát bài hát của nó,
-     * tuyệt đối không tự ý xóa thẻ của Zing MP3, Spotify hay các app nhạc bên thứ ba khi người dùng đang nghe từ các app này.
+     * tuyệt đối không tự ý xóa thẻ của Spotify, YouTube Music hay các app nhạc bên thứ ba khi người dùng đang nghe từ các app này.
      */
     private fun isOriginNativePlayerActive(pkg: String? = null): Boolean {
         if (!pkg.isNullOrBlank()) {
@@ -490,7 +487,7 @@ class NotificationCastListener : NotificationListenerService() {
         }
         val notifs = runCatching { activeNotifications }.getOrNull() ?: return false
 
-        // Kiểm tra xem có app nhạc bên thứ 3 (Zing MP3, Spotify, Nhaccuatui...) đang phát / có thông báo nhạc không
+        // Kiểm tra xem có app nhạc bên thứ 3 (Spotify, YouTube Music...) đang phát / có thông báo nhạc không
         val hasActiveThirdPartyMusic = notifs.any { active ->
             val p = active.packageName.lowercase()
             val isKnown = isKnownMusicApp(p) || p in MediaCard.THIRD_PARTY_MUSIC_PACKAGES
@@ -509,7 +506,7 @@ class NotificationCastListener : NotificationListenerService() {
             }
         }
 
-        // Nếu người dùng đang nghe nhạc từ Zing MP3, Spotify, YouTube Music..., không coi Đảo gốc Vivo là active độc chiếm
+        // Nếu người dùng đang nghe nhạc từ Spotify, YouTube Music..., không coi Đảo gốc Vivo là active độc chiếm
         if (hasActiveThirdPartyMusic) {
             return false
         }
@@ -613,7 +610,7 @@ class NotificationCastListener : NotificationListenerService() {
             return true
         }
 
-        // Đối với các ứng dụng nhạc đã biết (như Zing MP3, Spotify, NhacCuaTui...):
+        // Đối với các ứng dụng nhạc đã biết (như Spotify, YouTube Music...):
         // Nếu không phải thông báo tải xuống phụ và có MediaController hoặc là thông báo ongoing/có tiêu đề bài hát -> nhận diện là Media!
         if (DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)) {
             if (findMediaControllerFallback(sbn.packageName) != null) return true
@@ -1035,7 +1032,7 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
-            // 2.5) Cô lập tuyệt đối thông báo âm nhạc / đa phương tiện (Zing MP3, Spotify, NCT, YouTube Music, MediaStyle...)
+            // 2.5) Cô lập tuyệt đối thông báo âm nhạc / đa phương tiện (Spotify, YouTube Music, MediaStyle...)
             //      Không bao giờ cho phép lọt vào DownloadDetector hoặc GenericCard.
             val token = extractMediaSessionToken(extras)
             val isMusicApp = DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)

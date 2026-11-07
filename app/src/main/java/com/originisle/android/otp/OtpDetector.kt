@@ -216,7 +216,6 @@ object OtpDetector {
         "com.android.systemui",
         "com.autonavi.minimap",
         "com.originisle.android",
-        "com.zing.mp3",
         "com.spotify.music",
         "com.google.android.apps.youtube.music",
         "com.google.android.youtube",

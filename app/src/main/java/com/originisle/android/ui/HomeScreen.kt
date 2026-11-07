@@ -564,7 +564,7 @@ fun HomeScreen(
                         IsleIcons.Music, IsleColors.Accent,
                         title = "Trình phát nhạc Đảo gốc OriginOS 6",
                         checked = mediaOn,
-                        subtitle = "Hiển thị sóng nhạc động và điều khiển (Spotify, YouTube Music, Zing MP3...)",
+                        subtitle = "Hiển thị sóng nhạc động và điều khiển (Spotify, YouTube Music, Apple Music...)",
                     ) {
                         mediaOn = it
                         prefs.edit().putBoolean("cast_media_sessions", it).apply()
