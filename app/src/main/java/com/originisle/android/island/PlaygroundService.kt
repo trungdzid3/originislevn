@@ -364,14 +364,18 @@ class PlaygroundService : Service() {
 
         val prevInScene = sceneCurrentId[scene]
         if (prevInScene != null && prevInScene != id) {
+            activeIds.remove(prevInScene)
+            originChangeRecord.remove(prevInScene)
+            originScenes.remove(prevInScene)
+            lastPosts.remove(prevInScene)
+            plainIds.remove(prevInScene)
             endOrigin(prevInScene, scene)
-            if (prevInScene >= 40000) {
-                activeIds.remove(prevInScene)
-                originChangeRecord.remove(prevInScene)
-                originScenes.remove(prevInScene)
-                lastPosts.remove(prevInScene)
-                plainIds.remove(prevInScene)
-            }
+            mainHandler.postDelayed({
+                try {
+                    notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, prevInScene)
+                    notificationManager.cancel(prevInScene)
+                } catch (_: Exception) {}
+            }, 200L)
         }
         sceneCurrentId[scene] = id
         activeIds.add(id)

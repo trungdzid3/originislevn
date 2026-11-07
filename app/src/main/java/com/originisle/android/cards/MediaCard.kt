@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -18,8 +19,10 @@ import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
@@ -34,6 +37,16 @@ import java.util.concurrent.ConcurrentHashMap
  * Tích hợp cơ chế phát hiện Đảo gốc OriginOS 6 để nhường quyền, chống đè 2 thẻ phát nhạc.
  */
 object MediaCard {
+
+    const val ID = 35010
+
+    @Volatile private var lastTrack: String = ""
+    @Volatile private var lastArtist: String = ""
+    @Volatile private var lastPlaying: Boolean? = null
+    @Volatile private var lastPkg: String = ""
+    @Volatile private var lastUiNightMode: Boolean? = null
+    @Volatile private var lastArtSignature: String = ""
+    @Volatile private var lastPostTimeMs: Long = 0L
 
     /** Các gói dịch vụ điều khiển đảo nhạc gốc trên OriginOS 6 (Vivo / iQOO) */
     val ORIGIN_NATIVE_MUSIC_PACKAGES = setOf(
@@ -94,13 +107,23 @@ object MediaCard {
         return false
     }
 
-    fun post(context: Context, sbn: StatusBarNotification, controller: MediaController) {
-        val id = IconCache.castIdFor(sbn)
+    fun post(
+        context: Context,
+        sbn: StatusBarNotification,
+        controller: MediaController?,
+        forceRefresh: Boolean = false,
+    ) {
+        val id = ID
+        val legacyId = IconCache.castIdFor(sbn)
+        if (legacyId != ID && PlaygroundService.activeCardIds.contains(legacyId)) {
+            clear(context, legacyId)
+        }
+
         val pkg = sbn.packageName.lowercase()
 
         // 1. Nếu chính gói phát nhạc gốc của Vivo gửi thông báo: nhường cho Đảo gốc, không can thiệp
         if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
-            clear(context, id)
+            clear(context, ID)
             return
         }
 
@@ -109,16 +132,13 @@ object MediaCard {
             (!pkg.startsWith("com.vivo.") && !pkg.startsWith("com.bbk.") && !pkg.startsWith("com.android.bbk"))
 
         if (!isThirdParty && isOriginNativePlayerActive(context)) {
-            clear(context, id)
+            clear(context, ID)
             CastLog.add("Nhạc", appLabel(context, sbn.packageName), "thu hồi thẻ — nhường Đảo gốc OriginOS 6 hiển thị", false)
             return
         }
 
-        activeMediaCastIds.add(id)
         val n = sbn.notification
-        IconCache.activeControllers[id] = controller
-
-        val md = controller.metadata
+        val md = controller?.metadata
         val track = md?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
             .ifBlank { extrasTitle(sbn) }
             .ifBlank { appLabel(context, sbn.packageName) }
@@ -128,19 +148,17 @@ object MediaCard {
             .take(60)
 
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)?.trim().orEmpty()
+            .ifBlank {
+                n.extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+            }
             .ifBlank { "Đang phát nhạc" }
             .replace("\r\n", " ")
             .replace("\n", " ")
             .trim()
             .take(40)
 
-        val durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-        val durSec = if (durationMs > 0) durationMs / 1000 else 0L
-        val posMs = controller.playbackState?.position ?: 0L
-        val posSec = if (posMs > 0) posMs / 1000 else 0L
-
         // Tối ưu trạng thái phát nhạc: hỗ trợ các app không gửi PlaybackState đầy đủ
-        val playbackStateValue = controller.playbackState?.state
+        val playbackStateValue = controller?.playbackState?.state
         val playing = when (playbackStateValue) {
             PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
             PlaybackState.STATE_FAST_FORWARDING, PlaybackState.STATE_REWINDING,
@@ -151,10 +169,12 @@ object MediaCard {
             else -> false
         }
 
-        val subtext = if (durationMs > 0) {
-            "${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
-        } else {
-            appLabel(context, sbn.packageName)
+        val isNightMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+        activeMediaCastIds.add(ID)
+        if (controller != null) {
+            IconCache.activeControllers[ID] = controller
+            IconCache.activeControllers[legacyId] = controller
         }
 
         val notifLargeIcon = n.getLargeIcon()
@@ -174,23 +194,51 @@ object MediaCard {
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: notifLargeBitmap)?.let(::shrinkForIcon)
 
+        val artSignature = rawAlbumArt?.let { bmp ->
+            val soft = ensureSoftwareBitmap(bmp)
+            if (soft.width > 0 && soft.height > 0) "${soft.width}x${soft.height}:${soft.getPixel(soft.width / 2, soft.height / 2)}" else "empty"
+        } ?: "none"
+
+        val now = SystemClock.elapsedRealtime()
+        val stateUnchanged = (
+            track == lastTrack &&
+                artist == lastArtist &&
+                playing == lastPlaying &&
+                sbn.packageName == lastPkg &&
+                isNightMode == lastUiNightMode &&
+                artSignature == lastArtSignature
+            )
+        if (stateUnchanged && PlaygroundService.activeCardIds.contains(ID)) {
+            return
+        }
+        val isTrackOrPlayChanged = (track != lastTrack || sbn.packageName != lastPkg || playing != lastPlaying)
+        lastTrack = track
+        lastArtist = artist
+        lastPlaying = playing
+        lastPkg = sbn.packageName
+        lastUiNightMode = isNightMode
+        lastArtSignature = artSignature
+        lastPostTimeMs = now
+
         val baseAlbumBitmap: Bitmap = rawAlbumArt ?: createDefaultAlbumBitmap(context, sbn.packageName)
-        val pillAlbumBitmap: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
-        val badgedAlbumBitmap: Bitmap = createBadgedAlbumArt(context, baseAlbumBitmap, sbn.packageName)
+        val artBmp: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
+        val expandedArtBmp: Bitmap = composeAlbumArtWithAppBadge(context, artBmp, sbn.packageName)
 
-        val pillLeftIcon: Icon = Icon.createWithBitmap(pillAlbumBitmap)
-        val badgedAlbumIcon: Icon = Icon.createWithBitmap(badgedAlbumBitmap)
+        val pillLeftIcon: Icon = Icon.createWithBitmap(artBmp)
+        val badgedAlbumIcon: Icon = Icon.createWithBitmap(expandedArtBmp)
 
-        IconCache.activeSmallIcons[id] = pillLeftIcon
-        IconCache.activeLargeBitmaps[id] = badgedAlbumBitmap
+        IconCache.activeSmallIcons[ID] = pillLeftIcon
+        IconCache.activeLargeBitmaps[ID] = expandedArtBmp
 
         val waveColors = waveColorsFrom(rawAlbumArt ?: baseAlbumBitmap)
 
         fun mediaAction(action: String) = PendingIntent.getBroadcast(
-            context, (id.toString() + action).hashCode(),
+            context, (ID.toString() + action).hashCode(),
             Intent(action).setPackage(context.packageName)
-                .putExtra("cast_id", id)
-                .putExtra(MediaControlReceiver.EXTRA_TOKEN, controller.sessionToken),
+                .putExtra("cast_id", ID)
+                .apply {
+                    controller?.sessionToken?.let { putExtra(MediaControlReceiver.EXTRA_TOKEN, it) }
+                },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -221,60 +269,50 @@ object MediaCard {
             ),
         )
 
-        if (playing) {
-            pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
-        } else {
-            pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
-            val task = Runnable {
-                pendingDismissTasks.remove(id)
-                val cancelIntent = Intent(context, PlaygroundService::class.java).apply {
-                    action = PlaygroundService.ACTION_CANCEL
-                    putExtra("id", id)
-                    putExtra("oi_scene", "NAVIGATION")
-                }
-                context.startService(cancelIntent)
-            }
-            pendingDismissTasks[id] = task
-            handler.postDelayed(task, 3000L)
-        }
+        pendingDismissTasks.remove(ID)?.let { handler.removeCallbacks(it) }
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", id)
-            putExtra("is_ongoing", playing)
-            putExtra("oi_show_notify", false)
-
-            putExtra("oi_scene", "NAVIGATION")
+            putExtra("id", ID)
+            putExtra("template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putExtra("scene", "MUSIC")
+            putExtra("oi_scene", "MUSIC")
             putExtra("title", track)
+            putExtra("content", artist)
             putExtra("text", artist)
-            putExtra("subtext", subtext)
+            putExtra("critical", true)
+            putExtra("oi_ongoing", playing)
+            putExtra("is_ongoing", playing)
+            putExtra("oi_auto_Disappear", false)
+            putExtra("oi_island_click_expand", true)
+            putExtra("oi_force_show", isTrackOrPlayChanged)
+            putExtra("oi_show_notify", false)
+            putExtra("oi_Suppress_Toast", true)
+
             putExtra("source_pkg", sbn.packageName)
             putExtra("oi_left_content", "")
-
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
             putExtra("oi_show_left_icon", true)
-            putExtra("oi_force_show", true)
             putExtra("icon_res", R.drawable.ic_media_play)
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
             putStringArrayListExtra("oi_button_titles", arrayListOf("", "", ""))
-            putExtra("oi_fg_color", "#FFFFFFFF")
-            putExtra("oi_bg_color", "#FF1F1F1F")
 
             if (playing) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
                 putExtra("oi_wave_state", 1)
                 putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
-                putExtra("oi_show_right_icon", false)
-                putExtra("status_chip_text", "")
-                putExtra("oi_right_content", "")
+                putExtra("status_chip_text", "Playing")
+                putExtra("oi_right_content", "Playing")
             } else {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
-                putExtra("oi_wave_state", 0)
-                putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
-                putExtra("oi_show_right_icon", false)
-                putExtra("status_chip_text", "")
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+                val pauseChipIcon = renderTintedBitmapIcon(context, R.drawable.ic_media_pause, Color.WHITE)
+                if (pauseChipIcon != null) {
+                    putExtra("oi_right_icon", pauseChipIcon)
+                    putExtra("oi_show_right_icon", true)
+                }
                 putExtra("oi_right_content", "")
+                putExtra("status_chip_text", " ")
             }
 
             putParcelableArrayListExtra("actions", actions)
@@ -288,14 +326,23 @@ object MediaCard {
     }
 
     fun clearAll(context: Context) {
-        val ids = activeMediaCastIds.toList()
+        val ids = (activeMediaCastIds + ID).toList()
         activeMediaCastIds.clear()
         for (id in ids) {
             clear(context, id)
         }
     }
 
-    fun clear(context: Context, id: Int) {
+    fun clear(context: Context, id: Int = ID) {
+        if (id == ID) {
+            lastTrack = ""
+            lastArtist = ""
+            lastPlaying = null
+            lastPkg = ""
+            lastUiNightMode = null
+            lastArtSignature = ""
+            lastPostTimeMs = 0L
+        }
         activeMediaCastIds.remove(id)
         pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
         IconCache.clear(id)
@@ -305,6 +352,12 @@ object MediaCard {
             putExtra("oi_scene", "NAVIGATION")
         }
         context.startService(cancelIntent)
+
+        // Nếu nơi gọi truyền legacyId (từ sbn) khi thông báo nhạc bị gỡ và legacyId không phải thẻ riêng đang chạy,
+        // đồng thời giải phóng luôn thẻ nhạc chuẩn ID = 35010
+        if (id != ID && !PlaygroundService.activeCardIds.contains(id) && PlaygroundService.activeCardIds.contains(ID)) {
+            clear(context, ID)
+        }
     }
 
     private fun extrasTitle(sbn: StatusBarNotification): String =
@@ -314,8 +367,29 @@ object MediaCard {
         context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
 
-    private fun makeAction(context: Context, iconRes: Int, pi: PendingIntent): Notification.Action =
-        Notification.Action.Builder(IconCache.safeResourceIcon(context, iconRes), "", pi).build()
+    private fun renderTintedBitmapIcon(context: Context, iconRes: Int, tintColor: Int): Icon? = runCatching {
+        val drawable = ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return null
+        val size = 96
+        val pad = 20
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(pad, pad, size - pad, size - pad)
+        drawable.setTint(tintColor)
+        drawable.setTintMode(PorterDuff.Mode.SRC_IN)
+        drawable.draw(canvas)
+        Icon.createWithBitmap(bmp)
+    }.getOrNull()
+
+    private fun makeAction(context: Context, iconRes: Int, pi: PendingIntent): Notification.Action {
+        val isNightMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val actionIconColor = if (isNightMode) Color.WHITE else Color.parseColor("#FF1C1C1E")
+        val icon = renderTintedBitmapIcon(context, iconRes, actionIconColor)
+            ?: IconCache.safeResourceIcon(context, iconRes)
+        return Notification.Action.Builder(icon, "", pi).build()
+    }
+
+    private fun composeAlbumArtWithAppBadge(context: Context, albumBitmap: Bitmap, pkg: String): Bitmap =
+        createBadgedAlbumArt(context, albumBitmap, pkg)
 
     /**
      * Bo góc cho ảnh bìa album (squircle bo cong mềm mại theo chuẩn thiết kế OriginOS 6)
