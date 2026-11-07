@@ -104,7 +104,13 @@ object DownloadDetector {
         "com.twitter.android",
         "com.tiktok.android",
         "com.shopee.vn",
-        "com.lazada.android"
+        "com.lazada.android",
+        "com.google.android.gms",
+        "com.google.android.apps.sharing",
+        "com.vivo.easyshare",
+        "com.vivo.share",
+        "com.bbk.share",
+        "com.samsung.android.app.share"
     )
 
     private val PERCENT_PATTERN = Pattern.compile("(\\d{1,3})\\s*%")
@@ -136,6 +142,10 @@ object DownloadDetector {
     }
 
     fun isDownload(sbn: StatusBarNotification): Boolean {
+        if (com.originisle.android.quickshare.QuickShareDetector.isQuickShare(sbn)) {
+            return false
+        }
+
         val n = sbn.notification
         val extras = n.extras
         val pkg = sbn.packageName

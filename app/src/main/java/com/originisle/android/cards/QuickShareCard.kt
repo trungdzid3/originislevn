@@ -132,8 +132,8 @@ object QuickShareCard {
         val sbnId = IconCache.castIdFor(sbn)
         val cardId = ID // 35009
 
-        // Nếu có phiên nhận tệp mới (request hoặc đang truyền thực tế 1..99%), xóa trạng thái finished cũ
-        if (info.isRequest || (info.progress in 1..99 && !info.isFinished) || (info.isIndeterminate && !info.isFinished)) {
+        // Nếu có phiên nhận tệp mới (request hoặc đang truyền thực tế 1..98%), xóa trạng thái finished cũ
+        if (info.isRequest || (info.progress in 1..98 && !info.isFinished) || (info.isIndeterminate && !info.isFinished)) {
             finishedIds.remove(cardId)
             finishedIds.remove(sbnId)
             cancelPendingDismiss(cardId)
@@ -150,7 +150,7 @@ object QuickShareCard {
         val lastProg = lastProgressMap[cardId] ?: lastProgressMap[sbnId] ?: -1
 
         val isOngoingNotif = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || sbn.isOngoing
-        val isFinishedEffective = info.isFinished || (info.progress >= 100) || (!isOngoingNotif && !info.isRequest && !info.isCanceled && (info.progress >= 80 || lastProg >= 80))
+        val isFinishedEffective = info.isFinished || (info.progress >= 99) || (!isOngoingNotif && !info.isRequest && !info.isCanceled && (info.progress >= 80 || lastProg >= 80))
         val isTerminal = isFinishedEffective || info.isCanceled
 
         // Throttle chống spam thông báo khi đang truyền tệp:
@@ -321,24 +321,39 @@ object QuickShareCard {
         } else if (info.isCanceled) {
             scheduleDelayedCancel(context, cardId, sbnId, 2500L)
         } else if (!info.isRequest) {
-            // Watchdog auto-dismiss cho nhánh đang truyền tệp (15s không cập nhật -> auto cancel)
+            // Hủy watchdog cũ nếu có
             watchdogTasks.remove(sbnId)?.let(handler::removeCallbacks)
             watchdogTasks.remove(cardId)?.let(handler::removeCallbacks)
-            val watchdog = Runnable {
-                watchdogTasks.remove(cardId)
-                watchdogTasks.remove(sbnId)
-                clear(cardId)
-                clear(sbnId)
-                context.startService(
-                    Intent(context, PlaygroundService::class.java)
-                        .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", ID)
-                        .putExtra("oi_scene", "NAVIGATION")
-                )
+
+            if (info.progress in 90..99) {
+                // Auto-Finish Watchdog cho mức tiến độ cao (90..99%):
+                // Sau 2500ms không có cập nhật mới, tự động bung thẻ "Hoàn tất · 100%" và tự động ẩn sau 3.5s!
+                val autoFinishRunnable = Runnable {
+                    watchdogTasks.remove(cardId)
+                    watchdogTasks.remove(sbnId)
+                    postFinished(context, cardId, sbn.packageName, info.title)
+                }
+                watchdogTasks[cardId] = autoFinishRunnable
+                watchdogTasks[sbnId] = autoFinishRunnable
+                handler.postDelayed(autoFinishRunnable, 2500L)
+            } else {
+                // Watchdog auto-dismiss cho nhánh đang truyền tệp thông thường (15s không cập nhật -> auto cancel)
+                val watchdog = Runnable {
+                    watchdogTasks.remove(cardId)
+                    watchdogTasks.remove(sbnId)
+                    clear(cardId)
+                    clear(sbnId)
+                    context.startService(
+                        Intent(context, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_CANCEL)
+                            .putExtra("id", ID)
+                            .putExtra("oi_scene", "NAVIGATION")
+                    )
+                }
+                watchdogTasks[cardId] = watchdog
+                watchdogTasks[sbnId] = watchdog
+                handler.postDelayed(watchdog, 15000L)
             }
-            watchdogTasks[cardId] = watchdog
-            watchdogTasks[sbnId] = watchdog
-            handler.postDelayed(watchdog, 15000L)
         }
     }
 

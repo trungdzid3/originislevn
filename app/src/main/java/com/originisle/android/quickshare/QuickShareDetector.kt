@@ -78,8 +78,39 @@ object QuickShareDetector {
         return idleKeywords.any { allTextLower.contains(it) }
     }
 
+    fun isServiceForegroundNotification(sbn: StatusBarNotification): Boolean {
+        val n = sbn.notification
+        val extras = n.extras
+        val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
+        val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+        val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+        val allLower = "$title $text".lowercase()
+        val hasProgress = max > 0 ||
+            extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false) ||
+            PERCENT_PATTERN.matcher(allLower).find()
+        if (hasProgress) return false
+
+        // Nếu không có actions, không có progress, và tiêu đề/nội dung chỉ là "quick share", "đang nhận tệp", "đang truyền tệp"
+        val hasActions = !n.actions.isNullOrEmpty()
+        if (hasActions) return false
+
+        val isGenericTitle = title.isEmpty() ||
+            title.equals("quick share", ignoreCase = true) ||
+            title.equals("chia sẻ nhanh", ignoreCase = true) ||
+            title.equals("nearby share", ignoreCase = true) ||
+            title.equals("chia sẻ lân cận", ignoreCase = true)
+        val isGenericText = text.isEmpty() ||
+            text.contains("đang nhận tệp", ignoreCase = true) ||
+            text.contains("đang truyền tệp", ignoreCase = true) ||
+            text.contains("receiving", ignoreCase = true) ||
+            text.contains("sharing", ignoreCase = true)
+
+        return isGenericTitle && isGenericText
+    }
+
     fun isQuickShare(sbn: StatusBarNotification): Boolean {
         if (isIdleVisibilityNotification(sbn)) return false
+        if (isServiceForegroundNotification(sbn)) return false
         val pkg = sbn.packageName.lowercase()
         val n = sbn.notification
         val channelId = n.channelId?.lowercase().orEmpty()
@@ -171,7 +202,7 @@ object QuickShareDetector {
     fun detect(sbn: StatusBarNotification, context: Context? = null): QuickShareInfo? = parse(sbn)
 
     fun parse(sbn: StatusBarNotification): QuickShareInfo? {
-        if (!isQuickShare(sbn) || isIdleVisibilityNotification(sbn)) return null
+        if (!isQuickShare(sbn) || isIdleVisibilityNotification(sbn) || isServiceForegroundNotification(sbn)) return null
 
         val n = sbn.notification
         val extras = n.extras

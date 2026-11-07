@@ -572,6 +572,23 @@ class NotificationCastListener : NotificationListenerService() {
                         lastScorePostTime.put(sbn.key, sbn.postTime) != sbn.postTime
                     ) {
                         onNotificationPosted(sbn) // catch a score update onNotificationPosted was slow to deliver
+                    } else if (castNotifs && prefs.getBoolean("cast_quickshare", true) &&
+                        QuickShareDetector.isQuickShare(sbn) && isAppEnabled(prefs, sbn.packageName)
+                    ) {
+                        if (!QuickShareDetector.isIdleVisibilityNotification(sbn)) {
+                            val id = QuickShareCard.ID
+                            val qsInfo = QuickShareDetector.parse(sbn)
+                            if (qsInfo != null) {
+                                if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
+                                    activeQuickShareIds.remove(id)
+                                } else {
+                                    activeQuickShareIds.add(id)
+                                }
+                                transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
+                                transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
+                                QuickShareCard.post(applicationContext, qsInfo, sbn)
+                            }
+                        }
                     } else if (castNotifs && prefs.getBoolean("cast_downloads", true) &&
                         sbn.isOngoing && DownloadDetector.isDownload(sbn) && isAppEnabled(prefs, sbn.packageName)
                     ) {
@@ -582,25 +599,6 @@ class NotificationCastListener : NotificationListenerService() {
                             transferProgressMap[id] = dlInfo.progress
                             transferFinishedMap[id] = dlInfo.isFinished
                             DownloadCard.post(applicationContext, dlInfo, sbn)
-                        }
-                    } else if (castNotifs && prefs.getBoolean("cast_quickshare", true) &&
-                        QuickShareDetector.isQuickShare(sbn) && isAppEnabled(prefs, sbn.packageName)
-                    ) {
-                        if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
-                            // Notification thông báo trạng thái sẵn sàng phát hiện / chạy nền của Quick Share, bỏ qua không coi là hoàn tất truyền tệp
-                            return@forEach
-                        }
-                        val id = QuickShareCard.ID
-                        val qsInfo = QuickShareDetector.parse(sbn)
-                        if (qsInfo != null) {
-                            if (qsInfo.isFinished || qsInfo.isCanceled || qsInfo.isRequest) {
-                                activeQuickShareIds.remove(id)
-                            } else {
-                                activeQuickShareIds.add(id)
-                            }
-                            transferProgressMap[id] = if (qsInfo.isRequest && qsInfo.progress >= 100) 0 else qsInfo.progress
-                            transferFinishedMap[id] = if (qsInfo.isRequest) false else qsInfo.isFinished
-                            QuickShareCard.post(applicationContext, qsInfo, sbn)
                         }
                     }
                 }
@@ -1515,6 +1513,17 @@ class NotificationCastListener : NotificationListenerService() {
                     !QuickShareDetector.isIdleVisibilityNotification(sbn) &&
                     (isFinishedEffective || prog >= 80)
 
+                // Dọn dẹp sạch ID cục bộ (IconCache.castIdFor(sbn)) nếu trước đó từng được tạo thẻ tải xuống hoặc thông báo thường
+                DownloadCard.clear(id)
+                if (id != QuickShareCard.ID) {
+                    startService(
+                        Intent(this, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_CANCEL)
+                            .putExtra("id", id)
+                            .putExtra("oi_scene", "NAVIGATION"),
+                    )
+                }
+
                 if (isActuallyFinished) {
                     QuickShareCard.postFinished(applicationContext, QuickShareCard.ID, appPkg, title)
                 } else if (wasCanceledText) {
@@ -1526,6 +1535,12 @@ class NotificationCastListener : NotificationListenerService() {
                         Intent(this, PlaygroundService::class.java)
                             .setAction(PlaygroundService.ACTION_CANCEL)
                             .putExtra("id", QuickShareCard.ID)
+                            .putExtra("oi_scene", "NAVIGATION"),
+                    )
+                    startService(
+                        Intent(this, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_CANCEL)
+                            .putExtra("id", id)
                             .putExtra("oi_scene", "NAVIGATION"),
                     )
                 }
