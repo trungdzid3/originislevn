@@ -33,11 +33,9 @@ import com.originisle.android.cards.GenericCard
 import com.originisle.android.cards.MediaCard
 import com.originisle.android.cards.MessageCard
 import com.originisle.android.call.ZaloCallDetector
-import com.originisle.android.call.MessengerCallDetector
 import com.originisle.android.cards.NavigationCard
 import com.originisle.android.cards.PaymentCard
 import com.originisle.android.cards.ZaloCallCard
-import com.originisle.android.cards.MessengerCallCard
 import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.cards.RideCard
 import com.originisle.android.cards.RingerModeCard
@@ -658,15 +656,9 @@ class NotificationCastListener : NotificationListenerService() {
                         }
                         return@forEach
                     }
-                    if (castNotifs && prefs.getBoolean("cast_calls", true) &&
-                        prefs.getBoolean("cast_messenger_call", true) &&
-                        MessengerCallDetector.isMessengerCall(sbn) &&
-                        isAppEnabled(prefs, sbn.packageName)
+                    if (sbn.packageName == "com.facebook.orca" &&
+                        sbn.notification.category == NotificationCompat.CATEGORY_CALL
                     ) {
-                        val callInfo = MessengerCallDetector.parse(applicationContext, sbn)
-                        if (callInfo != null) {
-                            MessengerCallCard.post(applicationContext, callInfo, sbn)
-                        }
                         return@forEach
                     }
                     val extras = sbn.notification.extras
@@ -986,18 +978,12 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
-            // 0.1) Cuộc gọi Messenger (Thoại & Video đến / Đang đàm thoại)
-            if (prefs.getBoolean("cast_calls", true) &&
-                prefs.getBoolean("cast_messenger_call", true) &&
-                MessengerCallDetector.isMessengerCall(sbn) &&
-                isAppEnabled(prefs, sbn.packageName)
+            if (sbn.packageName == "com.facebook.orca" &&
+                (sbn.notification.category == NotificationCompat.CATEGORY_CALL ||
+                 sbn.notification.category == Notification.CATEGORY_CALL)
             ) {
-                val callInfo = MessengerCallDetector.parse(applicationContext, sbn)
-                if (callInfo != null) {
-                    MessengerCallCard.post(applicationContext, callInfo, sbn)
-                    log(sbn, "hiển thị — cuộc gọi Messenger: ${callInfo.callerName}", true)
-                    return
-                }
+                log(sbn, "bỏ qua — cuộc gọi Messenger do Đảo gốc OriginOS 6 tự xử lý", false)
+                return
             }
 
             // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
@@ -1760,26 +1746,6 @@ class NotificationCastListener : NotificationListenerService() {
             }.getOrDefault(false)
             if (!hasRemainingZaloCall) {
                 ZaloCallCard.clear(applicationContext)
-                return
-            }
-        }
-
-        if (sbn.packageName == MessengerCallDetector.MESSENGER_PKG && (MessengerCallDetector.isMessengerCall(sbn) || MessengerCallCard.isActive())) {
-            val hasRemainingMessengerCall = runCatching {
-                activeNotifications?.any { active ->
-                    active.key != sbn.key &&
-                        active.packageName == MessengerCallDetector.MESSENGER_PKG &&
-                        MessengerCallDetector.isMessengerCall(active)
-                } == true
-            }.getOrDefault(false)
-            if (!hasRemainingMessengerCall) {
-                MessengerCallCard.clear(applicationContext)
-                startService(
-                    Intent(this, PlaygroundService::class.java)
-                        .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", MessengerCallCard.ID)
-                        .putExtra("oi_scene", "NAVIGATION"),
-                )
                 return
             }
         }

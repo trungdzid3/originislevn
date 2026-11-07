@@ -66,5 +66,6 @@ origin-isle-vn/
 - `HomeScreen.kt` & `ActivityScreen.kt`: Thêm công tắc `cast_messenger_call` và nút thử nghiệm `Thử Gọi Messenger`.
 
 ## 4. Những Điểm Cần Chú Ý Kỹ Thuật (Gotchas)
+- Cuộc gọi Facebook Messenger: Đã được OriginOS 6 hỗ trợ trực tiếp từ gốc (native island). OriginIsle chủ động bỏ qua thông báo cuộc gọi `com.facebook.orca` (`category == CATEGORY_CALL`) để nhường trọn vẹn cho hệ thống gốc, tránh xung đột hiển thị 2 tiến trình/2 đảo đồng thời.
 - Khối chữ xám to trong thẻ mở rộng: Bắt nguồn từ `BUNDLE_KEY_BASE_SUB_INFO = 1` của SuperX Bundle khiến hệ thống OriginOS render một sub-widget chữ xám lớn chiếm nửa phải thẻ mở rộng. Chỉ cần đặt `BASE_SUB_INFO = 0` khi `subText.isNullOrBlank()` là giao diện thẻ mở rộng trở nên sạch sẽ, cân đối 100%.
 - Zing MP3 Notification vs Service: Zing MP3 không luôn gắn `EXTRA_MEDIA_SESSION` vào notification `extras`. Phải luôn kích hoạt fallback qua `MediaSessionManager` / `findMediaControllerFallback` trước khi kết luận không có playback.

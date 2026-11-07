@@ -319,29 +319,15 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
             )
         }
 
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            PillButton(
-                text = "Thử Gọi Messenger",
-                onClick = { sendTestMessengerCallNotification(context) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Phone,
-                container = IsleColors.SurfaceHigh,
-                content = Color(0xFF0084FF),
-                height = 40.dp,
-            )
-            PillButton(
-                text = "Thử Chuỗi TikTok",
-                onClick = { sendTestTikTokStreakNotification(context) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Bolt,
-                container = IsleColors.SurfaceHigh,
-                content = Color(0xFFFF5E00),
-                height = 40.dp,
-            )
-        }
+        PillButton(
+            text = "Thử Chuỗi TikTok",
+            onClick = { sendTestTikTokStreakNotification(context) },
+            modifier = Modifier.fillMaxWidth(),
+            icon = IsleIcons.Bolt,
+            container = IsleColors.SurfaceHigh,
+            content = Color(0xFFFF5E00),
+            height = 40.dp,
+        )
     }
 }
 
@@ -718,16 +704,4 @@ private fun agoText(ts: Long, now: Long): String {
         s < 3600 -> "${s / 60} phút trước"
         else -> "${s / 3600} giờ trước"
     }
-}
-
-private fun sendTestMessengerCallNotification(context: Context) {
-    com.originisle.android.cards.MessengerCallCard.postSample(context)
-    CastLog.add(
-        app = "Messenger",
-        title = "Nguyễn Văn A",
-        outcome = "hiển thị — cuộc gọi Messenger: Nguyễn Văn A",
-        cast = true,
-        context = context,
-    )
-    Toast.makeText(context, "Đã phát thẻ Cuộc gọi Messenger lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
