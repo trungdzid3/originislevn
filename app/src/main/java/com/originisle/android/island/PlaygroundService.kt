@@ -303,6 +303,11 @@ class PlaygroundService : Service() {
         val rightDoubleLine = intent.getStringArrayListExtra("oi_right_doubleline") ?: emptyList()
         val buttonTitles = if (plain) emptyList() else intent.getStringArrayListExtra("oi_button_titles") ?: emptyList()
 
+        val btnTransparent = intent.getBooleanExtra("oi_btn_transparent", false)
+        val btnType = intent.getIntExtra("oi_btn_type", 1)
+        val subImage: Icon? = intent.getParcelableExtra("oi_sub_image", Icon::class.java)
+        val subClickResp: PendingIntent? = intent.getParcelableExtra("oi_sub_click_resp", PendingIntent::class.java)
+
         // capsule / right-island chip text: prefer explicit chip, else right content.
         val chip = statusChip.ifBlank { rightContent }
 
@@ -358,6 +363,10 @@ class PlaygroundService : Service() {
             changeRecord = changeRecord,
             showNotify = showNotify,
             islandNotify = islandNotify,
+            btnTransparent = btnTransparent,
+            btnType = btnType,
+            subImage = subImage,
+            subClickResp = subClickResp,
         )
 
         val sourceApp = intent.getStringExtra("source_app").orEmpty()
@@ -485,6 +494,7 @@ class PlaygroundService : Service() {
                 otherId != 35004 &&
                 otherId != 35008 &&
                 otherId != 35009 &&
+                otherId != 35011 &&
                 originScenes[otherId] == scene &&
                 lastPosts[otherId]?.getBooleanExtra("is_ongoing", false) == true
         }

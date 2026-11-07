@@ -31,9 +31,10 @@ import com.originisle.android.cards.FlashlightCard
 import com.originisle.android.cards.GenericCard
 import com.originisle.android.cards.MediaCard
 import com.originisle.android.cards.MessageCard
+import com.originisle.android.call.ZaloCallDetector
 import com.originisle.android.cards.NavigationCard
-import com.originisle.android.cards.OtpCard
 import com.originisle.android.cards.PaymentCard
+import com.originisle.android.cards.ZaloCallCard
 import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.cards.RideCard
 import com.originisle.android.cards.RingerModeCard
@@ -47,7 +48,6 @@ import com.originisle.android.cards.SportsCard
 import com.originisle.android.cards.fallbackClickIntent
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
-import com.originisle.android.otp.OtpDetector
 import com.originisle.android.sports.SportsFeed
 import com.originisle.android.sports.SportsParser
 import kotlinx.coroutines.CoroutineScope
@@ -574,6 +574,17 @@ class NotificationCastListener : NotificationListenerService() {
                     ) {
                         return@forEach
                     }
+                    if (castNotifs && prefs.getBoolean("cast_calls", true) &&
+                        prefs.getBoolean("cast_zalo_call", true) &&
+                        ZaloCallDetector.isZaloCall(sbn) &&
+                        isAppEnabled(prefs, sbn.packageName)
+                    ) {
+                        val zaloCall = ZaloCallDetector.parse(applicationContext, sbn)
+                        if (zaloCall != null) {
+                            ZaloCallCard.post(applicationContext, zaloCall, sbn)
+                        }
+                        return@forEach
+                    }
                     val extras = sbn.notification.extras
                     val token = extractMediaSessionToken(extras)
                     val isMusicApp = DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)
@@ -809,13 +820,27 @@ class NotificationCastListener : NotificationListenerService() {
             val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
                 template == "android.app.Notification\$CallStyle"
 
-            // --- Ưu tiên tuyệt đối: Ngân hàng -> Quick Share -> Tải xuống -> Mã OTP --------------------------
-            // Ba loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
+            // --- Ưu tiên tuyệt đối: Cuộc gọi Zalo -> Ngân hàng -> Quick Share -> Tải xuống --------------------------
+            // Các loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
             // quiet hours, media…). Trên OriginOS chúng có thể đến từ gói hệ thống hoặc mang cờ
             // ongoing/progress nên nếu để sau các filter thì card bị nuốt mất.
 
+            // 0) Cuộc gọi Zalo (Thoại & Video đến / Đang trong cuộc gọi)
+            if (prefs.getBoolean("cast_calls", true) &&
+                prefs.getBoolean("cast_zalo_call", true) &&
+                ZaloCallDetector.isZaloCall(sbn) &&
+                isAppEnabled(prefs, sbn.packageName)
+            ) {
+                val zaloCall = ZaloCallDetector.parse(applicationContext, sbn)
+                if (zaloCall != null) {
+                    ZaloCallCard.post(applicationContext, zaloCall, sbn)
+                    log(sbn, "hiển thị — cuộc gọi Zalo: ${zaloCall.callerName}", true)
+                    return
+                }
+            }
+
             // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
-            //    Phải kiểm tra đầu tiên để không bị bộ lọc OTP bắt nhầm mã giao dịch/số tài khoản.
+            //    Phải kiểm tra đầu tiên để không bị nhận diện nhầm mã giao dịch/số tài khoản.
             val bankTx = VietnamBankDetector.parse(sbn)
             if (bankTx != null && prefs.getBoolean("cast_vietnam_banks", true)) {
                 val id = IconCache.castIdFor(sbn)
@@ -906,8 +931,6 @@ class NotificationCastListener : NotificationListenerService() {
             }
 
             // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
-            //    BẮT BUỘC chạy TRƯỚC OTP để thông báo tải file có tên chứa số (OriginIsle-10208.apk, media_179397.jpg,...)
-            //    hoặc có progress bar không bị OtpDetector bắt nhầm.
             if (prefs.getBoolean("cast_downloads", true) && !isActualMedia && !isMusicApp && DownloadDetector.isDownload(sbn)) {
                 val dlInfo = DownloadDetector.parse(sbn)
                 if (dlInfo != null) {
@@ -917,22 +940,6 @@ class NotificationCastListener : NotificationListenerService() {
                     transferFinishedMap[id] = dlInfo.isFinished
                     log(sbn, "hiển thị — tiến độ tải xuống", true)
                     DownloadCard.post(applicationContext, dlInfo, sbn)
-                    return
-                }
-            }
-
-            // 4) Mã OTP / đăng nhập. Bóc tách cả từ khóa SMS và action "Sao chép mã" / "Copy code".
-            //    KHÔNG dùng lại time-guard: notification OTP thường được update tại chỗ với cùng postTime.
-            if (prefs.getBoolean("cast_otp", true) && !DownloadDetector.isDownload(sbn)) {
-                val actionTitles = sbn.notification.actions?.mapNotNull { it.title?.toString() }.orEmpty()
-                OtpDetector.find(sbn, actionTitles)?.let { code ->
-                    val title = sbn.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
-                    val sender = title.ifBlank { appLabel(sbn.packageName) }
-                    OtpCard.post(applicationContext, sbn, code, sender)
-                    lastEventAt = System.currentTimeMillis()
-                    val outcome = "hiển thị — mã OTP: $code ($sender)"
-                    lastOutcome[sbn.key] = outcome
-                    CastLog.add(sender, title.ifBlank { "OTP" }, outcome, true)
                     return
                 }
             }
@@ -1520,6 +1527,20 @@ class NotificationCastListener : NotificationListenerService() {
         lastOutcome.remove(sbn.key)
         lastScorePostTime.remove(sbn.key)
         lastCastPostTime.remove(sbn.key)
+
+        if (sbn.packageName == ZaloCallDetector.ZALO_PKG && (ZaloCallDetector.isZaloCall(sbn) || ZaloCallCard.isActive())) {
+            val hasRemainingZaloCall = runCatching {
+                activeNotifications?.any { active ->
+                    active.key != sbn.key &&
+                        active.packageName == ZaloCallDetector.ZALO_PKG &&
+                        ZaloCallDetector.isZaloCall(active)
+                } == true
+            }.getOrDefault(false)
+            if (!hasRemainingZaloCall) {
+                ZaloCallCard.clear(applicationContext)
+                return
+            }
+        }
 
         // Score cards are keyed by team names (matchCastId), not by this notification's own identity
         // (see handleScore) — cancelling by IconCache.castIdFor(sbn) here would target the wrong id and

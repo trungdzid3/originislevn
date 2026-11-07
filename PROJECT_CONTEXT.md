@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.2.19` (mã bản dựng `versionCode = 10219`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.3.0` (mã bản dựng `versionCode = 10300`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Quy chuẩn đánh số phiên bản**:
   - `X` (Số đầu): Thế hệ hiện tại.
   - `Y` (Số tiếp theo): Nâng cấp tính năng mới trong cùng thế hệ.
@@ -17,35 +17,35 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.2.19 / 10219)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.3.0 / 10300)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
 │       │   ├── res/
-│       │   │   ├── drawable/         # ic_quick_share.xml, ic_smartband.xml, ic_headphones.xml...
-│       │   │   └── xml/keepalive_accessibility_config.xml # Quét node UI pin Wearable & bắt TYPE_NOTIFICATION_STATE_CHANGED cho OTP
+│       │   │   ├── drawable/         # ic_media_heart.xml, ic_quick_share.xml, ic_smartband.xml, ic_headphones.xml...
+│       │   │   └── xml/keepalive_accessibility_config.xml # Quét node UI pin Wearable (tối giản, đã gỡ bỏ lắng nghe OTP)
 │       │   └── java/com/originisle/android/
 │       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS (lọc spam/promo 0đ, chặn hạn mức quảng cáo)
-│       │       ├── cards/            # 15 loại thẻ giao diện Đảo Origin
+│       │       ├── call/             # ZaloCallDetector.kt (bóc tách chuyên sâu RemoteViews cuộc gọi Zalo v26.10.02 & CallStyle)
+│       │       ├── cards/            # Các loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (TEMPLATE_BASE + vòng tiến độ #2B66FF, throttle 1s, oi_show_notify = false)
 │       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (hiển thị "Đã ngắt" tối giản không khung xám)
-│       │       │   ├── MediaCard.kt      # Cố định ID = 35010, chống nháy qua bộ đệm trạng thái & chữ ký ảnh bìa, 3 nút chuẩn Vivo thích ứng Light/Dark Mode
-│       │       │   ├── OtpCard.kt        # Thẻ OTP chuẩn PaymentCard (TEMPLATE_BASE + TEMPLATE_RIGHT_ISLAND_TEXT_ICON, không truyền actions để không bị từ chối SuperX, postFromAccessibility)
+│       │       │   ├── MediaCard.kt      # Cố định ID = 35010, 4 nút phẳng không viền hộp (Prev, Play/Pause, Next, Heart ♡) + icon phụ góc trên phải
 │       │       │   ├── QuickShareCard.kt # Cố định ID = 35009, xử lý dứt điểm kẹt 99% (isFinishedEffective khi >= 99% & watchdog 2.5s cho 90..99%), throttle 1s + >=2%, oi_show_notify = false
 │       │       │   ├── RideCard.kt       # Tiến trình Gọi xe & Giao đồ ăn VN (Template 2)
-│       │       │   └── RingerModeCard.kt # Chuyển đổi siêu mượt (debounce 80ms, loại bỏ internal intent gây nhảy Im lặng)
+│       │       │   ├── RingerModeCard.kt # Chuyển đổi siêu mượt (debounce 80ms, loại bỏ internal intent gây nhảy Im lặng)
+│       │       │   └── ZaloCallCard.kt   # Cố định ID = 35011, hiển thị cuộc gọi Zalo (avatar bo tròn + badge Zalo, nút Từ chối / Trả lời / Kết thúc)
 │       │       ├── download/         # DownloadDetector chặn triệt để 100% Quick Share, Google Play Services & mọi ứng dụng nghe nhạc (Zing MP3, Spotify, NCT...)
-│       │       ├── island/           # PlaygroundService (showNotify = false, hủy triệt để ID cũ khi đổi trong cùng scene), OriginIslandBuilder (TEMPLATE_BUTTONS không hiện subText góc phải, cặp màu nút chuẩn Vivo)
+│       │       ├── island/           # PlaygroundService (showNotify = false, hỗ trợ oi_btn_transparent & oi_sub_image), OriginIslandBuilder (tối đa 5 nút, btnTransparent = Color.TRANSPARENT)
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
-│       │       ├── otp/              # Nhận diện OTP Bank-Style (ưu tiên tin nhắn mới nhất asReversed() trong MessagingStyle)
 │       │       ├── quickshare/       # Nhận diện Quick Share (lọc bỏ notification foreground service chạy ngầm vô nghĩa qua isServiceForegroundNotification)
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN (Grab, Be, Xanh SM, ShopeeFood)
-│       │       ├── service/          # NotificationCastListener (tách biệt isActualMediaPlaybackNotification và thông báo phụ của app nhạc) & KeepAliveAccessibilityService (bắt OTP vượt Redaction Android 15)
+│       │       ├── service/          # NotificationCastListener (ưu tiên ZaloCallDetector, tách biệt isActualMediaPlaybackNotification, đã gỡ bỏ OTP) & KeepAliveAccessibilityService
 │       │       ├── smart/            # Bóc tách thông tin màn hình
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
-│       │       └── ui/               # Giao diện Compose đại tu chuẩn Vivo OriginOS 6 (5 nhóm, lồng nhau)
-│       └── test/                     # Unit Tests (16 bank tests, OtpDetectorTest, QuietHoursTest)
+│       │       └── ui/               # Giao diện Compose đại tu chuẩn Vivo OriginOS 6 (công tắc & mẫu thử Cuộc gọi Zalo)
+│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -53,17 +53,18 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.2.19.apk         # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 2, Bản vá 19)
+└── OriginIsle-VN-v1.3.0.apk          # File APK xuất bản chuẩn chuyên nghiệp (Thế hệ 1, Nâng cấp 3, Bản vá 0)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`): Hằng số `ID = 35010` và hàm `post` (lines 40-318) đảm bảo duy nhất 1 thẻ nhạc, chống spam `ACTION_START` qua bộ nhớ đệm (`lastTrack`, `lastArtist`, `lastPlaying`, `lastPkg`, `lastUiNightMode`, `lastArtSignature`), bỏ `subtext`/`oi_bg_color`/`oi_fg_color`, và vẽ 3 icon điều khiển thích ứng màu `#FF1C1C1E` (Light Mode) / `#FFFFFFFF` (Dark Mode).
-- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Hàm `isActualMediaPlaybackNotification` (lines 549-558) tách biệt thông báo phát nhạc thực sự (`token != null || CATEGORY_TRANSPORT || compactActions || isMediaStyleOrTransport`) với thông báo phụ của ứng dụng nhạc (`isMusicApp && !isActualMedia`, như `"Đang tải nhạc — 6/13 bài"` của Zing MP3).
-- `OriginIslandBuilder.kt` (`app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt`): Nhánh `template == 8` (line 203) đặt `BUNDLE_KEY_BASE_SUB_INFO = 0` xóa bỏ chữ thời lượng bị cắt ở góc phải; `buildButtonList` (lines 338-340) dùng cặp màu chuẩn `Color.WHITE` + `Color.BLACK` của Vivo để không bị nhuộm Xanh Cổ Vịt.
-- `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`): Khối `if (prevInScene != null && prevInScene != id)` (lines 365-380) gọi `endOrigin` và hủy thông báo cũ khỏi `NotificationManager` sau 200ms.
-- `OtpCard.kt` (`app/src/main/java/com/originisle/android/cards/OtpCard.kt`) & `KeepAliveAccessibilityService.kt` (`app/src/main/java/com/originisle/android/service/KeepAliveAccessibilityService.kt`): Bắt OTP trực tiếp qua cả `NotificationListener` và `AccessibilityService` (`TYPE_NOTIFICATION_STATE_CHANGED`).
+- `MediaCard.kt` (`app/src/main/java/com/originisle/android/cards/MediaCard.kt`): Hằng số `ID = 35010` và hàm `post` (lines 110-390) tạo 4 nút điều khiển `[Prev, Play/Pause, Next, Heart ♡]` (`ic_media_heart.xml`), bóc tách `notifHeartIntent` / `customHeartIntent`, truyền `oi_btn_transparent = true` để xóa bỏ 3 khung hộp viên nang đặc và truyền `oi_sub_image` hiển thị icon góc trên phải.
+- `OriginIslandBuilder.kt` (`app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt`): Hỗ trợ `subImage` (`BASE_SUB_INFO_IMAGE = 3`, lines 207-215) và nâng nhánh `template == 8` lên `.take(5)` (line 338), đặt `btnColor = Color.TRANSPARENT` khi `btnTransparent == true` (lines 345-346).
+- `ZaloCallDetector.kt` (`app/src/main/java/com/originisle/android/call/ZaloCallDetector.kt`): Hàm `isZaloCall` (lines 129-160) và `parse` (lines 162-295) đọc trực tiếp `mActions` bên trong `RemoteViews` (`noti_custom_call_*` `0x7f0c04c1..0x7f0c04c3`, view IDs `tv_title = 0x7f091d27`, `tv_content = 0x7f091b86`, `imv_avatar = 0x7f090bbd`, `fl_btn_left = 0x7f090977`, `fl_btn_right = 0x7f090978`, `elapse_time = 0x7f090863`) để lấy tên người gọi, ảnh đại diện và `PendingIntent` Từ chối / Trả lời khi Zalo xóa `n.actions` trên máy Vivo.
+- `ZaloCallCard.kt` (`app/src/main/java/com/originisle/android/cards/ZaloCallCard.kt`): Hằng số `ID = 35011` và hàm `post` (lines 46-157) vẽ ảnh đại diện người gọi bo tròn kèm huy hiệu Zalo và phát thẻ Đảo Động có nút Từ chối / Trả lời (hoặc Kết thúc / Mở cuộc gọi).
+- `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Ưu tiên kiểm tra `ZaloCallDetector` ở đầu `onNotificationPosted`, `pollRunnable` và `onNotificationRemoved`; đã gỡ bỏ hoàn toàn luồng kiểm tra OTP.
 
 ## 4. Những Điểm Cần Chú Ý Kỹ Thuật (Gotchas)
 - `applicationId = "com.autonavi.minimap"`: Tuyệt đối giữ nguyên để vượt whitelist SuperX trên Vivo OriginOS 6.
 - `showNotify = false`: Bắt buộc để thông báo chỉ hiển thị trên Đảo, không tạo thêm thông báo shade trên Android.
-- Cặp màu nút bấm trên Vivo OriginOS 6: Bắt buộc để mặc định `btnColor = Color.WHITE` (`#FFFFFFFF`) + `textColor = Color.BLACK` (`#FF000000`) trong `OriginIslandBuilder.buildButtonList` để Vivo tự động đổi nền nút theo chế độ Sáng/Tối; nếu truyền màu opaque khác (`#FF1F1F1F`), Vivo sẽ nhuộm toàn bộ nút theo System Theme Color (Xanh Cổ Vịt).
+- Nút bấm phẳng trên thẻ nhạc (`MediaCard`): Bắt buộc truyền `oi_btn_transparent = true` (`btnColor = Color.TRANSPARENT`) để Vivo SystemUI không vẽ 3 hộp viên nang đặc bao quanh các icon điều khiển nhạc.
+- Thông báo cuộc gọi Zalo trên Vivo: Zalo dùng `applyCustomViewContent` (`RemoteViews`) và gọi `actions.clear()`, do đó bắt buộc phải trích xuất `PendingIntent` và văn bản từ `RemoteViews.mActions` kết hợp fallback broadcast `m.voip.api.action.ACTION_NOTI_END_CALL`.

@@ -248,8 +248,53 @@ object MediaCard {
                 titleKeywords.any { title.contains(it) }
             }?.actionIntent
 
-        val prevSourceAction = findSourceAction(listOf("previous", "skip back", "rewind"))
-        val nextSourceAction = findSourceAction(listOf("next", "skip forward", "fast forward"))
+        val prevSourceAction = findSourceAction(listOf("previous", "skip back", "rewind", "trước", "lùi"))
+        val nextSourceAction = findSourceAction(listOf("next", "skip forward", "fast forward", "tiếp", "tới"))
+
+        val heartKeywords = listOf("like", "love", "heart", "fav", "thích", "yêu thích", "tim", "thumb")
+        val nonHeartKeywords = listOf(
+            "previous", "skip back", "rewind", "trước", "lùi",
+            "play", "pause", "phát", "tạm dừng",
+            "next", "skip forward", "fast forward", "tiếp", "tới",
+            "close", "dismiss", "stop", "đóng", "tắt", "dừng",
+        )
+        val notifHeartIntent: PendingIntent? = findSourceAction(heartKeywords)
+            ?: n.actions?.takeIf { it.size >= 4 }?.let { list ->
+                list.getOrNull(3)?.takeIf { a ->
+                    val t = a.title?.toString()?.lowercase().orEmpty()
+                    nonHeartKeywords.none { t.contains(it) }
+                }?.actionIntent ?: list.firstOrNull { a ->
+                    val t = a.title?.toString()?.lowercase().orEmpty()
+                    a.actionIntent != null && nonHeartKeywords.none { t.contains(it) }
+                }?.actionIntent
+            }
+
+        val customHeartIntent: PendingIntent? = if (notifHeartIntent == null) {
+            val customActions = controller?.playbackState?.customActions.orEmpty()
+            val matchedCustom = customActions.firstOrNull { ca ->
+                val name = ca.name.toString().lowercase()
+                val act = ca.action.lowercase()
+                heartKeywords.any { name.contains(it) || act.contains(it) }
+            } ?: customActions.firstOrNull()
+            matchedCustom?.let { ca ->
+                PendingIntent.getBroadcast(
+                    context,
+                    (ID.toString() + "_custom_" + ca.action).hashCode(),
+                    Intent(MediaControlReceiver.ACTION_CUSTOM).setPackage(context.packageName)
+                        .putExtra("cast_id", ID)
+                        .putExtra(MediaControlReceiver.EXTRA_CUSTOM_ACTION, ca.action)
+                        .apply {
+                            controller?.sessionToken?.let { putExtra(MediaControlReceiver.EXTRA_TOKEN, it) }
+                        },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            }
+        } else {
+            null
+        }
+
+        val contentClickIntent: PendingIntent = n.contentIntent ?: fallbackClickIntent(context, sbn.packageName)
+        val heartActionIntent: PendingIntent = notifHeartIntent ?: customHeartIntent ?: contentClickIntent
 
         val actions = arrayListOf<Notification.Action>(
             makeAction(
@@ -267,7 +312,18 @@ object MediaCard {
                 R.drawable.ic_media_next,
                 nextSourceAction ?: mediaAction(MediaControlReceiver.ACTION_NEXT),
             ),
+            makeAction(
+                context,
+                R.drawable.ic_media_heart,
+                heartActionIntent,
+            ),
         )
+
+        val duration = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        val pos = (controller?.playbackState?.position ?: 0L).coerceAtLeast(0L)
+        val trackProgress = if (duration > 0L) ((pos * 100L) / duration).toInt().coerceIn(0, 100) else 0
+        val subIconColor = if (isNightMode) Color.WHITE else Color.parseColor("#FF1C1C1E")
+        val subIcon = renderTintedBitmapIcon(context, R.drawable.ic_media_heart, subIconColor)
 
         pendingDismissTasks.remove(ID)?.let { handler.removeCallbacks(it) }
 
@@ -296,7 +352,15 @@ object MediaCard {
             putExtra("oi_large_icon", badgedAlbumIcon)
             putExtra("oi_show_left_icon", true)
             putExtra("icon_res", R.drawable.ic_media_play)
-            putStringArrayListExtra("oi_button_titles", arrayListOf("", "", ""))
+            putExtra("oi_btn_transparent", true)
+            putStringArrayListExtra("oi_button_titles", arrayListOf("", "", "", ""))
+            if (subIcon != null) {
+                putExtra("oi_sub_image", subIcon)
+            }
+            putExtra("oi_sub_click_resp", heartActionIntent)
+            if (duration > 0L) {
+                putExtra("oi_progress", trackProgress)
+            }
 
             if (playing) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
@@ -318,7 +382,7 @@ object MediaCard {
             putParcelableArrayListExtra("actions", actions)
             putExtra(
                 "source_content_intent",
-                n.contentIntent ?: fallbackClickIntent(context, sbn.packageName),
+                contentClickIntent,
             )
         }
         context.startService(intent)
@@ -370,7 +434,7 @@ object MediaCard {
     private fun renderTintedBitmapIcon(context: Context, iconRes: Int, tintColor: Int): Icon? = runCatching {
         val drawable = ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return null
         val size = 96
-        val pad = 20
+        val pad = 16
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         drawable.setBounds(pad, pad, size - pad, size - pad)

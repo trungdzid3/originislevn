@@ -99,7 +99,7 @@ fun HomeScreen(
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
     var ridesOn by remember { mutableStateOf(prefs.getBoolean("cast_rides", true)) }
     var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", true)) }
-    var otpOn by remember { mutableStateOf(prefs.getBoolean("cast_otp", true)) }
+    var zaloCallOn by remember { mutableStateOf(prefs.getBoolean("cast_zalo_call", true)) }
     var downloadOn by remember { mutableStateOf(prefs.getBoolean("cast_downloads", true)) }
     var callsOn by remember { mutableStateOf(prefs.getBoolean("cast_calls", true)) }
 
@@ -456,13 +456,13 @@ fun HomeScreen(
                     GroupDivider()
 
                     ToggleRow(
-                        IsleIcons.Key, IsleColors.Accent,
-                        title = "Mã xác thực OTP SMS",
-                        checked = otpOn,
-                        subtitle = "Tự động nhận diện mã OTP và sao chép nhanh 1 chạm",
+                        IsleIcons.Pulse, IsleColors.Accent,
+                        title = "Báo cuộc gọi Zalo trên Đảo",
+                        checked = zaloCallOn,
+                        subtitle = "Hiển thị người gọi, trạng thái & nút Từ chối / Trả lời cho cuộc gọi Zalo",
                     ) {
-                        otpOn = it
-                        prefs.edit().putBoolean("cast_otp", it).apply()
+                        zaloCallOn = it
+                        prefs.edit().putBoolean("cast_zalo_call", it).apply()
                     }
 
                     GroupDivider()

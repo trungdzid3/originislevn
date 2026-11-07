@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Keep-alive, bắt mã OTP vượt cơ chế ẩn thông báo nhạy cảm Android 15/16 (OriginOS 6) & đọc pin Samsung Fit 3. -->
+<!-- Keep-alive dịch vụ nền & đọc pin Samsung Fit 3. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/keepalive_accessibility_desc"
-    android:accessibilityEventTypes="typeNotificationStateChanged|typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="500"
     android:canRetrieveWindowContent="true" />

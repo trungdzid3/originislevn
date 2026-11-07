@@ -250,7 +250,7 @@ private fun VivoDiagnosticAlertCard(
     }
 }
 
-/** Thẻ công cụ gửi thông báo thử nghiệm giả lập OTP và biến động số dư */
+/** Thẻ công cụ gửi thông báo thử nghiệm giả lập Cuộc gọi Zalo và biến động số dư */
 @Composable
 private fun TestNotificationCard(context: Context, connected: Boolean) {
     Column(
@@ -274,7 +274,7 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
             }
             Column(Modifier.weight(1f)) {
                 Text("Kiểm tra gửi thông báo thử nghiệm", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
-                Text("Gửi giả lập OTP & số dư để kiểm tra đảo và nhật ký", fontSize = 12.sp, color = IsleColors.TextSecondary)
+                Text("Gửi giả lập Cuộc gọi Zalo, Số dư & Tải về để kiểm tra đảo và nhật ký", fontSize = 12.sp, color = IsleColors.TextSecondary)
             }
         }
 
@@ -292,10 +292,10 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
                 height = 40.dp,
             )
             PillButton(
-                text = "Thử OTP",
-                onClick = { sendTestOtpNotification(context, connected) },
+                text = "Thử Gọi Zalo",
+                onClick = { sendTestZaloCallNotification(context) },
                 modifier = Modifier.weight(1f),
-                icon = IsleIcons.Key,
+                icon = IsleIcons.Pulse,
                 container = IsleColors.SurfaceHigh,
                 content = IsleColors.Text,
                 height = 40.dp,
@@ -356,22 +356,25 @@ private fun sendTestBankNotification(context: Context, connected: Boolean) {
     Toast.makeText(context, "Đã phát thẻ Biến động số dư Vietcombank lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
-private fun sendTestOtpNotification(context: Context, connected: Boolean) {
+private fun sendTestZaloCallNotification(context: Context) {
     runCatching {
         val app = context.applicationContext
         val intent = Intent(app, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", 9901)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_BASE)
+            putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_BUTTONS)
             putExtra("oi_right_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-            putExtra("oi_left_content", "")
-            putExtra("oi_right_content", "682941")
-            putExtra("status_chip_text", "682941")
-            putExtra("title", "682 941")
-            putExtra("text", "Mã xác thực · FPT Long Châu")
-            putExtra("source_app", "FPT Long Châu")
-            putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
+            putExtra("oi_left_content", "Minh Tuấn")
+            putExtra("oi_right_content", "Gọi đến")
+            putExtra("status_chip_text", "Gọi đến")
+            putExtra("title", "Minh Tuấn")
+            putExtra("text", "Zalo · Cuộc gọi thoại đến")
+            putExtra("source_app", "Zalo")
+            putExtra("oi_fg_color", "#FF29E683")
+            putExtra("oi_bg_color", "#3329E683")
+            putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Trả lời"))
+            putExtra("icon_res", com.originisle.android.R.drawable.ic_call)
             putExtra("oi_force_show", true)
             putExtra("oi_island_notify", true)
             putExtra("oi_keep_duration", 30)
@@ -381,13 +384,13 @@ private fun sendTestOtpNotification(context: Context, connected: Boolean) {
     }
 
     CastLog.add(
-        app = "FPT Long Châu",
-        title = "Mã xác thực OTP: 682941",
-        outcome = "hiển thị — mã OTP: 682941 (FPT Long Châu)",
+        app = "Zalo",
+        title = "Minh Tuấn",
+        outcome = "hiển thị — cuộc gọi Zalo: Minh Tuấn",
         cast = true,
         context = context,
     )
-    Toast.makeText(context, "Đã phát thẻ OTP FPT Long Châu lên Đảo Origin!", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, "Đã phát thẻ Cuộc gọi Zalo lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
 private fun sendTestDownloadNotification(context: Context, connected: Boolean) {

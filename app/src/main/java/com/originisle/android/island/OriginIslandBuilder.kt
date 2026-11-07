@@ -161,6 +161,10 @@ object OriginIslandBuilder {
         // Testing whether flipping it is what actually gates shade visibility.
         showNotify: Boolean = false,
         islandNotify: Boolean = false,
+        btnTransparent: Boolean = false,
+        btnType: Int = 1,
+        subImage: Icon? = null,
+        subClickResp: PendingIntent? = null,
     ): Bundle {
         val C = OriginIslandConstants
         val bundle = Bundle()
@@ -200,6 +204,15 @@ object OriginIslandBuilder {
         base.putCharSequence(C.BUNDLE_KEY_BASE_TITLE, title)
         base.putCharSequence(C.BUNDLE_KEY_BASE_CONTENT, content)
         when {
+            subImage != null -> {
+                base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, C.BASE_SUB_INFO_IMAGE) // 3
+                base.putParcelable(C.BUNDLE_KEY_BASE_SUB_IMAGE, subImage)
+                if (subClickResp != null) {
+                    base.putParcelable(C.BUNDLE_KEY_BASE_SUB_INFO_CLICK_RESP, subClickResp)
+                } else if (clickResp != null) {
+                    base.putParcelable(C.BUNDLE_KEY_BASE_SUB_INFO_CLICK_RESP, clickResp)
+                }
+            }
             template == 8 -> base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
             actionPi != null && actionTitle != null -> {
                 base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 2)
@@ -314,7 +327,7 @@ object OriginIslandBuilder {
                 bundle.putParcelable(C.BUNDLE_KEY_CUSTOM_TEMPLATE, customTemplate)
             }
             8 -> {
-                // Build up to 3 filled buttons from actions (preferred) or buttonTitles+clickResp.
+                // Build up to 5 buttons from actions (preferred) or buttonTitles+clickResp.
                 val triples: List<Triple<String, Icon?, PendingIntent>> = when {
                     actions.any { it.pendingIntent != null } ->
                         actions.filter { it.pendingIntent != null }
@@ -322,21 +335,24 @@ object OriginIslandBuilder {
                     buttonTitles.isNotEmpty() && clickResp != null ->
                         buttonTitles.map { Triple(it, null as Icon?, clickResp) }
                     else -> emptyList()
-                }.take(3)
+                }.take(5)
                 if (triples.isNotEmpty()) {
                     // Pure white fill + pure black text are vivo's "standard" pair: it swaps them for
                     // its own palette per scene (day, night, glass, AOD). Anything else is drawn as
                     // given, and with a system theme colour on, its button widget repaints any opaque
                     // fill AND any text that isn't #FFFFFF/#333333/#000000 in that colour, so near-black
                     // text on a near-white fill came out accent-on-accent and unreadable (#9).
-                    val textColor = if (!isDefaultColor(fgColor)) fgColor else Color.BLACK
-                    val btnColor = if (!isDefaultColor(bgColor)) bgColor else Color.WHITE
-                    infos.putInt(C.BUNDLE_KEY_INFO_BTN_TYPE, 1)
+                    val textColor = if (btnTransparent) Color.WHITE else Color.BLACK
+                    val btnColor = if (btnTransparent) Color.TRANSPARENT else Color.WHITE
+                    infos.putInt(C.BUNDLE_KEY_INFO_BTN_TYPE, btnType)
                     infos.putStringArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_LIST, ArrayList(triples.map { it.first }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_ICON_LIST, ArrayList(triples.map { it.second }))
                     infos.putIntegerArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_COLOR_LIST, ArrayList(triples.map { textColor }))
                     infos.putIntegerArrayList(C.BUNDLE_KEY_INFO_BTN_COLOR_LIST, ArrayList(triples.map { btnColor }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_CLICK_RESP_LIST, ArrayList(triples.map { it.third }))
+                }
+                if (progress in 1..100) {
+                    infos.putInt(C.BUNDLE_KEY_INFO_PROGRESS, progress.coerceIn(0, 100))
                 }
             }
             9 -> {

@@ -60,20 +60,23 @@ object IslandSamples {
             )
         },
         OriginSample(
-            "Mã OTP Ngân hàng", "SMS Vietcombank: 482915 · Mã xác thực giao dịch",
-            IslandPreview(R.drawable.ic_chat, "", IslandPreview.Right.Capsule("482915")),
+            "Cuộc gọi Zalo", "Zalo: Cuộc gọi thoại đến · Nút Từ chối / Trả lời",
+            IslandPreview(R.drawable.ic_call, "Minh Tuấn", IslandPreview.Right.Capsule("Gọi đến")),
         ) { ctx ->
             start(ctx, 40015) {
-                putExtra("icon_res", R.drawable.ic_chat)
+                putExtra("icon_res", R.drawable.ic_call)
                 putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "482915")
-                putExtra("status_chip_text", "482915")
-                putExtra("title", "482 915")
-                putExtra("text", "Mã xác thực · Vietcombank")
-                putExtra("source_app", "Vietcombank")
+                putExtra("oi_left_content", "Minh Tuấn")
+                putExtra("oi_right_content", "Gọi đến")
+                putExtra("status_chip_text", "Gọi đến")
+                putExtra("title", "Minh Tuấn")
+                putExtra("text", "Zalo · Cuộc gọi thoại đến")
+                putExtra("source_app", "Zalo")
+                putExtra("oi_fg_color", "#FF29E683")
+                putExtra("oi_bg_color", "#3329E683")
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Trả lời"))
                 putExtra("oi_force_show", true)
                 putExtra("oi_island_notify", true)
                 putExtra("oi_keep_duration", 30)
