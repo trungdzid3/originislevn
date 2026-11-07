@@ -204,6 +204,7 @@ object OriginIslandBuilder {
         base.putCharSequence(C.BUNDLE_KEY_BASE_TITLE, title)
         base.putCharSequence(C.BUNDLE_KEY_BASE_CONTENT, content)
         when {
+            template == 8 -> base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
             subImage != null -> {
                 base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, C.BASE_SUB_INFO_IMAGE) // 3
                 base.putParcelable(C.BUNDLE_KEY_BASE_SUB_IMAGE, subImage)
@@ -213,7 +214,6 @@ object OriginIslandBuilder {
                     base.putParcelable(C.BUNDLE_KEY_BASE_SUB_INFO_CLICK_RESP, clickResp)
                 }
             }
-            template == 8 -> base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
             actionPi != null && actionTitle != null -> {
                 base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 2)
                 base.putString(C.BUNDLE_KEY_BASE_SUB_TEXT, actionTitle)
@@ -327,7 +327,7 @@ object OriginIslandBuilder {
                 bundle.putParcelable(C.BUNDLE_KEY_CUSTOM_TEMPLATE, customTemplate)
             }
             8 -> {
-                // Build up to 5 buttons from actions (preferred) or buttonTitles+clickResp.
+                // Build up to 3 filled buttons from actions (preferred) or buttonTitles+clickResp.
                 val triples: List<Triple<String, Icon?, PendingIntent>> = when {
                     actions.any { it.pendingIntent != null } ->
                         actions.filter { it.pendingIntent != null }
@@ -335,24 +335,21 @@ object OriginIslandBuilder {
                     buttonTitles.isNotEmpty() && clickResp != null ->
                         buttonTitles.map { Triple(it, null as Icon?, clickResp) }
                     else -> emptyList()
-                }.take(5)
+                }.take(3)
                 if (triples.isNotEmpty()) {
                     // Pure white fill + pure black text are vivo's "standard" pair: it swaps them for
                     // its own palette per scene (day, night, glass, AOD). Anything else is drawn as
                     // given, and with a system theme colour on, its button widget repaints any opaque
                     // fill AND any text that isn't #FFFFFF/#333333/#000000 in that colour, so near-black
                     // text on a near-white fill came out accent-on-accent and unreadable (#9).
-                    val textColor = if (btnTransparent) Color.WHITE else Color.BLACK
-                    val btnColor = if (btnTransparent) Color.TRANSPARENT else Color.WHITE
+                    val textColor = Color.BLACK
+                    val btnColor = Color.WHITE
                     infos.putInt(C.BUNDLE_KEY_INFO_BTN_TYPE, btnType)
                     infos.putStringArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_LIST, ArrayList(triples.map { it.first }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_ICON_LIST, ArrayList(triples.map { it.second }))
                     infos.putIntegerArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_COLOR_LIST, ArrayList(triples.map { textColor }))
                     infos.putIntegerArrayList(C.BUNDLE_KEY_INFO_BTN_COLOR_LIST, ArrayList(triples.map { btnColor }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_CLICK_RESP_LIST, ArrayList(triples.map { it.third }))
-                }
-                if (progress in 1..100) {
-                    infos.putInt(C.BUNDLE_KEY_INFO_PROGRESS, progress.coerceIn(0, 100))
                 }
             }
             9 -> {
@@ -412,10 +409,14 @@ object OriginIslandBuilder {
         val right = Bundle()
         when (rightTemplate) {
             1 -> {
-                if (!waveColorList.isNullOrEmpty()) {
-                    right.putStringArrayList(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_COLOR, ArrayList(waveColorList))
+                val colors = if (!waveColorList.isNullOrEmpty()) {
+                    ArrayList(waveColorList)
+                } else {
+                    arrayListOf("#FF5376", "#00E5FF", "#7C4DFF")
                 }
+                right.putStringArrayList(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_COLOR, colors)
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_STATE, waveState)
+                right.putBoolean(C.BUNDLE_KEY_ISLAND_RIGHT_PLAY_PAG, waveState == 1)
             }
             2 -> {
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_PROGRESS, progress.coerceIn(0, 100))

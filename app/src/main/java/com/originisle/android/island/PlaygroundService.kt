@@ -264,6 +264,7 @@ class PlaygroundService : Service() {
         val iconStatusType = intent.getIntExtra("oi_icon_status_type", -1)
         val waveState = intent.getIntExtra("oi_wave_state", 1)
         val waveColorList = intent.getStringArrayListExtra("oi_wave_color_list")
+            ?: intent.getStringArrayListExtra("oi_wave_colors")
         val progressState = if (intent.getBooleanExtra("progress_indeterminate", false)) 1 else 0
 
         val customTemplate: RemoteViews? =
@@ -286,14 +287,30 @@ class PlaygroundService : Service() {
 
         // Actions -> OriginActions.
         val sourcePkg = intent.getStringExtra("source_pkg")
-        val actions = if (plain) emptyList() else intent.getParcelableArrayListExtra("actions", Notification.Action::class.java)
-            ?.map { a ->
-                OriginIslandBuilder.OriginAction(
-                    title = a.title?.toString().orEmpty(),
-                    icon = a.getIcon()?.ownedBy(sourcePkg),
-                    pendingIntent = a.actionIntent,
-                )
-            } ?: emptyList()
+        val actions = if (plain) emptyList() else {
+            val fromNotifActions = intent.getParcelableArrayListExtra("actions", Notification.Action::class.java)
+                ?.map { a ->
+                    OriginIslandBuilder.OriginAction(
+                        title = a.title?.toString().orEmpty(),
+                        icon = a.getIcon()?.ownedBy(sourcePkg),
+                        pendingIntent = a.actionIntent,
+                    )
+                }
+            if (!fromNotifActions.isNullOrEmpty()) {
+                fromNotifActions
+            } else {
+                val btnPis = intent.getParcelableArrayListExtra("oi_button_actions", PendingIntent::class.java).orEmpty()
+                val btnIcons = intent.getParcelableArrayListExtra("oi_button_icons", Icon::class.java).orEmpty()
+                val btnTitles = intent.getStringArrayListExtra("oi_button_titles").orEmpty()
+                btnPis.mapIndexed { idx, pi ->
+                    OriginIslandBuilder.OriginAction(
+                        title = btnTitles.getOrNull(idx).orEmpty(),
+                        icon = btnIcons.getOrNull(idx)?.ownedBy(sourcePkg),
+                        pendingIntent = pi,
+                    )
+                }
+            }
+        }
 
         val clickResp: PendingIntent? =
             intent.getParcelableExtra("source_content_intent", PendingIntent::class.java)
@@ -305,8 +322,8 @@ class PlaygroundService : Service() {
 
         val btnTransparent = intent.getBooleanExtra("oi_btn_transparent", false)
         val btnType = intent.getIntExtra("oi_btn_type", 1)
-        val subImage: Icon? = intent.getParcelableExtra("oi_sub_image", Icon::class.java)
-        val subClickResp: PendingIntent? = intent.getParcelableExtra("oi_sub_click_resp", PendingIntent::class.java)
+        val subImage: Icon? = if (plain) null else intent.getParcelableExtra("oi_sub_image", Icon::class.java)
+        val subClickResp: PendingIntent? = if (plain) null else intent.getParcelableExtra("oi_sub_click_resp", PendingIntent::class.java)
 
         // capsule / right-island chip text: prefer explicit chip, else right content.
         val chip = statusChip.ifBlank { rightContent }
