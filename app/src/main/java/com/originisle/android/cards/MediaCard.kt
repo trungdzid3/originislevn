@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
@@ -27,7 +28,6 @@ import com.originisle.android.service.IconCache
 import com.originisle.android.service.MediaControlReceiver
 import com.originisle.android.service.NotificationCastListener
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.abs
 
 /**
  * Điều khiển và truyền phát thẻ âm nhạc lên Đảo Origin (Media Session Card).
@@ -151,11 +151,10 @@ object MediaCard {
             else -> false
         }
 
-        val subtext = when {
-            durationMs > 0 && posSec > 0 -> "$artist • ${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
-            durationMs > 0 -> "$artist • ${formatElapsed(durSec)}"
-            playing -> "$artist • Đang phát"
-            else -> "$artist • Tạm dừng"
+        val subtext = if (durationMs > 0) {
+            "${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
+        } else {
+            appLabel(context, sbn.packageName)
         }
 
         val notifLargeIcon = n.getLargeIcon()
@@ -171,29 +170,21 @@ object MediaCard {
                 bmp
             }
         }
-        val albumArt: Bitmap? = (md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        val rawAlbumArt: Bitmap? = (md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: notifLargeBitmap)?.let(::shrinkForIcon)?.let(::roundCorners)
+            ?: notifLargeBitmap)?.let(::shrinkForIcon)
 
-        IconCache.activeSmallIcons[id] = IconCache.safeAppIcon(context, sbn.packageName)
-        val displayIcon: Icon = if (albumArt != null) {
-            IconCache.activeLargeBitmaps[id] = albumArt
-            Icon.createWithBitmap(albumArt)
-        } else {
-            IconCache.safeAppIcon(context, sbn.packageName)
-        }
-        val waveColors = waveColorsFrom(albumArt)
+        val baseAlbumBitmap: Bitmap = rawAlbumArt ?: createDefaultAlbumBitmap(context, sbn.packageName)
+        val pillAlbumBitmap: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
+        val badgedAlbumBitmap: Bitmap = createBadgedAlbumArt(context, baseAlbumBitmap, sbn.packageName)
 
-        val showChrono = n.extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false)
-        val chip = if (showChrono && n.`when` > 0) {
-            formatElapsed(abs(System.currentTimeMillis() - n.`when`) / 1000)
-        } else if (durationMs > 0 && posSec > 0) {
-            "${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
-        } else if (playing) {
-            "Đang phát"
-        } else {
-            "Tạm dừng"
-        }
+        val pillLeftIcon: Icon = Icon.createWithBitmap(pillAlbumBitmap)
+        val badgedAlbumIcon: Icon = Icon.createWithBitmap(badgedAlbumBitmap)
+
+        IconCache.activeSmallIcons[id] = pillLeftIcon
+        IconCache.activeLargeBitmaps[id] = badgedAlbumBitmap
+
+        val waveColors = waveColorsFrom(rawAlbumArt ?: baseAlbumBitmap)
 
         fun mediaAction(action: String) = PendingIntent.getBroadcast(
             context, (id.toString() + action).hashCode(),
@@ -251,38 +242,39 @@ object MediaCard {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
             putExtra("is_ongoing", playing)
+            putExtra("oi_show_notify", false)
 
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", track)
-            putExtra("text", subtext)
+            putExtra("text", artist)
             putExtra("subtext", subtext)
             putExtra("source_pkg", sbn.packageName)
-            putExtra("oi_left_content", if (albumArt != null) "" else track.take(10))
+            putExtra("oi_left_content", "")
 
-            putExtra("oi_left_icon", displayIcon)
-            putExtra("oi_large_icon", displayIcon)
+            putExtra("oi_left_icon", pillLeftIcon)
+            putExtra("oi_large_icon", badgedAlbumIcon)
             putExtra("oi_show_left_icon", true)
             putExtra("oi_force_show", true)
             putExtra("icon_res", R.drawable.ic_media_play)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putStringArrayListExtra("oi_button_titles", arrayListOf("", "", ""))
             putExtra("oi_fg_color", "#FFFFFFFF")
-            putExtra("oi_bg_color", "#FF262626")
+            putExtra("oi_bg_color", "#FF1F1F1F")
 
             if (playing) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
                 putExtra("oi_wave_state", 1)
                 putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
-
-                putExtra("oi_right_icon", IconCache.safeResourceIcon(context, R.drawable.ic_media_play))
-                putExtra("oi_show_right_icon", true)
-                putExtra("status_chip_text", chip)
-                putExtra("oi_right_content", if (chip.isNotBlank()) chip else "♪")
+                putExtra("oi_show_right_icon", false)
+                putExtra("status_chip_text", "")
+                putExtra("oi_right_content", "")
             } else {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_right_icon", IconCache.safeResourceIcon(context, R.drawable.ic_media_pause))
-                putExtra("oi_show_right_icon", true)
-                putExtra("status_chip_text", "Tạm dừng")
-                putExtra("oi_right_content", "Tạm dừng")
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
+                putExtra("oi_wave_state", 0)
+                putStringArrayListExtra("oi_wave_color_list", ArrayList(waveColors))
+                putExtra("oi_show_right_icon", false)
+                putExtra("status_chip_text", "")
+                putExtra("oi_right_content", "")
             }
 
             putParcelableArrayListExtra("actions", actions)
@@ -330,19 +322,112 @@ object MediaCard {
      */
     private fun roundCorners(bitmap: Bitmap, cornerRadiusRatio: Float = 0.22f): Bitmap {
         return runCatching {
-            val w = bitmap.width
-            val h = bitmap.height
+            val soft = ensureSoftwareBitmap(bitmap)
+            val w = soft.width
+            val h = soft.height
             if (w <= 0 || h <= 0) return bitmap
             val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(output)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
             val rect = RectF(0f, 0f, w.toFloat(), h.toFloat())
             val radius = minOf(w, h) * cornerRadiusRatio
             canvas.drawRoundRect(rect, radius, radius, paint)
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-            canvas.drawBitmap(bitmap, 0f, 0f, paint)
+            canvas.drawBitmap(soft, 0f, 0f, paint)
             output
         }.getOrDefault(bitmap)
+    }
+
+    private fun ensureSoftwareBitmap(bitmap: Bitmap): Bitmap {
+        return if (bitmap.config == Bitmap.Config.HARDWARE) {
+            bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: bitmap
+        } else {
+            bitmap
+        }
+    }
+
+    private fun loadAppIconBitmap(context: Context, pkg: String, size: Int = 96): Bitmap? = runCatching {
+        val drawable = context.packageManager.getApplicationIcon(pkg)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
+        bmp
+    }.getOrNull()
+
+    /**
+     * Tạo ảnh bìa mặc định màu tối sang trọng có vẽ icon ứng dụng phát nhạc ở giữa khi bài hát chưa có bìa album
+     */
+    private fun createDefaultAlbumBitmap(context: Context, pkg: String): Bitmap {
+        val size = 192
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FF242428")
+        }
+        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), 38f, 38f, bgPaint)
+        loadAppIconBitmap(context, pkg, 96)?.let { appBmp ->
+            val left = (size - appBmp.width) / 2f
+            val top = (size - appBmp.height) / 2f
+            canvas.drawBitmap(appBmp, left, top, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        }
+        return output
+    }
+
+    /**
+     * Vẽ bìa album vuông bo góc squircle kèm huy hiệu tròn (App Badge) của ứng dụng phát nhạc ở góc dưới bên phải
+     */
+    private fun createBadgedAlbumArt(context: Context, albumBitmap: Bitmap, pkg: String): Bitmap {
+        return runCatching {
+            val totalSize = 192
+            val albumSize = 184
+            val output = Bitmap.createBitmap(totalSize, totalSize, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(output)
+
+            // 1. Vẽ albumBitmap đã bo góc squircle (bán kính 36f) vào vùng (0, 0, 184, 184)
+            val squircleAlbum = Bitmap.createBitmap(albumSize, albumSize, Bitmap.Config.ARGB_8888)
+            val albumCanvas = Canvas(squircleAlbum)
+            val albumPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            albumCanvas.drawRoundRect(
+                RectF(0f, 0f, albumSize.toFloat(), albumSize.toFloat()),
+                36f,
+                36f,
+                albumPaint,
+            )
+            albumPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+            val softAlbum = ensureSoftwareBitmap(albumBitmap)
+            albumCanvas.drawBitmap(
+                softAlbum,
+                Rect(0, 0, softAlbum.width, softAlbum.height),
+                Rect(0, 0, albumSize, albumSize),
+                albumPaint,
+            )
+            canvas.drawBitmap(squircleAlbum, 0f, 0f, null)
+
+            // 2. Lấy icon của ứng dụng phát nhạc và vẽ huy hiệu tròn ở góc dưới phải (tâm 152f, 152f)
+            loadAppIconBitmap(context, pkg, 64)?.let { appBitmap ->
+                val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#FF181818")
+                }
+                canvas.drawCircle(152f, 152f, 34f, borderPaint)
+
+                val badgeDiameter = 60
+                val circularBadge = Bitmap.createBitmap(badgeDiameter, badgeDiameter, Bitmap.Config.ARGB_8888)
+                val badgeCanvas = Canvas(circularBadge)
+                val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                badgeCanvas.drawCircle(30f, 30f, 30f, badgePaint)
+                badgePaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                badgeCanvas.drawBitmap(
+                    appBitmap,
+                    Rect(0, 0, appBitmap.width, appBitmap.height),
+                    Rect(0, 0, badgeDiameter, badgeDiameter),
+                    badgePaint,
+                )
+                canvas.drawBitmap(circularBadge, 152f - 30f, 152f - 30f, null)
+            }
+
+            output
+        }.getOrDefault(albumBitmap)
     }
 
     /**

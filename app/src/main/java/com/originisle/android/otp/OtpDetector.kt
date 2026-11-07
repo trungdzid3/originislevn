@@ -209,9 +209,46 @@ object OtpDetector {
     }
 
     /**
+     * Danh sách các package hệ thống và trình phát nhạc cần loại trừ khi quét OTP.
+     */
+    private val EXCLUDED_OTP_PACKAGES = setOf(
+        "android",
+        "com.android.systemui",
+        "com.autonavi.minimap",
+        "com.originisle.android",
+        "com.zing.mp3",
+        "com.spotify.music",
+        "com.google.android.apps.youtube.music",
+        "com.google.android.youtube",
+        "app.revanced.android.youtube",
+        "com.samsung.android.app.watchmanager",
+        "com.samsung.wearable.fit3plugin",
+    )
+
+    /**
+     * Nhận diện thông báo đã bị Android 15/16 hoặc Vivo OriginOS 6 ẩn nội dung nhạy cảm (FLAG_OTP_REDACTED).
+     */
+    val REDACTED_OTP_NOTICE = Regex(
+        """(?U)(?:sensitive\s+notification\s+content\s+hidden|contents?\s+hidden|đã\s+ẩn\s+nội\s+dung\s+thông\s+báo\s+nhạy\s+cảm|nội\s+dung\s+nhạy\s+cảm\s+đã\s+được\s+ẩn|đã\s+ẩn\s+nội\s+dung|bảo\s+vệ\s+mã\s+xác\s+minh|敏感通知内容已隐藏|验证码保护)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * Kiểm tra package có khả năng là ứng dụng nhắn tin, ngân hàng, email hoặc nhận OTP hay không.
+     */
+    fun isLikelyMessagingOrOtpPackage(pkg: String): Boolean {
+        val clean = pkg.trim().lowercase()
+        if (clean.isEmpty() || clean in EXCLUDED_OTP_PACKAGES) return false
+        if (clean.startsWith("com.android.providers.") || clean.startsWith("com.vivo.daemonservice")) {
+            return false
+        }
+        return true
+    }
+
+    /**
      * Bóc tách toàn diện chuỗi văn bản từ [StatusBarNotification], bao gồm:
-     * - Extras thông thường (title, text, bigText, lines...)
-     * - MessagingStyle (EXTRA_MESSAGES / android.messages / historic) của tin nhắn SMS hiện đại
+     * - MessagingStyle (ưu tiên tin nhắn mới nhất lên đầu tiên qua asReversed())
+     * - Extras thông thường (bigText, text, subText, title, lines...)
      * - Ticker text của notification
      * - publicVersion khi máy bị khóa màn hình hoặc nội dung bị redact/ẩn
      */
@@ -219,71 +256,71 @@ object OtpDetector {
         val n = sbn.notification
         val parts = mutableListOf<String>()
 
-        // 1. Extras thông thường
+        // 1. Ưu tiên đặt MessagingStyle LÊN ĐẦU TIÊN và duyệt ngược từ tin nhắn mới nhất về cũ nhất
+        runCatching {
+            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)?.let { style ->
+                style.messages.asReversed().forEach { msg ->
+                    msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                }
+                style.historicMessages.asReversed().forEach { msg ->
+                    msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                }
+            }
+        }
+
+        // 2. Extras thông thường (ưu tiên EXTRA_MESSAGES đảo ngược, EXTRA_BIG_TEXT, EXTRA_TEXT trước EXTRA_TITLE)
         val extras = n.extras
         if (extras != null) {
-            listOf(
-                NotificationCompat.EXTRA_TITLE,
-                NotificationCompat.EXTRA_TEXT,
-                NotificationCompat.EXTRA_BIG_TEXT,
-                NotificationCompat.EXTRA_SUB_TEXT,
-                NotificationCompat.EXTRA_SUMMARY_TEXT,
-                NotificationCompat.EXTRA_INFO_TEXT,
-                NotificationCompat.EXTRA_TITLE_BIG,
-            ).forEach { key ->
-                runCatching { extras.getCharSequence(key)?.toString() }
-                    .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+            extractMessagingTexts(extras).forEach { text ->
+                if (text.isNotBlank()) parts.add(text)
             }
 
             runCatching {
                 extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES)
                     ?.mapNotNull { it?.toString() }
+                    ?.asReversed()
             }.getOrNull()?.filter { it.isNotBlank() }?.let { parts.addAll(it) }
 
-            // Bổ sung: Trích xuất tin nhắn từ MessagingStyle trong extras (Google Messages, Vivo MMS...)
-            extractMessagingTexts(extras).forEach { text ->
-                if (text.isNotBlank()) parts.add(text)
+            listOf(
+                NotificationCompat.EXTRA_BIG_TEXT,
+                NotificationCompat.EXTRA_TEXT,
+                NotificationCompat.EXTRA_SUB_TEXT,
+                NotificationCompat.EXTRA_SUMMARY_TEXT,
+                NotificationCompat.EXTRA_INFO_TEXT,
+                NotificationCompat.EXTRA_TITLE,
+                NotificationCompat.EXTRA_TITLE_BIG,
+            ).forEach { key ->
+                runCatching { extras.getCharSequence(key)?.toString() }
+                    .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
             }
         }
 
-        // Trích xuất tin nhắn qua NotificationCompat.MessagingStyle
-        runCatching {
-            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)?.let { style ->
-                style.messages.forEach { msg ->
-                    msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
-                }
-                style.historicMessages.forEach { msg ->
-                    msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
-                }
-            }
-        }
-
-        // 2. Ticker text
+        // 3. Ticker text
         runCatching { n.tickerText?.toString() }
             .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
 
-        // 3. publicVersion (khi thông báo bị redact/ẩn trên lockscreen)
+        // 4. publicVersion (khi thông báo bị redact/ẩn trên lockscreen)
         val pubN = n.publicVersion
         if (pubN != null) {
             runCatching {
                 NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(pubN)?.let { style ->
-                    style.messages.forEach { msg ->
+                    style.messages.asReversed().forEach { msg ->
                         msg.text?.toString()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
                     }
                 }
             }
             if (pubN.extras != null) {
+                extractMessagingTexts(pubN.extras).forEach { text ->
+                    if (text.isNotBlank()) parts.add(text)
+                }
                 listOf(
-                    NotificationCompat.EXTRA_TITLE,
-                    NotificationCompat.EXTRA_TEXT,
                     NotificationCompat.EXTRA_BIG_TEXT,
+                    NotificationCompat.EXTRA_TEXT,
                     NotificationCompat.EXTRA_SUB_TEXT,
+                    NotificationCompat.EXTRA_TITLE,
                 ).forEach { key ->
                     runCatching { pubN.extras.getCharSequence(key)?.toString() }
                         .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
-                }
-                extractMessagingTexts(pubN.extras).forEach { text ->
-                    if (text.isNotBlank()) parts.add(text)
                 }
                 runCatching { pubN.tickerText?.toString() }
                     .getOrNull()?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
@@ -294,7 +331,7 @@ object OtpDetector {
     }
 
     /**
-     * Trích xuất các đoạn text trong EXTRA_MESSAGES và EXTRA_HISTORIC_MESSAGES (hoặc android.messages)
+     * Trích xuất các đoạn text trong EXTRA_MESSAGES và EXTRA_HISTORIC_MESSAGES (duyệt ngược từ mới nhất về cũ nhất)
      */
     private fun extractMessagingTexts(bundle: Bundle): List<String> {
         val results = mutableListOf<String>()
@@ -307,7 +344,7 @@ object OtpDetector {
         for (key in keys) {
             runCatching {
                 val rawArray = bundle.getParcelableArray(key)
-                rawArray?.forEach { item ->
+                rawArray?.reversedArray()?.forEach { item ->
                     if (item is Bundle) {
                         item.getCharSequence("text")?.toString()?.takeIf { it.isNotBlank() }?.let { results.add(it) }
                     }

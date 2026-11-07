@@ -200,7 +200,14 @@ object OriginIslandBuilder {
         base.putCharSequence(C.BUNDLE_KEY_BASE_TITLE, title)
         base.putCharSequence(C.BUNDLE_KEY_BASE_CONTENT, content)
         when {
-            template == 8 -> base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
+            template == 8 -> {
+                if (!subText.isNullOrBlank()) {
+                    base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 1)
+                    base.putString(C.BUNDLE_KEY_BASE_SUB_TEXT, subText)
+                } else {
+                    base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
+                }
+            }
             actionPi != null && actionTitle != null -> {
                 base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 2)
                 base.putString(C.BUNDLE_KEY_BASE_SUB_TEXT, actionTitle)
@@ -329,8 +336,8 @@ object OriginIslandBuilder {
                     // given, and with a system theme colour on, its button widget repaints any opaque
                     // fill AND any text that isn't #FFFFFF/#333333/#000000 in that colour, so near-black
                     // text on a near-white fill came out accent-on-accent and unreadable (#9).
-                    val textColor = if (!isDefaultColor(fgColor)) fgColor else Color.BLACK
-                    val btnColor = if (!isDefaultColor(bgColor)) bgColor else Color.WHITE
+                    val textColor = if (!isDefaultColor(fgColor)) fgColor else Color.WHITE
+                    val btnColor = if (!isDefaultColor(bgColor)) bgColor else Color.parseColor("#FF1F1F1F")
                     infos.putInt(C.BUNDLE_KEY_INFO_BTN_TYPE, 1)
                     infos.putStringArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_LIST, ArrayList(triples.map { it.first }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_ICON_LIST, ArrayList(triples.map { it.second }))
@@ -400,11 +407,7 @@ object OriginIslandBuilder {
                     ?: listOf("#FF6B8A", "#4AE2B5", "#5C9DFF")
                 right.putStringArrayList(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_COLOR, ArrayList(colors))
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_WAVE_STATE, waveState)
-                right.putBoolean(C.BUNDLE_KEY_ISLAND_RIGHT_PLAY_PAG, true)
-                if (showRightIcon) right.putParcelable(C.BUNDLE_KEY_ISLAND_RIGHT_ICON, rightIcon)
-                if (rightContent.isNotEmpty()) {
-                    right.putCharSequence(C.BUNDLE_KEY_ISLAND_RIGHT_CONTENT, colorSpan(rightContent, fgColor))
-                }
+                right.putBoolean(C.BUNDLE_KEY_ISLAND_RIGHT_PLAY_PAG, waveState == 1)
             }
             2 -> {
                 right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_PROGRESS, progress.coerceIn(0, 100))

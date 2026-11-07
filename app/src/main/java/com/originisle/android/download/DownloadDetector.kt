@@ -40,18 +40,40 @@ object DownloadDetector {
     )
 
     private val MEDIA_PACKAGES = setOf(
+        "com.zing.mp3",
+        "com.vng.zingmp3",
+        "vn.nhaccuatui",
+        "ht.bkit.nhaccuatui",
+        "com.nhaccuatui.player",
+        "com.spotify.music",
+        "com.spotify.music.canary",
+        "com.spotify.lite",
         "com.google.android.apps.youtube.music",
         "com.google.android.youtube",
-        "com.spotify.music",
-        "com.zing.mp3",
+        "app.revanced.android.youtube",
+        "app.revanced.android.apps.youtube.music",
+        "com.soundcloud.android",
         "com.apple.android.music",
         "deezer.android.app",
-        "com.soundcloud.android",
+        "com.amazon.mp3",
         "com.netease.cloudmusic",
         "com.tencent.qqmusic",
         "com.kugou.android",
-        "vn.nhaccuatui",
         "tunein.player",
+        "com.maxmpz.audioplayer",
+        "org.videolan.vlc",
+        "com.mxtech.videoplayer.ad",
+        "com.mxtech.videoplayer.pro",
+        "com.tiktok.android.music",
+        "com.moonvideo.android.resso",
+        "com.aspiro.tidal",
+        "com.audiomack",
+        "fm.player",
+        "vstudio.android.musicplayer",
+        "com.vivo.music",
+        "com.android.bbkmusic",
+        "com.vivo.musicwidgetmix",
+        "com.vivo.mediacontrol"
     )
 
     private val NAV_PACKAGES = setOf(
@@ -130,6 +152,53 @@ object DownloadDetector {
         "\\.(?:apk|zip|rar|7z|tar|gz|bin|iso|pdf|mp4|mkv|exe|dmg|docx|xlsx)\\b",
         Pattern.CASE_INSENSITIVE
     )
+    private val DURATION_PATTERN = Pattern.compile("\\b\\d{1,2}:\\d{2}\\b")
+
+    private val MEDIA_ACTION_KEYWORDS = listOf(
+        "play", "pause", "next", "previous", "prev",
+        "phát", "tạm dừng", "tiếp", "trước", "skip"
+    )
+
+    fun isMusicOrMediaApp(pkg: String): Boolean {
+        val lower = pkg.lowercase()
+        if (lower in MEDIA_PACKAGES) return true
+        if (lower.contains("music") || lower.contains("mp3") || lower.contains("audio") ||
+            lower.contains("podcast") || lower.contains("radio") || lower.contains("mediaplayer") ||
+            lower.contains("nhaccuatui") || lower.contains("zingmp3") || lower.contains("zing.mp3") ||
+            lower.contains("spotify") || lower.contains("soundcloud") || lower.contains("youtubemusic")
+        ) {
+            return true
+        }
+        return false
+    }
+
+    fun isMediaStyleNotification(n: Notification, extras: android.os.Bundle?): Boolean {
+        if (n.category == Notification.CATEGORY_TRANSPORT) return true
+        if (extras != null) {
+            if (extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
+                extras.containsKey("android.mediaSession") ||
+                extras.containsKey("android.mediaRemoteDevice") ||
+                extras.containsKey("android.compactActions")
+            ) {
+                return true
+            }
+            val template = extras.getString(NotificationCompat.EXTRA_TEMPLATE).orEmpty()
+            if (template.contains("MediaStyle") || template.contains("DecoratedMediaCustomViewStyle")) {
+                return true
+            }
+        }
+        val actions = n.actions
+        if (!actions.isNullOrEmpty()) {
+            val hasMediaAction = actions.any { action ->
+                val actionTitle = action?.title?.toString()?.lowercase()?.trim().orEmpty()
+                actionTitle.isNotEmpty() && MEDIA_ACTION_KEYWORDS.any { kw ->
+                    actionTitle == kw || actionTitle.contains(kw)
+                }
+            }
+            if (hasMediaAction) return true
+        }
+        return false
+    }
 
     fun isDownloadPackage(pkg: String): Boolean {
         return pkg in DOWNLOAD_PACKAGES ||
@@ -159,6 +228,16 @@ object DownloadDetector {
         // b) Nếu sbn.packageName nằm trong NON_DOWNLOAD_APPS:
         // Chặn tuyệt đối 100% không nhận diện là download (email, tin nhắn, MXH tải tệp qua DownloadManager).
         if (pkg in NON_DOWNLOAD_APPS) {
+            return false
+        }
+
+        // Khóa cứng: Mọi thông báo từ ứng dụng nghe nhạc / media player cấm biến thành DownloadCard
+        if (isMusicOrMediaApp(pkg)) {
+            return false
+        }
+
+        // Bỏ qua ngay nếu là thông báo phát đa phương tiện (Media Session / MediaStyle / Media Actions)
+        if (isMediaStyleNotification(n, extras)) {
             return false
         }
 
@@ -235,30 +314,30 @@ object DownloadDetector {
             return false
         }
 
-        // Bỏ qua nếu là thông báo phát đa phương tiện (Media Session / MediaStyle)
-        val isMediaSession = extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
-            extras.containsKey("android.mediaSession") ||
-            extras.getString(NotificationCompat.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
-
-        if (isMediaSession) {
-            // Nếu thông báo mang MediaSession token thì 100% là điều khiển phát nhạc, không bao giờ là file download
-            return false
-        }
-
-        if (pkg in MEDIA_PACKAGES && !isExplicitDownloadChannel) {
-            // Nếu thuộc app nghe nhạc mà channel không phải download ngoại tuyến thì bỏ qua
-            return false
-        }
+        val hasDownloadMetrics = PERCENT_PATTERN.matcher(allText).find() ||
+            SIZE_PATTERN.matcher(allText).find() ||
+            SPEED_PATTERN.matcher(allText).find() ||
+            FILE_EXT_PATTERN.matcher(allText).find() ||
+            SINGLE_SIZE_PATTERN.matcher(allText).find()
 
         // 1. Kiểm tra progress bar trực tiếp từ hệ thống
         val max = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0)
         val indeterminate = extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
         if (max > 0 || indeterminate) {
+            if (!isDownloadPkg && !hasDownloadKeywords && !isExplicitDownloadChannel && !hasDownloadMetrics) {
+                return false
+            }
+            if (!isDownloadPkg && !hasDownloadKeywords && !hasDownloadMetrics && DURATION_PATTERN.matcher(allText).find()) {
+                return false
+            }
             return true
         }
 
         // 2. Kiểm tra category chuẩn
         if (n.category == Notification.CATEGORY_PROGRESS) {
+            if (!isDownloadPkg && !hasDownloadKeywords && !isExplicitDownloadChannel && !hasDownloadMetrics) {
+                return false
+            }
             return true
         }
 
@@ -271,12 +350,6 @@ object DownloadDetector {
         if (hasDownloadKeywords) {
             return true
         }
-
-        val hasDownloadMetrics = PERCENT_PATTERN.matcher(allText).find() ||
-            SIZE_PATTERN.matcher(allText).find() ||
-            SPEED_PATTERN.matcher(allText).find() ||
-            FILE_EXT_PATTERN.matcher(allText).find() ||
-            SINGLE_SIZE_PATTERN.matcher(allText).find()
 
         // 5. Nếu từ gói tải xuống/trình duyệt
         if (isDownloadPkg) {

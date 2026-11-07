@@ -277,21 +277,20 @@ class NotificationCastListener : NotificationListenerService() {
             if (pkg.isNullOrBlank()) return false
             val lower = pkg.lowercase()
             return lower in KNOWN_MUSIC_APPS ||
-                lower.contains("zing.mp3") ||
-                lower.contains("zingmp3") ||
-                lower.contains("nhaccuatui") ||
-                lower.contains("spotify") ||
-                lower.contains("soundcloud") ||
-                lower.contains("youtubemusic")
+                DownloadDetector.isMusicOrMediaApp(lower)
         }
 
         fun isMediaStyleOrTransport(n: Notification): Boolean {
-            val template = n.extras?.getString(NotificationCompat.EXTRA_TEMPLATE)
+            val extras = n.extras
+            val template = extras?.getString(NotificationCompat.EXTRA_TEMPLATE)
             return n.category == Notification.CATEGORY_TRANSPORT ||
+                extras?.containsKey("android.compactActions") == true ||
+                extras?.containsKey("android.mediaRemoteDevice") == true ||
                 template == "android.app.Notification\$MediaStyle" ||
                 template == "androidx.media.app.NotificationCompat\$MediaStyle" ||
                 template == "android.app.Notification\$DecoratedMediaCustomViewStyle" ||
-                template == "androidx.media.app.NotificationCompat\$DecoratedMediaCustomViewStyle"
+                template == "androidx.media.app.NotificationCompat\$DecoratedMediaCustomViewStyle" ||
+                DownloadDetector.isMediaStyleNotification(n, extras)
         }
 
         fun extractMediaSessionToken(extras: android.os.Bundle?): MediaSession.Token? {
@@ -531,6 +530,22 @@ class NotificationCastListener : NotificationListenerService() {
         return false
     }
 
+    private fun cancelStrayDownloadCard(id: Int) {
+        DownloadCard.clear(id)
+        if (activeDownloadIds.remove(id)) {
+            transferProgressMap.remove(id)
+            transferFinishedMap.remove(id)
+            runCatching {
+                startService(
+                    Intent(this, PlaygroundService::class.java)
+                        .setAction(PlaygroundService.ACTION_CANCEL)
+                        .putExtra("id", id)
+                        .putExtra("oi_scene", "NAVIGATION"),
+                )
+            }
+        }
+    }
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             try {
@@ -549,20 +564,19 @@ class NotificationCastListener : NotificationListenerService() {
                     }
                     val extras = sbn.notification.extras
                     val token = extractMediaSessionToken(extras)
-                    val isMusicApp = isKnownMusicApp(sbn.packageName)
-                    val isMediaStyle = isMediaStyleOrTransport(sbn.notification)
-                    if (token != null) {
+                    val isMusicApp = DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)
+                    val isMediaStyle = isMediaStyleOrTransport(sbn.notification) || extras.containsKey("android.compactActions")
+                    val isMediaNotif = isMusicApp || token != null || isMediaStyle
+                    if (isMediaNotif) {
+                        cancelStrayDownloadCard(IconCache.castIdFor(sbn))
                         if (castMedia && isAppEnabled(prefs, sbn.packageName)) {
-                            MediaCard.post(
-                                applicationContext, sbn,
-                                MediaController(this@NotificationCastListener, token),
-                            )
+                            val controller = token?.let { MediaController(this@NotificationCastListener, it) }
+                                ?: findMediaControllerFallback(sbn.packageName)
+                            if (controller != null) {
+                                MediaCard.post(applicationContext, sbn, controller)
+                            }
                         }
-                    } else if (castMedia && isAppEnabled(prefs, sbn.packageName) && (isMusicApp || isMediaStyle)) {
-                        val fallbackController = findMediaControllerFallback(sbn.packageName)
-                        if (fallbackController != null) {
-                            MediaCard.post(applicationContext, sbn, fallbackController)
-                        }
+                        return@forEach
                     } else if (castNotifs && sbn.isOngoing &&
                         extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false)
                     ) {
@@ -590,7 +604,12 @@ class NotificationCastListener : NotificationListenerService() {
                             }
                         }
                     } else if (castNotifs && prefs.getBoolean("cast_downloads", true) &&
-                        sbn.isOngoing && DownloadDetector.isDownload(sbn) && isAppEnabled(prefs, sbn.packageName)
+                        sbn.isOngoing &&
+                        !DownloadDetector.isMusicOrMediaApp(sbn.packageName) &&
+                        extractMediaSessionToken(extras) == null &&
+                        !extras.containsKey("android.compactActions") &&
+                        DownloadDetector.isDownload(sbn) &&
+                        isAppEnabled(prefs, sbn.packageName)
                     ) {
                         val dlInfo = DownloadDetector.parse(sbn)
                         if (dlInfo != null) {
@@ -810,10 +829,62 @@ class NotificationCastListener : NotificationListenerService() {
                 return // BẮT BUỘC return ở đây! Tuyệt đối không để bất kỳ thông báo Quick Share nào trôi xuống GenericCard!
             }
 
+            // 2.5) Cô lập tuyệt đối thông báo âm nhạc / đa phương tiện (Zing MP3, Spotify, NCT, YouTube Music, MediaStyle...)
+            //      Không bao giờ cho phép lọt vào DownloadDetector hoặc GenericCard.
+            val isMediaNotif = !isCall && (
+                DownloadDetector.isMusicOrMediaApp(sbn.packageName) ||
+                isKnownMusicApp(sbn.packageName) ||
+                extractMediaSessionToken(extras) != null ||
+                n.category == Notification.CATEGORY_TRANSPORT ||
+                extras.containsKey("android.compactActions") ||
+                isMediaStyleOrTransport(n)
+            )
+            if (isMediaNotif) {
+                cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+                    log(sbn, "bỏ qua — tóm tắt nhóm", false)
+                    return
+                }
+                if (!isAppEnabled(prefs, sbn.packageName)) {
+                    log(sbn, "bỏ qua — ứng dụng đã bị tắt", false)
+                    return
+                }
+                val castMedia = prefs.getBoolean("cast_media_sessions", true)
+                if (!castMedia) {
+                    log(sbn, "bỏ qua — trình phát nhạc đang tắt", false)
+                    return
+                }
+                if (isOriginNativePlayerActive()) {
+                    MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
+                    MediaCard.clearAll(applicationContext)
+                    log(sbn, "bỏ qua — nhường Đảo nhạc gốc OriginOS 6", false)
+                    return
+                }
+                val token = extractMediaSessionToken(extras)
+                val controller = token?.let { MediaController(this, it) }
+                    ?: findMediaControllerFallback(sbn.packageName)
+                if (controller != null) {
+                    log(sbn, "hiển thị — trình phát nhạc", true)
+                    MediaCard.post(applicationContext, sbn, controller)
+                } else {
+                    pollHandler.postDelayed({
+                        val retryController = findMediaControllerFallback(sbn.packageName)
+                        if (retryController != null && prefs.getBoolean("cast_media_sessions", true) && isAppEnabled(prefs, sbn.packageName)) {
+                            if (!isOriginNativePlayerActive()) {
+                                MediaCard.post(applicationContext, sbn, retryController)
+                                log(sbn, "hiển thị — trình phát nhạc (sau đồng bộ session)", true)
+                            }
+                        }
+                    }, 300L)
+                    log(sbn, "chờ đồng bộ phiên phát nhạc — ${appLabel(sbn.packageName)}", false)
+                }
+                return
+            }
+
             // 3) Tải xuống ứng dụng & tệp tin (Google Play Store, Chrome, Edge, Download Manager, ...)
             //    BẮT BUỘC chạy TRƯỚC OTP để thông báo tải file có tên chứa số (OriginIsle-10208.apk, media_179397.jpg,...)
             //    hoặc có progress bar không bị OtpDetector bắt nhầm.
-            if (prefs.getBoolean("cast_downloads", true) && DownloadDetector.isDownload(sbn)) {
+            if (prefs.getBoolean("cast_downloads", true) && !isMediaNotif && DownloadDetector.isDownload(sbn)) {
                 val dlInfo = DownloadDetector.parse(sbn)
                 if (dlInfo != null) {
                     val id = IconCache.castIdFor(sbn)
