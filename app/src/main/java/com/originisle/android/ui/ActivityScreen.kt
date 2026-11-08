@@ -517,7 +517,7 @@ private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
                 putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
                 putExtra("oi_left_content", "")
                 putExtra("oi_right_content", "")
-                putExtra("status_chip_text", "✓")
+                putExtra("status_chip_text", "")
                 putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS)
                 putExtra("oi_light_color", "#00D084")
                 putExtra("oi_bg_color", "#4C00D084")

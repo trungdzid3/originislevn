@@ -241,12 +241,12 @@ object QuickShareCard {
                     val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(context)
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-                    putExtra("oi_left_icon", tickIcon)
+                    putExtra("oi_left_icon", appIcon)
                     putExtra("oi_right_icon", tickIcon)
                     putExtra("oi_show_right_icon", true)
                     putExtra("oi_left_content", "")
                     putExtra("oi_right_content", "")
-                    putExtra("status_chip_text", "✓")
+                    putExtra("status_chip_text", "")
                     putExtra("oi_light_color", "#00D084")
                     putExtra("oi_bg_color", "#00D084")
                     putExtra("oi_fg_color", "#00D084")
@@ -403,12 +403,12 @@ object QuickShareCard {
             val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(context)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-            putExtra("oi_left_icon", tickIcon)
+            putExtra("oi_left_icon", appIcon)
             putExtra("oi_right_icon", tickIcon)
             putExtra("oi_show_right_icon", true)
             putExtra("oi_left_content", "")
             putExtra("oi_right_content", "")
-            putExtra("status_chip_text", "✓")
+            putExtra("status_chip_text", "")
             putExtra("oi_light_color", "#00D084")
             putExtra("oi_bg_color", "#00D084")
             putExtra("oi_fg_color", "#00D084")

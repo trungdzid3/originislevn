@@ -193,7 +193,7 @@ object DownloadCard {
                     putExtra("oi_show_right_icon", true)
                     putExtra("oi_left_content", "")
                     putExtra("oi_right_content", "")
-                    putExtra("status_chip_text", "✓")
+                    putExtra("status_chip_text", "")
                     putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
                     putExtra("oi_light_color", "#00D084")
                     putExtra("oi_bg_color", "#4C00D084")
