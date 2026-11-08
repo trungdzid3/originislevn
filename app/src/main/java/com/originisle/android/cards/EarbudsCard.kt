@@ -55,7 +55,11 @@ import java.util.concurrent.ConcurrentHashMap
 @SuppressLint("MissingPermission")
 object EarbudsCard {
 
-    const val ID = 35004
+    const val ID_EARBUDS = 35004
+    const val ID_WEARABLE = 35014
+    const val ID = ID_EARBUDS
+
+    fun cardIdFor(isWearable: Boolean): Int = if (isWearable) ID_WEARABLE else ID_EARBUDS
 
     private const val BATTERY_WAIT_MS = 2500L
     private const val SHOW_MS = 5000L
@@ -149,8 +153,25 @@ object EarbudsCard {
     private val wearableRegistry = mutableSetOf<String>()
     private val lastConnectionState = ConcurrentHashMap<String, Boolean>()
     private val lastConnectedTimestamp = ConcurrentHashMap<String, Long>()
-    private var showingAddress: String? = null
-    private var hideTask: Runnable? = null
+    private var showingEarbudsAddress: String? = null
+    private var showingWearableAddress: String? = null
+    private var hideEarbudsTask: Runnable? = null
+    private var hideWearableTask: Runnable? = null
+
+    val showingAddress: String?
+        get() = showingEarbudsAddress ?: showingWearableAddress
+
+    fun getShowingAddress(isWearable: Boolean): String? =
+        if (isWearable) showingWearableAddress else showingEarbudsAddress
+
+    fun isShowing(isWearable: Boolean, nameOrAddress: String?): Boolean {
+        if (nameOrAddress.isNullOrBlank()) return false
+        val current = if (isWearable) showingWearableAddress else showingEarbudsAddress
+        if (current == null) return false
+        val target = nameOrAddress.trim().lowercase()
+        val cur = current.trim().lowercase()
+        return cur == target || cur.contains(target) || target.contains(cur)
+    }
 
     /** Ghi nhận thời điểm kết nối gần nhất của thiết bị để phục vụ cơ chế chống dập tắt (Anti-Flap Cooldown). */
     fun markDeviceConnectedTime(nameOrAddress: String) {
@@ -665,7 +686,7 @@ object EarbudsCard {
         disconnectDebounce.clear()
         lastConnectionState.clear()
         lastConnectedTimestamp.clear()
-        if (showingAddress != null) hide(ctx)
+        hide(ctx, isWearable = null)
         app = null
     }
 
@@ -724,20 +745,6 @@ object EarbudsCard {
             device = intent.getParcelableExtra("android.bluetooth.device.extra.DEVICE", BluetoothDevice::class.java)
         }
 
-        val rawAddress = intent.getStringExtra("address")
-            ?: intent.getStringExtra("device_address")
-            ?: intent.getStringExtra("mac")
-            ?: intent.getStringExtra("BLUETOOTH_DEVICE_ADDRESS")
-            ?: extractSamsungDeviceAddress(intent)
-            ?: showingAddress
-
-        if (device == null && !rawAddress.isNullOrBlank()) {
-            device = runCatching {
-                val adapter = BluetoothAdapter.getDefaultAdapter()
-                adapter?.getRemoteDevice(rawAddress)
-            }.getOrNull()
-        }
-
         val pkg = intent.component?.packageName ?: intent.`package`
         val rawName = intent.getStringExtra("name")
             ?: intent.getStringExtra("device_name")
@@ -747,6 +754,20 @@ object EarbudsCard {
 
         val isWearableDevice = isWearable(device, rawName, pkg) || isSamsungWearableAction(action)
         if (!isSupportedDevice(device, rawName, pkg) && !isSamsungWearableAction(action)) return
+
+        val rawAddress = intent.getStringExtra("address")
+            ?: intent.getStringExtra("device_address")
+            ?: intent.getStringExtra("mac")
+            ?: intent.getStringExtra("BLUETOOTH_DEVICE_ADDRESS")
+            ?: extractSamsungDeviceAddress(intent)
+            ?: (if (isWearableDevice) showingWearableAddress else showingEarbudsAddress)
+
+        if (device == null && !rawAddress.isNullOrBlank()) {
+            device = runCatching {
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                adapter?.getRemoteDevice(rawAddress)
+            }.getOrNull()
+        }
 
         val address = device?.address ?: rawAddress ?: rawName ?: "device_unknown"
         val devName = rawName ?: runCatching { device?.alias ?: device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
@@ -896,7 +917,7 @@ object EarbudsCard {
                         pending.remove(address)?.let(handler::removeCallbacks)
                         show(context, device, devName, updated, low = eff in 0..LOW_LEVEL, isWearable = isWearableDevice)
                     }
-                    showingAddress == address -> {
+                    isShowing(isWearableDevice, address) || isShowing(isWearableDevice, devName) -> {
                         show(context, device, devName, updated, low = eff in 0..LOW_LEVEL, isWearable = isWearableDevice)
                     }
                     eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && address !in warnedLow -> {
@@ -1287,6 +1308,8 @@ object EarbudsCard {
 
     /**
      * Bóc tách thông số pin Trái, Phải, Hộp sạc, Thiết bị đeo thật từ thông báo hệ thống.
+     * Bóc tách chuẩn xác Google Fast Pair (VD: "heobeos plus: Tai nghe bên trái 50% Hộp sạc 20% Tai nghe bên phải 100%"),
+     * Vivo TWS, Samsung Galaxy Buds, Galaxy Fit 3, Galaxy Watch...
      */
     fun tryParseBatteryFromNotification(context: Context, sbn: StatusBarNotification): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
@@ -1323,9 +1346,10 @@ object EarbudsCard {
         if (!isTwsPkg && !hasKeyword) return false
         if (!fullText.contains("%")) return false
 
-        val leftRegex = Regex("""(?:L|Left|Trái|Tai trái)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
-        val rightRegex = Regex("""(?:R|Right|Phải|Tai phải)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
-        val caseRegex = Regex("""(?:Case|Box|C|Hộp|Hộp sạc|Dock)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        // Bóc tách đa thành phần TWS (Left / Right / Case)
+        val leftRegex = Regex("""(?:Tai nghe bên trái|Tai nghe trái|Tai trái|Left earbud|Left|Trái|L)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        val rightRegex = Regex("""(?:Tai nghe bên phải|Tai nghe phải|Tai phải|Right earbud|Right|Phải|R)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        val caseRegex = Regex("""(?:Hộp sạc|Hộp đựng|Hộp|Charging case|Case|Box|Dock|C)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
         val mainRegex = Regex("""(?:pin|battery|tai nghe|fit|watch|band)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
 
         val left = leftRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
@@ -1342,10 +1366,29 @@ object EarbudsCard {
             }
         }
 
+        val hasMultiComponent = (left in 0..100 || right in 0..100 || case in 0..100)
+
+        // Phân định rạch ròi Wearable vs Earbuds: nếu có L/R/Case thì chắc chắn 100% là tai nghe TWS
+        val isWearableDevice = !hasMultiComponent && (
+            isWearable(null, title, pkg) ||
+            listOf("fit", "watch", "band", "vòng đeo tay", "đồng hồ").any { fullText.contains(it, ignoreCase = true) }
+        )
+
         val isCharging = fullText.contains("⚡") || fullText.contains("đang sạc", ignoreCase = true) || fullText.contains("charging", ignoreCase = true)
-        val isLeftCharging = isCharging && (fullText.contains("L") || fullText.contains("Trái"))
-        val isRightCharging = isCharging && (fullText.contains("R") || fullText.contains("Phải"))
-        val isCaseCharging = isCharging && (fullText.contains("Case") || fullText.contains("Hộp") || fullText.contains("Box"))
+        val isLeftCharging = isCharging && (
+            fullText.contains(Regex("""(?:Tai nghe bên trái|Tai nghe trái|Tai trái|Left|L|Trái)[^|•·\n]*(?:⚡|sạc|charging)""", RegexOption.IGNORE_CASE)) ||
+            fullText.contains(Regex("""(?:⚡|đang sạc|charging)[^|•·\n]*(?:Tai nghe bên trái|Tai nghe trái|Tai trái|Left|L|Trái)""", RegexOption.IGNORE_CASE)) ||
+            (!fullText.contains("Phải") && !fullText.contains("Hộp"))
+        )
+        val isRightCharging = isCharging && (
+            fullText.contains(Regex("""(?:Tai nghe bên phải|Tai nghe phải|Tai phải|Right|R|Phải)[^|•·\n]*(?:⚡|sạc|charging)""", RegexOption.IGNORE_CASE)) ||
+            fullText.contains(Regex("""(?:⚡|đang sạc|charging)[^|•·\n]*(?:Tai nghe bên phải|Tai nghe phải|Tai phải|Right|R|Phải)""", RegexOption.IGNORE_CASE)) ||
+            (!fullText.contains("Trái") && !fullText.contains("Hộp"))
+        )
+        val isCaseCharging = isCharging && (
+            fullText.contains(Regex("""(?:Hộp sạc|Hộp đựng|Hộp|Case|Box|Dock)[^|•·\n]*(?:⚡|sạc|charging)""", RegexOption.IGNORE_CASE)) ||
+            fullText.contains(Regex("""(?:⚡|đang sạc|charging)[^|•·\n]*(?:Hộp sạc|Hộp đựng|Hộp|Case|Box|Dock)""", RegexOption.IGNORE_CASE))
+        )
 
         val telemetry = EarbudsTelemetry(
             main = main,
@@ -1357,12 +1400,33 @@ object EarbudsCard {
             isCaseCharging = isCaseCharging,
         )
 
-        val isWearableDevice = isWearable(null, title, pkg) ||
-            listOf("fit", "watch", "band", "vòng đeo tay", "đồng hồ").any { fullText.contains(it, ignoreCase = true) }
+        val systemPkgNames = setOf(
+            "google", "google play", "dịch vụ của google play", "google play services",
+            "bluetooth", "fast pair", "quick share", "chia sẻ nhanh", "hệ thống", "system"
+        )
+        var devName = ""
+        val titleCandidate = title.trim()
+        val textCandidate = text.trim()
 
-        var devName = title.ifBlank { if (isWearableDevice) "Galaxy Fit 3" else "Tai nghe TWS" }
-            .replace(Regex("""\s*\(?\d{1,3}%\)?"""), "")
-            .trim()
+        if (titleCandidate.contains(":")) {
+            val prefix = titleCandidate.substringBefore(":").trim()
+            if (prefix.isNotBlank() && !prefix.contains("%") && !systemPkgNames.any { prefix.contains(it, ignoreCase = true) }) {
+                devName = prefix
+            }
+        }
+        if (devName.isBlank() && titleCandidate.isNotBlank() && !systemPkgNames.any { titleCandidate.equals(it, ignoreCase = true) }) {
+            devName = titleCandidate
+        }
+        if (devName.isBlank() && textCandidate.contains(":")) {
+            val prefix = textCandidate.substringBefore(":").trim()
+            if (prefix.isNotBlank() && !prefix.contains("%") && !systemPkgNames.any { prefix.contains(it, ignoreCase = true) }) {
+                devName = prefix
+            }
+        }
+        if (devName.isBlank()) {
+            devName = if (isWearableDevice) "Galaxy Fit 3" else "Tai nghe TWS"
+        }
+        devName = devName.replace(Regex("""\s*\(?\d{1,3}%\)?"""), "").trim()
         if (devName.isBlank() || devName.equals("Bluetooth", ignoreCase = true)) {
             devName = if (isWearableDevice) "Thiết bị đeo" else "Tai nghe Bluetooth"
         }
@@ -1370,6 +1434,9 @@ object EarbudsCard {
         if (telemetry.effectiveLevel in 0..100) {
             saveCachedBattery(context, devName, telemetry.effectiveLevel)
         }
+        deviceTelemetry[devName] = telemetry
+        setConnectedState(devName, true)
+
         show(
             context = context,
             device = null,
@@ -1378,6 +1445,7 @@ object EarbudsCard {
             low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
             isWearable = isWearableDevice,
         )
+        onBatteryUpdated(context, devName, telemetry, isWearable = isWearableDevice)
         return true
     }
 
@@ -1513,16 +1581,17 @@ object EarbudsCard {
             (targetDev ?: device)?.address?.let { saveCachedBattery(context, it, effectivePct) }
         }
 
+        val cardId = if (isWearableDevice) ID_WEARABLE else ID_EARBUDS
         val glyph = when {
             isWearableDevice -> R.drawable.ic_smartband
             device != null && isOverEar(device, name) -> R.drawable.ic_headphones
             else -> R.drawable.ic_earbuds
         }
         val safeIcon = createSafeIcon(context, glyph)
-        IconCache.activeSmallIcons.remove(ID)
+        IconCache.activeSmallIcons.remove(cardId)
 
         val click = PendingIntent.getActivity(
-            context, ID, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            context, cardId, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
@@ -1583,7 +1652,7 @@ object EarbudsCard {
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", ID)
+            putExtra("id", cardId)
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", if (low) "Pin yếu · $displayTitle" else displayTitle)
@@ -1637,9 +1706,16 @@ object EarbudsCard {
         }
 
         context.startService(intent)
-        showingAddress = device?.address ?: name
-        hideTask?.let(handler::removeCallbacks)
-        hideTask = Runnable { hide(context) }.also { handler.postDelayed(it, SHOW_MS) }
+        val shownKey = device?.address ?: name
+        if (isWearableDevice) {
+            showingWearableAddress = shownKey
+            hideWearableTask?.let(handler::removeCallbacks)
+            hideWearableTask = Runnable { hide(context, isWearable = true) }.also { handler.postDelayed(it, SHOW_MS) }
+        } else {
+            showingEarbudsAddress = shownKey
+            hideEarbudsTask?.let(handler::removeCallbacks)
+            hideEarbudsTask = Runnable { hide(context, isWearable = false) }.also { handler.postDelayed(it, SHOW_MS) }
+        }
     }
 
     /**
@@ -1654,13 +1730,18 @@ object EarbudsCard {
             return
         }
 
-        hideTask?.let(handler::removeCallbacks)
+        val cardId = if (isWearable) ID_WEARABLE else ID_EARBUDS
+        if (isWearable) {
+            hideWearableTask?.let(handler::removeCallbacks)
+        } else {
+            hideEarbudsTask?.let(handler::removeCallbacks)
+        }
         val glyph = if (isWearable) R.drawable.ic_smartband else R.drawable.ic_earbuds
         val safeIcon = createSafeIcon(context, glyph)
-        IconCache.activeSmallIcons.remove(ID)
+        IconCache.activeSmallIcons.remove(cardId)
 
         val click = PendingIntent.getActivity(
-            context, ID, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            context, cardId, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
@@ -1668,7 +1749,7 @@ object EarbudsCard {
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", ID)
+            putExtra("id", cardId)
             putExtra("is_ongoing", false)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
@@ -1691,8 +1772,13 @@ object EarbudsCard {
         }
 
         context.startService(intent)
-        showingAddress = null
-        hideTask = Runnable { hide(context) }.also { handler.postDelayed(it, DISCONNECT_SHOW_MS) }
+        if (isWearable) {
+            showingWearableAddress = null
+            hideWearableTask = Runnable { hide(context, isWearable = true) }.also { handler.postDelayed(it, DISCONNECT_SHOW_MS) }
+        } else {
+            showingEarbudsAddress = null
+            hideEarbudsTask = Runnable { hide(context, isWearable = false) }.also { handler.postDelayed(it, DISCONNECT_SHOW_MS) }
+        }
     }
 
     /**
@@ -1736,7 +1822,7 @@ object EarbudsCard {
 
         if (alreadyConnected) {
             // Đã kết nối trước đó: chỉ cập nhật thông số ngầm, không kích hoạt pop-up đảo
-            if (showingAddress == name || (telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow)) {
+            if (isShowing(isWearable, name) || (telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow)) {
                 if (telemetry.effectiveLevel in 0..LOW_LEVEL) warnedLow += name
                 show(
                     context = ctx,
@@ -1800,7 +1886,7 @@ object EarbudsCard {
         val before = deviceTelemetry.put(name, telemetry)
         val eff = telemetry.effectiveLevel
         // Chỉ cập nhật hiển thị nếu Đang hiển thị trên đảo, hoặc pin tụt xuống mức cảnh báo yếu
-        if (showingAddress == name || (eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && name !in warnedLow)) {
+        if (isShowing(isWearable, name) || (eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && name !in warnedLow)) {
             if (eff in 0..LOW_LEVEL) warnedLow += name
             show(
                 context = ctx,
@@ -1820,14 +1906,19 @@ object EarbudsCard {
     fun onDeviceFullyCharged(context: Context, name: String, isWearable: Boolean = false) {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
-        hideTask?.let(handler::removeCallbacks)
+        val cardId = if (isWearable) ID_WEARABLE else ID_EARBUDS
+        if (isWearable) {
+            hideWearableTask?.let(handler::removeCallbacks)
+        } else {
+            hideEarbudsTask?.let(handler::removeCallbacks)
+        }
 
         val glyph = if (isWearable) R.drawable.ic_smartband else R.drawable.ic_earbuds
         val safeIcon = createSafeIcon(ctx, glyph)
-        IconCache.activeSmallIcons.remove(ID)
+        IconCache.activeSmallIcons.remove(cardId)
 
         val click = PendingIntent.getActivity(
-            ctx, ID, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            ctx, cardId, Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
@@ -1835,7 +1926,7 @@ object EarbudsCard {
 
         val intent = Intent(ctx, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
-            putExtra("id", ID)
+            putExtra("id", cardId)
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
@@ -1862,20 +1953,39 @@ object EarbudsCard {
         }
 
         ctx.startService(intent)
-        showingAddress = name
-        hideTask = Runnable { hide(ctx) }.also { handler.postDelayed(it, 3500L) }
+        if (isWearable) {
+            showingWearableAddress = name
+            hideWearableTask = Runnable { hide(ctx, isWearable = true) }.also { handler.postDelayed(it, 3500L) }
+        } else {
+            showingEarbudsAddress = name
+            hideEarbudsTask = Runnable { hide(ctx, isWearable = false) }.also { handler.postDelayed(it, 3500L) }
+        }
     }
 
-    private fun hide(context: Context) {
-        hideTask?.let(handler::removeCallbacks)
-        hideTask = null
-        showingAddress = null
-        IconCache.activeSmallIcons.remove(ID)
-        context.startService(
-            Intent(context, PlaygroundService::class.java)
-                .setAction(PlaygroundService.ACTION_CANCEL)
-                .putExtra("id", ID)
-                .putExtra("oi_scene", "NAVIGATION"),
-        )
+    fun hide(context: Context, isWearable: Boolean? = null) {
+        if (isWearable == null || !isWearable) {
+            hideEarbudsTask?.let(handler::removeCallbacks)
+            hideEarbudsTask = null
+            showingEarbudsAddress = null
+            IconCache.activeSmallIcons.remove(ID_EARBUDS)
+            context.startService(
+                Intent(context, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", ID_EARBUDS)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+        }
+        if (isWearable == null || isWearable) {
+            hideWearableTask?.let(handler::removeCallbacks)
+            hideWearableTask = null
+            showingWearableAddress = null
+            IconCache.activeSmallIcons.remove(ID_WEARABLE)
+            context.startService(
+                Intent(context, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", ID_WEARABLE)
+                    .putExtra("oi_scene", "NAVIGATION"),
+            )
+        }
     }
 }

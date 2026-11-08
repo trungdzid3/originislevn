@@ -738,6 +738,14 @@ class NotificationCastListener : NotificationListenerService() {
                                 QuickShareCard.post(applicationContext, qsInfo, sbn)
                             }
                         }
+                    } else if (castNotifs && prefs.getBoolean("cast_tiktok_streak", true) &&
+                        TikTokStreakDetector.isTikTokStreak(sbn) &&
+                        isAppEnabled(prefs, sbn.packageName)
+                    ) {
+                        val streakInfo = TikTokStreakDetector.parse(sbn)
+                        if (streakInfo != null) {
+                            TikTokStreakCard.post(applicationContext, streakInfo, sbn)
+                        }
                     } else if (castNotifs && prefs.getBoolean("cast_downloads", true) &&
                         sbn.isOngoing &&
                         !DownloadDetector.isMusicOrMediaApp(sbn.packageName) &&
@@ -956,6 +964,14 @@ class NotificationCastListener : NotificationListenerService() {
             val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
                 template == "android.app.Notification\$CallStyle"
 
+            // 0.0) Bóc tách viễn trắc mức pin từ thông báo tai nghe Bluetooth / TWS / Google Fast Pair / Thiết bị đeo
+            if (prefs.getBoolean("cast_earbuds", true) &&
+                EarbudsCard.tryParseBatteryFromNotification(applicationContext, sbn)
+            ) {
+                log(sbn, "hiển thị — thông số pin tai nghe/thiết bị đeo", true)
+                return
+            }
+
             // --- Ưu tiên tuyệt đối: Cuộc gọi Zalo -> Ngân hàng -> Quick Share -> Tải xuống --------------------------
             // Các loại này chạy TRƯỚC mọi bộ lọc phía dưới (SYSTEM_PKGS, group summary, per-app,
             // quiet hours, media…). Trên OriginOS chúng có thể đến từ gói hệ thống hoặc mang cờ
@@ -1163,29 +1179,8 @@ class NotificationCastListener : NotificationListenerService() {
                     devName.contains("Watch", ignoreCase = true) ||
                     devName.contains("Band", ignoreCase = true)
 
-                // 2.a) Bóc tách sâu notification của Samsung Galaxy Wearable / Fit 3 Plugin
+                // 2.a) Bóc tách sâu notification của chính thiết bị Samsung Galaxy Wearable / Fit 3 Plugin này
                 var batteryPct = extractDeepWearableBattery(sbn)
-
-                if (batteryPct == -1) {
-                    val notifs = runCatching { activeNotifications }.getOrNull()
-                    if (notifs != null) {
-                        for (active in notifs) {
-                            val activePkg = active.packageName
-                            val isSamsungWearPkg = activePkg in WEARABLE_SAMSUNG_PKGS ||
-                                activePkg.contains("fit3", ignoreCase = true) ||
-                                activePkg.contains("watchmanager", ignoreCase = true) ||
-                                activePkg.contains("waterplugin", ignoreCase = true) ||
-                                activePkg.contains("accessory", ignoreCase = true)
-                            if (isSamsungWearPkg) {
-                                val match = extractDeepWearableBattery(active)
-                                if (match in 0..100) {
-                                    batteryPct = match
-                                    break
-                                }
-                            }
-                        }
-                    }
-                }
 
                 // Nếu notification của Samsung Wearable chứa % pin ở bất kỳ trường nào, bóc tách ngay và gọi EarbudsCard.onBatteryUpdated
                 if (batteryPct in 0..100) {

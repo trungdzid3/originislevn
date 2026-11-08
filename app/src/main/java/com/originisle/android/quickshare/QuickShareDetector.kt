@@ -45,6 +45,42 @@ object QuickShareDetector {
         Pattern.CASE_INSENSITIVE,
     )
 
+    private val ACCESSORY_BATTERY_KEYWORDS = listOf(
+        "tai nghe",
+        "hộp sạc",
+        "hộp đựng",
+        "earbud",
+        "earphone",
+        "headphone",
+        "headset",
+        "bên trái",
+        "bên phải",
+        "tai trái",
+        "tai phải",
+        "galaxy fit",
+        "galaxy watch",
+        "fit 3",
+        "smart band",
+        "smartband",
+        "smart watch",
+        "smartwatch",
+        "mức pin",
+        "pin:",
+        "battery:",
+    )
+
+    private val ACCESSORY_WORD_REGEX = Pattern.compile(
+        "\\b(left|right|case|dock)\\b",
+        Pattern.CASE_INSENSITIVE,
+    )
+
+    private fun isBlacklistedAccessoryOrBattery(channelId: String, allTextLower: String): Boolean {
+        if (channelId.contains("fast_pair")) return true
+        if (ACCESSORY_BATTERY_KEYWORDS.any { allTextLower.contains(it) }) return true
+        if (ACCESSORY_WORD_REGEX.matcher(allTextLower).find()) return true
+        return false
+    }
+
     fun isIdleVisibilityNotification(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
@@ -110,18 +146,23 @@ object QuickShareDetector {
     }
 
     fun isQuickShare(sbn: StatusBarNotification): Boolean {
-        if (isIdleVisibilityNotification(sbn)) return false
-        if (isServiceForegroundNotification(sbn)) return false
-        val pkg = sbn.packageName.lowercase()
         val n = sbn.notification
         val channelId = n.channelId?.lowercase().orEmpty()
-        val tag = sbn.tag?.lowercase().orEmpty()
+        if (channelId.contains("fast_pair")) return false
+
         val extras = n.extras
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
         val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val allText = "$title $text $bigText $subText".lowercase()
+
+        if (isBlacklistedAccessoryOrBattery(channelId, allText)) return false
+        if (isIdleVisibilityNotification(sbn)) return false
+        if (isServiceForegroundNotification(sbn)) return false
+
+        val pkg = sbn.packageName.lowercase()
+        val tag = sbn.tag?.lowercase().orEmpty()
 
         val actionTitles = n.actions?.mapNotNull { it.title?.toString()?.lowercase()?.trim() }.orEmpty()
 
@@ -135,12 +176,11 @@ object QuickShareDetector {
                 a.contains("từ chối") || a.contains("decline") || a.contains("reject")
         }
 
-        // 3. Kiểm tra Channel ID
+        // 3. Kiểm tra Channel ID (loại bỏ hoàn toàn fast_pair)
         val isChannelMatch = channelId.contains("nearby") ||
             channelId.contains("shar") ||
             channelId.contains("quick") ||
             channelId.contains("transfer") ||
-            channelId.contains("fast_pair") ||
             channelId.contains("receive") ||
             channelId.contains("send") ||
             channelId.contains("file")
@@ -176,8 +216,18 @@ object QuickShareDetector {
             PERCENT_PATTERN.matcher(allText).find()
 
         // Gói Google Play Services (nơi chạy Nearby Share / Quick Share mặc định trên mọi máy Android):
+        // Không chỉ dựa vào hasProgress, bắt buộc phải có action, tag, channel hoặc text chia sẻ rõ ràng.
         if (pkg == "com.google.android.gms") {
-            return isActionMatch || isChannelMatch || isTagMatch || isTextMatch || hasProgress
+            val isExplicitShareText = allText.contains("quick share") ||
+                allText.contains("chia sẻ nhanh") ||
+                allText.contains("nearby share") ||
+                allText.contains("chia sẻ lân cận") ||
+                allText.contains("muốn chia sẻ") ||
+                allText.contains("đang gửi tệp") ||
+                allText.contains("đang nhận tệp") ||
+                allText.contains("chia sẻ tệp")
+
+            return isActionMatch || isTagMatch || (isChannelMatch && !channelId.contains("fast_pair")) || isExplicitShareText
         }
 
         // Các gói Quick Share chuyên biệt:
@@ -207,9 +257,10 @@ object QuickShareDetector {
     fun detect(sbn: StatusBarNotification, context: Context? = null): QuickShareInfo? = parse(sbn)
 
     fun parse(sbn: StatusBarNotification): QuickShareInfo? {
-        if (!isQuickShare(sbn) || isIdleVisibilityNotification(sbn) || isServiceForegroundNotification(sbn)) return null
-
         val n = sbn.notification
+        val channelId = n.channelId?.lowercase().orEmpty()
+        if (channelId.contains("fast_pair")) return null
+
         val extras = n.extras
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()?.trim().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
@@ -218,6 +269,9 @@ object QuickShareDetector {
         val ticker = n.tickerText?.toString()?.trim().orEmpty()
         val allCombined = "$title $text $bigText $subText $ticker"
         val allTextLower = allCombined.lowercase()
+
+        if (isBlacklistedAccessoryOrBattery(channelId, allTextLower)) return null
+        if (!isQuickShare(sbn) || isIdleVisibilityNotification(sbn) || isServiceForegroundNotification(sbn)) return null
 
         // 1. Actions usable
         val rawActions = n.actions.orEmpty().filter { a ->
