@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
@@ -18,6 +19,50 @@ import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
+
+private var cachedGreenTickIcon: Icon? = null
+
+/**
+ * Mở rộng BatteryCanvasRenderer để tạo biểu tượng vòng tròn viền rỗng có dấu tích xanh bo tròn mềm mại (#00D084).
+ * Thiết kế chuẩn OriginOS 6: stroke ring viền rỗng, dấu ✓ bo tròn mềm mại Paint.Cap.ROUND / Join.ROUND.
+ */
+fun BatteryCanvasRenderer.createGreenTickCircleIcon(context: Context, size: Int = 128): Icon {
+    cachedGreenTickIcon?.let { return it }
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val s = size.toFloat()
+    val cx = s / 2f
+    val cy = s / 2f
+    val r = s * 0.42f
+    val colorGreen = Color.parseColor("#00D084")
+
+    // 1. Viền tròn rỗng (stroke): strokeWidth = size * 0.075f, bán kính r = size * 0.42f
+    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = s * 0.075f
+        color = colorGreen
+    }
+    canvas.drawCircle(cx, cy, r, ringPaint)
+
+    // 2. Dấu tích bên trong (stroke): strokeWidth = size * 0.11f, strokeCap = ROUND, strokeJoin = ROUND
+    val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = s * 0.11f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        color = colorGreen
+    }
+    val path = Path().apply {
+        moveTo(cx - r * 0.45f, cy + r * 0.05f)
+        lineTo(cx - r * 0.12f, cy + r * 0.38f)
+        lineTo(cx + r * 0.46f, cy - r * 0.38f)
+    }
+    canvas.drawPath(path, tickPaint)
+
+    val icon = Icon.createWithBitmap(bitmap)
+    cachedGreenTickIcon = icon
+    return icon
+}
 
 /**
  * Mở rộng BatteryCanvasRenderer để tạo biểu tượng vòng tròn đỏ có dấu X trắng (Red cross circle badge).
@@ -137,7 +182,7 @@ object DownloadCard {
             when {
                 // 3. Khi hoàn tất (info.isFinished)
                 isCompleted -> {
-                    val tickIcon = Icon.createWithResource(context, R.drawable.ic_success_tick_green)
+                    val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(context)
                     putExtra("is_ongoing", false)
                     putExtra("icon_res", R.mipmap.ic_launcher_round)
                     putExtra("oi_left_icon", leftIcon)

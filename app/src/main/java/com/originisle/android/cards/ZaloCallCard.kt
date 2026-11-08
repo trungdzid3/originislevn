@@ -40,6 +40,75 @@ object ZaloCallCard {
 
     fun isActive(): Boolean = active
 
+    fun postSample(context: Context) {
+        val app = context.applicationContext
+        val clickPi = fallbackClickIntent(app, ZaloCallDetector.ZALO_PKG)
+        val sampleInfo = ZaloCallInfo(
+            callerName = "Minh Tuấn",
+            statusText = "Zalo · Cuộc gọi thoại đến",
+            state = ZaloCallDetector.CallState.INCOMING,
+            isVideoCall = false,
+            avatar = null,
+            declineIntent = clickPi,
+            answerIntent = clickPi,
+            contentIntent = clickPi,
+            chronometerBaseMs = 0L,
+        )
+
+        val whiteCallIcon = createWhiteCallIcon(app)
+        val largeBitmap = roundAvatarWithZaloBadge(app, sampleInfo.avatar)
+        val largeIcon = Icon.createWithBitmap(largeBitmap)
+
+        IconCache.activeSmallIcons[ID] = whiteCallIcon
+        IconCache.activeLargeIcons[ID] = largeIcon
+        IconCache.activeLargeBitmaps[ID] = largeBitmap
+        active = true
+        lastCaller = sampleInfo.callerName
+        lastState = sampleInfo.state
+        lastPostMs = SystemClock.elapsedRealtime()
+
+        val intent = Intent(app, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_START
+            putExtra("id", ID)
+            putExtra("oi_scene", "NAVIGATION")
+            putExtra("source_pkg", ZaloCallDetector.ZALO_PKG)
+            putExtra("source_app", "Zalo")
+            putExtra("title", sampleInfo.callerName)
+            putExtra("text", sampleInfo.statusText)
+            putExtra("subtext", "Zalo")
+            putExtra("icon_res", R.mipmap.ic_launcher_round)
+            putExtra("oi_left_icon", whiteCallIcon)
+            putExtra("oi_large_icon", largeIcon)
+            putExtra("oi_show_left_icon", true)
+            putExtra("is_ongoing", true)
+            putExtra("oi_force_show", true)
+            putExtra("oi_show_notify", false)
+            putExtra("oi_dismiss_when_kill", true)
+
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+            putExtra("oi_left_content", sampleInfo.callerName.take(14))
+            putExtra("oi_right_content", "Zalo")
+            putExtra("status_chip_text", "Zalo")
+            putExtra("oi_fg_color", "#FF29E683")
+            putExtra("oi_bg_color", "#3329E683")
+            putExtra("oi_light_color", "#FF29E683")
+
+            val actions = arrayListOf(
+                Notification.Action.Builder(null, "Từ chối", clickPi).build(),
+            )
+            putParcelableArrayListExtra("actions", actions)
+            putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối"))
+
+            putExtra("source_content_intent", clickPi)
+            putExtra("click_resp", clickPi)
+            putExtra("oi_capsule_click_resp", clickPi)
+        }
+
+        app.startService(intent)
+        CastLog.add("Zalo Call", sampleInfo.callerName, "hiển thị — ${sampleInfo.callerName} (${sampleInfo.statusText})", true, context = app)
+    }
+
     fun post(context: Context, sbn: StatusBarNotification, info: ZaloCallInfo) =
         post(context, info, sbn)
 

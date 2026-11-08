@@ -3,12 +3,18 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-  <!-- Vòng tròn nền màu xanh lá rực rỡ #00D084 / #28C76F -->
+  <!-- Viền tròn rỗng màu xanh lá rực rỡ #00D084 (stroke ring) -->
   <path
-      android:fillColor="#FF00D084"
-      android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z"/>
-  <!-- Dấu tích trắng nổi bật bo góc mềm mại -->
+      android:fillColor="#00000000"
+      android:strokeColor="#FF00D084"
+      android:strokeWidth="1.8"
+      android:pathData="M12,2A10,10 0 1,0 12,22A10,10 0 1,0 12,2Z"/>
+  <!-- Dấu tích bo tròn mềm mại màu xanh lá #00D084 -->
   <path
-      android:fillColor="#FFFFFFFF"
-      android:pathData="M10.2,16.2l-3.9,-3.9c-0.39,-0.39 -0.39,-1.02 0,-1.41 0.39,-0.39 1.02,-0.39 1.41,0l3.19,3.19 6.89,-6.89c0.39,-0.39 1.02,-0.39 1.41,0 0.39,0.39 0.39,1.02 0,1.41l-7.6,7.6c-0.38,0.39 -1.02,0.39 -1.4,0z"/>
+      android:fillColor="#00000000"
+      android:strokeColor="#FF00D084"
+      android:strokeWidth="2.4"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"
+      android:pathData="M7,12.2 L10.5,15.8 L17,8"/>
 </vector>

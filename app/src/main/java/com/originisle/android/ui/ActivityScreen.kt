@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -53,6 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.originisle.android.cards.BatteryCanvasRenderer
+import com.originisle.android.cards.createGreenTickCircleIcon
+import com.originisle.android.cards.TikTokStreakCard
+import com.originisle.android.cards.ZaloCallCard
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
@@ -465,66 +471,29 @@ private fun sendTestBankNotification(context: Context, connected: Boolean) {
 
 private fun sendTestZaloCallNotification(context: Context) {
     runCatching {
-        val app = context.applicationContext
-        val clickPi = com.originisle.android.cards.fallbackClickIntent(app, com.originisle.android.call.ZaloCallDetector.ZALO_PKG)
-        val whiteCallIcon = com.originisle.android.cards.ZaloCallCard.createWhiteCallIcon(app)
-        val intent = Intent(app, PlaygroundService::class.java).apply {
-            action = PlaygroundService.ACTION_START
-            putExtra("id", 9901)
-            putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_BUTTONS)
-            putExtra("oi_right_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-            putExtra("oi_left_content", "Minh Tuấn")
-            putExtra("oi_right_content", "Zalo")
-            putExtra("status_chip_text", "Zalo")
-            putExtra("title", "Minh Tuấn")
-            putExtra("text", "Zalo · Cuộc gọi thoại đến")
-            putExtra("source_app", "Zalo")
-            putExtra("oi_left_icon", whiteCallIcon)
-            putExtra("oi_show_left_icon", true)
-            putExtra("oi_fg_color", "#FF29E683")
-            putExtra("oi_bg_color", "#3329E683")
-            putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối"))
-            putExtra("icon_res", com.originisle.android.R.drawable.ic_call)
-            putExtra("click_resp", clickPi)
-            putExtra("source_content_intent", clickPi)
-            putExtra("oi_capsule_click_resp", clickPi)
-            putExtra("oi_force_show", true)
-            putExtra("oi_island_notify", true)
-            putExtra("oi_keep_duration", 30)
-            putExtra("oi_dismiss_when_kill", true)
-        }
-        app.startService(intent)
+        ZaloCallCard.postSample(context)
     }
-
-    CastLog.add(
-        app = "Zalo",
-        title = "Minh Tuấn",
-        outcome = "hiển thị — cuộc gọi Zalo: Minh Tuấn",
-        cast = true,
-        context = context,
-    )
     Toast.makeText(context, "Đã phát thẻ Cuộc gọi Zalo lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
 private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
+    val app = context.applicationContext
     runCatching {
-        val app = context.applicationContext
         val intent = Intent(app, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", 9903)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_BASE)
-            putExtra("oi_card_ring", 65)
-            putExtra("oi_right_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+            putExtra("oi_card_ring", 75)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
             putExtra("title", "Edge Canary")
-            putExtra("text", "Đang tải xuống 65% · 1.5 MB/s")
-            putExtra("subtext", "Tốc độ: 1.5 MB/s")
+            putExtra("text", "Đang tải xuống 75% · 2.4 MB/s")
+            putExtra("subtext", "Tốc độ: 2.4 MB/s")
             putExtra("oi_left_content", "")
-            putExtra("oi_right_content", "65%")
-            putExtra("status_chip_text", "65%")
+            putExtra("oi_right_content", "75%")
+            putExtra("status_chip_text", "75%")
             putExtra("show_progress", true)
-            putExtra("progress", 65)
+            putExtra("progress", 75)
             putExtra("progress_max", 100)
             putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
             putExtra("oi_force_show", true)
@@ -534,10 +503,53 @@ private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
         app.startService(intent)
     }
 
+    // Sau 1500ms tự động phát thông báo hoàn tất 100% với biểu tượng tích xanh viền rỗng
+    Handler(Looper.getMainLooper()).postDelayed({
+        runCatching {
+            val completeIntent = Intent(app, PlaygroundService::class.java).apply {
+                action = PlaygroundService.ACTION_START
+                putExtra("id", 9903)
+                putExtra("oi_scene", "NAVIGATION")
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+                putExtra("oi_show_right_icon", true)
+                putExtra("oi_right_icon", BatteryCanvasRenderer.createGreenTickCircleIcon(context))
+                putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "")
+                putExtra("status_chip_text", "✓")
+                putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS)
+                putExtra("oi_light_color", "#00D084")
+                putExtra("oi_bg_color", "#4C00D084")
+                putExtra("oi_fg_color", "#00D084")
+                putExtra("title", "Edge Canary · Đã tải xong")
+                putExtra("text", "Tập tin cập nhật đã sẵn sàng")
+                putExtra("subtext", "")
+                putExtra("oi_force_show", true)
+                putExtra("oi_dismiss_when_kill", true)
+                putExtra("is_ongoing", false)
+            }
+            app.startService(completeIntent)
+        }
+
+        // Tự động hủy sau 4000ms
+        Handler(Looper.getMainLooper()).postDelayed({
+            runCatching {
+                app.startService(
+                    Intent(app, PlaygroundService::class.java).apply {
+                        action = PlaygroundService.ACTION_CANCEL
+                        putExtra("id", 9903)
+                        putExtra("oi_scene", "NAVIGATION")
+                    }
+                )
+            }
+        }, 4000L)
+    }, 1500L)
+
     CastLog.add(
         app = "Edge Canary",
-        title = "Tải tệp tin: 65%",
-        outcome = "hiển thị — tiến độ tải xuống 65% (Edge Canary)",
+        title = "Tải tệp tin: 75%",
+        outcome = "hiển thị — tiến độ tải xuống 75% -> hoàn tất (Edge Canary)",
         cast = true,
         context = context,
     )
@@ -546,39 +558,8 @@ private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
 
 private fun sendTestTikTokStreakNotification(context: Context) {
     runCatching {
-        val app = context.applicationContext
-        val intent = Intent(app, PlaygroundService::class.java).apply {
-            action = PlaygroundService.ACTION_START
-            putExtra("id", 35012)
-            putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-            putExtra("title", "TikTok · Chuỗi 🔥")
-            putExtra("text", "Nguyễn Văn A: Duy trì chuỗi với Nguyễn Văn A ngay nào!")
-            putExtra("subtext", "Chạm hoặc bấm Duy trì để gửi tin nhắn chuỗi")
-            putExtra("oi_left_content", "Chuỗi 🔥")
-            putExtra("oi_right_content", "🔥 Chuỗi")
-            putExtra("status_chip_text", "🔥 Chuỗi")
-            putExtra("oi_show_right_icon", true)
-            putExtra("oi_force_show", true)
-            putExtra("is_high_priority", true)
-            putExtra("oi_dismiss_when_kill", true)
-            putExtra("icon_res", com.originisle.android.R.drawable.ic_tiktok_streak_fire)
-            putExtra("oi_light_color", "#FFFF5E00")
-            putExtra("oi_bg_color", "#FFFF5E00")
-            putExtra("oi_fg_color", "#FFFF5E00")
-            putStringArrayListExtra("oi_button_titles", arrayListOf("Duy trì"))
-        }
-        app.startService(intent)
+        TikTokStreakCard.postSample(context)
     }
-
-    CastLog.add(
-        app = "TikTok",
-        title = "Chuỗi 🔥",
-        outcome = "hiển thị — chuỗi TikTok: Nguyễn Văn A",
-        cast = true,
-        context = context,
-    )
     Toast.makeText(context, "Đã phát thẻ Chuỗi TikTok lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 

@@ -238,7 +238,7 @@ object QuickShareCard {
                 }
                 isFinishedEffective -> {
                     // Trạng thái hoàn tất truyền tệp
-                    val tickIcon = Icon.createWithResource(context, R.drawable.ic_success_tick_green)
+                    val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(context)
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                     putExtra("oi_left_icon", tickIcon)
@@ -400,7 +400,7 @@ object QuickShareCard {
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("is_ongoing", false)
-            val tickIcon = Icon.createWithResource(context, R.drawable.ic_success_tick_green)
+            val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(context)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
             putExtra("oi_left_icon", tickIcon)
