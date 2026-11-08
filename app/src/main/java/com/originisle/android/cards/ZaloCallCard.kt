@@ -69,17 +69,16 @@ object ZaloCallCard {
             )
         }
 
-        val pillBitmap = createRoundPillAvatar(context, info.avatar)
+        val whiteCallIcon = createWhiteCallIcon(context)
         val largeBitmap = roundAvatarWithZaloBadge(context, info.avatar)
-        val pillIcon = Icon.createWithBitmap(pillBitmap)
         val largeIcon = Icon.createWithBitmap(largeBitmap)
 
-        IconCache.activeSmallIcons[ID] = pillIcon
+        IconCache.activeSmallIcons[ID] = whiteCallIcon
         IconCache.activeLargeIcons[ID] = largeIcon
         IconCache.activeLargeBitmaps[ID] = largeBitmap
 
         val clickPi = info.contentIntent
-            ?: info.answerIntent
+            ?: sbn.notification.fullScreenIntent
             ?: sbn.notification.contentIntent
             ?: fallbackClickIntent(context, ZaloCallDetector.ZALO_PKG)
 
@@ -101,7 +100,7 @@ object ZaloCallCard {
             putExtra("text", resolvedText)
             putExtra("subtext", "Zalo")
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("oi_left_icon", pillIcon)
+            putExtra("oi_left_icon", whiteCallIcon)
             putExtra("oi_large_icon", largeIcon)
             putExtra("oi_show_left_icon", true)
             putExtra("is_ongoing", true)
@@ -112,44 +111,40 @@ object ZaloCallCard {
             if (info.state == ZaloCallDetector.CallState.INCOMING) {
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-                val chip = if (info.isVideoCall) "Video đến" else "Gọi đến"
                 putExtra("oi_left_content", info.callerName.take(14))
-                putExtra("oi_right_content", chip)
-                putExtra("status_chip_text", chip)
+                putExtra("oi_right_content", "Zalo")
+                putExtra("status_chip_text", "Zalo")
                 putExtra("oi_fg_color", "#FF29E683")
                 putExtra("oi_bg_color", "#3329E683")
                 putExtra("oi_light_color", "#FF29E683")
 
                 val declinePi = info.declineIntent ?: clickPi
-                val answerPi = info.answerIntent ?: info.contentIntent ?: clickPi
                 val actions = arrayListOf(
                     Notification.Action.Builder(null, "Từ chối", declinePi).build(),
-                    Notification.Action.Builder(null, "Trả lời", answerPi).build(),
                 )
                 putParcelableArrayListExtra("actions", actions)
-                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Trả lời"))
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối"))
             } else {
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
                 putExtra("oi_left_content", info.callerName.take(14))
-                putExtra("oi_right_content", "Đang gọi")
-                putExtra("status_chip_text", "Đang gọi")
+                putExtra("oi_right_content", "Zalo")
+                putExtra("status_chip_text", "Zalo")
                 putExtra("oi_fg_color", "#FF0068FF")
                 putExtra("oi_bg_color", "#330068FF")
                 putExtra("oi_light_color", "#FF0068FF")
 
                 val endPi = info.declineIntent ?: clickPi
-                val openPi = info.contentIntent ?: info.answerIntent ?: clickPi
                 val actions = arrayListOf(
                     Notification.Action.Builder(null, "Kết thúc", endPi).build(),
-                    Notification.Action.Builder(null, "Mở cuộc gọi", openPi).build(),
                 )
                 putParcelableArrayListExtra("actions", actions)
-                putStringArrayListExtra("oi_button_titles", arrayListOf("Kết thúc", "Mở cuộc gọi"))
+                putStringArrayListExtra("oi_button_titles", arrayListOf("Kết thúc"))
             }
 
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
+            putExtra("oi_capsule_click_resp", clickPi)
         }
 
         context.startService(intent)
@@ -168,6 +163,20 @@ object ZaloCallCard {
             putExtra("oi_scene", "NAVIGATION")
         }
         context.startService(cancelIntent)
+    }
+
+    fun createWhiteCallIcon(context: Context, size: Int = 128): Icon {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_call)?.mutate()
+        if (drawable != null) {
+            val pad = (size * 0.15f).toInt()
+            drawable.setBounds(pad, pad, size - pad, size - pad)
+            drawable.setTint(Color.WHITE)
+            drawable.setTintMode(PorterDuff.Mode.SRC_IN)
+            drawable.draw(canvas)
+        }
+        return Icon.createWithBitmap(bmp)
     }
 
     private fun ensureSoftwareBitmap(bitmap: Bitmap): Bitmap {

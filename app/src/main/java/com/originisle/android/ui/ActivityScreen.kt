@@ -466,6 +466,8 @@ private fun sendTestBankNotification(context: Context, connected: Boolean) {
 private fun sendTestZaloCallNotification(context: Context) {
     runCatching {
         val app = context.applicationContext
+        val clickPi = com.originisle.android.cards.fallbackClickIntent(app, com.originisle.android.call.ZaloCallDetector.ZALO_PKG)
+        val whiteCallIcon = com.originisle.android.cards.ZaloCallCard.createWhiteCallIcon(app)
         val intent = Intent(app, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", 9901)
@@ -473,15 +475,20 @@ private fun sendTestZaloCallNotification(context: Context) {
             putExtra("oi_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_BUTTONS)
             putExtra("oi_right_template", com.originisle.android.island.OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
             putExtra("oi_left_content", "Minh Tuấn")
-            putExtra("oi_right_content", "Gọi đến")
-            putExtra("status_chip_text", "Gọi đến")
+            putExtra("oi_right_content", "Zalo")
+            putExtra("status_chip_text", "Zalo")
             putExtra("title", "Minh Tuấn")
             putExtra("text", "Zalo · Cuộc gọi thoại đến")
             putExtra("source_app", "Zalo")
+            putExtra("oi_left_icon", whiteCallIcon)
+            putExtra("oi_show_left_icon", true)
             putExtra("oi_fg_color", "#FF29E683")
             putExtra("oi_bg_color", "#3329E683")
-            putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Trả lời"))
+            putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối"))
             putExtra("icon_res", com.originisle.android.R.drawable.ic_call)
+            putExtra("click_resp", clickPi)
+            putExtra("source_content_intent", clickPi)
+            putExtra("oi_capsule_click_resp", clickPi)
             putExtra("oi_force_show", true)
             putExtra("oi_island_notify", true)
             putExtra("oi_keep_duration", 30)

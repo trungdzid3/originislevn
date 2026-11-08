@@ -313,7 +313,8 @@ class PlaygroundService : Service() {
         }
 
         val clickResp: PendingIntent? =
-            intent.getParcelableExtra("source_content_intent", PendingIntent::class.java)
+            intent.getParcelableExtra("oi_capsule_click_resp", PendingIntent::class.java)
+                ?: intent.getParcelableExtra("source_content_intent", PendingIntent::class.java)
                 ?: intent.getParcelableExtra("click_resp", PendingIntent::class.java)
 
         val leftDoubleLine = intent.getStringArrayListExtra("oi_left_doubleline") ?: emptyList()

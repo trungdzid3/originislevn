@@ -277,8 +277,8 @@ object ZaloCallDetector {
             ?: n.fullScreenIntent
             ?: n.contentIntent
 
-        val contentIntent = n.contentIntent
-            ?: n.fullScreenIntent
+        val contentIntent = n.fullScreenIntent
+            ?: n.contentIntent
             ?: answerIntent
 
         return ZaloCallInfo(
