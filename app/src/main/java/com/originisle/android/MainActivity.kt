@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import com.originisle.android.ui.IsleColors
 import com.originisle.android.ui.OnboardingScreen
 import com.originisle.android.ui.OriginIsleTheme
 import com.originisle.android.ui.PREFS_NAME
+import com.originisle.android.ui.UpdateChecker
 import com.originisle.android.ui.samples.IslandSamples
 import java.io.File
 
@@ -192,6 +194,23 @@ private fun Screen() {
     remember { OriginIslandBuilder.grantScenes(context) } // whitelist scenes once on entry
     var onboardingDone by remember { mutableStateOf(prefs.getBoolean("onboarding_done", false)) }
     var page by rememberSaveable { mutableStateOf(Page.HOME) }
+    var autoUpdateRelease by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
+
+    // Tự động kiểm tra bản cập nhật khi mở ứng dụng với cơ chế Cooldown (6 giờ)
+    LaunchedEffect(Unit) {
+        val lastCheck = prefs.getLong("last_update_check_time", 0L)
+        val now = System.currentTimeMillis()
+        val cooldownMs = 6 * 60 * 60 * 1000L // 6 tiếng
+        if (now - lastCheck >= cooldownMs) {
+            prefs.edit().putLong("last_update_check_time", now).apply()
+            when (val res = UpdateChecker.check(context)) {
+                is UpdateChecker.Result.UpdateAvailable -> {
+                    autoUpdateRelease = res.release
+                }
+                else -> {}
+            }
+        }
+    }
 
     // Apps and Activity are pushed on top of Home; system back returns to it.
     BackHandler(enabled = onboardingDone && page != Page.HOME) { page = Page.HOME }
@@ -208,6 +227,8 @@ private fun Screen() {
                     onRedoSetup = { onboardingDone = false },
                     onOpenApps = { page = Page.APPS },
                     onOpenActivity = { page = Page.ACTIVITY },
+                    autoUpdateRelease = autoUpdateRelease,
+                    onDismissUpdate = { autoUpdateRelease = null },
                 )
                 Page.APPS -> AppsScreen(context, prefs, onBack = { page = Page.HOME })
                 Page.ACTIVITY -> ActivityScreen(context, onBack = { page = Page.HOME })

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -82,6 +83,8 @@ fun HomeScreen(
     onRedoSetup: () -> Unit,
     onOpenApps: () -> Unit,
     onOpenActivity: () -> Unit,
+    autoUpdateRelease: UpdateChecker.ReleaseInfo? = null,
+    onDismissUpdate: () -> Unit = {},
 ) {
     // 1. Quản lý trạng thái Theme (Sáng / Tối / Hệ thống)
     var themePref by remember { mutableStateOf(prefs.getString("app_theme", "SYSTEM") ?: "SYSTEM") }
@@ -162,7 +165,36 @@ fun HomeScreen(
     var permissionsOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
+    var updateDialogRelease by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(autoUpdateRelease) {
+        if (autoUpdateRelease != null) {
+            updateDialogRelease = autoUpdateRelease
+        }
+    }
+
+    val checkForUpdates = {
+        coroutineScope.launch {
+            updateStatus = "Đang kiểm tra…"
+            when (val result = UpdateChecker.check(context)) {
+                is UpdateChecker.Result.UpdateAvailable -> {
+                    updateStatus = "Có bản cập nhật mới: v${result.release.versionName}"
+                    updateDialogRelease = result.release
+                }
+                is UpdateChecker.Result.UpToDate -> {
+                    val msg = "Bạn đang dùng phiên bản mới nhất (v${result.current})"
+                    updateStatus = msg
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+                is UpdateChecker.Result.Error -> {
+                    val msg = result.message
+                    updateStatus = msg
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     var connected by remember { mutableStateOf(NotificationCastListener.instance != null) }
     LaunchedEffect(Unit) {
@@ -175,6 +207,16 @@ fun HomeScreen(
 
     if (permissionsOpen) {
         PermissionsSheet(context, prefs, onDismiss = { permissionsOpen = false }, onRedoSetup = onRedoSetup)
+    }
+
+    updateDialogRelease?.let { release ->
+        UpdateDialog(
+            release = release,
+            onDismiss = {
+                updateDialogRelease = null
+                onDismissUpdate()
+            },
+        )
     }
 
     LazyColumn(
@@ -207,18 +249,7 @@ fun HomeScreen(
                         ) {
                             MenuItem("Kiểm tra cập nhật") {
                                 menuOpen = false
-                                coroutineScope.launch {
-                                    updateStatus = "Đang kiểm tra…"
-                                    updateStatus = when (val result = UpdateChecker.check(context)) {
-                                        is UpdateChecker.Result.UpToDate ->
-                                            "Bạn đang dùng phiên bản mới nhất (v${result.current})."
-                                        is UpdateChecker.Result.UpdateAvailable -> {
-                                            UpdateChecker.openRelease(context, result.url)
-                                            "Có bản cập nhật mới: v${result.latest}"
-                                        }
-                                        is UpdateChecker.Result.Error -> result.message
-                                    }
-                                }
+                                checkForUpdates()
                             }
                             MenuItem("Quyền hệ thống") {
                                 menuOpen = false
@@ -848,20 +879,7 @@ fun HomeScreen(
                         IsleIcons.Refresh, IsleColors.Accent,
                         title = "Kiểm tra cập nhật",
                         value = updateStatus,
-                        onClick = {
-                            coroutineScope.launch {
-                                updateStatus = "Đang kiểm tra…"
-                                updateStatus = when (val result = UpdateChecker.check(context)) {
-                                    is UpdateChecker.Result.UpToDate ->
-                                        "Phiên bản mới nhất (v${result.current})"
-                                    is UpdateChecker.Result.UpdateAvailable -> {
-                                        UpdateChecker.openRelease(context, result.url)
-                                        "Có bản mới: v${result.latest}"
-                                    }
-                                    is UpdateChecker.Result.Error -> result.message
-                                }
-                            }
-                        },
+                        onClick = { checkForUpdates() },
                     )
                 }
             }
