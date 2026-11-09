@@ -368,6 +368,7 @@ class NotificationCastListener : NotificationListenerService() {
     /** Lưu trạng thái kết nối cuối cùng và mốc báo sạc đầy của thiết bị đeo để chống pop-up ảo. */
     private val wearableConnectionState = ConcurrentHashMap<String, Boolean>()
     private val fullyChargedNoticeMap = ConcurrentHashMap<String, Long>()
+    private val lastEarbudsNotifText = ConcurrentHashMap<String, String>()
 
     private fun isWearableConnected(deviceKey: String, devName: String): Boolean {
         val inRam = wearableConnectionState[deviceKey]
@@ -650,6 +651,31 @@ class NotificationCastListener : NotificationListenerService() {
                         sbn.tag == OriginIslandConstants.SUPERX_TAG
                     ) {
                         return@forEach
+                    }
+                    if (castNotifs && prefs.getBoolean("cast_earbuds", true)) {
+                        val isEarbudsPkg = sbn.packageName in setOf(
+                            "com.google.android.gms",
+                            "com.vivo.tws",
+                            "com.vivo.earphone",
+                            "com.android.bluetooth",
+                        )
+                        if (isEarbudsPkg) {
+                            val ex = sbn.notification.extras
+                            val titleStr = ex?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+                            val textStr = ex?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+                            val bigTextStr = ex?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
+                            val combinedLower = "$titleStr $textStr $bigTextStr".lowercase()
+                            val hasEarbudsKeyword = listOf(
+                                "tai nghe", "hộp sạc", "bên trái", "bên phải",
+                                "left", "right", "case", "earbud",
+                            ).any { combinedLower.contains(it) }
+                            if (combinedLower.contains("%") && hasEarbudsKeyword) {
+                                val sig = "${ex?.getCharSequence(Notification.EXTRA_TITLE)}|${ex?.getCharSequence(Notification.EXTRA_TEXT)}|${ex?.getCharSequence(Notification.EXTRA_BIG_TEXT)}"
+                                if (lastEarbudsNotifText.put(sbn.key, sig) != sig) {
+                                    EarbudsCard.tryParseBatteryFromNotification(applicationContext, sbn)
+                                }
+                            }
+                        }
                     }
                     if (castNotifs && prefs.getBoolean("cast_calls", true) &&
                         prefs.getBoolean("cast_zalo_call", true) &&
@@ -1749,6 +1775,7 @@ class NotificationCastListener : NotificationListenerService() {
         lastOutcome.remove(sbn.key)
         lastScorePostTime.remove(sbn.key)
         lastCastPostTime.remove(sbn.key)
+        lastEarbudsNotifText.remove(sbn.key)
 
         if (TikTokStreakDetector.isTikTokStreak(sbn)) {
             TikTokStreakCard.clear(applicationContext)

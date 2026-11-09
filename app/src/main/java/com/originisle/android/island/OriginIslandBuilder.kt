@@ -165,6 +165,7 @@ object OriginIslandBuilder {
         btnType: Int = 1,
         subImage: Icon? = null,
         subClickResp: PendingIntent? = null,
+        islandClickExpand: Boolean = false,
     ): Bundle {
         val C = OriginIslandConstants
         val bundle = Bundle()
@@ -330,6 +331,10 @@ object OriginIslandBuilder {
                 bundle.putParcelable(C.BUNDLE_KEY_CUSTOM_TEMPLATE, customTemplate)
             }
             8 -> {
+                infos.putString(C.BUNDLE_KEY_INFO_DESCRIBE, title)
+                infos.putString(C.BUNDLE_KEY_INFO_CORE_INFO, content)
+                infos.putParcelable(C.BUNDLE_KEY_INFO_IMAGE, largeIcon ?: defaultIcon)
+                if (clickResp != null) infos.putParcelable(C.BUNDLE_KEY_INFO_IMAGE_CLICK_RESP, clickResp)
                 // Build up to 3 filled buttons from actions (preferred) or buttonTitles+clickResp.
                 val triples: List<Triple<String, Icon?, PendingIntent>> = when {
                     actions.any { it.pendingIntent != null } ->
@@ -398,8 +403,10 @@ object OriginIslandBuilder {
         // separate promoted chip ("Notification: Starting navigation… [Exit navigation]") in the
         // shade, on top of the island itself.
         island.putBoolean(C.BUNDLE_KEY_ISLAND_SHOW_BAR_WHEN_CARD, false)
-        island.putInt(C.BUNDLE_KEY_ISLAND_CLICK, 0)
-        if (clickResp != null) island.putParcelable(C.BUNDLE_KEY_ISLAND_CLICK_RESP, clickResp)
+        island.putInt(C.BUNDLE_KEY_ISLAND_CLICK, C.ISLAND_CLICK_SHOW_CARD) // 0
+        if (clickResp != null && !islandClickExpand) {
+            island.putParcelable(C.BUNDLE_KEY_ISLAND_CLICK_RESP, clickResp)
+        }
 
         val left = Bundle()
         if (showLeftIcon) left.putParcelable(C.BUNDLE_KEY_ISLAND_LEFT_ICON, leftIcon)
@@ -438,12 +445,12 @@ object OriginIslandBuilder {
                 if (rightContent.isNotEmpty()) {
                     right.putCharSequence(C.BUNDLE_KEY_ISLAND_RIGHT_CONTENT, colorSpan(rightContent, fgColor))
                 }
-                if (clickResp != null) right.putParcelable(C.BUNDLE_KEY_ISLAND_RIGHT_CLICK_RESP, clickResp)
+                if (clickResp != null && !islandClickExpand) right.putParcelable(C.BUNDLE_KEY_ISLAND_RIGHT_CLICK_RESP, clickResp)
             }
             6 -> {
                 right.putCharSequence(C.BUNDLE_KEY_ISLAND_RIGHT_CAPSULE_CONTENT, colorSpan(rightContent, fgColor))
                 if (!isDefaultColor(bgColor)) right.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_BG_COLOR, bgColor)
-                if (clickResp != null) right.putParcelable(C.BUNDLE_KEY_ISLAND_RIGHT_CLICK_RESP, clickResp)
+                if (clickResp != null && !islandClickExpand) right.putParcelable(C.BUNDLE_KEY_ISLAND_RIGHT_CLICK_RESP, clickResp)
             }
         }
         if (rightDoubleLine.isNotEmpty()) {

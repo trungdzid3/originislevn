@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.0` (mã bản dựng `versionCode = 10700`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.1` (mã bản dựng `versionCode = 10701`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -28,7 +28,7 @@ origin-isle-vn/
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── CalendarEventCard.kt # Cố định ID = 35015, hiển thị nhắc lịch hẹn / đếm ngược sự kiện sắp tới với icon lịch vẽ Canvas
 │       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (thay "100%" bằng icon tích xanh lá ic_success_tick_green khi hoàn tất)
-│       │       │   ├── EarbudsCard.kt    # Tai nghe & Wearable (hiển thị "Đã ngắt" tối giản không khung xám)
+│       │       │   ├── EarbudsCard.kt    # Tai nghe TWS & Wearable: bóc tách pin Trái (L), Phải (R), Hộp sạc (Case) từ Google Fast Pair (xử lý Unicode Bidi), hợp nhất mergeTelemetry và mở rộng thẻ 3 ô khi chạm vào Đảo
 │       │       │   ├── MediaCard.kt      # Cố định ID = 35010, oi_scene = "NAVIGATION", 3 nút chuẩn SuperX, hỗ trợ postFromController cho các app nhạc (Spotify, YouTube Music...)
 │       │       │   ├── PaymentCard.kt    # Chuẩn hóa giao diện mở rộng: xóa hoàn toàn khối chữ xám to đùng "Tiền ra / Tiền vào", hiển thị tiền gọn gàng sắc nét
 │       │       │   ├── QuickShareCard.kt # Cố định ID = 35009, chuyển trạng thái hoàn tất sang icon tích xanh lá ic_success_tick_green
@@ -37,7 +37,7 @@ origin-isle-vn/
 │       │       │   ├── TikTokStreakCard.kt # Cố định ID = 35012, hiển thị thông báo nhắc chuỗi TikTok ngọn lửa rực rỡ & nút 1 chạm duy trì chuỗi
 │       │       │   └── ZaloCallCard.kt   # Cố định ID = 35011, chuẩn phong cách Messenger của OriginOS gốc: icon cuộc gọi trắng, nhãn phải "Zalo", chạm mở cuộc gọi Zalo, bỏ nút nghe (chỉ giữ "Từ chối" / "Kết thúc")
 │       │       ├── download/         # DownloadDetector chặn triệt để 100% Quick Share, Google Play Services & app nhạc
-│       │       ├── island/           # PlaygroundService, OriginIslandBuilder (BASE_SUB_INFO = 0 khi subText rỗng loại bỏ khối chữ xám to đùng)
+│       │       ├── island/           # PlaygroundService, OriginIslandBuilder (hỗ trợ oi_island_click_expand mở rộng thẻ khi chạm vào Đảo, BASE_SUB_INFO = 0 khi subText rỗng)
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
 │       │       ├── quickshare/       # Nhận diện Quick Share
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
@@ -45,8 +45,8 @@ origin-isle-vn/
 │       │       ├── smart/            # Bóc tách thông tin màn hình
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
-│       │       └── ui/               # Giao diện Compose (công tắc Messenger Call, Zalo Call, TikTok Streak, nút Thử Gọi Messenger)
-│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest)
+│       │       └── ui/               # Giao diện Compose (công tắc Messenger Call, Zalo Call, TikTok Streak, nút Thử Tai nghe)
+│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -54,10 +54,14 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.0.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 0)
+└── OriginIsle-VN-v1.7.1.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 1)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`), `OriginIslandBuilder.kt` & `PlaygroundService.kt`:
+  - Làm sạch ký tự ẩn Unicode Bidi (`\u2068`, `\u2069`, `\u200E`, `\u200F`, `\u00A0`) trong `cleanBatteryText` và `parseBatteryText` để bóc tách chính xác 100% pin Tai Trái (L), Tai Phải (R) và Hộp sạc (Case) từ thông báo Google Play Services Fast Pair (`com.google.android.gms` - "Thiết bị", ví dụ: `"Tai nghe bên trái 50% Hộp sạc 20% Tai nghe bên phải 100%"`), Vivo TWS, Samsung Buds.
+  - Hợp nhất thông minh qua `mergeTelemetry` & `storeTelemetry` để các sự kiện Bluetooth HFP (`ACTION_BATTERY_LEVEL_CHANGED`) không ghi đè xóa mất thông số `left`, `right`, `case` đã biết; tự động quét `activeNotifications` qua `scanActiveNotificationsForEarbuds`.
+  - Hiển thị rõ bên trái `L:50%` và bên phải viên thuốc xanh `R:100%` trên viên nang thu gọn; khi ấn vào viên nang Đảo (`oi_island_click_expand = true`), mở rộng thẻ trên Đảo hiển thị rõ `"Tai trái: 50%  ·  Tai phải: 100%  ·  Hộp sạc: 20%"` cùng 3 ô tách biệt `[ Trái: 50% ]`, `[ Phải: 100% ]`, `[ Hộp: 20% ]` (dùng `Notification.Action` với `icon = null` tương thích 100% Vivo SuperX).
 - `CalendarEventDetector.kt` & `CalendarEventCard.kt` (`ID = 35015`): Nhận diện thông báo nhắc lịch hẹn, cuộc họp, sự kiện sắp diễn ra và chuyến bay/tàu xe từ Google Calendar, Lịch Vivo, Samsung Calendar, Microsoft Outlook và các thông báo `CATEGORY_EVENT` / `CATEGORY_REMINDER`; trích xuất khung giờ / thời gian đếm ngược và hiển thị viên nang nhắc lịch kèm icon lịch vẽ trực tiếp bằng Canvas 100% tương thích Vivo SuperX SDK.
 - `app/build.gradle.kts`, `proguard-rules.pro` & `ScreenshotSmartExtractor.kt`: Gỡ bỏ phụ thuộc `com.google.mlkit:text-recognition` (~55 MB native `.so`), gỡ quyền thừa `READ_MEDIA_IMAGES` và bật R8 `isMinifyEnabled = true` + `isShrinkResources = true` giúp giảm dung lượng APK từ 69.1 MB xuống còn **4.3 MB**.
 - `UpdateChecker.kt` (`app/src/main/java/com/originisle/android/ui/UpdateChecker.kt`): Gia cố bảo mật toàn diện: lọc `sanitizeApkFileName` & kiểm tra `canonicalPath` chống Path Traversal, khóa `HttpsURLConnection` & whitelist tên miền GitHub (`isAllowedGithubUrl`) khi redirect, xác thực `packageName` và chứng chỉ ký (`verifyDownloadedApk`) trước khi cài đặt, tự động dọn dẹp APK cũ (`cleanupOldApks`).

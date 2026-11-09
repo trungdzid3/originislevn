@@ -62,7 +62,7 @@ object EarbudsCard {
     fun cardIdFor(isWearable: Boolean): Int = if (isWearable) ID_WEARABLE else ID_EARBUDS
 
     private const val BATTERY_WAIT_MS = 2500L
-    private const val SHOW_MS = 5000L
+    private const val SHOW_MS = 10_000L
     private const val DISCONNECT_DEBOUNCE_MS = 8000L
     private const val DISCONNECT_SHOW_MS = 3000L
     private const val ANTI_FLAP_COOLDOWN_MS = 10_000L
@@ -110,7 +110,7 @@ object EarbudsCard {
 
     private const val TAG = "EarbudsCard"
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler by lazy { Handler(Looper.getMainLooper()) }
     private var app: Context? = null
 
     enum class DeviceCategory {
@@ -351,7 +351,7 @@ object EarbudsCard {
 
         if (cleanKey.isNotBlank()) {
             for ((k, v) in prefs.all) {
-                if (k == "wearable_last_known_battery") continue
+                if (k == "wearable_last_known_battery" || k.startsWith("wearable_conn_state_") || k.startsWith("telemetry_")) continue
                 if (k.contains(cleanKey) || cleanKey.contains(k)) {
                     val lvl = (v as? Number)?.toInt() ?: (v as? String)?.toIntOrNull() ?: -1
                     if (lvl in 0..100) return lvl
@@ -382,10 +382,129 @@ object EarbudsCard {
         }.apply()
     }
 
-    private val FIT3_BATTERY_URI = Uri.parse("content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb")
-    private val FIT3_SYNC_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.BatteryInfoProvider")
-    private val FIT3_CAPSULE_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.CapsuleProvider")
-    private val FIT3_QUICKSEARCH_URI = Uri.parse("content://com.samsung.wearable.fit3plugin.quicksearch")
+    /**
+     * Hợp nhất thông minh dữ liệu pin đa thành phần:
+     * Tuyệt đối giữ nguyên left, right, case đã biết khi Bluetooth HFP chỉ báo 1 con số main!
+     */
+    fun mergeTelemetry(existing: EarbudsTelemetry?, incoming: EarbudsTelemetry): EarbudsTelemetry {
+        if (existing == null) return incoming
+        val left = if (incoming.left in 0..100) incoming.left else existing.left
+        val right = if (incoming.right in 0..100) incoming.right else existing.right
+        val case = if (incoming.case in 0..100) incoming.case else existing.case
+        val main = if (incoming.main in 0..100) incoming.main else existing.main
+        val isLeftCharging = if (incoming.left in 0..100 || incoming.hasDetails) incoming.isLeftCharging else existing.isLeftCharging
+        val isRightCharging = if (incoming.right in 0..100 || incoming.hasDetails) incoming.isRightCharging else existing.isRightCharging
+        val isCaseCharging = if (incoming.case in 0..100 || incoming.hasDetails) incoming.isCaseCharging else existing.isCaseCharging
+        return EarbudsTelemetry(
+            main = main,
+            left = left,
+            right = right,
+            case = case,
+            isLeftCharging = isLeftCharging,
+            isRightCharging = isRightCharging,
+            isCaseCharging = isCaseCharging,
+        )
+    }
+
+    fun saveCachedTelemetry(context: Context, nameOrAddress: String, telemetry: EarbudsTelemetry) {
+        if (nameOrAddress.isBlank()) return
+        val key = nameOrAddress.lowercase().trim()
+        if (key.isBlank()) return
+        val existing = getCachedTelemetry(context, key)
+        val merged = mergeTelemetry(existing, telemetry)
+        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            if (merged.left in 0..100) putInt("telemetry_${key}_left", merged.left)
+            if (merged.right in 0..100) putInt("telemetry_${key}_right", merged.right)
+            if (merged.case in 0..100) putInt("telemetry_${key}_case", merged.case)
+            if (merged.main in 0..100) putInt("telemetry_${key}_main", merged.main)
+            putBoolean("telemetry_${key}_l_chg", merged.isLeftCharging)
+            putBoolean("telemetry_${key}_r_chg", merged.isRightCharging)
+            putBoolean("telemetry_${key}_c_chg", merged.isCaseCharging)
+        }.apply()
+        if (merged.effectiveLevel in 0..100) {
+            saveCachedBattery(context, nameOrAddress, merged.effectiveLevel)
+        }
+    }
+
+    fun getCachedTelemetry(context: Context, nameOrAddress: String): EarbudsTelemetry? {
+        if (nameOrAddress.isBlank()) return null
+        val key = nameOrAddress.lowercase().trim()
+        if (key.isBlank()) return null
+        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+        val left = prefs.getInt("telemetry_${key}_left", -1)
+        val right = prefs.getInt("telemetry_${key}_right", -1)
+        val case = prefs.getInt("telemetry_${key}_case", -1)
+        var main = prefs.getInt("telemetry_${key}_main", -1)
+        val lChg = prefs.getBoolean("telemetry_${key}_l_chg", false)
+        val rChg = prefs.getBoolean("telemetry_${key}_r_chg", false)
+        val cChg = prefs.getBoolean("telemetry_${key}_c_chg", false)
+        if (main !in 0..100) {
+            main = getCachedBattery(context, nameOrAddress)
+        }
+        val t = EarbudsTelemetry(
+            main = main,
+            left = left,
+            right = right,
+            case = case,
+            isLeftCharging = lChg,
+            isRightCharging = rChg,
+            isCaseCharging = cChg,
+        )
+        return if (t.effectiveLevel in 0..100 || t.hasDetails) t else null
+    }
+
+    private fun getStoredTelemetry(context: Context, address: String?, devName: String?): EarbudsTelemetry {
+        var result = EarbudsTelemetry()
+        val keys = listOfNotNull(
+            address?.takeIf { it.isNotBlank() },
+            address?.lowercase()?.trim()?.takeIf { it.isNotBlank() },
+            devName?.takeIf { it.isNotBlank() },
+            devName?.lowercase()?.trim()?.takeIf { it.isNotBlank() },
+        ).distinct()
+        for (k in keys) {
+            deviceTelemetry[k]?.let { result = mergeTelemetry(result, it) }
+        }
+        if (!result.hasDetails) {
+            for ( (_, v) in deviceTelemetry) {
+                if (v.hasDetails && keys.any { k -> k != "device_unknown" && k != "tai nghe" }) {
+                    // Nếu chỉ có 1 tai nghe TWS đang kết nối có chi tiết L/R/Case
+                    result = mergeTelemetry(result, v)
+                    break
+                }
+            }
+        }
+        for (k in keys) {
+            getCachedTelemetry(context, k)?.let { result = mergeTelemetry(result, it) }
+        }
+        return result
+    }
+
+    private fun storeTelemetry(
+        context: Context,
+        address: String?,
+        devName: String?,
+        telemetry: EarbudsTelemetry,
+    ): EarbudsTelemetry {
+        val existing = getStoredTelemetry(context, address, devName)
+        val merged = mergeTelemetry(existing, telemetry)
+        val keys = listOfNotNull(
+            address?.takeIf { it.isNotBlank() && it != "device_unknown" },
+            address?.lowercase()?.trim()?.takeIf { it.isNotBlank() && it != "device_unknown" },
+            devName?.takeIf { it.isNotBlank() },
+            devName?.lowercase()?.trim()?.takeIf { it.isNotBlank() },
+        ).distinct()
+        for (k in keys) {
+            deviceTelemetry[k] = merged
+            saveCachedTelemetry(context, k, merged)
+        }
+        return merged
+    }
+
+    private val FIT3_BATTERY_URI by lazy { Uri.parse("content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb") }
+    private val FIT3_SYNC_URI by lazy { Uri.parse("content://com.samsung.wearable.fit3plugin.BatteryInfoProvider") }
+    private val FIT3_CAPSULE_URI by lazy { Uri.parse("content://com.samsung.wearable.fit3plugin.CapsuleProvider") }
+    private val FIT3_QUICKSEARCH_URI by lazy { Uri.parse("content://com.samsung.wearable.fit3plugin.quicksearch") }
     private var fit3Observer: ContentObserver? = null
 
     /**
@@ -603,9 +722,11 @@ object EarbudsCard {
 
     private val OVER_EAR_NAMES = listOf("airpods max", "headphone", "casque", "wh-1000")
 
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            runCatching { handle(intent) }.onFailure { Log.e(TAG, "earbuds card failed", it) }
+    private val receiver by lazy {
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                runCatching { handle(intent) }.onFailure { Log.e(TAG, "earbuds card failed", it) }
+            }
         }
     }
 
@@ -793,6 +914,12 @@ object EarbudsCard {
                 setConnectedState(devName, true)
 
                 var initial = readTelemetry(device, intent)
+                if (!isWearableDevice) {
+                    scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
+                        initial = mergeTelemetry(initial, scanned)
+                    }
+                }
+                initial = mergeTelemetry(getStoredTelemetry(context, address, devName), initial)
                 if (initial.effectiveLevel !in 0..100) {
                     val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
                         ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
@@ -803,14 +930,19 @@ object EarbudsCard {
                 if (initial.effectiveLevel !in 0..100) {
                     readGattBatteryAsync(context, device, devName, isWearableDevice)
                 }
-                if (initial.effectiveLevel in 0..100) {
-                    saveCachedBattery(context, devName, initial.effectiveLevel)
-                    deviceTelemetry[address] = initial
+                if (initial.effectiveLevel in 0..100 || initial.hasDetails) {
+                    initial = storeTelemetry(context, address, devName, initial)
                     show(context, device, devName, initial, low = (initial.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                 } else {
                     val task = Runnable {
                         pending.remove(address)
                         var telemetry = readTelemetry(device, intent)
+                        if (!isWearableDevice) {
+                            scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
+                                telemetry = mergeTelemetry(telemetry, scanned)
+                            }
+                        }
+                        telemetry = mergeTelemetry(getStoredTelemetry(context, address, devName), telemetry)
                         if (telemetry.effectiveLevel !in 0..100) {
                             val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
                                 ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
@@ -821,10 +953,7 @@ object EarbudsCard {
                         if (telemetry.effectiveLevel !in 0..100) {
                             readGattBatteryAsync(context, device, devName, isWearableDevice)
                         }
-                        if (telemetry.effectiveLevel in 0..100) {
-                            saveCachedBattery(context, devName, telemetry.effectiveLevel)
-                        }
-                        deviceTelemetry[address] = telemetry
+                        telemetry = storeTelemetry(context, address, devName, telemetry)
                         show(context, device, devName, telemetry, low = (telemetry.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                     }
                     pending[address] = task
@@ -863,7 +992,9 @@ object EarbudsCard {
                     setConnectedState(address, false)
                     setConnectedState(devName, false)
                     deviceTelemetry -= address
+                    deviceTelemetry -= address.lowercase()
                     deviceTelemetry -= devName
+                    deviceTelemetry -= devName.lowercase()
                     warnedLow -= address
                     warnedLow -= devName
                     showDisconnected(context, devName, isWearable = isWearableDevice)
@@ -882,16 +1013,13 @@ object EarbudsCard {
                         ?: (intent.getParcelableArrayExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*>)
                     val parsed = parseIPhoneAccEv(rawArgs)
                     if (parsed != null) {
-                        val current = deviceTelemetry[address] ?: EarbudsTelemetry()
-                        val updated = current.copy(
+                        val current = getStoredTelemetry(context, address, devName)
+                        val incoming = EarbudsTelemetry(
                             main = parsed.first,
                             isLeftCharging = if (parsed.second) true else current.isLeftCharging,
                             isRightCharging = if (parsed.second) true else current.isRightCharging,
                         )
-                        if (updated.effectiveLevel in 0..100) {
-                            saveCachedBattery(context, devName, updated.effectiveLevel)
-                        }
-                        deviceTelemetry[address] = updated
+                        val updated = storeTelemetry(context, address, devName, incoming)
                         show(context, device, devName, updated, low = (updated.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                     }
                 }
@@ -902,14 +1030,17 @@ object EarbudsCard {
                 disconnectDebounce.remove(address)?.let(handler::removeCallbacks)
                 disconnectDebounce.remove(devName)?.let(handler::removeCallbacks)
 
-                val updated = readTelemetry(device, intent)
-                if (updated.effectiveLevel in 0..100) {
-                    saveCachedBattery(context, devName, updated.effectiveLevel)
-                    if (isWearableDevice) {
-                        onBatteryUpdated(context, devName, updated, isWearable = true)
+                val before = getStoredTelemetry(context, address, devName)
+                var incoming = readTelemetry(device, intent)
+                if (!isWearableDevice) {
+                    scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
+                        incoming = mergeTelemetry(incoming, scanned)
                     }
                 }
-                val before = deviceTelemetry.put(address, updated)
+                val updated = storeTelemetry(context, address, devName, incoming)
+                if (updated.effectiveLevel in 0..100 && isWearableDevice) {
+                    onBatteryUpdated(context, devName, updated, isWearable = true)
+                }
                 val eff = updated.effectiveLevel
 
                 when {
@@ -920,7 +1051,7 @@ object EarbudsCard {
                     isShowing(isWearableDevice, address) || isShowing(isWearableDevice, devName) -> {
                         show(context, device, devName, updated, low = eff in 0..LOW_LEVEL, isWearable = isWearableDevice)
                     }
-                    eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && address !in warnedLow -> {
+                    eff in 0..LOW_LEVEL && (before.effectiveLevel.takeIf { it in 0..100 } ?: 100) > LOW_LEVEL && address !in warnedLow -> {
                         warnedLow += address
                         show(context, device, devName, updated, low = true, isWearable = isWearableDevice)
                     }
@@ -1307,90 +1438,111 @@ object EarbudsCard {
     }
 
     /**
-     * Bóc tách thông số pin Trái, Phải, Hộp sạc, Thiết bị đeo thật từ thông báo hệ thống.
-     * Bóc tách chuẩn xác Google Fast Pair (VD: "heobeos plus: Tai nghe bên trái 50% Hộp sạc 20% Tai nghe bên phải 100%"),
-     * Vivo TWS, Samsung Galaxy Buds, Galaxy Fit 3, Galaxy Watch...
+     * Làm sạch các ký tự ẩn Unicode Bidi (\u2068, \u2069, \u200E, \u200F, Zero-width) và khoảng trắng đặc biệt (\u00A0)
+     * do Google Play Services / BidiFormatter chèn vào thông báo Fast Pair.
      */
-    fun tryParseBatteryFromNotification(context: Context, sbn: StatusBarNotification): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
-        if (!prefs.getBoolean("cast_earbuds", true)) return false
+    internal fun cleanBatteryText(raw: String): String {
+        if (raw.isEmpty()) return ""
+        return raw
+            .replace(Regex("[\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u206F\\uFEFF]"), "")
+            .replace(Regex("[\\u00A0\\u2007\\u202F\\t\\r\\n]+"), " ")
+            .trim()
+    }
 
-        val extras = sbn.notification.extras ?: return false
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-        val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
-        val fullText = "$title | $text | $subText | $bigText"
+    /**
+     * Bóc tách thông số pin đa thành phần (Tai Trái / Tai Phải / Hộp sạc / Pin chính) từ văn bản thông báo.
+     */
+    fun parseBatteryText(
+        title: String,
+        text: String,
+        subText: String = "",
+        bigText: String = "",
+        extraText: String = "",
+    ): EarbudsTelemetry? {
+        val cleanTitle = cleanBatteryText(title)
+        val cleanText = cleanBatteryText(text)
+        val cleanSub = cleanBatteryText(subText)
+        val cleanBig = cleanBatteryText(bigText)
+        val cleanExtra = cleanBatteryText(extraText)
 
-        val pkg = sbn.packageName
-        val isTwsPkg = pkg in setOf(
-            "com.google.android.gms",
-            "com.vivo.tws",
-            "com.vivo.earphone",
-            "com.android.bluetooth",
-            "com.vivo.audiofx",
-            "com.google.android.apps.wearables.maestro.companion",
-            "com.samsung.accessory.neobeanmgr",
-            "com.samsung.accessory.atticmgr",
-            "com.samsung.android.app.watchmanager",
-            "com.samsung.android.wearable.fit3plugin",
-            "com.samsung.android.wearable.watch6plugin",
-            "com.samsung.android.wearable.gearfit2plugin",
-            "com.samsung.android.geargplugin",
-            "com.samsung.accessory",
-            "com.huawei.health",
-            "com.xiaomi.wearable",
+        val fullText = "$cleanTitle | $cleanText | $cleanSub | $cleanBig | $cleanExtra"
+        if (!fullText.contains("%")) return null
+
+        val leftRegex = Regex(
+            """(?:Tai\s*nghe\s*bên\s*trái|Tai\s*nghe\s*trái|Tai\s*trái|Bên\s*trái|Left\s*earbud|Left\s*bud|\bLeft\b|\bTrái\b|\bL\b)\s*(?:⚡\s*)?[:：·\-–—]?\s*(?:⚡\s*)?(\d{1,3})\s*%""",
+            RegexOption.IGNORE_CASE,
         )
-        val hasKeyword = (AUDIO_KEYWORDS + WEARABLE_KEYWORDS).any { fullText.contains(it, ignoreCase = true) }
+        val leftRevRegex = Regex(
+            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:L|Trái|Left)\s*\)|(?:Tai\s*nghe\s*bên\s*trái|Tai\s*trái|\bLeft\b|\bTrái\b))""",
+            RegexOption.IGNORE_CASE,
+        )
 
-        if (!isTwsPkg && !hasKeyword) return false
-        if (!fullText.contains("%")) return false
+        val rightRegex = Regex(
+            """(?:Tai\s*nghe\s*bên\s*phải|Tai\s*nghe\s*phải|Tai\s*phải|Bên\s*phải|Right\s*earbud|Right\s*bud|\bRight\b|\bPhải\b|\bR\b)\s*(?:⚡\s*)?[:：·\-–—]?\s*(?:⚡\s*)?(\d{1,3})\s*%""",
+            RegexOption.IGNORE_CASE,
+        )
+        val rightRevRegex = Regex(
+            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:R|Phải|Right)\s*\)|(?:Tai\s*nghe\s*bên\s*phải|Tai\s*phải|\bRight\b|\bPhải\b))""",
+            RegexOption.IGNORE_CASE,
+        )
 
-        // Bóc tách đa thành phần TWS (Left / Right / Case)
-        val leftRegex = Regex("""(?:Tai nghe bên trái|Tai nghe trái|Tai trái|Left earbud|Left|Trái|L)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
-        val rightRegex = Regex("""(?:Tai nghe bên phải|Tai nghe phải|Tai phải|Right earbud|Right|Phải|R)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
-        val caseRegex = Regex("""(?:Hộp sạc|Hộp đựng|Hộp|Charging case|Case|Box|Dock|C)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
-        val mainRegex = Regex("""(?:pin|battery|tai nghe|fit|watch|band)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
+        val caseRegex = Regex(
+            """(?:Hộp\s*sạc|Hộp\s*đựng|Dock\s*sạc|Kén\s*sạc|\bHộp\b|Charging\s*case|\bCase\b|\bBox\b|\bDock\b|\bC\b)\s*(?:⚡\s*)?[:：·\-–—]?\s*(?:⚡\s*)?(\d{1,3})\s*%""",
+            RegexOption.IGNORE_CASE,
+        )
+        val caseRevRegex = Regex(
+            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:Case|Hộp|Hộp\s*sạc)\s*\)|(?:Hộp\s*sạc|Charging\s*case|\bCase\b))""",
+            RegexOption.IGNORE_CASE,
+        )
 
-        val left = leftRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
-        val right = rightRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
-        val case = caseRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
-        var main = mainRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        val mainRegex = Regex(
+            """(?:Mức\s*pin|Pin|Battery|Tai\s*nghe|Fit\s*3|Galaxy\s*Fit|Watch|Band)\s*[:：·\-–—]?\s*(\d{1,3})\s*%""",
+            RegexOption.IGNORE_CASE,
+        )
+
+        val left = (leftRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+            ?: (leftRevRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+            ?: -1
+
+        val right = (rightRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+            ?: (rightRevRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+            ?: -1
+
+        val case = (caseRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+            ?: (caseRevRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+            ?: -1
+
+        var main = mainRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
 
         if (left !in 0..100 && right !in 0..100 && case !in 0..100 && main !in 0..100) {
             val anyPct = Regex("""(\d{1,3})\s*%""").find(fullText)?.groupValues?.get(1)?.toIntOrNull()
             if (anyPct != null && anyPct in 0..100) {
                 main = anyPct
             } else {
-                return false
+                return null
             }
         }
 
-        val hasMultiComponent = (left in 0..100 || right in 0..100 || case in 0..100)
+        val isCharging = fullText.contains("⚡") ||
+            fullText.contains("đang sạc", ignoreCase = true) ||
+            fullText.contains("charging", ignoreCase = true)
 
-        // Phân định rạch ròi Wearable vs Earbuds: nếu có L/R/Case thì chắc chắn 100% là tai nghe TWS
-        val isWearableDevice = !hasMultiComponent && (
-            isWearable(null, title, pkg) ||
-            listOf("fit", "watch", "band", "vòng đeo tay", "đồng hồ").any { fullText.contains(it, ignoreCase = true) }
-        )
-
-        val isCharging = fullText.contains("⚡") || fullText.contains("đang sạc", ignoreCase = true) || fullText.contains("charging", ignoreCase = true)
         val isLeftCharging = isCharging && (
-            fullText.contains(Regex("""(?:Tai nghe bên trái|Tai nghe trái|Tai trái|Left|L|Trái)[^|•·\n]*(?:⚡|sạc|charging)""", RegexOption.IGNORE_CASE)) ||
-            fullText.contains(Regex("""(?:⚡|đang sạc|charging)[^|•·\n]*(?:Tai nghe bên trái|Tai nghe trái|Tai trái|Left|L|Trái)""", RegexOption.IGNORE_CASE)) ||
-            (!fullText.contains("Phải") && !fullText.contains("Hộp"))
+            fullText.contains(Regex("""(?:Tai\s*nghe\s*bên\s*trái|Tai\s*nghe\s*trái|Tai\s*trái|\bLeft\b|\bL\b|\bTrái\b)\s*[:：·\-–—]?\s*\d{1,3}\s*%\s*(?:⚡|đang\s*sạc|charging)""", RegexOption.IGNORE_CASE)) ||
+            fullText.contains(Regex("""(?:⚡|đang\s*sạc|charging)\s*(?:Tai\s*nghe\s*bên\s*trái|Tai\s*nghe\s*trái|Tai\s*trái|\bLeft\b|\bL\b|\bTrái\b)""", RegexOption.IGNORE_CASE)) ||
+            (left in 0..100 && right !in 0..100 && case !in 0..100)
         )
         val isRightCharging = isCharging && (
-            fullText.contains(Regex("""(?:Tai nghe bên phải|Tai nghe phải|Tai phải|Right|R|Phải)[^|•·\n]*(?:⚡|sạc|charging)""", RegexOption.IGNORE_CASE)) ||
-            fullText.contains(Regex("""(?:⚡|đang sạc|charging)[^|•·\n]*(?:Tai nghe bên phải|Tai nghe phải|Tai phải|Right|R|Phải)""", RegexOption.IGNORE_CASE)) ||
-            (!fullText.contains("Trái") && !fullText.contains("Hộp"))
+            fullText.contains(Regex("""(?:Tai\s*nghe\s*bên\s*phải|Tai\s*nghe\s*phải|Tai\s*phải|\bRight\b|\bR\b|\bPhải\b)\s*[:：·\-–—]?\s*\d{1,3}\s*%\s*(?:⚡|đang\s*sạc|charging)""", RegexOption.IGNORE_CASE)) ||
+            fullText.contains(Regex("""(?:⚡|đang\s*sạc|charging)\s*(?:Tai\s*nghe\s*bên\s*phải|Tai\s*nghe\s*phải|Tai\s*phải|\bRight\b|\bR\b|\bPhải\b)""", RegexOption.IGNORE_CASE)) ||
+            (right in 0..100 && left !in 0..100 && case !in 0..100)
         )
         val isCaseCharging = isCharging && (
-            fullText.contains(Regex("""(?:Hộp sạc|Hộp đựng|Hộp|Case|Box|Dock)[^|•·\n]*(?:⚡|sạc|charging)""", RegexOption.IGNORE_CASE)) ||
-            fullText.contains(Regex("""(?:⚡|đang sạc|charging)[^|•·\n]*(?:Hộp sạc|Hộp đựng|Hộp|Case|Box|Dock)""", RegexOption.IGNORE_CASE))
+            fullText.contains(Regex("""(?:Hộp\s*sạc|Hộp\s*đựng|\bHộp\b|Charging\s*case|\bCase\b|\bBox\b|\bDock\b)\s*[:：·\-–—]?\s*\d{1,3}\s*%\s*(?:⚡|đang\s*sạc|charging)""", RegexOption.IGNORE_CASE)) ||
+            fullText.contains(Regex("""(?:⚡|đang\s*sạc|charging)\s*(?:Hộp\s*sạc|Hộp\s*đựng|\bHộp\b|Charging\s*case|\bCase\b|\bBox\b|\bDock\b)""", RegexOption.IGNORE_CASE))
         )
 
-        val telemetry = EarbudsTelemetry(
+        return EarbudsTelemetry(
             main = main,
             left = left,
             right = right,
@@ -1399,53 +1551,261 @@ object EarbudsCard {
             isRightCharging = isRightCharging,
             isCaseCharging = isCaseCharging,
         )
+    }
 
+    /**
+     * Thu thập toàn bộ văn bản từ StatusBarNotification, bao gồm tất cả key trong extras
+     * và các trường CharSequence ẩn bên trong custom RemoteViews (Fast Pair / Vivo TWS).
+     */
+    private fun extractAllNotificationText(sbn: StatusBarNotification): String {
+        val sb = StringBuilder()
+        val notif = sbn.notification ?: return ""
+        val extras = notif.extras
+        if (extras != null) {
+            val stdKeys = listOf(
+                Notification.EXTRA_TITLE,
+                Notification.EXTRA_TEXT,
+                Notification.EXTRA_SUB_TEXT,
+                Notification.EXTRA_BIG_TEXT,
+                Notification.EXTRA_SUMMARY_TEXT,
+                Notification.EXTRA_INFO_TEXT,
+                Notification.EXTRA_TITLE_BIG,
+            )
+            for (k in stdKeys) {
+                extras.getCharSequence(k)?.takeIf { it.isNotBlank() }?.let { sb.append(it).append(" | ") }
+            }
+            extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { line ->
+                if (!line.isNullOrBlank()) sb.append(line).append(" | ")
+            }
+            runCatching {
+                for (key in extras.keySet()) {
+                    if (key in stdKeys || key == Notification.EXTRA_TEXT_LINES) continue
+                    when (val v = extras.get(key)) {
+                        is CharSequence -> if (v.isNotBlank()) sb.append(v).append(" | ")
+                        is Array<*> -> v.forEach { item ->
+                            if (item is CharSequence && item.isNotBlank()) sb.append(item).append(" | ")
+                        }
+                        is Iterable<*> -> v.forEach { item ->
+                            if (item is CharSequence && item.isNotBlank()) sb.append(item).append(" | ")
+                        }
+                    }
+                }
+            }
+        }
+        notif.tickerText?.takeIf { it.isNotBlank() }?.let { sb.append(it).append(" | ") }
+
+        // Trích xuất sâu từ RemoteViews (contentView & bigContentView) nếu dùng custom layout
+        @Suppress("DEPRECATION")
+        val remoteViewsList = listOfNotNull(notif.contentView, notif.bigContentView)
+        for (rv in remoteViewsList) {
+            runCatching {
+                var cls: Class<*>? = rv.javaClass
+                var actionsField: java.lang.reflect.Field? = null
+                while (cls != null && actionsField == null) {
+                    actionsField = runCatching { cls.getDeclaredField("mActions") }.getOrNull()
+                    cls = cls.superclass
+                }
+                actionsField?.isAccessible = true
+                val actions = actionsField?.get(rv) as? Iterable<*>
+                actions?.forEach { act ->
+                    if (act != null) {
+                        for (fieldName in listOf("value", "mValue", "text")) {
+                            val f = runCatching { act.javaClass.getDeclaredField(fieldName) }.getOrNull()
+                                ?: runCatching { act.javaClass.superclass?.getDeclaredField(fieldName) }.getOrNull()
+                            if (f != null) {
+                                f.isAccessible = true
+                                val v = runCatching { f.get(act) }.getOrNull()
+                                if (v is CharSequence && v.isNotBlank()) {
+                                    sb.append(v).append(" | ")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    private val TWS_NOTIFICATION_PACKAGES = setOf(
+        "com.google.android.gms",
+        "com.vivo.tws",
+        "com.vivo.earphone",
+        "com.android.bluetooth",
+        "com.vivo.audiofx",
+        "com.google.android.apps.wearables.maestro.companion",
+        "com.samsung.accessory.neobeanmgr",
+        "com.samsung.accessory.atticmgr",
+        "com.samsung.android.app.watchmanager",
+        "com.samsung.android.wearable.fit3plugin",
+        "com.samsung.android.wearable.watch6plugin",
+        "com.samsung.android.wearable.gearfit2plugin",
+        "com.samsung.android.geargplugin",
+        "com.samsung.accessory",
+        "com.huawei.health",
+        "com.xiaomi.wearable",
+    )
+
+    /**
+     * Chủ động quét toàn bộ thông báo đang hiển thị trên thanh trạng thái (kể cả thông báo Im lặng của Google Play Services)
+     * để lấy ngay thông số pin Trái / Phải / Hộp sạc khi tai nghe kết nối hoặc cập nhật Bluetooth.
+     */
+    fun scanActiveNotificationsForEarbuds(context: Context, targetName: String? = null): EarbudsTelemetry? {
+        val activeList = runCatching {
+            com.originisle.android.service.NotificationCastListener.instance?.activeNotifications
+        }.getOrNull() ?: return null
+
+        val targetLower = targetName?.trim()?.lowercase()?.takeIf {
+            it.isNotBlank() && it != "tai nghe" && it != "tai nghe tws" && it != "tai nghe bluetooth"
+        }
+
+        var bestMatch: EarbudsTelemetry? = null
+        for (sbn in activeList) {
+            val extras = sbn.notification?.extras ?: continue
+            val title = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "")
+            val text = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: "")
+            val subText = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: "")
+            val bigText = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: "")
+            val extraAll = cleanBatteryText(extractAllNotificationText(sbn))
+            val combined = "$title | $text | $subText | $bigText | $extraAll"
+
+            val pkg = sbn.packageName
+            val isTwsPkg = pkg in TWS_NOTIFICATION_PACKAGES
+            val hasKeyword = (AUDIO_KEYWORDS + WEARABLE_KEYWORDS + listOf("bên trái", "bên phải", "hộp sạc")).any {
+                combined.contains(it, ignoreCase = true)
+            }
+            val matchesTarget = targetLower != null && combined.lowercase().contains(targetLower)
+
+            if (!isTwsPkg && !hasKeyword && !matchesTarget) continue
+
+            val parsed = parseBatteryText(title, text, subText, bigText, extraAll) ?: continue
+            if (parsed.hasDetails || matchesTarget) {
+                val resolvedName = extractDeviceNameFromNotificationText(title, text, isWearable = false)
+                val storeName = targetName?.takeIf { it.isNotBlank() } ?: resolvedName
+                val merged = storeTelemetry(context, null, storeName, parsed)
+                if (resolvedName.isNotBlank() && !resolvedName.equals(storeName, ignoreCase = true)) {
+                    storeTelemetry(context, null, resolvedName, merged)
+                }
+                if (merged.hasDetails) {
+                    return merged
+                }
+                if (bestMatch == null) {
+                    bestMatch = merged
+                }
+            }
+        }
+        return bestMatch
+    }
+
+    private fun extractDeviceNameFromNotificationText(
+        rawTitle: String,
+        rawText: String,
+        isWearable: Boolean,
+    ): String {
         val systemPkgNames = setOf(
             "google", "google play", "dịch vụ của google play", "google play services",
-            "bluetooth", "fast pair", "quick share", "chia sẻ nhanh", "hệ thống", "system"
+            "bluetooth", "fast pair", "quick share", "chia sẻ nhanh", "hệ thống", "system",
+            "thiết bị", "devices", "connected devices", " thiết bị đã kết nối"
         )
         var devName = ""
-        val titleCandidate = title.trim()
-        val textCandidate = text.trim()
+        val titleCandidate = cleanBatteryText(rawTitle)
+        val textCandidate = cleanBatteryText(rawText)
 
         if (titleCandidate.contains(":")) {
             val prefix = titleCandidate.substringBefore(":").trim()
-            if (prefix.isNotBlank() && !prefix.contains("%") && !systemPkgNames.any { prefix.contains(it, ignoreCase = true) }) {
+            if (prefix.isNotBlank() && !prefix.contains("%") && !systemPkgNames.any { prefix.equals(it, ignoreCase = true) }) {
                 devName = prefix
             }
         }
-        if (devName.isBlank() && titleCandidate.isNotBlank() && !systemPkgNames.any { titleCandidate.equals(it, ignoreCase = true) }) {
+        if (devName.isBlank() && titleCandidate.isNotBlank() && !titleCandidate.contains("%") &&
+            !systemPkgNames.any { titleCandidate.equals(it, ignoreCase = true) }
+        ) {
             devName = titleCandidate
         }
         if (devName.isBlank() && textCandidate.contains(":")) {
             val prefix = textCandidate.substringBefore(":").trim()
-            if (prefix.isNotBlank() && !prefix.contains("%") && !systemPkgNames.any { prefix.contains(it, ignoreCase = true) }) {
+            if (prefix.isNotBlank() && !prefix.contains("%") && !systemPkgNames.any { prefix.equals(it, ignoreCase = true) }) {
                 devName = prefix
             }
         }
         if (devName.isBlank()) {
-            devName = if (isWearableDevice) "Galaxy Fit 3" else "Tai nghe TWS"
+            devName = if (isWearable) "Galaxy Fit 3" else "Tai nghe TWS"
         }
         devName = devName.replace(Regex("""\s*\(?\d{1,3}%\)?"""), "").trim()
         if (devName.isBlank() || devName.equals("Bluetooth", ignoreCase = true)) {
-            devName = if (isWearableDevice) "Thiết bị đeo" else "Tai nghe Bluetooth"
+            devName = if (isWearable) "Thiết bị đeo" else "Tai nghe Bluetooth"
+        }
+        return devName
+    }
+
+    /**
+     * Bóc tách thông số pin Trái, Phải, Hộp sạc, Thiết bị đeo thật từ thông báo hệ thống.
+     * Bóc tách chuẩn xác Google Fast Pair (VD: "heobeos plus: Tai nghe bên trái 50% Hộp sạc 20% Tai nghe bên phải 100%"),
+     * Vivo TWS, Samsung Galaxy Buds, Galaxy Fit 3, Galaxy Watch...
+     */
+    fun tryParseBatteryFromNotification(context: Context, sbn: StatusBarNotification): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
+        if (!prefs.getBoolean("cast_earbuds", true)) return false
+
+        val extras = sbn.notification?.extras ?: return false
+        val title = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "")
+        val text = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: "")
+        val subText = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: "")
+        val bigText = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: "")
+        val extraAll = cleanBatteryText(extractAllNotificationText(sbn))
+        val fullText = "$title | $text | $subText | $bigText | $extraAll"
+
+        val pkg = sbn.packageName
+        val isTwsPkg = pkg in TWS_NOTIFICATION_PACKAGES
+        val hasKeyword = (AUDIO_KEYWORDS + WEARABLE_KEYWORDS + listOf("bên trái", "bên phải", "hộp sạc")).any {
+            fullText.contains(it, ignoreCase = true)
         }
 
-        if (telemetry.effectiveLevel in 0..100) {
-            saveCachedBattery(context, devName, telemetry.effectiveLevel)
-        }
-        deviceTelemetry[devName] = telemetry
-        setConnectedState(devName, true)
+        if (!isTwsPkg && !hasKeyword) return false
+        if (!fullText.contains("%")) return false
 
-        show(
-            context = context,
-            device = null,
-            customName = devName,
-            telemetry = telemetry,
-            low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
-            isWearable = isWearableDevice,
+        val parsed = parseBatteryText(title, text, subText, bigText, extraAll) ?: return false
+        val hasMultiComponent = parsed.hasDetails
+
+        // Phân định rạch ròi Wearable vs Earbuds: nếu có L/R/Case thì chắc chắn 100% là tai nghe TWS
+        val isWearableDevice = !hasMultiComponent && (
+            isWearable(null, title, pkg) ||
+            listOf("fit", "watch", "band", "vòng đeo tay", "đồng hồ").any { fullText.contains(it, ignoreCase = true) }
         )
-        onBatteryUpdated(context, devName, telemetry, isWearable = isWearableDevice)
+
+        val devName = extractDeviceNameFromNotificationText(title, text, isWearableDevice)
+        val matchedBtDevice = findBluetoothDevice(context, devName)
+        val btAddress = matchedBtDevice?.address
+
+        // Hủy các timer pending 2.5s để không bắn đè main lên kết quả chi tiết L/R/Case vừa bóc tách
+        if (!isWearableDevice) {
+            pending.values.forEach(handler::removeCallbacks)
+            pending.clear()
+        } else if (btAddress != null) {
+            pending.remove(btAddress)?.let(handler::removeCallbacks)
+        }
+
+        val existing = getStoredTelemetry(context, btAddress, devName)
+        val merged = storeTelemetry(context, btAddress, devName, parsed)
+        setConnectedState(devName, true)
+        if (btAddress != null) {
+            setConnectedState(btAddress, true)
+        }
+
+        val changed = existing != merged
+        val currentlyShowing = isShowing(isWearableDevice, devName) || (btAddress != null && isShowing(isWearableDevice, btAddress))
+
+        if (changed || currentlyShowing || showingEarbudsAddress == null) {
+            show(
+                context = context,
+                device = matchedBtDevice,
+                customName = devName,
+                telemetry = merged,
+                low = (merged.effectiveLevel in 0..LOW_LEVEL),
+                isWearable = isWearableDevice,
+            )
+        }
+        onBatteryUpdated(context, devName, merged, isWearable = isWearableDevice)
         return true
     }
 
@@ -1486,25 +1846,28 @@ object EarbudsCard {
         val targetDevice = connectedDevices.firstOrNull { isAudio(it) || isWearable(it) } ?: connectedDevices.firstOrNull()
         if (targetDevice != null) {
             val address = targetDevice.address
-            val cached = deviceTelemetry[address]
+            val devName = runCatching { targetDevice.alias ?: targetDevice.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
             val batteryLevel = batteryOf(targetDevice)
             val isWearableDevice = isWearable(targetDevice)
-            val telemetry = if (cached != null && cached.effectiveLevel in 0..100) {
-                cached
-            } else {
-                val read = readTelemetry(targetDevice, null)
-                if (read.effectiveLevel in 0..100) read
-                else if (batteryLevel in 0..100) read.copy(main = batteryLevel)
-                else read
+
+            var telemetry = readTelemetry(targetDevice, null)
+            if (telemetry.effectiveLevel !in 0..100 && batteryLevel in 0..100) {
+                telemetry = telemetry.copy(main = batteryLevel)
             }
-            deviceTelemetry[address] = telemetry
+            if (!isWearableDevice) {
+                scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
+                    telemetry = mergeTelemetry(telemetry, scanned)
+                }
+            }
+            telemetry = storeTelemetry(context, address, devName, telemetry)
+
             setConnectedState(address, true)
             runCatching { targetDevice.name }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
             runCatching { targetDevice.alias }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
             show(
                 context = context,
                 device = targetDevice,
-                customName = null,
+                customName = devName,
                 telemetry = telemetry,
                 low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
                 isWearable = isWearableDevice,
@@ -1567,15 +1930,26 @@ object EarbudsCard {
             readGattBatteryAsync(context, targetDev, name, isWearableDevice)
         }
 
-        val known = effectivePct in 0..100
-        val isLow = known && effectivePct <= LOW_LEVEL
-
-        val activeTelemetry = if (known && telemetry.effectiveLevel !in 0..100) {
-            telemetry.copy(main = effectivePct)
-        } else {
-            telemetry
+        val stored = getStoredTelemetry(context, (targetDev ?: device)?.address, name)
+        val mergedInitial = mergeTelemetry(stored, telemetry)
+        if (mergedInitial.effectiveLevel in 0..100 && effectivePct !in 0..100) {
+            effectivePct = mergedInitial.effectiveLevel
         }
 
+        val known = effectivePct in 0..100
+        val isLow = known && (
+            effectivePct <= LOW_LEVEL ||
+                (mergedInitial.left in 0..LOW_LEVEL) ||
+                (mergedInitial.right in 0..LOW_LEVEL)
+            )
+
+        val activeTelemetry = if (known && mergedInitial.effectiveLevel !in 0..100) {
+            mergedInitial.copy(main = effectivePct)
+        } else {
+            mergedInitial
+        }
+
+        storeTelemetry(context, (targetDev ?: device)?.address, name, activeTelemetry)
         if (known) {
             saveCachedBattery(context, name, effectivePct)
             (targetDev ?: device)?.address?.let { saveCachedBattery(context, it, effectivePct) }
@@ -1596,46 +1970,54 @@ object EarbudsCard {
         )
 
         // Dòng 1: oi_title
-        val displayTitle = if (activeTelemetry.case in 1..100) {
-            "${name.take(16)} · Hộp: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}"
+        val displayTitle = when {
+            activeTelemetry.case in 0..100 ->
+                "${name.take(16)} · Hộp: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}"
+            activeTelemetry.hasDetails ->
+                "${name.take(18)} · Chi tiết pin"
+            known ->
+                "${name.take(18)} · ${effectivePct}%"
+            else ->
+                name.take(24)
+        }
+
+        // Dòng 2: oi_text — Hiển thị đầy đủ từng thành phần Trái / Phải / Hộp sạc
+        val detailParts = buildList {
+            if (activeTelemetry.left in 0..100) {
+                add("Tai trái: ${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}")
+            }
+            if (activeTelemetry.right in 0..100) {
+                add("Tai phải: ${activeTelemetry.right}%${if (activeTelemetry.isRightCharging) "⚡" else ""}")
+            }
+            if (activeTelemetry.case in 0..100) {
+                add("Hộp sạc: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}")
+            }
+        }
+        val displayText = when {
+            detailParts.isNotEmpty() -> detailParts.joinToString("  ·  ")
+            activeTelemetry.main in 0..100 ->
+                if (isWearableDevice) "Pin thiết bị: ${activeTelemetry.main}% · Đang kết nối"
+                else "Pin tai nghe: ${activeTelemetry.main}% · Đang kết nối âm thanh"
+            else ->
+                if (isWearableDevice) "Thiết bị đeo · Đã kết nối"
+                else "Tai nghe Bluetooth · Đã kết nối"
+        }
+
+        val displaySubtext = if (detailParts.isNotEmpty()) {
+            detailParts.joinToString(" · ")
         } else if (known) {
-            "${name.take(18)} · ${effectivePct}%"
-        } else {
-            name.take(24)
-        }
-
-        // Dòng 2: oi_text
-        val displayText = if (activeTelemetry.left in 0..100 && activeTelemetry.right in 0..100) {
-            val lText = "${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}"
-            val rText = "${activeTelemetry.right}%${if (activeTelemetry.isRightCharging) "⚡" else ""}"
-            "Trái (L): $lText   ·   Phải (R): $rText"
-        } else if (activeTelemetry.left in 0..100) {
-            val lText = "${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}"
-            "Trái (L): $lText · Đang kết nối"
-        } else if (activeTelemetry.right in 0..100) {
-            val rText = "${activeTelemetry.right}%${if (activeTelemetry.isRightCharging) "⚡" else ""}"
-            "Phải (R): $rText · Đang kết nối"
-        } else if (activeTelemetry.main in 0..100) {
-            if (isWearableDevice) "Pin thiết bị: ${activeTelemetry.main}% · Đang kết nối"
-            else "Pin tai nghe: ${activeTelemetry.main}% · Đang kết nối âm thanh"
-        } else {
-            if (isWearableDevice) "Thiết bị đeo · Đã kết nối"
-            else "Tai nghe Bluetooth · Đã kết nối"
-        }
-
-        val displaySubtext = if (known) {
             "${if (isWearableDevice) "Thiết bị đeo" else "Tai nghe Bluetooth"} · Pin $effectivePct%"
         } else {
             if (isWearableDevice) "Thiết bị đeo · Đã kết nối" else "Tai nghe Bluetooth · Đã kết nối"
         }
 
-        // Xây dựng danh sách slot pin co giãn thích ứng
+        // Xây dựng danh sách 3 ô pin riêng biệt (Trái / Phải / Hộp) khi ấn mở rộng thẻ
         val slots = mutableListOf<BatterySlot>()
         if (activeTelemetry.left in 0..100) {
-            slots.add(BatterySlot(shortLabel = "L", fullLabel = "Tai Trái: ${activeTelemetry.left}%", level = activeTelemetry.left, isCharging = activeTelemetry.isLeftCharging))
+            slots.add(BatterySlot(shortLabel = "Trái", fullLabel = "Tai Trái: ${activeTelemetry.left}%", level = activeTelemetry.left, isCharging = activeTelemetry.isLeftCharging))
         }
         if (activeTelemetry.right in 0..100) {
-            slots.add(BatterySlot(shortLabel = "R", fullLabel = "Tai Phải: ${activeTelemetry.right}%", level = activeTelemetry.right, isCharging = activeTelemetry.isRightCharging))
+            slots.add(BatterySlot(shortLabel = "Phải", fullLabel = "Tai Phải: ${activeTelemetry.right}%", level = activeTelemetry.right, isCharging = activeTelemetry.isRightCharging))
         }
         if (activeTelemetry.case in 0..100) {
             slots.add(BatterySlot(shortLabel = "Hộp", fullLabel = "Hộp sạc: ${activeTelemetry.case}%", level = activeTelemetry.case, isCharging = activeTelemetry.isCaseCharging))
@@ -1647,15 +2029,27 @@ object EarbudsCard {
             slots.add(BatterySlot(shortLabel = slotLabel, fullLabel = "$slotLabel: ${activeTelemetry.main}%", level = activeTelemetry.main, isCharging = false))
         }
 
-        val leftContent = if (known) "${effectivePct}%" else ""
-        val pillStatus = if (known) "${effectivePct}%" else "Đã kết nối"
+        val hasDualBuds = activeTelemetry.left in 0..100 && activeTelemetry.right in 0..100
+        val leftContent = when {
+            hasDualBuds -> "L:${activeTelemetry.left}%"
+            activeTelemetry.left in 0..100 -> "L:${activeTelemetry.left}%"
+            activeTelemetry.right in 0..100 -> "R:${activeTelemetry.right}%"
+            known -> "${effectivePct}%"
+            else -> ""
+        }
+        val pillStatus = when {
+            hasDualBuds -> "R:${activeTelemetry.right}%"
+            activeTelemetry.case in 0..100 -> "C:${activeTelemetry.case}%"
+            known -> "${effectivePct}%"
+            else -> "Đã kết nối"
+        }
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", cardId)
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("title", if (low) "Pin yếu · $displayTitle" else displayTitle)
+            putExtra("title", if (low || isLow) "Pin yếu · $displayTitle" else displayTitle)
             putExtra("text", displayText)
             putExtra("subtext", displaySubtext)
             putExtra("oi_left_content", leftContent)
@@ -1664,9 +2058,15 @@ object EarbudsCard {
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_right_content", pillStatus)
             putExtra("status_chip_text", pillStatus)
+            // Khi ấn vào viên nang Đảo sẽ mở rộng thẻ (ISLAND_CLICK_SHOW_CARD) để xem rõ pin Trái / Phải / Hộp
+            putExtra("oi_island_click_expand", true)
 
-            // Tiến độ vòng tròn quanh camera selfie
-            if (known) {
+            if (hasDualBuds) {
+                // Hiển thị viên thuốc bên phải cho Tai Phải (R:xx%) kết hợp chữ bên trái cho Tai Trái (L:xx%)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+                putExtra("oi_fg_color", "#FFFFFFFF")
+                putExtra("oi_bg_color", if (isLow) RED else GREEN)
+            } else if (known) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
                 putExtra("oi_progress", effectivePct.coerceIn(0, 100))
                 putExtra("oi_fg_color", if (isLow) RED else GREEN)
@@ -1682,9 +2082,8 @@ object EarbudsCard {
                 val actionsList = ArrayList<Notification.Action>()
                 val buttonTitles = ArrayList<String>()
                 for (slot in slots.take(3)) {
-                    val icon = BatteryCanvasRenderer.createBatteryIcon(context, slot.level, slot.isCharging)
-                    val btnTitle = "${slot.shortLabel} ${slot.level}%${if (slot.isCharging) "⚡" else ""}"
-                    val action = Notification.Action.Builder(icon, btnTitle, click).build()
+                    val btnTitle = "${slot.shortLabel}: ${slot.level}%${if (slot.isCharging) "⚡" else ""}"
+                    val action = Notification.Action.Builder(null, btnTitle, click).build()
                     actionsList.add(action)
                     buttonTitles.add(btnTitle)
                 }
@@ -1699,7 +2098,7 @@ object EarbudsCard {
             }
 
             // Viền xanh #00D084 khi kết nối thành công, đỏ khi pin yếu
-            putExtra("oi_light_color", if (low) RED else GREEN)
+            putExtra("oi_light_color", if (low || isLow) RED else GREEN)
             putExtra("click_resp", click)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
@@ -1813,16 +2212,23 @@ object EarbudsCard {
             readGattBatteryAsync(ctx, targetDevice, name, isWearable)
         }
 
-        val telemetry = if (effectiveBattery in 0..100) {
+        val incomingTelemetry = if (effectiveBattery in 0..100) {
             EarbudsTelemetry(main = effectiveBattery)
         } else {
-            deviceTelemetry[name]?.takeIf { it.effectiveLevel in 0..100 } ?: EarbudsTelemetry()
+            EarbudsTelemetry()
         }
-        deviceTelemetry[name] = telemetry
+        var telemetry = storeTelemetry(ctx, targetDevice?.address, name, incomingTelemetry)
+
+        if (!isWearable) {
+            val activeNotifTelemetry = scanActiveNotificationsForEarbuds(ctx, name)
+            if (activeNotifTelemetry != null) {
+                telemetry = storeTelemetry(ctx, targetDevice?.address, name, activeNotifTelemetry)
+            }
+        }
 
         if (alreadyConnected) {
-            // Đã kết nối trước đó: chỉ cập nhật thông số ngầm, không kích hoạt pop-up đảo
-            if (isShowing(isWearable, name) || (telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow)) {
+            // Đã kết nối trước đó: cập nhật hiển thị nếu đang mở trên Đảo, vừa nhận được chi tiết L/R/Case, hoặc pin yếu
+            if (isShowing(isWearable, name) || telemetry.hasDetails || (telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow)) {
                 if (telemetry.effectiveLevel in 0..LOW_LEVEL) warnedLow += name
                 show(
                     context = ctx,
@@ -1880,23 +2286,52 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
-        if (telemetry.effectiveLevel in 0..100) {
-            saveCachedBattery(ctx, name, telemetry.effectiveLevel)
+        val before = getStoredTelemetry(ctx, null, name)
+        val hadDetailsBefore = before.hasDetails
+        val merged = storeTelemetry(ctx, null, name, telemetry)
+        val eff = merged.effectiveLevel
+        if (eff in 0..100) {
+            saveCachedBattery(ctx, name, eff)
         }
-        val before = deviceTelemetry.put(name, telemetry)
-        val eff = telemetry.effectiveLevel
-        // Chỉ cập nhật hiển thị nếu Đang hiển thị trên đảo, hoặc pin tụt xuống mức cảnh báo yếu
-        if (isShowing(isWearable, name) || (eff in 0..LOW_LEVEL && (before?.effectiveLevel ?: 100) > LOW_LEVEL && name !in warnedLow)) {
+        // Cập nhật hiển thị nếu Đang hiển thị trên đảo, vừa phát hiện thêm chi tiết L/R/Case mới, hoặc pin tụt xuống mức cảnh báo yếu
+        if (isShowing(isWearable, name) || (!hadDetailsBefore && merged.hasDetails) || (eff in 0..LOW_LEVEL && before.effectiveLevel > LOW_LEVEL && name !in warnedLow)) {
             if (eff in 0..LOW_LEVEL) warnedLow += name
             show(
                 context = ctx,
                 device = null,
                 customName = name,
-                telemetry = telemetry,
+                telemetry = merged,
                 low = (eff in 0..LOW_LEVEL),
                 isWearable = isWearable,
             )
         }
+    }
+
+    /**
+     * Phát thẻ mẫu Tai nghe TWS đa thành phần (Tai Trái 50%, Tai Phải 100%, Hộp sạc 20%)
+     * để kiểm thử trực tiếp viên nang L/R và thẻ mở rộng 3 ô khi ấn vào Đảo.
+     */
+    fun postSample(context: Context) {
+        val ctx = context.applicationContext
+        val sampleName = "Tai nghe TWS"
+        val sampleTelemetry = EarbudsTelemetry(
+            main = 75,
+            left = 50,
+            right = 100,
+            case = 20,
+            isLeftCharging = false,
+            isRightCharging = false,
+            isCaseCharging = true,
+        )
+        storeTelemetry(ctx, null, sampleName, sampleTelemetry)
+        show(
+            context = ctx,
+            device = null,
+            customName = sampleName,
+            telemetry = sampleTelemetry,
+            low = false,
+            isWearable = false,
+        )
     }
 
     /**

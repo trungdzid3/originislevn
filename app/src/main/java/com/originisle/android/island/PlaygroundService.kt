@@ -206,6 +206,7 @@ class PlaygroundService : Service() {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
         lastPosts[id] = intent
+        if (id == 35004) plainIds.remove(id)
         val plain = id in plainIds
 
         val scene = resolveAllowedScene(intent.getStringExtra("oi_scene"))
@@ -323,6 +324,7 @@ class PlaygroundService : Service() {
 
         val btnTransparent = intent.getBooleanExtra("oi_btn_transparent", false)
         val btnType = intent.getIntExtra("oi_btn_type", 1)
+        val islandClickExpand = intent.getBooleanExtra("oi_island_click_expand", false)
         val subImage: Icon? = if (plain) null else intent.getParcelableExtra("oi_sub_image", Icon::class.java)
         val subClickResp: PendingIntent? = if (plain) null else intent.getParcelableExtra("oi_sub_click_resp", PendingIntent::class.java)
 
@@ -385,6 +387,7 @@ class PlaygroundService : Service() {
             btnType = btnType,
             subImage = subImage,
             subClickResp = subClickResp,
+            islandClickExpand = islandClickExpand,
         )
 
         val sourceApp = intent.getStringExtra("source_app").orEmpty()
@@ -534,7 +537,7 @@ class PlaygroundService : Service() {
         val title = last.getStringExtra("title").orEmpty()
         val simpler = last.getIntExtra("oi_template", 0) in FANCY_TEMPLATES ||
             last.hasExtra("actions") || last.hasExtra("oi_button_titles")
-        if (id in plainIds || !simpler) {
+        if (id == 35004 || id in plainIds || !simpler) {
             CastLog.add(app, title, "bị Đảo từ chối", false)
             return
         }

@@ -58,6 +58,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.originisle.android.cards.BatteryCanvasRenderer
 import com.originisle.android.cards.CalendarEventCard
 import com.originisle.android.cards.createGreenTickCircleIcon
+import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.TikTokStreakCard
 import com.originisle.android.cards.ZaloCallCard
 import com.originisle.android.island.OriginIslandConstants
@@ -346,6 +347,18 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
                 icon = IsleIcons.Clock,
                 container = IsleColors.SurfaceHigh,
                 content = IsleColors.Accent,
+                height = 40.dp,
+            )
+            PillButton(
+                text = "Thử Tai nghe",
+                onClick = {
+                    runCatching { EarbudsCard.postSample(context) }
+                    Toast.makeText(context, "Đã phát thẻ Pin Tai nghe (Trái / Phải / Hộp sạc) lên Đảo Origin!", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.weight(1f),
+                icon = IsleIcons.Headphones,
+                container = IsleColors.SurfaceHigh,
+                content = IsleColors.Text,
                 height = 40.dp,
             )
         }
