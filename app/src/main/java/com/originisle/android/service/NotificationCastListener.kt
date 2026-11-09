@@ -238,9 +238,16 @@ class NotificationCastListener : NotificationListenerService() {
             "com.vnpay.bidv",                           // BIDV
             "com.mservice.momopay",                     // MoMo
             "vn.com.vng.zalopay",                       // ZaloPay
-            "com.zing.zalo",                            // Zalo
             "vn.com.vpbank.neo",                        // VPBank NEO
             "com.acb.mobile",                           // ACB ONE
+        )
+
+        /** Danh sách các ứng dụng nhắn tin / mạng xã hội bị cấm tuyệt đối nhận diện thanh toán. */
+        private val CHAT_SOCIAL_BLACKLIST = setOf(
+            "com.zing.zalo", "com.zing.zalo.im", "com.facebook.orca", "com.facebook.katana",
+            "com.instagram.android", "org.telegram.messenger", "com.whatsapp", "com.viber.voip",
+            "com.skype.raider", "com.discord", "com.google.android.talk", "com.ss.android.ugc.trill",
+            "com.zhiliaoapp.musically",
         )
 
         /** Payment verbs — any app whose notification pairs one of these with an amount is a payment. */
@@ -1678,27 +1685,35 @@ class NotificationCastListener : NotificationListenerService() {
 
     /**
      * Decide whether a notification is a payment, and pull the amount + merchant out of it.
-     * A payment is either a known wallet/bank app carrying an amount or a payment verb, or *any*
-     * app whose text pairs a payment verb with a currency amount.
+     * Khóa chết (Strict Whitelist & Hard Blacklist):
+     * Chỉ cho phép các app nằm trong [PAYMENT_APPS] có amount hợp lệ và có từ khóa giao dịch hoặc là app ví chuyên biệt.
      */
     private fun detectPayment(sbn: StatusBarNotification): PaymentInfo? {
+        if (sbn.packageName in CHAT_SOCIAL_BLACKLIST || sbn.packageName.contains("zalo", ignoreCase = true)) {
+            return null
+        }
+        if (sbn.packageName !in PAYMENT_APPS) {
+            return null
+        }
+
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
         val big = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
         val hay = "$title $text $big"
 
-        val amount = AMOUNT.find(hay)?.value?.trim()
-        val known = sbn.packageName in PAYMENT_APPS
+        val amount = AMOUNT.find(hay)?.value?.trim() ?: return null
         val hasVerb = PAYMENT_WORDS.any { hay.contains(it, ignoreCase = true) }
-        val isPayment = (known && (amount != null || hasVerb)) || (hasVerb && amount != null)
+        val isSpecializedWallet = sbn.packageName == "com.google.android.apps.walletnfcrel" ||
+            sbn.packageName == "com.paypal.android.p2pmobile"
+        val isPayment = hasVerb || isSpecializedWallet
         if (!isPayment) return null
 
         // Merchant: if the title itself is the amount (or empty), the payee is usually in the body.
-        val titleIsAmount = amount != null && title.contains(amount)
+        val titleIsAmount = title.contains(amount)
         val merchant = (if (titleIsAmount || title.isBlank()) text else title)
             .trim().ifBlank { "Payment" }.take(40)
-        return PaymentInfo(amount.orEmpty(), merchant)
+        return PaymentInfo(amount, merchant)
     }
 
     private fun castPayment(sbn: StatusBarNotification, info: PaymentInfo) {

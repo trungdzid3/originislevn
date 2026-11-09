@@ -59,6 +59,16 @@ object VietnamBankDetector {
     )
 
     /**
+     * Set of messaging, chat, and social media package names strictly blacklisted from bank detection.
+     */
+    val CHAT_SOCIAL_BLACKLIST = setOf(
+        "com.zing.zalo", "com.zing.zalo.im", "com.facebook.orca", "com.facebook.katana",
+        "com.instagram.android", "org.telegram.messenger", "com.whatsapp", "com.viber.voip",
+        "com.skype.raider", "com.discord", "com.google.android.talk", "com.ss.android.ugc.trill",
+        "com.zhiliaoapp.musically"
+    )
+
+    /**
      * Vietnam bank brandname mappings for matching SMS titles/senders and SMS message contents.
      */
     private val BANK_BRANDS = listOf(
@@ -205,6 +215,7 @@ object VietnamBankDetector {
      * Checks if a package name belongs to a known SMS/MMS application.
      */
     fun isSmsPackage(pkg: String): Boolean {
+        if (pkg in CHAT_SOCIAL_BLACKLIST || pkg.contains("zalo", ignoreCase = true)) return false
         if (pkg in SMS_PACKAGES) return true
         val lower = pkg.lowercase(Locale.ROOT)
         return lower.endsWith(".mms") || lower.contains(".messaging") || lower.contains(".sms")
@@ -467,6 +478,10 @@ object VietnamBankDetector {
      * or is a bank SMS notification.
      */
     fun isBankNotification(sbn: StatusBarNotification): Boolean {
+        if (sbn.packageName in CHAT_SOCIAL_BLACKLIST ||
+            (sbn.packageName.contains("zalo", ignoreCase = true) && sbn.packageName != "vn.com.vng.zalopay")) {
+            return false
+        }
         val extras = sbn.notification.extras ?: return false
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
@@ -506,6 +521,10 @@ object VietnamBankDetector {
      * (native banking app or SMS) and contains transaction amount details.
      */
     fun parse(sbn: StatusBarNotification): BankTransaction? {
+        if (sbn.packageName in CHAT_SOCIAL_BLACKLIST ||
+            (sbn.packageName.contains("zalo", ignoreCase = true) && sbn.packageName != "vn.com.vng.zalopay")) {
+            return null
+        }
         val extras = sbn.notification.extras ?: return null
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
@@ -519,7 +538,7 @@ object VietnamBankDetector {
         val fullTextForDetection = "$text $bigText $textLines".trim()
 
         var bankName = BANK_PACKAGES[sbn.packageName]
-        if (bankName == null && isSmsPackage(sbn.packageName)) {
+        if (bankName == null && isSmsPackage(sbn.packageName) && sbn.packageName !in CHAT_SOCIAL_BLACKLIST) {
             bankName = detectBankBrand(title, fullTextForDetection)
         }
         if (bankName == null) return null
@@ -543,6 +562,10 @@ object VietnamBankDetector {
         text: String,
         bigText: String? = null
     ): BankTransaction? {
+        if (packageName in CHAT_SOCIAL_BLACKLIST ||
+            (packageName.contains("zalo", ignoreCase = true) && packageName != "vn.com.vng.zalopay")) {
+            return null
+        }
         val fullText = buildString {
             if (title.isNotBlank()) append(title).append(". ")
             if (text.isNotBlank()) append(text).append(" ")
