@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.1` (mã bản dựng `versionCode = 10701`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.2` (mã bản dựng `versionCode = 10702`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,14 +54,13 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.1.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 1)
+└── OriginIsle-VN-v1.7.2.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 2)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
 - `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`), `OriginIslandBuilder.kt` & `PlaygroundService.kt`:
-  - Làm sạch ký tự ẩn Unicode Bidi (`\u2068`, `\u2069`, `\u200E`, `\u200F`, `\u00A0`) trong `cleanBatteryText` và `parseBatteryText` để bóc tách chính xác 100% pin Tai Trái (L), Tai Phải (R) và Hộp sạc (Case) từ thông báo Google Play Services Fast Pair (`com.google.android.gms` - "Thiết bị", ví dụ: `"Tai nghe bên trái 50% Hộp sạc 20% Tai nghe bên phải 100%"`), Vivo TWS, Samsung Buds.
-  - Hợp nhất thông minh qua `mergeTelemetry` & `storeTelemetry` để các sự kiện Bluetooth HFP (`ACTION_BATTERY_LEVEL_CHANGED`) không ghi đè xóa mất thông số `left`, `right`, `case` đã biết; tự động quét `activeNotifications` qua `scanActiveNotificationsForEarbuds`.
-  - Hiển thị rõ bên trái `L:50%` và bên phải viên thuốc xanh `R:100%` trên viên nang thu gọn; khi ấn vào viên nang Đảo (`oi_island_click_expand = true`), mở rộng thẻ trên Đảo hiển thị rõ `"Tai trái: 50%  ·  Tai phải: 100%  ·  Hộp sạc: 20%"` cùng 3 ô tách biệt `[ Trái: 50% ]`, `[ Phải: 100% ]`, `[ Hộp: 20% ]` (dùng `Notification.Action` với `icon = null` tương thích 100% Vivo SuperX).
+  - Loại bỏ hoàn toàn khung xanh lệch màu (`TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` 6) trên viên nang thu gọn; chuyển sang `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (4) với `showRightIcon = false`, hiển thị chữ trắng `R:xx%` cân xứng đối xứng hoàn hảo với `L:xx%` bên trái.
+  - Chuẩn hóa giao diện mở rộng: Gỡ bỏ hoàn toàn `TEMPLATE_BUTTONS` (8) và các nút bấm kiểu Material Expressive; chuyển sang `TEMPLATE_BASE` (4) squircle G2 liên tục chuẩn OriginOS 6 kết hợp vòng tròn tiến độ pin (`cardRing = effectivePct`), hiển thị dòng chi tiết thanh lịch `"Tai trái: 50%   ·   Tai phải: 100%   ·   Hộp sạc: 20%"`, xóa sạch khối chữ xám subtext.
 - `CalendarEventDetector.kt` & `CalendarEventCard.kt` (`ID = 35015`): Nhận diện thông báo nhắc lịch hẹn, cuộc họp, sự kiện sắp diễn ra và chuyến bay/tàu xe từ Google Calendar, Lịch Vivo, Samsung Calendar, Microsoft Outlook và các thông báo `CATEGORY_EVENT` / `CATEGORY_REMINDER`; trích xuất khung giờ / thời gian đếm ngược và hiển thị viên nang nhắc lịch kèm icon lịch vẽ trực tiếp bằng Canvas 100% tương thích Vivo SuperX SDK.
 - `app/build.gradle.kts`, `proguard-rules.pro` & `ScreenshotSmartExtractor.kt`: Gỡ bỏ phụ thuộc `com.google.mlkit:text-recognition` (~55 MB native `.so`), gỡ quyền thừa `READ_MEDIA_IMAGES` và bật R8 `isMinifyEnabled = true` + `isShrinkResources = true` giúp giảm dung lượng APK từ 69.1 MB xuống còn **4.3 MB**.
 - `UpdateChecker.kt` (`app/src/main/java/com/originisle/android/ui/UpdateChecker.kt`): Gia cố bảo mật toàn diện: lọc `sanitizeApkFileName` & kiểm tra `canonicalPath` chống Path Traversal, khóa `HttpsURLConnection` & whitelist tên miền GitHub (`isAllowedGithubUrl`) khi redirect, xác thực `packageName` và chứng chỉ ký (`verifyDownloadedApk`) trước khi cài đặt, tự động dọn dẹp APK cũ (`cleanupOldApks`).

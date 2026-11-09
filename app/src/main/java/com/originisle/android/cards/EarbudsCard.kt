@@ -1972,16 +1972,14 @@ object EarbudsCard {
         // Dòng 1: oi_title
         val displayTitle = when {
             activeTelemetry.case in 0..100 ->
-                "${name.take(16)} · Hộp: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}"
-            activeTelemetry.hasDetails ->
-                "${name.take(18)} · Chi tiết pin"
+                "${name.take(16)} · Hộp ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}"
             known ->
                 "${name.take(18)} · ${effectivePct}%"
             else ->
-                name.take(24)
+                "${name.take(20)} · Đã kết nối"
         }
 
-        // Dòng 2: oi_text — Hiển thị đầy đủ từng thành phần Trái / Phải / Hộp sạc
+        // Dòng 2: oi_text — Hiển thị đầy đủ từng thành phần Trái / Phải / Hộp sạc chuẩn OriginOS 6
         val detailParts = buildList {
             if (activeTelemetry.left in 0..100) {
                 add("Tai trái: ${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}")
@@ -1994,39 +1992,13 @@ object EarbudsCard {
             }
         }
         val displayText = when {
-            detailParts.isNotEmpty() -> detailParts.joinToString("  ·  ")
+            detailParts.isNotEmpty() -> detailParts.joinToString("   ·   ")
             activeTelemetry.main in 0..100 ->
                 if (isWearableDevice) "Pin thiết bị: ${activeTelemetry.main}% · Đang kết nối"
                 else "Pin tai nghe: ${activeTelemetry.main}% · Đang kết nối âm thanh"
             else ->
                 if (isWearableDevice) "Thiết bị đeo · Đã kết nối"
                 else "Tai nghe Bluetooth · Đã kết nối"
-        }
-
-        val displaySubtext = if (detailParts.isNotEmpty()) {
-            detailParts.joinToString(" · ")
-        } else if (known) {
-            "${if (isWearableDevice) "Thiết bị đeo" else "Tai nghe Bluetooth"} · Pin $effectivePct%"
-        } else {
-            if (isWearableDevice) "Thiết bị đeo · Đã kết nối" else "Tai nghe Bluetooth · Đã kết nối"
-        }
-
-        // Xây dựng danh sách 3 ô pin riêng biệt (Trái / Phải / Hộp) khi ấn mở rộng thẻ
-        val slots = mutableListOf<BatterySlot>()
-        if (activeTelemetry.left in 0..100) {
-            slots.add(BatterySlot(shortLabel = "Trái", fullLabel = "Tai Trái: ${activeTelemetry.left}%", level = activeTelemetry.left, isCharging = activeTelemetry.isLeftCharging))
-        }
-        if (activeTelemetry.right in 0..100) {
-            slots.add(BatterySlot(shortLabel = "Phải", fullLabel = "Tai Phải: ${activeTelemetry.right}%", level = activeTelemetry.right, isCharging = activeTelemetry.isRightCharging))
-        }
-        if (activeTelemetry.case in 0..100) {
-            slots.add(BatterySlot(shortLabel = "Hộp", fullLabel = "Hộp sạc: ${activeTelemetry.case}%", level = activeTelemetry.case, isCharging = activeTelemetry.isCaseCharging))
-        }
-        if (slots.isEmpty() && activeTelemetry.main in 0..100) {
-            val slotLabel = if (isWearableDevice) {
-                if (name.contains("fit", ignoreCase = true)) "Fit 3" else "Pin"
-            } else "Pin"
-            slots.add(BatterySlot(shortLabel = slotLabel, fullLabel = "$slotLabel: ${activeTelemetry.main}%", level = activeTelemetry.main, isCharging = false))
         }
 
         val hasDualBuds = activeTelemetry.left in 0..100 && activeTelemetry.right in 0..100
@@ -2051,7 +2023,7 @@ object EarbudsCard {
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", if (low || isLow) "Pin yếu · $displayTitle" else displayTitle)
             putExtra("text", displayText)
-            putExtra("subtext", displaySubtext)
+            putExtra("subtext", "")
             putExtra("oi_left_content", leftContent)
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
@@ -2062,10 +2034,10 @@ object EarbudsCard {
             putExtra("oi_island_click_expand", true)
 
             if (hasDualBuds) {
-                // Hiển thị viên thuốc bên phải cho Tai Phải (R:xx%) kết hợp chữ bên trái cho Tai Trái (L:xx%)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
+                // Hiển thị chữ trắng thanh lịch cho Tai Phải (R:xx%) đồng bộ tuyệt đối với Tai Trái (L:xx%), loại bỏ hoàn toàn khung xanh
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                putExtra("oi_show_right_icon", false)
                 putExtra("oi_fg_color", "#FFFFFFFF")
-                putExtra("oi_bg_color", if (isLow) RED else GREEN)
             } else if (known) {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
                 putExtra("oi_progress", effectivePct.coerceIn(0, 100))
@@ -2076,25 +2048,11 @@ object EarbudsCard {
                 putExtra("oi_show_right_icon", false)
             }
 
-            // Bố cục Co giãn Thích ứng cho thẻ mở rộng (Expanded card)
-            if (slots.isNotEmpty()) {
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
-                val actionsList = ArrayList<Notification.Action>()
-                val buttonTitles = ArrayList<String>()
-                for (slot in slots.take(3)) {
-                    val btnTitle = "${slot.shortLabel}: ${slot.level}%${if (slot.isCharging) "⚡" else ""}"
-                    val action = Notification.Action.Builder(null, btnTitle, click).build()
-                    actionsList.add(action)
-                    buttonTitles.add(btnTitle)
-                }
-                putParcelableArrayListExtra("actions", actionsList)
-                putStringArrayListExtra("oi_button_titles", buttonTitles)
-                if (slots.size == 1) {
-                    putExtra("oi_card_ring", slots[0].level)
-                }
-            } else {
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-                if (known) putExtra("oi_card_ring", effectivePct)
+            // Chuẩn hóa giao diện mở rộng: Dùng TEMPLATE_BASE (4) squircle G2 của OriginOS 6
+            // Thay thế hoàn toàn 3 nút bấm Material Expressive bằng vòng tròn tiến độ pin (cardRing) thanh lịch
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+            if (known) {
+                putExtra("oi_card_ring", effectivePct)
             }
 
             // Viền xanh #00D084 khi kết nối thành công, đỏ khi pin yếu
@@ -2154,7 +2112,7 @@ object EarbudsCard {
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("title", "$name · Mất kết nối")
             putExtra("text", "Đã ngắt kết nối Bluetooth")
-            putExtra("subtext", "Bluetooth · Đã ngắt kết nối")
+            putExtra("subtext", "")
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", safeIcon)
             putExtra("oi_large_icon", safeIcon)
