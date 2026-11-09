@@ -111,6 +111,7 @@ fun HomeScreen(
         mutableStateOf(prefs.getString("tiktok_streak_custom_message", "🔥") ?: "🔥")
     }
     var downloadOn by remember { mutableStateOf(prefs.getBoolean("cast_downloads", true)) }
+    var castCalendarEvents by remember { mutableStateOf(prefs.getBoolean("cast_calendar_events", true)) }
     var callsOn by remember { mutableStateOf(prefs.getBoolean("cast_calls", true)) }
 
     // 3. Nhóm tiện ích hệ thống & phần cứng
@@ -565,6 +566,18 @@ fun HomeScreen(
                     ) {
                         downloadOn = it
                         prefs.edit().putBoolean("cast_downloads", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Clock, IsleColors.Accent,
+                        title = "Nhắc lịch & Sự kiện sắp tới",
+                        checked = castCalendarEvents,
+                        subtitle = "Đếm ngược cuộc họp, lịch hẹn từ Google Calendar, Lịch Vivo, Outlook",
+                    ) {
+                        castCalendarEvents = it
+                        prefs.edit().putBoolean("cast_calendar_events", it).apply()
                     }
 
                     GroupDivider()

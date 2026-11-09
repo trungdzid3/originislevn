@@ -2,18 +2,9 @@ package com.originisle.android.smart
 
 import android.graphics.Bitmap
 import android.net.Uri
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.regex.Pattern
-import kotlin.coroutines.resume
 
 object ScreenshotSmartExtractor {
-
-    private val recognizer by lazy {
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    }
 
     // --- Regex Vé máy bay (Flight) ---
     private val FLIGHT_CODE_REGEX = Pattern.compile(
@@ -47,22 +38,12 @@ object ScreenshotSmartExtractor {
     private val TRAIN_REGEX = Pattern.compile("""\b(SE[0-9]{1,2}|TN[0-9]{1,2}|SNT[0-9]|SPT[0-9])\b""", Pattern.CASE_INSENSITIVE)
     private val CINEMA_REGEX = Pattern.compile("""(?i)\b(CGV|Lotte Cinema|Beta Cinema|BHD Star|Cinestar|Galaxy Cinema)\b""")
 
-    suspend fun extract(bitmap: Bitmap, sourceUri: Uri? = null): SmartInfo? = suspendCancellableCoroutine { cont ->
-        try {
-            val image = InputImage.fromBitmap(bitmap, 0)
-            recognizer.process(image)
-                .addOnSuccessListener { visionText ->
-                    val fullText = visionText.text
-                    val result = parseSmartInfo(fullText, sourceUri)
-                    cont.resume(result)
-                }
-                .addOnFailureListener {
-                    cont.resume(null)
-                }
-        } catch (_: Throwable) {
-            cont.resume(null)
-        }
+    suspend fun extract(bitmap: Bitmap, sourceUri: Uri? = null): SmartInfo? {
+        val hintText = sourceUri?.lastPathSegment.orEmpty()
+        return if (hintText.isNotBlank()) parseSmartInfo(hintText, sourceUri) else null
     }
+
+    fun analyzeText(rawText: String, uri: Uri? = null): SmartInfo? = parseSmartInfo(rawText, uri)
 
     private fun parseSmartInfo(rawText: String, uri: Uri?): SmartInfo? {
         val lower = rawText.lowercase()

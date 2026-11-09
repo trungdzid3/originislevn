@@ -31,8 +31,8 @@ android {
         applicationId = "com.autonavi.minimap"
         minSdk = 34
         targetSdk = 36
-        versionCode = 10602
-        versionName = "1.6.2"
+        versionCode = 10700
+        versionName = "1.7.0"
     }
 
     signingConfigs {
@@ -48,7 +48,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -88,7 +89,6 @@ dependencies {
     // Provides the Theme.Material3.* XML theme parents used in themes.xml (not directly imported
     // in Kotlin, but required for the manifest/activity theme resource to resolve).
     implementation(libs.google.material)
-    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.ui.tooling)

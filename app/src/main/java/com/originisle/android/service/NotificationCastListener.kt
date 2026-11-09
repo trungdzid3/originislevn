@@ -46,6 +46,8 @@ import com.originisle.android.quickshare.QuickShareDetector
 import com.originisle.android.tiktok.TikTokStreakDetector
 import com.originisle.android.download.DownloadDetector
 import com.originisle.android.bank.VietnamBankDetector
+import com.originisle.android.calendar.CalendarEventDetector
+import com.originisle.android.cards.CalendarEventCard
 import com.originisle.android.ride.VietnamRideDetector
 import com.originisle.android.cards.SportsCard
 import com.originisle.android.cards.fallbackClickIntent
@@ -1361,7 +1363,7 @@ class NotificationCastListener : NotificationListenerService() {
         // calls, navigation and timers/alarms here; media and login codes were handled above.
         val isOngoingNow = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
         if (QuietHours.isActive(prefs, currentInterruptionFilter) &&
-            !isCall && !isNavigation(sbn, isOngoingNow) && !isTimer(sbn) && !DownloadDetector.isDownload(sbn) && !QuickShareDetector.isQuickShare(sbn)
+            !isCall && !isNavigation(sbn, isOngoingNow) && !isTimer(sbn) && !CalendarEventDetector.isCalendarNotification(sbn) && !DownloadDetector.isDownload(sbn) && !QuickShareDetector.isQuickShare(sbn)
         ) {
             log(sbn, "bỏ qua — giờ yên tĩnh", false); return
         }
@@ -1385,6 +1387,20 @@ class NotificationCastListener : NotificationListenerService() {
             if (rideInfo != null) {
                 log(sbn, "hiển thị — chuyến đi / giao hàng", true)
                 RideCard.post(applicationContext, rideInfo, sbn.id)
+                return
+            }
+        }
+
+        // Nhắc lịch hẹn, cuộc họp & sự kiện sắp diễn ra (Google Calendar, Lịch Vivo, Samsung Calendar, Outlook)
+        if (prefs.getBoolean("cast_calendar_events", true) && CalendarEventDetector.isCalendarNotification(sbn)) {
+            val calInfo = CalendarEventDetector.parse(sbn)
+            if (calInfo != null) {
+                if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
+                    log(sbn, "bỏ qua — lịch hẹn chưa thay đổi", false)
+                    return
+                }
+                log(sbn, "hiển thị — nhắc lịch hẹn: ${calInfo.title}", true)
+                CalendarEventCard.post(applicationContext, calInfo, sbn)
                 return
             }
         }
@@ -1742,6 +1758,11 @@ class NotificationCastListener : NotificationListenerService() {
                     .putExtra("id", 35012)
                     .putExtra("oi_scene", "NAVIGATION"),
             )
+            return
+        }
+
+        if (CalendarEventDetector.isCalendarNotification(sbn)) {
+            CalendarEventCard.clear(applicationContext)
             return
         }
 

@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.originisle.android.cards.BatteryCanvasRenderer
+import com.originisle.android.cards.CalendarEventCard
 import com.originisle.android.cards.createGreenTickCircleIcon
 import com.originisle.android.cards.TikTokStreakCard
 import com.originisle.android.cards.ZaloCallCard
@@ -325,15 +326,29 @@ private fun TestNotificationCard(context: Context, connected: Boolean) {
             )
         }
 
-        PillButton(
-            text = "Thử Chuỗi TikTok",
-            onClick = { sendTestTikTokStreakNotification(context) },
-            modifier = Modifier.fillMaxWidth(),
-            icon = IsleIcons.Bolt,
-            container = IsleColors.SurfaceHigh,
-            content = Color(0xFFFF5E00),
-            height = 40.dp,
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PillButton(
+                text = "Thử Chuỗi TikTok",
+                onClick = { sendTestTikTokStreakNotification(context) },
+                modifier = Modifier.weight(1f),
+                icon = IsleIcons.Bolt,
+                container = IsleColors.SurfaceHigh,
+                content = Color(0xFFFF5E00),
+                height = 40.dp,
+            )
+            PillButton(
+                text = "Thử Nhắc Lịch",
+                onClick = { sendTestCalendarEventNotification(context) },
+                modifier = Modifier.weight(1f),
+                icon = IsleIcons.Clock,
+                container = IsleColors.SurfaceHigh,
+                content = IsleColors.Accent,
+                height = 40.dp,
+            )
+        }
     }
 }
 
@@ -561,6 +576,13 @@ private fun sendTestTikTokStreakNotification(context: Context) {
         TikTokStreakCard.postSample(context)
     }
     Toast.makeText(context, "Đã phát thẻ Chuỗi TikTok lên Đảo Origin!", Toast.LENGTH_SHORT).show()
+}
+
+private fun sendTestCalendarEventNotification(context: Context) {
+    runCatching {
+        CalendarEventCard.postSample(context)
+    }
+    Toast.makeText(context, "Đã phát thẻ Nhắc lịch hẹn lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
 @Composable
