@@ -1,14 +1,18 @@
 package com.originisle.android.cards
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PersistableBundle
 import android.service.notification.StatusBarNotification
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
@@ -43,6 +47,7 @@ object OtpCard {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var autoCancelRunnable: Runnable? = null
+    private var clearClipRunnable: Runnable? = null
 
     @JvmOverloads
     fun post(
@@ -90,11 +95,30 @@ object OtpCard {
 
         val app = context.applicationContext
 
-        // Tự động sao chép ngay mã OTP vào bộ nhớ tạm
+        // Tự động sao chép ngay mã OTP vào bộ nhớ tạm kèm cờ nhạy cảm và tự xóa sau 60s
         runCatching {
             val cm = app.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            cm?.setPrimaryClip(ClipData.newPlainText("OTP", cleanCode))
+            val clip = ClipData.newPlainText("OTP", cleanCode).apply {
+                description.extras = PersistableBundle().apply {
+                    putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                }
+            }
+            cm?.setPrimaryClip(clip)
+            clearClipRunnable?.let { mainHandler.removeCallbacks(it) }
+            val clearTask = Runnable {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    runCatching { cm?.clearPrimaryClip() }
+                }
+            }
+            clearClipRunnable = clearTask
+            mainHandler.postDelayed(clearTask, 60_000L)
         }
+
+        val prefs = app.getSharedPreferences("experimental_prefs", Context.MODE_PRIVATE)
+        val redactOnLock = prefs.getBoolean("cast_lockscreen_redact_sensitive", true)
+        val isLocked = (app.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)?.isDeviceLocked == true
+        val shouldMask = redactOnLock && isLocked
+        val displayCode = if (shouldMask) "••••••" else cleanCode
 
         IconCache.activeSmallIcons.remove(ID)
         val appIcon = IconCache.safeAppIcon(app, pkg)
@@ -117,12 +141,15 @@ object OtpCard {
             putExtra("template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-            putExtra("title", "Mã OTP: $cleanCode")
+            putExtra("title", "Mã OTP: $displayCode")
             putExtra("text", "$sender • Chạm vào thẻ để sao chép")
-            putExtra("subtext", "Đã tự động lưu $cleanCode vào bộ nhớ tạm")
+            putExtra(
+                "subtext",
+                if (shouldMask) "Đã tự động lưu mã OTP vào bộ nhớ tạm (Mở khóa để xem)" else "Đã tự động lưu $cleanCode vào bộ nhớ tạm",
+            )
             putExtra("oi_left_content", "OTP")
-            putExtra("oi_right_content", cleanCode)
-            putExtra("status_chip_text", cleanCode)
+            putExtra("oi_right_content", if (shouldMask) "•••" else cleanCode)
+            putExtra("status_chip_text", if (shouldMask) "•••" else cleanCode)
             putExtra("oi_show_right_icon", false)
             putExtra("oi_show_notify", false)
             putExtra("icon", leftIcon)

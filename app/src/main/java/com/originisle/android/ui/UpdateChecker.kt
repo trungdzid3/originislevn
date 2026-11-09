@@ -2,8 +2,12 @@ package com.originisle.android.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,6 +16,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
+import javax.net.ssl.HttpsURLConnection
 
 /**
  * Quản lý kiểm tra phiên bản mới từ GitHub Releases, tải tệp APK và khởi chạy cài đặt tự động
@@ -41,13 +47,110 @@ object UpdateChecker {
         data class Error(val message: String) : Result()
     }
 
+    /**
+     * Làm sạch tên tệp APK, chống tấn công Path Traversal.
+     */
+    fun sanitizeApkFileName(rawName: String): String {
+        val baseName = File(rawName).name
+        var sanitized = baseName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            .trim('_', '.')
+        if (sanitized.isEmpty()) {
+            sanitized = "update.apk"
+        }
+        if (!sanitized.endsWith(".apk", ignoreCase = true)) {
+            sanitized += ".apk"
+        }
+        return sanitized
+    }
+
+    /**
+     * Kiểm tra URL chỉ cho phép giao thức HTTPS và các tên miền chính thức của GitHub.
+     */
+    fun isAllowedGithubUrl(urlStr: String): Boolean {
+        return runCatching {
+            val url = URL(urlStr)
+            if (!url.protocol.equals("https", ignoreCase = true)) return false
+            val host = url.host?.lowercase(Locale.ROOT) ?: return false
+            host == "github.com" ||
+                host == "api.github.com" ||
+                host.endsWith(".github.com") ||
+                host.endsWith(".githubusercontent.com")
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Xóa các tệp .apk và .download cũ trong thư mục cache updates.
+     */
+    fun cleanupOldApks(context: Context) {
+        runCatching {
+            val updateDir = File(context.cacheDir, "updates")
+            if (updateDir.exists() && updateDir.isDirectory) {
+                updateDir.listFiles()?.forEach { file ->
+                    if (file.isFile && (
+                            file.name.endsWith(".apk", ignoreCase = true) ||
+                                file.name.endsWith(".download", ignoreCase = true)
+                            )
+                    ) {
+                        file.delete()
+                    }
+                }
+            }
+        }.onFailure { e ->
+            Log.w(TAG, "Không thể dọn dẹp APK cũ: ${e.message}")
+        }
+    }
+
+    /**
+     * Xác thực tên gói và chữ ký bảo mật của tệp APK tải về khớp với ứng dụng đang cài đặt.
+     */
+    fun verifyDownloadedApk(context: Context, apkFile: File): Boolean {
+        return runCatching {
+            if (!apkFile.exists() || !apkFile.isFile) return false
+            val pm = context.packageManager
+            val archiveInfo = pm.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.GET_SIGNING_CERTIFICATES,
+            ) ?: return false
+
+            if (archiveInfo.packageName != context.packageName) {
+                Log.e(TAG, "Tên gói APK không khớp: ${archiveInfo.packageName} != ${context.packageName}")
+                return false
+            }
+
+            val archiveSigners = archiveInfo.signingInfo?.apkContentsSigners
+                ?: archiveInfo.signingInfo?.signingCertificateHistory
+
+            val installedInfo = pm.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES,
+            )
+            val installedSigners = installedInfo.signingInfo?.apkContentsSigners
+                ?: installedInfo.signingInfo?.signingCertificateHistory
+
+            if (archiveSigners.isNullOrEmpty() || installedSigners.isNullOrEmpty()) {
+                Log.e(TAG, "Không tìm thấy thông tin chữ ký của APK hoặc ứng dụng hiện tại")
+                return false
+            }
+
+            archiveSigners.any { archiveCert ->
+                val archiveBytes = archiveCert.toByteArray()
+                installedSigners.any { installedCert ->
+                    archiveBytes.contentEquals(installedCert.toByteArray())
+                }
+            }
+        }.getOrElse { e ->
+            Log.e(TAG, "Lỗi khi xác thực chữ ký APK: ${e.message}", e)
+            false
+        }
+    }
+
     suspend fun check(context: Context): Result = withContext(Dispatchers.IO) {
         val current = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: return@withContext Result.Error("Không rõ phiên bản đã cài đặt")
 
         try {
-            val conn = (URL(LATEST_RELEASE_URL).openConnection() as HttpURLConnection).apply {
+            val conn = (URL(LATEST_RELEASE_URL).openConnection() as HttpsURLConnection).apply {
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/vnd.github+json")
                 setRequestProperty("User-Agent", "OriginIsle-Updater")
@@ -117,13 +220,14 @@ object UpdateChecker {
                 title = title,
                 changelog = changelog,
                 apkUrl = bestApkUrl,
-                apkName = if (bestApkName.endsWith(".apk", ignoreCase = true)) bestApkName else "$bestApkName.apk",
+                apkName = sanitizeApkFileName(bestApkName),
                 sizeBytes = bestApkSize,
             )
 
             if (isNewer(tagName, current)) {
                 Result.UpdateAvailable(release)
             } else {
+                cleanupOldApks(context)
                 Result.UpToDate(current)
             }
         } catch (e: Exception) {
@@ -133,7 +237,7 @@ object UpdateChecker {
     }
 
     /**
-     * Tải tệp APK từ release.apkUrl vào thư mục cache updates. Hỗ trợ redirect HTTP 30x (AWS S3)
+     * Tải tệp APK từ release.apkUrl vào thư mục cache updates. Hỗ trợ redirect HTTP 30x (GitHub CDN)
      * và gọi callback onProgress liên tục.
      */
     suspend fun downloadApk(
@@ -147,21 +251,35 @@ object UpdateChecker {
                 updateDir.mkdirs()
             }
 
-            val destFile = File(updateDir, release.apkName)
-            val tempFile = File(updateDir, "${release.apkName}.download")
+            val safeName = sanitizeApkFileName(release.apkName)
+            val destFile = File(updateDir, safeName)
+            val tempFile = File(updateDir, "$safeName.download")
+
+            val canonicalDirPrefix = updateDir.canonicalPath + File.separator
+            if (!destFile.canonicalPath.startsWith(canonicalDirPrefix) ||
+                !tempFile.canonicalPath.startsWith(canonicalDirPrefix)
+            ) {
+                Log.e(TAG, "Phát hiện đường dẫn tệp APK không hợp lệ: $safeName")
+                return@withContext null
+            }
+
             if (tempFile.exists()) {
                 tempFile.delete()
             }
 
             var currentUrl = release.apkUrl
-            var connection: HttpURLConnection? = null
+            var connection: HttpsURLConnection? = null
             var redirects = 0
             val maxRedirects = 6
 
             while (redirects < maxRedirects) {
+                if (!isAllowedGithubUrl(currentUrl)) {
+                    Log.e(TAG, "URL tải xuống không thuộc danh sách tin cậy: $currentUrl")
+                    return@withContext null
+                }
                 val url = URL(currentUrl)
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    instanceFollowRedirects = true
+                val conn = (url.openConnection() as HttpsURLConnection).apply {
+                    instanceFollowRedirects = false
                     connectTimeout = 15000
                     readTimeout = 30000
                     setRequestProperty("User-Agent", "OriginIsle-Updater")
@@ -176,7 +294,12 @@ object UpdateChecker {
                     val location = conn.getHeaderField("Location")
                     conn.disconnect()
                     if (!location.isNullOrEmpty()) {
-                        currentUrl = location
+                        val resolvedUrl = runCatching { URL(url, location).toString() }.getOrDefault(location)
+                        if (!isAllowedGithubUrl(resolvedUrl)) {
+                            Log.e(TAG, "URL chuyển hướng không thuộc danh sách tin cậy: $resolvedUrl")
+                            return@withContext null
+                        }
+                        currentUrl = resolvedUrl
                         redirects++
                         continue
                     }
@@ -254,10 +377,29 @@ object UpdateChecker {
     }
 
     /**
-     * Khởi chạy Intent cài đặt APK qua FileProvider
+     * Khởi chạy Intent cài đặt APK qua FileProvider sau khi đã xác thực chữ ký bảo mật.
      */
     fun installApk(context: Context, apkFile: File) {
         try {
+            if (!verifyDownloadedApk(context, apkFile)) {
+                runCatching { apkFile.delete() }
+                runCatching {
+                    val showToast = Runnable {
+                        Toast.makeText(
+                            context.applicationContext,
+                            "Tệp APK không hợp lệ hoặc khác chữ ký bảo mật",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                    if (Looper.myLooper() == Looper.getMainLooper()) {
+                        showToast.run()
+                    } else {
+                        Handler(Looper.getMainLooper()).post(showToast)
+                    }
+                }
+                return
+            }
+
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",

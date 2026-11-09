@@ -87,6 +87,15 @@ object CastLog {
         }
     }
 
+    private val otpRedactRegex = Regex("""(?i)\b(mã\s*otp|otp|code|mã\s*xác\s*thực|mã\s*xác\s*minh)\s*[:：\-]?\s*\d{4,8}\b""")
+    private val accountRedactRegex = Regex("""\b(\d{3})\d{4,10}(\d{2})\b""")
+
+    private fun redactSensitive(input: String): String {
+        return input
+            .replace(otpRedactRegex, "$1: ••••")
+            .replace(accountRedactRegex, "$1••••$2")
+    }
+
     private fun persist() {
         val ctx = appContext ?: return
         val snapshot = synchronized(this) { entries.toList() }
@@ -97,8 +106,8 @@ object CastLog {
                     val obj = JSONObject().apply {
                         put("time", e.time)
                         put("app", e.app)
-                        put("title", e.title)
-                        put("outcome", e.outcome)
+                        put("title", redactSensitive(e.title))
+                        put("outcome", redactSensitive(e.outcome))
                         put("cast", e.cast)
                     }
                     arr.put(obj)

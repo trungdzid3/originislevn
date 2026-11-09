@@ -51,5 +51,9 @@ class OriginIsleApp : Application() {
         runCatching {
             com.originisle.android.cards.RingerModeCard.register(this)
         }.onFailure { Log.e("OriginIsleApp", "Loi RingerModeCard.register", it) }
+
+        runCatching {
+            com.originisle.android.ui.UpdateChecker.cleanupOldApks(this)
+        }.onFailure { Log.e("OriginIsleApp", "Loi UpdateChecker.cleanupOldApks", it) }
     }
 }

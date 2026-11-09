@@ -104,7 +104,7 @@ fun HomeScreen(
     // 2. Nhóm công tắc dịch vụ cốt lõi & Việt Nam
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
     var ridesOn by remember { mutableStateOf(prefs.getBoolean("cast_rides", true)) }
-    var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", true)) }
+    var paymentOn by remember { mutableStateOf(prefs.getBoolean("cast_payment", prefs.getBoolean("cast_vietnam_banks", true))) }
     var zaloCallOn by remember { mutableStateOf(prefs.getBoolean("cast_zalo_call", true)) }
     var tiktokStreakOn by remember { mutableStateOf(prefs.getBoolean("cast_tiktok_streak", true)) }
     var tiktokStreakMessage by remember {
@@ -129,6 +129,7 @@ fun HomeScreen(
     var autoDismissSec by remember { mutableStateOf(prefs.getInt("cast_auto_dismiss_seconds", 0)) }
     var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
     var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
+    var lockscreenRedactSensitive by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_redact_sensitive", true)) }
     var quietDnd by remember { mutableStateOf(prefs.getBoolean("cast_quiet_dnd", false)) }
     var quietSchedule by remember { mutableStateOf(prefs.getBoolean("cast_quiet_schedule", false)) }
     var quietStart by remember { mutableIntStateOf(prefs.getInt("cast_quiet_start", QuietHours.DEFAULT_START)) }
@@ -488,7 +489,7 @@ fun HomeScreen(
                         subtitle = "Thông báo tiền vào (+), tiền ra (-) các ngân hàng Việt Nam",
                     ) {
                         paymentOn = it
-                        prefs.edit().putBoolean("cast_payment", it).apply()
+                        prefs.edit().putBoolean("cast_payment", it).putBoolean("cast_vietnam_banks", it).apply()
                     }
 
                     GroupDivider()
@@ -774,6 +775,18 @@ fun HomeScreen(
                     ) {
                         lockscreenLiveCard = it
                         prefs.edit().putBoolean("cast_lockscreen_live_card", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Lock, IsleColors.Accent,
+                        title = "Ẩn số dư & OTP khi khóa máy",
+                        checked = lockscreenRedactSensitive,
+                        subtitle = "Che số tiền chuyển khoản và mã xác thực OTP trên Đảo khi màn hình đang khóa",
+                    ) {
+                        lockscreenRedactSensitive = it
+                        prefs.edit().putBoolean("cast_lockscreen_redact_sensitive", it).apply()
                     }
 
                     GroupDivider()

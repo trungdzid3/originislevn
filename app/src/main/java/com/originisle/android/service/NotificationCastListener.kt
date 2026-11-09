@@ -1009,7 +1009,7 @@ class NotificationCastListener : NotificationListenerService() {
             // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
             //    Phải kiểm tra đầu tiên để không bị nhận diện nhầm mã giao dịch/số tài khoản.
             val bankTx = VietnamBankDetector.parse(sbn)
-            if (bankTx != null && prefs.getBoolean("cast_vietnam_banks", true)) {
+            if (bankTx != null && prefs.getBoolean("cast_payment", true) && prefs.getBoolean("cast_vietnam_banks", true)) {
                 val id = IconCache.castIdFor(sbn)
                 val appIcon = IconCache.safeAppIcon(applicationContext, sbn.packageName)
                 val click = sbn.notification.contentIntent
@@ -1392,11 +1392,13 @@ class NotificationCastListener : NotificationListenerService() {
         // Ngân hàng Việt Nam đã được xử lý ưu tiên ở đầu onNotificationPosted.
 
         // Payments quốc tế (Wallet, Revolut, PayPal, …) -> Apple-Pay-style success card.
-        detectPayment(sbn)?.let {
-            if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
-                log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
+        if (prefs.getBoolean("cast_payment", true)) {
+            detectPayment(sbn)?.let {
+                if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
+                    log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
+                }
+                castPayment(sbn, it); log(sbn, "hiển thị — biến động số dư", true); return
             }
-            castPayment(sbn, it); log(sbn, "hiển thị — biến động số dư", true); return
         }
 
         val isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0

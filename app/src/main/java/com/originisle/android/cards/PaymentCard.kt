@@ -133,25 +133,41 @@ object PaymentCard {
             if (isIncome) "Nhận tiền" else "Giao dịch thành công"
         }
 
+        val prefs = app.getSharedPreferences("experimental_prefs", Context.MODE_PRIVATE)
+        val redactOnLock = prefs.getBoolean("cast_lockscreen_redact_sensitive", true)
+        val isLocked = (app.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isDeviceLocked == true
+        val shouldMask = redactOnLock && isLocked
+
+        val displayTitle = if (shouldMask) {
+            if (isIncome) "+•••.••• đ" else "-•••.••• đ"
+        } else {
+            title
+        }
+        val displayContent = if (shouldMask) {
+            "Biến động số dư · Mở khóa để xem chi tiết"
+        } else {
+            content
+        }
+
         // Bố cục đảo chuẩn theo yêu cầu:
         // - Bên trái viên nang: Chỉ hiện tên ngân hàng (leftContent = transaction.bankName)
         // - Bên phải viên nang: Hiện số tiền chuyển khoản (rightContent = title), không còn dấu '+' capsule riêng
         startService(
             app, id,
-            title = title,
-            content = content,
+            title = displayTitle,
+            content = displayContent,
             subtext = subtitle,
             appIcon = appIcon,
             clickResp = clickResp,
             generating = 0,
             iconStatus = if (isIncome) OriginIslandConstants.ICON_STATUS_SUCCESS else -1,
             rightTemplate = OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON,
-            chip = title,
+            chip = displayTitle,
             bgColor = accentColor,
             lightColor = accentColor,
             fgColor = accentColor,
             leftContent = transaction.bankName,
-            rightContent = title,
+            rightContent = displayTitle,
             showRightIcon = false,
         )
 
