@@ -185,6 +185,44 @@ class NotificationCastListener : NotificationListenerService() {
             "com.vivo.music",
         )
 
+        /** Các ứng dụng kết nối PC / Bộ công cụ văn phòng Vivo cần loại bỏ để tránh quấy rầy trên đảo. */
+        private val OFFICE_PC_PACKAGES = setOf(
+            "com.vivo.easyshare",
+            "com.vivo.pcsuite",
+            "com.vivo.smartoffice",
+            "com.vivo.office",
+            "com.vivo.connectivity",
+            "com.vivo.multiscreen",
+            "com.microsoft.appmanager",
+        )
+
+        private fun isOfficeOrPCConnectionNotification(sbn: StatusBarNotification): Boolean {
+            val pkg = sbn.packageName.lowercase()
+            val extras = sbn.notification.extras ?: return false
+            val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+            val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+            val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+            val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+            val ticker = sbn.notification.tickerText?.toString().orEmpty()
+            val all = "$title $text $bigText $subText $ticker"
+
+            if (QuickShareDetector.isOfficeOrPCConnection(all)) return true
+
+            if (pkg in OFFICE_PC_PACKAGES) {
+                // Nếu không phải là tiến trình truyền file có progress/file name thật của QuickShare
+                if (!QuickShareDetector.isQuickShare(sbn)) {
+                    val hay = all.lowercase()
+                    if (hay.contains("kết nối") || hay.contains("laptop") || hay.contains("pc") ||
+                        hay.contains("máy tính") || hay.contains("connected") || hay.contains("văn phòng") ||
+                        hay.contains("office") || hay.contains("sẵn sàng")
+                    ) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
         /** Ứng dụng quản lý thiết bị đeo & đồng hồ thông minh Samsung (Fit 3, Galaxy Watch, Buds). */
         private val WEARABLE_SAMSUNG_PKGS = setOf(
             "com.samsung.wearable.fit3plugin",
@@ -507,7 +545,7 @@ class NotificationCastListener : NotificationListenerService() {
                 val hasController = findMediaControllerFallback(active.packageName) != null
                 val isOngoing = active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
                 isOngoing || hasToken || isMedia || hasController
-            } else if (p in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES || p == packageName || p in SYSTEM_PKGS) {
+            } else if (p in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES || p == packageName || p in SYSTEM_PKGS || p in OFFICE_PC_PACKAGES) {
                 false
             } else {
                 val hasToken = active.notification.extras?.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) == true
@@ -992,6 +1030,11 @@ class NotificationCastListener : NotificationListenerService() {
                 return
             }
 
+            if (isOfficeOrPCConnectionNotification(sbn)) {
+                log(sbn, "bỏ qua — bộ công cụ văn phòng / kết nối PC do hệ thống gốc xử lý", false)
+                return
+            }
+
             val prefs = getSharedPreferences(PREFS, 0)
             val n = sbn.notification
             val extras = n.extras
@@ -1346,7 +1389,7 @@ class NotificationCastListener : NotificationListenerService() {
             }
 
             // Bỏ qua thông báo hệ thống thông thường nếu không phải tiến trình tải xuống
-            if (sbn.packageName in SYSTEM_PKGS && !DownloadDetector.isDownload(sbn) && !QuickShareDetector.isQuickShare(sbn)) return
+            if ((sbn.packageName in SYSTEM_PKGS || sbn.packageName in OFFICE_PC_PACKAGES) && !DownloadDetector.isDownload(sbn) && !QuickShareDetector.isQuickShare(sbn)) return
 
         // A group summary ("3 new messages") stays active alongside the individual notifications it
         // summarizes — casting both means the same event shows up on the island twice (Gmail is the

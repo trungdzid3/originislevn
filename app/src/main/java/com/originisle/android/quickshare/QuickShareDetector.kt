@@ -81,6 +81,23 @@ object QuickShareDetector {
         return false
     }
 
+    fun isOfficeOrPCConnection(allText: String): Boolean {
+        val textLower = allText.lowercase()
+        return listOf(
+            "bộ công cụ văn phòng", "bo cong cu van phong",
+            "bộ công cụ office", "office suite",
+            "vivo office", "pc suite", "smart office",
+            "liên kết với windows", "link to windows",
+            "kết nối máy tính", "kết nối với máy tính",
+            "ket noi may tinh", "ket noi voi may tinh",
+            "kết nối với pc", "kết nối với laptop",
+            "đã kết nối với \"laptop", "đã kết nối với \"pc",
+            "đã kết nối với 'laptop", "đã kết nối với 'pc",
+            "connected to pc", "connected to laptop",
+            "máy tính đã kết nối", "kết nối pc", "pc connection"
+        ).any { textLower.contains(it) }
+    }
+
     fun isIdleVisibilityNotification(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
@@ -157,6 +174,7 @@ object QuickShareDetector {
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val allText = "$title $text $bigText $subText".lowercase()
 
+        if (isOfficeOrPCConnection(allText)) return false
         if (isBlacklistedAccessoryOrBattery(channelId, allText)) return false
         if (isIdleVisibilityNotification(sbn)) return false
         if (isServiceForegroundNotification(sbn)) return false
@@ -270,6 +288,7 @@ object QuickShareDetector {
         val allCombined = "$title $text $bigText $subText $ticker"
         val allTextLower = allCombined.lowercase()
 
+        if (isOfficeOrPCConnection(allTextLower)) return null
         if (isBlacklistedAccessoryOrBattery(channelId, allTextLower)) return null
         if (!isQuickShare(sbn) || isIdleVisibilityNotification(sbn) || isServiceForegroundNotification(sbn)) return null
 

@@ -454,8 +454,14 @@ object EarbudsCard {
         return if (t.effectiveLevel in 0..100 || t.hasDetails) t else null
     }
 
-    private fun getStoredTelemetry(context: Context, address: String?, devName: String?): EarbudsTelemetry {
+    private fun getStoredTelemetry(
+        context: Context,
+        address: String?,
+        devName: String?,
+        isWearable: Boolean = false,
+    ): EarbudsTelemetry {
         var result = EarbudsTelemetry()
+        val isWearableDevice = isWearable || isWearable(null, devName)
         val keys = listOfNotNull(
             address?.takeIf { it.isNotBlank() },
             address?.lowercase()?.trim()?.takeIf { it.isNotBlank() },
@@ -465,8 +471,8 @@ object EarbudsCard {
         for (k in keys) {
             deviceTelemetry[k]?.let { result = mergeTelemetry(result, it) }
         }
-        if (!result.hasDetails) {
-            for ( (_, v) in deviceTelemetry) {
+        if (!isWearableDevice && !result.hasDetails) {
+            for ((_, v) in deviceTelemetry) {
                 if (v.hasDetails && keys.any { k -> k != "device_unknown" && k != "tai nghe" }) {
                     // Nếu chỉ có 1 tai nghe TWS đang kết nối có chi tiết L/R/Case
                     result = mergeTelemetry(result, v)
@@ -477,6 +483,16 @@ object EarbudsCard {
         for (k in keys) {
             getCachedTelemetry(context, k)?.let { result = mergeTelemetry(result, it) }
         }
+        if (isWearableDevice) {
+            result = result.copy(
+                left = -1,
+                right = -1,
+                case = -1,
+                isLeftCharging = false,
+                isRightCharging = false,
+                isCaseCharging = false,
+            )
+        }
         return result
     }
 
@@ -485,9 +501,31 @@ object EarbudsCard {
         address: String?,
         devName: String?,
         telemetry: EarbudsTelemetry,
+        isWearable: Boolean = false,
     ): EarbudsTelemetry {
-        val existing = getStoredTelemetry(context, address, devName)
-        val merged = mergeTelemetry(existing, telemetry)
+        val isWearableDevice = isWearable || isWearable(null, devName)
+        val cleanIncoming = if (isWearableDevice) {
+            telemetry.copy(
+                left = -1,
+                right = -1,
+                case = -1,
+                isLeftCharging = false,
+                isRightCharging = false,
+                isCaseCharging = false,
+            )
+        } else telemetry
+        val existing = getStoredTelemetry(context, address, devName, isWearableDevice)
+        val merged = mergeTelemetry(existing, cleanIncoming)
+        val finalMerged = if (isWearableDevice) {
+            merged.copy(
+                left = -1,
+                right = -1,
+                case = -1,
+                isLeftCharging = false,
+                isRightCharging = false,
+                isCaseCharging = false,
+            )
+        } else merged
         val keys = listOfNotNull(
             address?.takeIf { it.isNotBlank() && it != "device_unknown" },
             address?.lowercase()?.trim()?.takeIf { it.isNotBlank() && it != "device_unknown" },
@@ -495,10 +533,10 @@ object EarbudsCard {
             devName?.lowercase()?.trim()?.takeIf { it.isNotBlank() },
         ).distinct()
         for (k in keys) {
-            deviceTelemetry[k] = merged
-            saveCachedTelemetry(context, k, merged)
+            deviceTelemetry[k] = finalMerged
+            saveCachedTelemetry(context, k, finalMerged)
         }
-        return merged
+        return finalMerged
     }
 
     private val FIT3_BATTERY_URI by lazy { Uri.parse("content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb") }
@@ -1785,17 +1823,34 @@ object EarbudsCard {
             pending.remove(btAddress)?.let(handler::removeCallbacks)
         }
 
-        val existing = getStoredTelemetry(context, btAddress, devName)
-        val merged = storeTelemetry(context, btAddress, devName, parsed)
+        val cleanParsed = if (isWearableDevice) {
+            parsed.copy(
+                main = parsed.effectiveLevel,
+                left = -1,
+                right = -1,
+                case = -1,
+                isLeftCharging = false,
+                isRightCharging = false,
+                isCaseCharging = false
+            )
+        } else parsed
+
+        val existing = getStoredTelemetry(context, btAddress, devName, isWearable = isWearableDevice)
+        val merged = storeTelemetry(context, btAddress, devName, cleanParsed, isWearable = isWearableDevice)
         setConnectedState(devName, true)
         if (btAddress != null) {
             setConnectedState(btAddress, true)
         }
 
         val changed = existing != merged
-        val currentlyShowing = isShowing(isWearableDevice, devName) || (btAddress != null && isShowing(isWearableDevice, btAddress))
+        val currentlyShowing = if (isWearableDevice) {
+            isShowing(true, devName) || (btAddress != null && isShowing(true, btAddress))
+        } else {
+            isShowing(false, devName) || (btAddress != null && isShowing(false, btAddress))
+        }
+        val isSlotEmpty = if (isWearableDevice) showingWearableAddress == null else showingEarbudsAddress == null
 
-        if (changed || currentlyShowing || showingEarbudsAddress == null) {
+        if (changed || currentlyShowing || isSlotEmpty) {
             show(
                 context = context,
                 device = matchedBtDevice,
@@ -1843,39 +1898,63 @@ object EarbudsCard {
             }.getOrDefault(emptyList())
         }
 
-        val targetDevice = connectedDevices.firstOrNull { isAudio(it) || isWearable(it) } ?: connectedDevices.firstOrNull()
-        if (targetDevice != null) {
-            val address = targetDevice.address
-            val devName = runCatching { targetDevice.alias ?: targetDevice.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
-            val batteryLevel = batteryOf(targetDevice)
-            val isWearableDevice = isWearable(targetDevice)
+        // A. Luồng Tai nghe âm thanh (ID_EARBUDS = 35004)
+        val audioDevice = connectedDevices.firstOrNull { isAudio(it) && !isWearable(it) }
+        if (audioDevice != null) {
+            val address = audioDevice.address
+            val devName = runCatching { audioDevice.alias ?: audioDevice.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Tai nghe"
+            val batteryLevel = batteryOf(audioDevice)
 
-            var telemetry = readTelemetry(targetDevice, null)
+            var telemetry = readTelemetry(audioDevice, null)
             if (telemetry.effectiveLevel !in 0..100 && batteryLevel in 0..100) {
                 telemetry = telemetry.copy(main = batteryLevel)
             }
-            if (!isWearableDevice) {
-                scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
-                    telemetry = mergeTelemetry(telemetry, scanned)
-                }
+            scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
+                telemetry = mergeTelemetry(telemetry, scanned)
             }
-            telemetry = storeTelemetry(context, address, devName, telemetry)
+            telemetry = storeTelemetry(context, address, devName, telemetry, isWearable = false)
 
             setConnectedState(address, true)
-            runCatching { targetDevice.name }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
-            runCatching { targetDevice.alias }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
+            runCatching { audioDevice.name }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
+            runCatching { audioDevice.alias }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
             show(
                 context = context,
-                device = targetDevice,
+                device = audioDevice,
                 customName = devName,
                 telemetry = telemetry,
                 low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
-                isWearable = isWearableDevice,
+                isWearable = false,
             )
-            return true
         }
 
-        return false
+        // B. Luồng Thiết bị đeo / Đồng hồ thông minh (ID_WEARABLE = 35014)
+        val wearableDevice = connectedDevices.firstOrNull { isWearable(it) }
+        if (wearableDevice != null) {
+            val address = wearableDevice.address
+            val devName = runCatching { wearableDevice.alias ?: wearableDevice.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Galaxy Fit 3"
+            val batteryLevel = batteryOf(wearableDevice)
+
+            var telemetry = readTelemetry(wearableDevice, null)
+            if (telemetry.effectiveLevel !in 0..100 && batteryLevel in 0..100) {
+                telemetry = telemetry.copy(main = batteryLevel)
+            }
+            telemetry = telemetry.copy(left = -1, right = -1, case = -1, isLeftCharging = false, isRightCharging = false, isCaseCharging = false)
+            telemetry = storeTelemetry(context, address, devName, telemetry, isWearable = true)
+
+            setConnectedState(address, true)
+            runCatching { wearableDevice.name }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
+            runCatching { wearableDevice.alias }.getOrNull()?.let { if (it.isNotBlank()) setConnectedState(it, true) }
+            show(
+                context = context,
+                device = wearableDevice,
+                customName = devName,
+                telemetry = telemetry,
+                low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
+                isWearable = true,
+            )
+        }
+
+        return audioDevice != null || wearableDevice != null
     }
 
     fun batteryOf(device: BluetoothDevice): Int = runCatching {
@@ -1930,8 +2009,18 @@ object EarbudsCard {
             readGattBatteryAsync(context, targetDev, name, isWearableDevice)
         }
 
-        val stored = getStoredTelemetry(context, (targetDev ?: device)?.address, name)
-        val mergedInitial = mergeTelemetry(stored, telemetry)
+        val stored = getStoredTelemetry(context, (targetDev ?: device)?.address, name, isWearableDevice)
+        val incomingClean = if (isWearableDevice) {
+            telemetry.copy(
+                left = -1,
+                right = -1,
+                case = -1,
+                isLeftCharging = false,
+                isRightCharging = false,
+                isCaseCharging = false,
+            )
+        } else telemetry
+        val mergedInitial = mergeTelemetry(stored, incomingClean)
         if (mergedInitial.effectiveLevel in 0..100 && effectivePct !in 0..100) {
             effectivePct = mergedInitial.effectiveLevel
         }
@@ -1939,8 +2028,8 @@ object EarbudsCard {
         val known = effectivePct in 0..100
         val isLow = known && (
             effectivePct <= LOW_LEVEL ||
-                (mergedInitial.left in 0..LOW_LEVEL) ||
-                (mergedInitial.right in 0..LOW_LEVEL)
+                (!isWearableDevice && mergedInitial.left in 0..LOW_LEVEL) ||
+                (!isWearableDevice && mergedInitial.right in 0..LOW_LEVEL)
             )
 
         val activeTelemetry = if (known && mergedInitial.effectiveLevel !in 0..100) {
@@ -1949,7 +2038,18 @@ object EarbudsCard {
             mergedInitial
         }
 
-        storeTelemetry(context, (targetDev ?: device)?.address, name, activeTelemetry)
+        val safeTelemetry = if (isWearableDevice) {
+            activeTelemetry.copy(
+                left = -1,
+                right = -1,
+                case = -1,
+                isLeftCharging = false,
+                isRightCharging = false,
+                isCaseCharging = false,
+            )
+        } else activeTelemetry
+
+        storeTelemetry(context, (targetDev ?: device)?.address, name, safeTelemetry, isWearableDevice)
         if (known) {
             saveCachedBattery(context, name, effectivePct)
             (targetDev ?: device)?.address?.let { saveCachedBattery(context, it, effectivePct) }
@@ -1971,8 +2071,8 @@ object EarbudsCard {
 
         // Dòng 1: oi_title
         val displayTitle = when {
-            activeTelemetry.case in 0..100 ->
-                "${name.take(16)} · Hộp ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}"
+            !isWearableDevice && safeTelemetry.case in 0..100 ->
+                "${name.take(16)} · Hộp ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) "⚡" else ""}"
             known ->
                 "${name.take(18)} · ${effectivePct}%"
             else ->
@@ -1980,38 +2080,38 @@ object EarbudsCard {
         }
 
         // Dòng 2: oi_text — Hiển thị đầy đủ từng thành phần Trái / Phải / Hộp sạc chuẩn OriginOS 6
-        val detailParts = buildList {
-            if (activeTelemetry.left in 0..100) {
-                add("Tai trái: ${activeTelemetry.left}%${if (activeTelemetry.isLeftCharging) "⚡" else ""}")
+        val detailParts = if (isWearableDevice) emptyList() else buildList {
+            if (safeTelemetry.left in 0..100) {
+                add("Tai trái: ${safeTelemetry.left}%${if (safeTelemetry.isLeftCharging) "⚡" else ""}")
             }
-            if (activeTelemetry.right in 0..100) {
-                add("Tai phải: ${activeTelemetry.right}%${if (activeTelemetry.isRightCharging) "⚡" else ""}")
+            if (safeTelemetry.right in 0..100) {
+                add("Tai phải: ${safeTelemetry.right}%${if (safeTelemetry.isRightCharging) "⚡" else ""}")
             }
-            if (activeTelemetry.case in 0..100) {
-                add("Hộp sạc: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) "⚡" else ""}")
+            if (safeTelemetry.case in 0..100) {
+                add("Hộp sạc: ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) "⚡" else ""}")
             }
         }
         val displayText = when {
             detailParts.isNotEmpty() -> detailParts.joinToString("   ·   ")
-            activeTelemetry.main in 0..100 ->
-                if (isWearableDevice) "Pin thiết bị: ${activeTelemetry.main}% · Đang kết nối"
-                else "Pin tai nghe: ${activeTelemetry.main}% · Đang kết nối âm thanh"
+            safeTelemetry.main in 0..100 ->
+                if (isWearableDevice) "Pin thiết bị: ${safeTelemetry.main}% · Đang kết nối"
+                else "Pin tai nghe: ${safeTelemetry.main}% · Đang kết nối âm thanh"
             else ->
                 if (isWearableDevice) "Thiết bị đeo · Đã kết nối"
                 else "Tai nghe Bluetooth · Đã kết nối"
         }
 
-        val hasDualBuds = activeTelemetry.left in 0..100 && activeTelemetry.right in 0..100
+        val hasDualBuds = !isWearableDevice && (safeTelemetry.left in 0..100 && safeTelemetry.right in 0..100)
         val leftContent = when {
-            hasDualBuds -> "L:${activeTelemetry.left}%"
-            activeTelemetry.left in 0..100 -> "L:${activeTelemetry.left}%"
-            activeTelemetry.right in 0..100 -> "R:${activeTelemetry.right}%"
+            hasDualBuds -> "L:${safeTelemetry.left}%"
+            !isWearableDevice && safeTelemetry.left in 0..100 -> "L:${safeTelemetry.left}%"
+            !isWearableDevice && safeTelemetry.right in 0..100 -> "R:${safeTelemetry.right}%"
             known -> "${effectivePct}%"
             else -> ""
         }
         val pillStatus = when {
-            hasDualBuds -> "R:${activeTelemetry.right}%"
-            activeTelemetry.case in 0..100 -> "C:${activeTelemetry.case}%"
+            hasDualBuds -> "R:${safeTelemetry.right}%"
+            !isWearableDevice && safeTelemetry.case in 0..100 -> "C:${safeTelemetry.case}%"
             known -> "${effectivePct}%"
             else -> "Đã kết nối"
         }
@@ -2043,16 +2143,16 @@ object EarbudsCard {
                 // - Phải: % pin tai phải to rõ + nhãn "Tai phải"
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
                 putExtra("title", name.take(20))
-                val centerMsg = if (activeTelemetry.case in 0..100) {
-                    "Hộp sạc: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) " ⚡" else ""}"
+                val centerMsg = if (safeTelemetry.case in 0..100) {
+                    "Hộp sạc: ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) " ⚡" else ""}"
                 } else {
                     "Đã kết nối"
                 }
                 putExtra("text", centerMsg)
-                putExtra("oi_extra1", "${activeTelemetry.left}%")
-                putExtra("oi_extra2", "Tai trái${if (activeTelemetry.isLeftCharging) " ⚡" else ""}")
-                putExtra("oi_extra3", "${activeTelemetry.right}%")
-                putExtra("oi_extra4", "Tai phải${if (activeTelemetry.isRightCharging) " ⚡" else ""}")
+                putExtra("oi_extra1", "${safeTelemetry.left}%")
+                putExtra("oi_extra2", "Tai trái${if (safeTelemetry.isLeftCharging) " ⚡" else ""}")
+                putExtra("oi_extra3", "${safeTelemetry.right}%")
+                putExtra("oi_extra4", "Tai phải${if (safeTelemetry.isRightCharging) " ⚡" else ""}")
             } else {
                 // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
@@ -2259,15 +2359,16 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
-        val before = getStoredTelemetry(ctx, null, name)
+        val isWearableDevice = isWearable || isWearable(null, name)
+        val before = getStoredTelemetry(ctx, null, name, isWearable = isWearableDevice)
         val hadDetailsBefore = before.hasDetails
-        val merged = storeTelemetry(ctx, null, name, telemetry)
+        val merged = storeTelemetry(ctx, null, name, telemetry, isWearable = isWearableDevice)
         val eff = merged.effectiveLevel
         if (eff in 0..100) {
             saveCachedBattery(ctx, name, eff)
         }
         // Cập nhật hiển thị nếu Đang hiển thị trên đảo, vừa phát hiện thêm chi tiết L/R/Case mới, hoặc pin tụt xuống mức cảnh báo yếu
-        if (isShowing(isWearable, name) || (!hadDetailsBefore && merged.hasDetails) || (eff in 0..LOW_LEVEL && before.effectiveLevel > LOW_LEVEL && name !in warnedLow)) {
+        if (isShowing(isWearableDevice, name) || (!hadDetailsBefore && merged.hasDetails) || (eff in 0..LOW_LEVEL && before.effectiveLevel > LOW_LEVEL && name !in warnedLow)) {
             if (eff in 0..LOW_LEVEL) warnedLow += name
             show(
                 context = ctx,
@@ -2275,7 +2376,7 @@ object EarbudsCard {
                 customName = name,
                 telemetry = merged,
                 low = (eff in 0..LOW_LEVEL),
-                isWearable = isWearable,
+                isWearable = isWearableDevice,
             )
         }
     }

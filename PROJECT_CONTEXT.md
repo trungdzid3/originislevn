@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.3` (mã bản dựng `versionCode = 10703`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.4` (mã bản dựng `versionCode = 10704`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,12 +54,19 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.3.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 3)
+└── OriginIsle-VN-v1.7.4.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 4)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `QuickShareDetector.kt` & `NotificationCastListener.kt`:
+  - Chặn triệt để thông báo kết nối Bộ công cụ văn phòng Vivo (Vivo Office Suite, PC Suite, EasyShare, Link to Windows): bổ sung `isOfficeOrPCConnection` và `OFFICE_PC_PACKAGES` (`com.vivo.easyshare`, `com.vivo.pcsuite`, `com.vivo.smartoffice`, `com.vivo.office`, `com.vivo.connectivity`, `com.vivo.multiscreen`, `com.microsoft.appmanager`), lọc triệt để các thông báo "Đã kết nối với 'LAPTOP-...' / Bộ công cụ văn phòng" ngay từ đầu `onNotificationPosted` và trong `QuickShareDetector.isQuickShare` để không bao giờ chiếm dụng Đảo vì OriginOS 6 đã có thông báo và Đảo gốc mặc định.
 - `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`), `OriginIslandBuilder.kt` & `PlaygroundService.kt`:
-  - Thẻ mở rộng tai nghe TWS đối xứng 3 cột cao cấp (`TEMPLATE_TEXT_SYMMETRY` 3): Cột trái hiển thị % pin Tai trái to rõ + nhãn "Tai trái", Cột giữa đặt biểu tượng tai nghe lớn + thông số "Hộp sạc: xx%", Cột phải hiển thị % pin Tai phải to rõ + nhãn "Tai phải". Tuyệt đối không còn tình trạng nhồi nhét text dài một dòng hoặc dùng nút bấm Material giả.
+  - Tách bạch tuyệt đối 100% giữa Tai nghe Bluetooth và Thiết bị đeo (Đồng hồ / Vòng đeo tay Galaxy Fit 3, Galaxy Watch, Smart Band):
+    1. Quét độc lập trong `pollConnectedDeviceNow`: phân rã 2 luồng riêng biệt `audioDevice` cho `ID_EARBUDS` và `wearableDevice` cho `ID_WEARABLE`, tuyệt đối không dùng chung một biến `targetDevice`.
+    2. Cô lập hoàn toàn bộ nhớ viễn trắc telemetry và cache pin giữa 2 nhóm: hàm `getStoredTelemetry` có cờ `isWearable`, cấm tuyệt đối việc gán chi tiết Left/Right/Case của tai nghe sang cho Thiết bị đeo (Wearable).
+    3. Cưỡng chế thẻ Thiết bị đeo luôn dùng `TEMPLATE_BASE` (4) với icon Smartband/Đồng hồ và vòng pin tròn, không bao giờ nhảy nhầm sang bố cục đối xứng 3 cột tai nghe (`TEMPLATE_TEXT_SYMMETRY`).
+    4. Sửa cờ `currentlyShowing` và kiểm tra slot độc lập (`showingWearableAddress` vs `showingEarbudsAddress`) trong `tryParseBatteryFromNotification`.
+  - Thẻ mở rộng tai nghe TWS đối xứng 3 cột cao cấp (`TEMPLATE_TEXT_SYMMETRY` 3): Cột trái hiển thị % pin Tai trái to rõ + nhãn "Tai trái", Cột giữa đặt biểu tượng tai nghe lớn + thông số "Hộp sạc: xx%", Cột phải hiển thị % pin Tai phải to rõ + nhãn "Tai phải".
   - Thiết bị đơn/thiết bị đeo giữ chuẩn `TEMPLATE_BASE` (4) với vòng tròn tiến độ pin (`cardRing = effectivePct`).
   - Viên nang thu gọn hiển thị `[Icon] L:xx%` bên trái và `R:xx%` (template 4) bên phải cân xứng 100%, không viền xanh lệch màu.
 - `CalendarEventDetector.kt` & `CalendarEventCard.kt` (`ID = 35015`): Nhận diện thông báo nhắc lịch hẹn, cuộc họp, sự kiện sắp diễn ra và chuyến bay/tàu xe từ Google Calendar, Lịch Vivo, Samsung Calendar, Microsoft Outlook và các thông báo `CATEGORY_EVENT` / `CATEGORY_REMINDER`; trích xuất khung giờ / thời gian đếm ngược và hiển thị viên nang nhắc lịch kèm icon lịch vẽ trực tiếp bằng Canvas 100% tương thích Vivo SuperX SDK.
