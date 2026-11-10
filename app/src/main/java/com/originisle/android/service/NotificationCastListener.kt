@@ -26,6 +26,7 @@ import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.cards.ChargingCard
 import com.originisle.android.cards.BatteryCanvasRenderer
+import com.originisle.android.cards.createGreenTickCircleIcon
 import com.originisle.android.cards.createRedCrossCircleIcon
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
@@ -1989,7 +1990,14 @@ class NotificationCastListener : NotificationListenerService() {
         DownloadCard.clear(id)
         IconCache.activeSmallIcons.remove(id)
         val leftIcon = IconCache.safeAppIcon(applicationContext, appPkg)
+        val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(applicationContext)
         val clickPi = fallbackClickIntent(applicationContext, appPkg)
+        val appLabel = runCatching {
+            packageManager.getApplicationLabel(
+                packageManager.getApplicationInfo(appPkg, 0),
+            ).toString()
+        }.getOrDefault(appPkg)
+
         val intent = Intent(this, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
@@ -1998,6 +2006,7 @@ class NotificationCastListener : NotificationListenerService() {
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_left_icon", leftIcon)
             putExtra("oi_large_icon", leftIcon)
+            putExtra("oi_right_icon", tickIcon)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
             putExtra("oi_force_show", true)
@@ -2006,17 +2015,18 @@ class NotificationCastListener : NotificationListenerService() {
             putExtra("is_ongoing", false)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-            putExtra("oi_show_right_icon", false)
-            putExtra("oi_left_content", "Tải xong")
-            putExtra("oi_right_content", "100%")
-            putExtra("status_chip_text", "100%")
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_left_content", "")
+            putExtra("oi_right_content", "")
+            putExtra("status_chip_text", "")
             putExtra("oi_card_ring", 100)
             putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
             putExtra("oi_light_color", "#00D084")
             putExtra("oi_bg_color", "#4C00D084")
             putExtra("oi_fg_color", "#00D084")
-            putExtra("title", "Tải xong · ${title.take(22)}")
-            putExtra("text", "Đã hoàn tất tải xuống")
+            putExtra("title", "$appLabel · Đã tải xong")
+            putExtra("text", title.take(40).ifBlank { "Đã hoàn tất tải xuống" })
+            putExtra("subtext", "")
         }
         startService(intent)
         pollHandler.postDelayed({

@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.4` (mã bản dựng `versionCode = 10704`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.5` (mã bản dựng `versionCode = 10705`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,10 +54,12 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.4.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 4)
+└── OriginIsle-VN-v1.7.5.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 5)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `DownloadCard.kt` & `NotificationCastListener.kt`:
+  - Đồng bộ trạng thái tải xuống hoàn tất chuẩn như Quick Share (chuyển tệp): loại bỏ hoàn toàn các chuỗi ký tự thô `"Tải xong"` và `"100%"` trên viên nang thu gọn; thay bằng biểu tượng dấu tích tròn xanh lá Canvas rực rỡ (`createGreenTickCircleIcon`) ở bên phải (`oi_show_right_icon = true`), bên trái giữ logo ứng dụng nguồn, tiêu đề mở rộng `"$appLabel · Đã tải xong"`. Chống drop icon trên Vivo OriginOS 6 SuperX.
 - `QuickShareDetector.kt` & `NotificationCastListener.kt`:
   - Chặn triệt để thông báo kết nối Bộ công cụ văn phòng Vivo (Vivo Office Suite, PC Suite, EasyShare, Link to Windows): bổ sung `isOfficeOrPCConnection` và `OFFICE_PC_PACKAGES` (`com.vivo.easyshare`, `com.vivo.pcsuite`, `com.vivo.smartoffice`, `com.vivo.office`, `com.vivo.connectivity`, `com.vivo.multiscreen`, `com.microsoft.appmanager`), lọc triệt để các thông báo "Đã kết nối với 'LAPTOP-...' / Bộ công cụ văn phòng" ngay từ đầu `onNotificationPosted` và trong `QuickShareDetector.isQuickShare` để không bao giờ chiếm dụng Đảo vì OriginOS 6 đã có thông báo và Đảo gốc mặc định.
 - `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`), `OriginIslandBuilder.kt` & `PlaygroundService.kt`:
