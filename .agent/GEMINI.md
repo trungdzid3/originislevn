@@ -83,20 +83,24 @@ Quy chuẩn Kỹ thuật và Quy trình Vận hành bắt buộc cho mọi phiê
     4. `Summary`: Tóm tắt ngắn gọn thay đổi cốt lõi (tuyệt đối không in lại toàn bộ mã nguồn hoặc raw terminal log dài vào báo cáo trả về).
 
 ### 7. Điều Khiển Tác Tử Độc Lập Qua Multi-Agent CLI (OpenCode & Antigravity)
-* **Định vị CLI Portable**:
-  * *OpenCode CLI*: `D:\AI-CLIs\OpenCode\opencode.exe`
-  * *Antigravity CLI*: `D:\AI-CLIs\Antigravity\agy.exe`
+* **Định vị CLI**:
+  * *OpenCode CLI*: Đã tích hợp sẵn vào PATH hệ thống, gọi trực tiếp lệnh `opencode` trong Terminal / PowerShell.
+  * *Antigravity CLI*: `D:\AI-CLIs\Antigravity\agy.exe` (hoặc `agy` nếu có trên PATH).
 * **Mục đích & Chính sách Ưu tiên (CLI First Policy)**:
   * Lead Orchestrator bắt buộc **ưu tiên giao việc cho OpenCode CLI hơn hết** trước tiên nếu tác vụ đó CLI đảm bảo thực hiện ổn định ở mức hoàn toàn chấp nhận được, ngay cả khi tốc độ phản hồi có thể chậm hơn Subagent nội bộ một chút. Dùng OpenCode như một AI worker subprocess độc lập để xử lý task được phân công; không tự ý giao việc trùng file cho nhiều worker.
 * **Danh mục Model Cho Phép Dùng**:
   * BẮT BUỘC chỉ sử dụng các mô hình: **DeepSeek** (ví dụ: `opencode/deepseek-v4.1-flash-free` hoặc các biến thể DeepSeek) và **GLM 5.3 Flash** (`opencode/glm-5.3-flash-free`). Tuyệt đối không dùng các model ngoài danh mục này.
-* **Lệnh Tự động Chuẩn trên Windows PowerShell**:
+* **Lệnh Tự động Chuẩn trên Windows PowerShell / Terminal**:
   ```powershell
   # Chạy tác vụ với GLM 5.3 Flash:
-  & 'D:\AI-CLIs\OpenCode\opencode.exe' run --model opencode/glm-5.3-flash-free "Nội dung task cụ thể"
+  opencode run --model opencode/glm-5.3-flash-free "Nội dung task cụ thể"
 
   # Hoặc chạy tác vụ với DeepSeek:
-  & 'D:\AI-CLIs\OpenCode\opencode.exe' run --model opencode/deepseek-v4.1-flash-free "Nội dung task cụ thể"
+  opencode run --model opencode/deepseek-v4.1-flash-free "Nội dung task cụ thể"
+  ```
+  Kiểm tra phiên bản OpenCode:
+  ```powershell
+  opencode --version
   ```
   Kiểm tra phiên bản Antigravity CLI:
   ```powershell
