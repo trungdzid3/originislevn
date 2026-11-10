@@ -26,7 +26,7 @@ import com.originisle.android.service.IconCache
 object CalendarEventCard {
 
     const val ID = 35015
-    private const val HOLD_MS = 25_000L
+    private const val HOLD_MS = 5_000L
     const val COLOR_CALENDAR = "#FF0A84FF"
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -156,7 +156,8 @@ object CalendarEventCard {
             putExtra("oi_left_icon", badgeIcon)
             putExtra("oi_large_icon", badgeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", HOLD_MS)
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", false)
             putExtra("is_high_priority", true)

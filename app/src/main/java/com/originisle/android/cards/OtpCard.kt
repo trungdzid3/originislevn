@@ -31,8 +31,8 @@ object OtpCard {
 
     const val ID = 35001
 
-    /** Thời gian hiển thị thẻ OTP trên Đảo (15 giây). */
-    private const val HOLD_MS = 15_000L
+    /** Thời gian hiển thị thẻ OTP trên Đảo (6 giây). */
+    private const val HOLD_MS = 6_000L
 
     /** Khoảng thời gian chống trùng lặp giữa NotificationListener và AccessibilityService (8 giây). */
     private const val DEDUP_WINDOW_MS = 8_000L
@@ -161,6 +161,8 @@ object OtpCard {
             putExtra("oi_bg_color", COLOR_OTP)
             putExtra("oi_fg_color", COLOR_OTP)
             putExtra("oi_light_color", COLOR_OTP)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", HOLD_MS)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("click_resp", copyPendingIntent)

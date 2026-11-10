@@ -62,9 +62,9 @@ object EarbudsCard {
     fun cardIdFor(isWearable: Boolean): Int = if (isWearable) ID_WEARABLE else ID_EARBUDS
 
     private const val BATTERY_WAIT_MS = 2500L
-    private const val SHOW_MS = 10_000L
+    private const val SHOW_MS = 4_500L
     private const val DISCONNECT_DEBOUNCE_MS = 8000L
-    private const val DISCONNECT_SHOW_MS = 3000L
+    private const val DISCONNECT_SHOW_MS = 3_000L
     private const val ANTI_FLAP_COOLDOWN_MS = 10_000L
     private const val LOW_LEVEL = 15
 
@@ -1051,14 +1051,37 @@ object EarbudsCard {
                         ?: (intent.getParcelableArrayExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*>)
                     val parsed = parseIPhoneAccEv(rawArgs)
                     if (parsed != null) {
-                        val current = getStoredTelemetry(context, address, devName)
+                        val wasAlreadyConnected = isConnected(address) || isConnected(devName)
+                        val current = getStoredTelemetry(context, address, devName, isWearable = isWearableDevice)
                         val incoming = EarbudsTelemetry(
                             main = parsed.first,
                             isLeftCharging = if (parsed.second) true else current.isLeftCharging,
                             isRightCharging = if (parsed.second) true else current.isRightCharging,
                         )
-                        val updated = storeTelemetry(context, address, devName, incoming)
-                        show(context, device, devName, updated, low = (updated.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
+                        val updated = storeTelemetry(context, address, devName, incoming, isWearable = isWearableDevice)
+                        val changed = current != updated
+                        val currentlyShowing = isShowing(isWearableDevice, address) || isShowing(isWearableDevice, devName)
+                        val eff = updated.effectiveLevel
+                        val low = eff in 0..LOW_LEVEL
+                        if (eff > LOW_LEVEL + 5) {
+                            warnedLow -= address
+                            warnedLow -= devName
+                        }
+                        when {
+                            !wasAlreadyConnected -> {
+                                setConnectedState(address, true)
+                                setConnectedState(devName, true)
+                                show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
+                            }
+                            low && address !in warnedLow && devName !in warnedLow -> {
+                                warnedLow += address
+                                warnedLow += devName
+                                show(context, device, devName, updated, low = true, isWearable = isWearableDevice, refreshDuration = true)
+                            }
+                            currentlyShowing && changed -> {
+                                show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = false)
+                            }
+                        }
                     }
                 }
             }
@@ -1068,30 +1091,41 @@ object EarbudsCard {
                 disconnectDebounce.remove(address)?.let(handler::removeCallbacks)
                 disconnectDebounce.remove(devName)?.let(handler::removeCallbacks)
 
-                val before = getStoredTelemetry(context, address, devName)
+                val wasAlreadyConnected = isConnected(address) || isConnected(devName)
+                val before = getStoredTelemetry(context, address, devName, isWearable = isWearableDevice)
                 var incoming = readTelemetry(device, intent)
                 if (!isWearableDevice) {
                     scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
                         incoming = mergeTelemetry(incoming, scanned)
                     }
                 }
-                val updated = storeTelemetry(context, address, devName, incoming)
-                if (updated.effectiveLevel in 0..100 && isWearableDevice) {
-                    onBatteryUpdated(context, devName, updated, isWearable = true)
-                }
+                val updated = storeTelemetry(context, address, devName, incoming, isWearable = isWearableDevice)
+                val changed = before != updated
                 val eff = updated.effectiveLevel
+                val currentlyShowing = isShowing(isWearableDevice, address) || isShowing(isWearableDevice, devName)
+                val low = eff in 0..LOW_LEVEL
+                if (eff > LOW_LEVEL + 5) {
+                    warnedLow -= address
+                    warnedLow -= devName
+                }
 
                 when {
                     pending.containsKey(address) -> {
                         pending.remove(address)?.let(handler::removeCallbacks)
-                        show(context, device, devName, updated, low = eff in 0..LOW_LEVEL, isWearable = isWearableDevice)
+                        show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
                     }
-                    isShowing(isWearableDevice, address) || isShowing(isWearableDevice, devName) -> {
-                        show(context, device, devName, updated, low = eff in 0..LOW_LEVEL, isWearable = isWearableDevice)
+                    !wasAlreadyConnected -> {
+                        setConnectedState(address, true)
+                        setConnectedState(devName, true)
+                        show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
                     }
-                    eff in 0..LOW_LEVEL && (before.effectiveLevel.takeIf { it in 0..100 } ?: 100) > LOW_LEVEL && address !in warnedLow -> {
+                    low && address !in warnedLow && devName !in warnedLow -> {
                         warnedLow += address
-                        show(context, device, devName, updated, low = true, isWearable = isWearableDevice)
+                        warnedLow += devName
+                        show(context, device, devName, updated, low = true, isWearable = isWearableDevice, refreshDuration = true)
+                    }
+                    currentlyShowing && changed -> {
+                        show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = false)
                     }
                 }
             }
@@ -1835,6 +1869,7 @@ object EarbudsCard {
             )
         } else parsed
 
+        val wasAlreadyConnected = isConnected(devName) || (btAddress != null && isConnected(btAddress))
         val existing = getStoredTelemetry(context, btAddress, devName, isWearable = isWearableDevice)
         val merged = storeTelemetry(context, btAddress, devName, cleanParsed, isWearable = isWearableDevice)
         setConnectedState(devName, true)
@@ -1844,23 +1879,29 @@ object EarbudsCard {
 
         val changed = existing != merged
         val currentlyShowing = if (isWearableDevice) {
-            isShowing(true, devName) || (btAddress != null && isShowing(true, btAddress))
+            showingWearableAddress == devName || (btAddress != null && showingWearableAddress == btAddress) ||
+                isShowing(true, devName) || (btAddress != null && isShowing(true, btAddress))
         } else {
-            isShowing(false, devName) || (btAddress != null && isShowing(false, btAddress))
+            showingEarbudsAddress == devName || (btAddress != null && showingEarbudsAddress == btAddress) ||
+                isShowing(false, devName) || (btAddress != null && isShowing(false, btAddress))
         }
-        val isSlotEmpty = if (isWearableDevice) showingWearableAddress == null else showingEarbudsAddress == null
+        val newlyDiscoveredDetails = !existing.hasDetails && merged.hasDetails && isWithinAntiFlapCooldown(devName)
+        val isNewLowWarning = merged.effectiveLevel in 0..LOW_LEVEL && devName !in warnedLow
+        if (isNewLowWarning) warnedLow.add(devName)
+        if (merged.effectiveLevel > LOW_LEVEL + 5) warnedLow.remove(devName)
 
-        if (changed || currentlyShowing || isSlotEmpty) {
+        if (!wasAlreadyConnected || newlyDiscoveredDetails || (currentlyShowing && changed) || isNewLowWarning) {
+            val lowWarn = merged.effectiveLevel in 0..LOW_LEVEL
             show(
                 context = context,
                 device = matchedBtDevice,
                 customName = devName,
                 telemetry = merged,
-                low = (merged.effectiveLevel in 0..LOW_LEVEL),
+                low = lowWarn,
                 isWearable = isWearableDevice,
+                refreshDuration = !currentlyShowing,
             )
         }
-        onBatteryUpdated(context, devName, merged, isWearable = isWearableDevice)
         return true
     }
 
@@ -1974,6 +2015,7 @@ object EarbudsCard {
         telemetry: EarbudsTelemetry,
         low: Boolean,
         isWearable: Boolean = false,
+        refreshDuration: Boolean = true,
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
         if (!prefs.getBoolean("cast_earbuds", true)) return
@@ -2031,6 +2073,7 @@ object EarbudsCard {
                 (!isWearableDevice && mergedInitial.left in 0..LOW_LEVEL) ||
                 (!isWearableDevice && mergedInitial.right in 0..LOW_LEVEL)
             )
+        val lowWarning = low || isLow
 
         val activeTelemetry = if (known && mergedInitial.effectiveLevel !in 0..100) {
             mergedInitial.copy(main = effectivePct)
@@ -2101,6 +2144,7 @@ object EarbudsCard {
                 else "Tai nghe Bluetooth · Đã kết nối"
         }
 
+        val hasDetailedBuds = !isWearableDevice && (safeTelemetry.left in 0..100 || safeTelemetry.right in 0..100)
         val hasDualBuds = !isWearableDevice && (safeTelemetry.left in 0..100 && safeTelemetry.right in 0..100)
         val leftContent = when {
             hasDualBuds -> "L:${safeTelemetry.left}%"
@@ -2119,7 +2163,8 @@ object EarbudsCard {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", cardId)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", SHOW_MS)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("subtext", "")
             putExtra("oi_left_content", leftContent)
@@ -2131,41 +2176,61 @@ object EarbudsCard {
             // Khi ấn vào viên nang Đảo sẽ mở rộng thẻ (ISLAND_CLICK_SHOW_CARD)
             putExtra("oi_island_click_expand", true)
 
-            if (hasDualBuds) {
-                // 1. Viên nang thu gọn: Hiển thị chữ trắng thanh lịch cho Tai Phải (R:xx%) đồng bộ tuyệt đối với Tai Trái (L:xx%)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-                putExtra("oi_show_right_icon", false)
-                putExtra("oi_fg_color", "#FFFFFFFF")
-
-                // 2. Thẻ mở rộng đối xứng 3 cột chuẩn OriginOS 6 (TEMPLATE_TEXT_SYMMETRY):
-                // - Trái: % pin tai trái to rõ + nhãn "Tai trái"
-                // - Giữa: Biểu tượng tai nghe/hộp sạc + thông số Hộp sạc
-                // - Phải: % pin tai phải to rõ + nhãn "Tai phải"
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
-                putExtra(
-                    "oi_large_icon",
-                    BatteryCanvasRenderer.createChargingCaseIcon(
-                        context,
-                        safeTelemetry.case,
-                        safeTelemetry.isCaseCharging,
-                    ),
+            if (hasDetailedBuds) {
+                val leftBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                    context,
+                    isLeft = true,
+                    level = safeTelemetry.left,
+                    isCharging = safeTelemetry.isLeftCharging,
                 )
-                putExtra("title", name.take(20))
-                putExtra("subtext", "Đã kết nối")
-                val centerMsg = if (safeTelemetry.case in 0..100) {
+                val rightBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                    context,
+                    isLeft = false,
+                    level = safeTelemetry.right,
+                    isCharging = safeTelemetry.isRightCharging,
+                )
+                val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
+                val expandedLargeIcon = BatteryCanvasRenderer.createChargingCaseIcon(
+                    context,
+                    level = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct,
+                    isCharging = safeTelemetry.isCaseCharging,
+                )
+                val midText = if (safeTelemetry.case in 0..100) {
                     "Case ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) " ⚡" else ""}"
                 } else {
                     "Đã kết nối"
                 }
-                putExtra("text", centerMsg)
-                putExtra("oi_extra1", "L ${safeTelemetry.left}%")
-                putExtra("oi_extra2", "Tai trái${if (safeTelemetry.isLeftCharging) " ⚡" else ""}")
-                putExtra("oi_extra3", "R ${safeTelemetry.right}%")
-                putExtra("oi_extra4", "Tai phải${if (safeTelemetry.isRightCharging) " ⚡" else ""}")
+                val expandedTitle = name
+                val expandedText = if (lowWarning) "Pin yếu · Cần sạc" else "Đã kết nối"
+                val expandedSubtext = ""
+                val extra1 = if (safeTelemetry.left in 0..100) "L ${safeTelemetry.left}%" else "L --%"
+                val extra2 = if (safeTelemetry.isLeftCharging) "Đang sạc ⚡" else "Tai trái"
+                val extra3 = if (safeTelemetry.right in 0..100) "R ${safeTelemetry.right}%" else "R --%"
+                val extra4 = if (safeTelemetry.isRightCharging) "Đang sạc ⚡" else "Tai phải"
+
+                // 1. Viên nang thu gọn
+                putExtra("oi_left_icon", leftBudIcon)
+                putExtra("oi_right_icon", rightBudIcon)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                putExtra("oi_show_right_icon", false)
+                putExtra("oi_fg_color", "#FFFFFFFF")
+
+                // 2. Thẻ mở rộng đối xứng 3 cột chuẩn 100% Poster OriginOS 6 (TEMPLATE_TEXT_SYMMETRY = 3)
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
+                putExtra("oi_base_icon", baseHeaderIcon)
+                putExtra("oi_large_icon", expandedLargeIcon)
+                putExtra("oi_mid_text", midText)
+                putExtra("title", expandedTitle)
+                putExtra("text", expandedText)
+                putExtra("subtext", expandedSubtext)
+                putExtra("oi_extra1", extra1)
+                putExtra("oi_extra2", extra2)
+                putExtra("oi_extra3", extra3)
+                putExtra("oi_extra4", extra4)
             } else {
                 // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-                putExtra("title", if (low || isLow) "Pin yếu · $displayTitle" else displayTitle)
+                putExtra("title", if (lowWarning) "Pin yếu · $displayTitle" else displayTitle)
                 putExtra("text", displayText)
                 if (known) {
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
@@ -2180,7 +2245,7 @@ object EarbudsCard {
             }
 
             // Viền xanh #00D084 khi kết nối thành công, đỏ khi pin yếu
-            putExtra("oi_light_color", if (low || isLow) RED else GREEN)
+            putExtra("oi_light_color", if (lowWarning) RED else GREEN)
             putExtra("click_resp", click)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
@@ -2190,12 +2255,16 @@ object EarbudsCard {
         val shownKey = device?.address ?: name
         if (isWearableDevice) {
             showingWearableAddress = shownKey
-            hideWearableTask?.let(handler::removeCallbacks)
-            hideWearableTask = Runnable { hide(context, isWearable = true) }.also { handler.postDelayed(it, SHOW_MS) }
+            if (refreshDuration || hideWearableTask == null) {
+                hideWearableTask?.let(handler::removeCallbacks)
+                hideWearableTask = Runnable { hide(context, isWearable = true) }.also { handler.postDelayed(it, SHOW_MS) }
+            }
         } else {
             showingEarbudsAddress = shownKey
-            hideEarbudsTask?.let(handler::removeCallbacks)
-            hideEarbudsTask = Runnable { hide(context, isWearable = false) }.also { handler.postDelayed(it, SHOW_MS) }
+            if (refreshDuration || hideEarbudsTask == null) {
+                hideEarbudsTask?.let(handler::removeCallbacks)
+                hideEarbudsTask = Runnable { hide(context, isWearable = false) }.also { handler.postDelayed(it, SHOW_MS) }
+            }
         }
     }
 
@@ -2232,6 +2301,7 @@ object EarbudsCard {
             action = PlaygroundService.ACTION_START
             putExtra("id", cardId)
             putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", DISCONNECT_SHOW_MS)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("title", "$name · Mất kết nối")
@@ -2309,9 +2379,11 @@ object EarbudsCard {
         }
 
         if (alreadyConnected) {
-            // Đã kết nối trước đó: cập nhật hiển thị nếu đang mở trên Đảo, vừa nhận được chi tiết L/R/Case, hoặc pin yếu
-            if (isShowing(isWearable, name) || telemetry.hasDetails || (telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow)) {
-                if (telemetry.effectiveLevel in 0..LOW_LEVEL) warnedLow += name
+            // Đã kết nối trước đó: chỉ cập nhật hiển thị nếu đang mở trên Đảo hoặc pin yếu mới
+            val currentlyShowing = isShowing(isWearable, name)
+            val isNewLow = telemetry.effectiveLevel in 0..LOW_LEVEL && name !in warnedLow
+            if (isNewLow) warnedLow += name
+            if (currentlyShowing || isNewLow) {
                 show(
                     context = ctx,
                     device = targetDevice,
@@ -2319,6 +2391,7 @@ object EarbudsCard {
                     telemetry = telemetry,
                     low = (telemetry.effectiveLevel in 0..LOW_LEVEL),
                     isWearable = isWearable,
+                    refreshDuration = !currentlyShowing,
                 )
             }
             return
@@ -2376,9 +2449,14 @@ object EarbudsCard {
         if (eff in 0..100) {
             saveCachedBattery(ctx, name, eff)
         }
-        // Cập nhật hiển thị nếu Đang hiển thị trên đảo, vừa phát hiện thêm chi tiết L/R/Case mới, hoặc pin tụt xuống mức cảnh báo yếu
-        if (isShowing(isWearableDevice, name) || (!hadDetailsBefore && merged.hasDetails) || (eff in 0..LOW_LEVEL && before.effectiveLevel > LOW_LEVEL && name !in warnedLow)) {
-            if (eff in 0..LOW_LEVEL) warnedLow += name
+        val currentlyShowing = isShowing(isWearableDevice, name)
+        val newlyDiscoveredDetails = !hadDetailsBefore && merged.hasDetails && isWithinAntiFlapCooldown(name)
+        val isNewLowWarning = eff in 0..LOW_LEVEL && before.effectiveLevel > LOW_LEVEL && name !in warnedLow
+        if (isNewLowWarning) warnedLow += name
+        if (eff > LOW_LEVEL + 5) warnedLow -= name
+
+        // Cập nhật hiển thị nếu Đang hiển thị trên đảo (và có thay đổi), vừa phát hiện thêm chi tiết L/R/Case mới trong cooldown, hoặc pin tụt xuống mức cảnh báo yếu
+        if ((currentlyShowing && before != merged) || newlyDiscoveredDetails || isNewLowWarning) {
             show(
                 context = ctx,
                 device = null,
@@ -2386,6 +2464,7 @@ object EarbudsCard {
                 telemetry = merged,
                 low = (eff in 0..LOW_LEVEL),
                 isWearable = isWearableDevice,
+                refreshDuration = !currentlyShowing,
             )
         }
     }
@@ -2445,7 +2524,8 @@ object EarbudsCard {
         val intent = Intent(ctx, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", cardId)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", SHOW_MS)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
             putExtra("title", "$name · Đã sạc đầy")

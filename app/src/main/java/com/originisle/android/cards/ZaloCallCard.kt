@@ -13,6 +13,8 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.Icon
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import androidx.core.content.ContextCompat
@@ -32,6 +34,10 @@ import com.originisle.android.service.IconCache
 object ZaloCallCard {
 
     const val ID = 35011
+    private const val SAMPLE_HOLD_MS = 5_000L
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var sampleCancelRunnable: Runnable? = null
 
     @Volatile private var lastCaller: String = ""
     @Volatile private var lastState: ZaloCallDetector.CallState? = null
@@ -80,7 +86,8 @@ object ZaloCallCard {
             putExtra("oi_left_icon", whiteCallIcon)
             putExtra("oi_large_icon", largeIcon)
             putExtra("oi_show_left_icon", true)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", SAMPLE_HOLD_MS)
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", false)
             putExtra("oi_dismiss_when_kill", true)
@@ -107,12 +114,21 @@ object ZaloCallCard {
 
         app.startService(intent)
         CastLog.add("Zalo Call", sampleInfo.callerName, "hiển thị — ${sampleInfo.callerName} (${sampleInfo.statusText})", true, context = app)
+
+        sampleCancelRunnable?.let { mainHandler.removeCallbacks(it) }
+        val cancelTask = Runnable { cancel(app) }
+        sampleCancelRunnable = cancelTask
+        mainHandler.postDelayed(cancelTask, SAMPLE_HOLD_MS)
     }
 
     fun post(context: Context, sbn: StatusBarNotification, info: ZaloCallInfo) =
         post(context, info, sbn)
 
     fun post(context: Context, info: ZaloCallInfo, sbn: StatusBarNotification) {
+        sampleCancelRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            sampleCancelRunnable = null
+        }
         val now = SystemClock.elapsedRealtime()
         val isSameStateAndCaller = (info.callerName == lastCaller && info.state == lastState)
         if (active && isSameStateAndCaller && (now - lastPostMs) < 900L && PlaygroundService.activeCardIds.contains(ID)) {
@@ -221,6 +237,10 @@ object ZaloCallCard {
     }
 
     fun clear(context: Context) {
+        sampleCancelRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            sampleCancelRunnable = null
+        }
         active = false
         lastCaller = ""
         lastState = null
@@ -233,6 +253,8 @@ object ZaloCallCard {
         }
         context.startService(cancelIntent)
     }
+
+    fun cancel(context: Context) = clear(context)
 
     fun createWhiteCallIcon(context: Context, size: Int = 128): Icon {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)

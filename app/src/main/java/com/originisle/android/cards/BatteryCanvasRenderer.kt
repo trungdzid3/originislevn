@@ -4,9 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.Icon
 import com.originisle.android.R
 
@@ -218,93 +221,303 @@ object BatteryCanvasRenderer {
     }
 
     /**
-     * Dựng Icon hộp sạc tai nghe TWS màu trắng sang trọng (#F8FAFC) bằng Canvas Bitmap:
-     * - Thân hộp sạc RectF bo góc mềm mại (corner = size * 0.18f).
-     * - Đổ bóng mờ nhẹ dưới hộp sạc.
-     * - Viền mảnh tinh tế #E2E8F0.
-     * - Đường rãnh nắp (seam line) ở 38% chiều cao thân hộp.
-     * - Chấm đèn LED tròn màu xanh lá (#00D084) hoặc vàng cam (#FFB020 khi sạc) ở giữa thân dưới.
+     * Dựng Icon tròn góc trên bên trái Header (oi_base_icon) cho thẻ mở rộng tai nghe TWS chuẩn OriginOS 6:
+     * - Hình tròn nền xám than đậm (#35353C -> #26262B) kèm viền mảnh #1FFFFFFF.
+     * - Bên trong là cặp tai nghe in-ear không dây màu trắng tinh (#FFFFFF) đối xứng trái - phải.
+     */
+    fun createTwsHeaderBadgeIcon(context: Context): Icon {
+        val size = 128
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        val cx = 64f
+        val cy = 64f
+        val radius = 58f
+
+        // 1. Hình tròn nền xám than đậm chuẩn OriginOS 6
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                cx,
+                cy - radius,
+                cx,
+                cy + radius,
+                Color.parseColor("#35353C"),
+                Color.parseColor("#26262B"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawCircle(cx, cy, radius, bgPaint)
+
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            color = Color.parseColor("#1FFFFFFF")
+        }
+        canvas.drawCircle(cx, cy, radius, borderPaint)
+
+        // 2. Cặp tai nghe in-ear không dây màu trắng tinh (#FFFFFF) đối xứng trái - phải
+        val whiteFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.WHITE
+        }
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 5.5f
+            strokeCap = Paint.Cap.ROUND
+            color = Color.WHITE
+        }
+        val meshPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#2C2C32")
+        }
+
+        // Tai trái (bên trái tâm)
+        canvas.drawLine(40f, 52f, 45f, 84f, stemPaint)
+        canvas.save()
+        canvas.rotate(-14f, 44f, 48f)
+        canvas.drawOval(RectF(32f, 38f, 56f, 58f), whiteFillPaint)
+        canvas.drawOval(RectF(45.5f, 45.5f, 51.5f, 50.5f), meshPaint)
+        canvas.restore()
+
+        // Tai phải (bên phải tâm)
+        canvas.drawLine(88f, 52f, 83f, 84f, stemPaint)
+        canvas.save()
+        canvas.rotate(14f, 84f, 48f)
+        canvas.drawOval(RectF(72f, 38f, 96f, 58f), whiteFillPaint)
+        canvas.drawOval(RectF(76.5f, 45.5f, 82.5f, 50.5f), meshPaint)
+        canvas.restore()
+
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Dựng Icon đơn chiếc tai nghe (Trái hoặc Phải) kèm thanh báo pin đứng chuẩn viên nang OriginOS 6.
+     */
+    fun createSingleEarbudWithBatteryIcon(
+        context: Context,
+        isLeft: Boolean,
+        level: Int = -1,
+        isCharging: Boolean = false,
+    ): Icon {
+        val size = 96
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        val whiteFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.WHITE
+        }
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 6.5f
+            strokeCap = Paint.Cap.ROUND
+            color = Color.WHITE
+        }
+        val meshPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#2C2C32")
+        }
+
+        if (isLeft) {
+            canvas.drawLine(32f, 40f, 36f, 76f, stemPaint)
+            canvas.save()
+            canvas.rotate(-12f, 38f, 34f)
+            canvas.drawOval(RectF(23f, 22f, 53f, 46f), whiteFillPaint)
+            canvas.drawOval(RectF(40f, 31f, 47f, 37f), meshPaint)
+            canvas.restore()
+        } else {
+            canvas.drawLine(46f, 40f, 42f, 76f, stemPaint)
+            canvas.save()
+            canvas.rotate(12f, 40f, 34f)
+            canvas.drawOval(RectF(25f, 22f, 55f, 46f), whiteFillPaint)
+            canvas.drawOval(RectF(31f, 31f, 38f, 37f), meshPaint)
+            canvas.restore()
+        }
+
+        // Thanh pin đứng nhỏ gọn bên cạnh tai nghe
+        val trackRect = RectF(64f, 24f, 74f, 74f)
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#40FFFFFF")
+        }
+        canvas.drawRoundRect(trackRect, 5f, 5f, trackPaint)
+
+        val clamped = if (level in 0..100) level else 85
+        val fillHeight = (trackRect.height() * (clamped / 100f)).coerceAtLeast(6f)
+        val fillRect = RectF(trackRect.left, trackRect.bottom - fillHeight, trackRect.right, trackRect.bottom)
+        val barColor = when {
+            level in 0..15 && !isCharging -> Color.parseColor("#FF3B30")
+            isCharging -> Color.parseColor("#00E676")
+            else -> Color.parseColor("#2BD968")
+        }
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = barColor
+        }
+        canvas.drawRoundRect(fillRect, 5f, 5f, fillPaint)
+
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Dựng Icon Hộp sạc 3D màu trắng ngọc trai đang mở nắp (open-lid 3D charging case) chuẩn Poster OriginOS 6:
+     * - Lớp 1: Nắp hộp sạc mở phía trên (Open Top Lid) kèm lòng nắp lõm tạo chiều sâu.
+     * - Lớp 2: Khay đựng & 2 đầu tai nghe bóng 3D nhô lên từ trong hốc sạc.
+     * - Lớp 3: Thân chính hộp sạc phía trước bo khối cầu 3D kèm khe bản lề mở nắp.
+     * - Lớp 4: Đèn LED báo pin phát sáng kèm quầng sáng (glow halo) ở chính giữa thân hộp.
      */
     fun createChargingCaseIcon(
         context: Context,
         level: Int = -1,
         isCharging: Boolean = false,
-        size: Int = 120,
+        size: Int = 160,
     ): Icon {
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+        val bmp = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
 
-        val s = size.toFloat()
-        val padX = s * 0.12f
-        val padTop = s * 0.10f
-        val padBottom = s * 0.14f
-        val caseWidth = s - padX * 2f
-        val caseHeight = s - padTop - padBottom
-        val corner = size * 0.18f
-
-        // 1. Đổ bóng mờ nhẹ dưới hộp sạc
-        val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Lớp 1 — Nắp hộp sạc mở phía trên (Open Top Lid)
+        val lidRect = RectF(26f, 18f, 134f, 58f)
+        val lidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#30000000")
+            shader = LinearGradient(
+                80f,
+                18f,
+                80f,
+                58f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#D8DCE3"),
+                Shader.TileMode.CLAMP,
+            )
         }
-        val shadowRect = RectF(
-            padX + s * 0.03f,
-            padTop + s * 0.04f,
-            padX + caseWidth + s * 0.03f,
-            padTop + caseHeight + s * 0.04f,
-        )
-        canvas.drawRoundRect(shadowRect, corner, corner, shadowPaint)
+        canvas.drawRoundRect(lidRect, 22f, 22f, lidPaint)
 
-        // 2. Thân hộp sạc RectF bo góc mềm mại
-        val caseRect = RectF(
-            padX,
-            padTop,
-            padX + caseWidth,
-            padTop + caseHeight,
-        )
+        val innerLidRect = RectF(32f, 24f, 128f, 54f)
+        val innerLidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                80f,
+                24f,
+                80f,
+                54f,
+                Color.parseColor("#CFD4DC"),
+                Color.parseColor("#E8ECF2"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(innerLidRect, 16f, 16f, innerLidPaint)
+
+        // Lớp 2 — Khay đựng & 2 đầu tai nghe nhô lên bên trong (Inner Cavity & Left/Right Earbud Heads)
+        val trayRect = RectF(30f, 54f, 130f, 76f)
+        val trayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#9AA1AE")
+        }
+        canvas.drawRoundRect(trayRect, 10f, 10f, trayPaint)
+
+        val socketPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#5B6270")
+        }
+        canvas.drawOval(RectF(36f, 56f, 74f, 74f), socketPaint)
+        canvas.drawOval(RectF(86f, 56f, 124f, 74f), socketPaint)
+
+        // Đầu tai nghe trái (Left Earbud Head)
+        val leftBudRect = RectF(38f, 44f, 72f, 72f)
+        val leftBudPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = RadialGradient(
+                52f,
+                52f,
+                20f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#DDE2EA"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawOval(leftBudRect, leftBudPaint)
+
+        // Đầu tai nghe phải (Right Earbud Head)
+        val rightBudRect = RectF(88f, 44f, 122f, 72f)
+        val rightBudPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = RadialGradient(
+                108f,
+                52f,
+                20f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#DDE2EA"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawOval(rightBudRect, rightBudPaint)
+
+        val meshHolePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#3A3F47")
+        }
+        canvas.drawCircle(62f, 58f, 2.8f, meshHolePaint)
+        canvas.drawCircle(98f, 58f, 2.8f, meshHolePaint)
+
+        // Lớp 3 — Thân chính hộp sạc phía trước (Front 3D Case Body)
+        val bodyRect = RectF(22f, 64f, 138f, 138f)
         val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#F8FAFC")
+            shader = LinearGradient(
+                80f,
+                64f,
+                80f,
+                138f,
+                intArrayOf(
+                    Color.parseColor("#FFFFFF"),
+                    Color.parseColor("#F2F4F8"),
+                    Color.parseColor("#C9CFD9"),
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP,
+            )
         }
-        canvas.drawRoundRect(caseRect, corner, corner, bodyPaint)
+        canvas.drawRoundRect(bodyRect, 28f, 28f, bodyPaint)
 
-        // 3. Viền mảnh tinh tế #E2E8F0
-        val strokeW = maxOf(1.5f, s * 0.02f)
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Rãnh bản lề / khe mở nắp mảnh ở mặt trước
+        val notchRect = RectF(62f, 64f, 98f, 70f)
+        val notchPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#D0D5DF")
+        }
+        canvas.drawRoundRect(notchRect, 3f, 3f, notchPaint)
+
+        // Đường viền highlight 3D mảnh 1.5f màu #FFFFFF dọc theo mép trên thân hộp
+        val topHighlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = strokeW
-            color = Color.parseColor("#E2E8F0")
+            strokeWidth = 1.5f
+            color = Color.WHITE
         }
-        canvas.drawRoundRect(caseRect, corner, corner, strokePaint)
+        canvas.drawLine(36f, 64.8f, 124f, 64.8f, topHighlightPaint)
 
-        // 4. Đường rãnh nắp (seam line) ở 38% chiều cao thân hộp
-        val seamY = padTop + caseHeight * 0.38f
-        val seamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = maxOf(1f, s * 0.015f)
-            color = Color.parseColor("#CBD5E1")
+        // Lớp 4 — Đèn LED báo pin phát sáng ở chính giữa thân hộp
+        val ledColor = when {
+            level in 0..15 && !isCharging -> Color.parseColor("#FF3B30")
+            isCharging -> Color.parseColor("#00E676")
+            else -> Color.parseColor("#2BD968")
         }
-        canvas.drawLine(padX + strokeW, seamY, padX + caseWidth - strokeW, seamY, seamPaint)
-
-        // 5. Chấm đèn LED tròn màu xanh lá (#00D084) hoặc vàng cam (#FFB020 khi sạc) ở giữa thân dưới
-        val ledCenterX = s / 2f
-        val lowerBodyHeight = (padTop + caseHeight) - seamY
-        val ledCenterY = seamY + lowerBodyHeight * 0.45f
-        val ledRadius = maxOf(2.5f, s * 0.035f)
-
-        val ledColor = if (isCharging) {
-            Color.parseColor("#FFB020")
-        } else if (level in 0..20) {
-            Color.parseColor("#FF5247")
-        } else {
-            Color.parseColor("#00D084")
+        val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(
+                70,
+                Color.red(ledColor),
+                Color.green(ledColor),
+                Color.blue(ledColor),
+            )
         }
+        canvas.drawCircle(80f, 96f, 9f, haloPaint)
+
         val ledPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = ledColor
         }
-        canvas.drawCircle(ledCenterX, ledCenterY, ledRadius, ledPaint)
+        canvas.drawCircle(80f, 96f, 4.2f, ledPaint)
 
-        return Icon.createWithBitmap(bitmap)
+        return Icon.createWithBitmap(bmp)
     }
 }

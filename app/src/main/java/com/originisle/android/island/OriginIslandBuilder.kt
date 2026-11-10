@@ -105,6 +105,7 @@ object OriginIslandBuilder {
         extra2: String = "",
         extra3: String = "",
         extra4: String = "",
+        midSubMsg: String? = null,
         rightTemplate: Int = 0,
         defaultIcon: Icon,
         leftIcon: Icon,
@@ -118,6 +119,7 @@ object OriginIslandBuilder {
         // a non-zero create operation makes vivo's interceptor silently drop the notification.
         operation: Int = 0,
         largeIcon: Icon? = null,
+        baseHeaderIcon: Icon? = null,
         subText: String? = null,
         navMsg: String? = null,
         navAssistText: String? = null,
@@ -197,7 +199,7 @@ object OriginIslandBuilder {
         val actionPi = firstActionable?.pendingIntent
         val actionTitle = firstActionable?.title?.takeIf { it.isNotBlank() }
 
-        val baseIcon = largeIcon ?: defaultIcon
+        val baseIcon = baseHeaderIcon ?: largeIcon ?: defaultIcon
 
         // --- baseInfos ---
         val base = Bundle()
@@ -206,6 +208,7 @@ object OriginIslandBuilder {
         base.putCharSequence(C.BUNDLE_KEY_BASE_CONTENT, content)
         when {
             template == 8 -> base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
+            template == 3 && subText.isNullOrBlank() -> base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, 0)
             subImage != null -> {
                 base.putInt(C.BUNDLE_KEY_BASE_SUB_INFO, C.BASE_SUB_INFO_IMAGE) // 3
                 base.putParcelable(C.BUNDLE_KEY_BASE_SUB_IMAGE, subImage)
@@ -318,7 +321,7 @@ object OriginIslandBuilder {
                 infos.putInt(C.BUNDLE_KEY_INFO_MID_MAIN_TYPE, 1)
                 infos.putParcelable(C.BUNDLE_KEY_INFO_MID_MAIN_ICON, largeIcon ?: defaultIcon)
                 infos.putInt(C.BUNDLE_KEY_INFO_MID_SUB_TYPE, 2)
-                infos.putString(C.BUNDLE_KEY_INFO_MID_SUB_MSG, content)
+                infos.putString(C.BUNDLE_KEY_INFO_MID_SUB_MSG, midSubMsg ?: content)
                 infos.putString(C.BUNDLE_KEY_INFO_RIGHT_MAIN, extra3)
                 infos.putString(C.BUNDLE_KEY_INFO_RIGHT_SUB, extra4)
             }

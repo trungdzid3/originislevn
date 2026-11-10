@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.6` (mã bản dựng `versionCode = 10706`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.7` (mã bản dựng `versionCode = 10707`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,16 +54,19 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.6.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 6)
+└── OriginIsle-VN-v1.7.7.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 7)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `OriginIslandBuilder.kt` & `PlaygroundService.kt`:
+  - Hỗ trợ `baseHeaderIcon` (`oi_base_icon`) và `midSubMsg` (`oi_mid_text`) tách biệt hoàn toàn giữa phần Header (`BUNDLE_KEY_BASE_ICON`, `BUNDLE_KEY_BASE_CONTENT`) và cột giữa (`BUNDLE_KEY_INFO_MID_MAIN_ICON`, `BUNDLE_KEY_INFO_MID_SUB_MSG`) trong `TEMPLATE_TEXT_SYMMETRY` (3), đồng thời tắt `BUNDLE_KEY_BASE_SUB_INFO = 0` khi `subText` rỗng.
+  - Bổ sung cơ chế tự động tắt đúng hạn `oi_auto_dismiss_ms`, mặc định tự tắt sau 5 giây cho mọi thẻ thông báo thoáng qua / thẻ mẫu thử nghiệm, và chặn khôi phục nhầm (`resumeId`) các thẻ sự kiện thoáng qua (`35001`, `35004`, `35008`, `35009`, `35011`, `35012`, `35014`, `35015`).
 - `BatteryCanvasRenderer.kt` & `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`):
-  - Chuẩn hóa giao diện thẻ mở rộng tai nghe TWS theo đúng hình ảnh Poster chính thức của Vivo TWS trên OriginOS 6:
-    1. Icon trung tâm: Dựng biểu tượng Hộp sạc tai nghe TWS (Charging Case) màu trắng ngọc ngà `#F8FAFC` cao cấp bằng Canvas Bitmap (`createChargingCaseIcon`) với bo góc mềm mại 0.18f, viền mảnh #E2E8F0, đường rãnh nắp (seam line) ở 38% và đèn LED trạng thái xanh lá (#00D084) hoặc vàng cam (#FFB020 khi sạc).
-    2. Header: Hiển thị tên tai nghe (ví dụ `vivo TWS` / `heobeos plus`) kèm dòng phụ đề `Đã kết nối` (`subtext = "Đã kết nối"`).
-    3. Bố cục 3 cột đối xứng: Cột trái `L xx%` (to) / `Tai trái` (nhỏ), Cột giữa Biểu tượng Hộp sạc + `Case xx%`, Cột phải `R xx%` (to) / `Tai phải` (nhỏ).
-    4. Mẫu thử nghiệm trong `postSample(context)` được cập nhật sang `vivo TWS` với thông số `L 85%`, `R 90%`, `Case 50%` khớp hoàn toàn với poster gốc.
+  - Chuẩn hóa giao diện thẻ mở rộng tai nghe TWS 3D theo đúng hình ảnh Poster chính thức của Vivo TWS trên OriginOS 6:
+    1. Icon góc trái Header (`createTwsHeaderBadgeIcon`): Vòng tròn nền xám than đậm `#2C2C32` chứa cặp tai nghe in-ear trắng tinh đối xứng trái - phải.
+    2. Icon trung tâm 3 cột (`createChargingCaseIcon`): Hộp sạc 3D màu trắng ngọc trai mở nắp (`open-lid 3D charging case`), lộ 2 đầu tai nghe trắng bóng trong khay sạc, thân hộp bo khối cầu 3D và đèn LED xanh lá phát sáng kèm quầng sáng.
+    3. Tách biệt Header (`title = vivo TWS`, `text = "Đã kết nối"`, `subtext = ""`) và cột giữa (`oi_mid_text = "Case 50%"`), cột trái (`L 85%` / `Tai trái`), cột phải (`R 90%` / `Tai phải`).
+    4. Tự động tắt sau 4.5 giây (`SHOW_MS = 4500L`, `is_ongoing = false`, `oi_auto_dismiss_ms = 4500L`), xóa bỏ `isSlotEmpty` trong `tryParseBatteryFromNotification` để thẻ không bao giờ tự động bật sống dậy liên tục khi thông báo Fast Pair còn trên thanh trạng thái.
 - `DownloadCard.kt` & `NotificationCastListener.kt`:
   - Đồng bộ trạng thái tải xuống hoàn tất chuẩn như Quick Share (chuyển tệp): loại bỏ hoàn toàn các chuỗi ký tự thô `"Tải xong"` và `"100%"` trên viên nang thu gọn; thay bằng biểu tượng dấu tích tròn xanh lá Canvas rực rỡ (`createGreenTickCircleIcon`) ở bên phải (`oi_show_right_icon = true`), bên trái giữ logo ứng dụng nguồn, tiêu đề mở rộng `"$appLabel · Đã tải xong"`. Chống drop icon trên Vivo OriginOS 6 SuperX.
 - `QuickShareDetector.kt` & `NotificationCastListener.kt`:

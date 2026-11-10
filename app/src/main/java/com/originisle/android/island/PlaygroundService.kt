@@ -280,6 +280,8 @@ class PlaygroundService : Service() {
         val largeIcon: Icon? = intent.getParcelableExtra("oi_large_icon", Icon::class.java)
             ?: IconCache.activeLargeIcons[id]
             ?: IconCache.activeLargeBitmaps[id]?.let { Icon.createWithBitmap(it) }
+        val baseHeaderIcon: Icon? = intent.getParcelableExtra("oi_base_icon", Icon::class.java)
+        val midSubMsg: String? = intent.getStringExtra("oi_mid_text")
         val progressNodeIcons = intent.getParcelableArrayListExtra("oi_progress_nodes", Icon::class.java).orEmpty()
         val progressIndicatorIcon = intent.getParcelableExtra("oi_progress_indicator", Icon::class.java)
         val progressColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_progress_color"), 0)
@@ -341,6 +343,7 @@ class PlaygroundService : Service() {
             leftContent = leftContent,
             rightContent = if (rightContent.isNotBlank()) rightContent else chip,
             extra1 = extra1, extra2 = extra2, extra3 = extra3, extra4 = extra4,
+            midSubMsg = midSubMsg,
             rightTemplate = rightTemplate,
             defaultIcon = baseIcon,
             leftIcon = leftIcon,
@@ -351,6 +354,7 @@ class PlaygroundService : Service() {
             scene = scene,
             clickResp = clickResp,
             largeIcon = largeIcon,
+            baseHeaderIcon = baseHeaderIcon,
             subText = subtext,
             navMsg = navMsg,
             navAssistText = navAssist,
@@ -416,18 +420,23 @@ class PlaygroundService : Service() {
         // Auto-dismiss: only for non-live cards (isOngoing is the same live/persistent flag the
         // card posters set — media, sports and any ongoing/call/progress GenericCard all mark
         // themselves live), and only when the user opted into a duration in Cast settings.
+        val explicitAutoDismissMs = intent.getLongExtra("oi_auto_dismiss_ms", 0L)
+        val autoDismissSec = getSharedPreferences(PREFS_NAME, 0).getInt("cast_auto_dismiss_seconds", 5)
+        val isTransientCardId = id in setOf(35004, 35008, 35009, 35011, 35012, 35014, 35015) || id >= 40000 || id in 9900..9999
+        val dismissDelayMs: Long = when {
+            explicitAutoDismissMs > 0L -> explicitAutoDismissMs
+            !isOngoing && autoDismissSec > 0 -> autoDismissSec * 1000L
+            isTransientCardId && !isOngoing -> 5000L
+            else -> 0L
+        }
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
-        val autoDismissSec = getSharedPreferences(PREFS_NAME, 0).getInt("cast_auto_dismiss_seconds", 0)
-        if (autoDismissSec > 0 && !isOngoing) {
+        if (dismissDelayMs > 0L) {
             val task = Runnable {
-                cancelNotification(
-                    Intent(this, PlaygroundService::class.java)
-                        .putExtra("id", id)
-                        .putExtra("oi_scene", scene),
-                )
+                autoDismissTasks.remove(id)
+                cancelCard(id)
             }
             autoDismissTasks[id] = task
-            mainHandler.postDelayed(task, autoDismissSec * 1000L)
+            mainHandler.postDelayed(task, dismissDelayMs)
         }
     }
 
@@ -490,6 +499,14 @@ class PlaygroundService : Service() {
         }
     }
 
+    private fun cancelCard(id: Int) {
+        cancelNotification(
+            Intent(this, PlaygroundService::class.java)
+                .putExtra("id", id)
+                .putExtra("oi_scene", originScenes[id]),
+        )
+    }
+
     private fun cancelNotification(intent: Intent) {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
@@ -509,15 +526,14 @@ class PlaygroundService : Service() {
         plainIds.remove(id)
         activeCardIds = activeIds.toSet()
 
+        val nonResumableIds = setOf(35001, 35004, 35008, 35009, 35011, 35012, 35014, 35015)
         val resumeId = activeIds.lastOrNull { otherId ->
             otherId != id &&
                 otherId < 40000 &&
-                otherId != 35004 &&
-                otherId != 35008 &&
-                otherId != 35009 &&
-                otherId != 35011 &&
+                otherId !in nonResumableIds &&
                 originScenes[otherId] == scene &&
-                lastPosts[otherId]?.getBooleanExtra("is_ongoing", false) == true
+                lastPosts[otherId]?.getBooleanExtra("is_ongoing", false) == true &&
+                (lastPosts[otherId]?.getLongExtra("oi_auto_dismiss_ms", 0L) ?: 0L) <= 0L
         }
         if (resumeId != null) {
             val savedIntent = lastPosts[resumeId]

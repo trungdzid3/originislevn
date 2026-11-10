@@ -99,10 +99,27 @@ fun BatteryCanvasRenderer.createRedCrossCircleIcon(context: Context, size: Int =
 
 object DownloadCard {
 
+    private const val PROGRESS_WATCHDOG_MS = 12_000L
+    private const val TERMINAL_HOLD_MS = 3_500L
+
     private val handler = Handler(Looper.getMainLooper())
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
     private val lastProgressMap: MutableMap<Int, Int> = ConcurrentHashMap()
     private val firstSeenTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
+    private val dismissTasks: MutableMap<Int, Runnable> = ConcurrentHashMap()
+    private val activeDownloadIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    private val finishedIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+
+    private fun scheduleDismiss(context: Context, id: Int, delayMs: Long) {
+        dismissTasks.remove(id)?.let(handler::removeCallbacks)
+        val app = context.applicationContext
+        val task = Runnable {
+            dismissTasks.remove(id)
+            cancel(app, id)
+        }
+        dismissTasks[id] = task
+        handler.postDelayed(task, delayMs)
+    }
 
     fun post(context: Context, sbn: StatusBarNotification, info: DownloadInfo) = post(context, info, sbn)
 
@@ -117,6 +134,15 @@ object DownloadCard {
         val isTerminated = isCompleted || isCanceled
         val isIndeterminate = info.isIndeterminate
 
+        if (!isTerminated && (info.progress in 1..99 || info.isIndeterminate)) {
+            finishedIds.remove(id)
+        }
+        if (finishedIds.contains(id)) {
+            return
+        }
+
+        activeDownloadIds.add(id)
+
         // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
         // Đăng ngay nếu hoàn tất hoặc bị hủy, hoặc trôi qua >= 1000ms VÀ tiến độ thay đổi >= 2%
         val shouldPost = isTerminated ||
@@ -127,6 +153,7 @@ object DownloadCard {
         }
 
         if (isTerminated) {
+            finishedIds.add(id)
             lastPostTimeMap.remove(id)
             lastProgressMap.remove(id)
             firstSeenTimeMap.remove(id)
@@ -184,6 +211,7 @@ object DownloadCard {
                 isCompleted -> {
                     val tickIcon = BatteryCanvasRenderer.createGreenTickCircleIcon(context)
                     putExtra("is_ongoing", false)
+                    putExtra("oi_auto_dismiss_ms", TERMINAL_HOLD_MS)
                     putExtra("icon_res", R.mipmap.ic_launcher_round)
                     putExtra("oi_left_icon", leftIcon)
                     putExtra("oi_large_icon", leftIcon)
@@ -205,6 +233,7 @@ object DownloadCard {
                 // 4. Khi hủy / thất bại (info.isCanceled)
                 isCanceled -> {
                     putExtra("is_ongoing", false)
+                    putExtra("oi_auto_dismiss_ms", TERMINAL_HOLD_MS)
                     putExtra("icon_res", R.mipmap.ic_launcher_round)
                     putExtra("oi_left_icon", leftIcon)
                     putExtra("oi_large_icon", leftIcon)
@@ -225,6 +254,7 @@ object DownloadCard {
                 // 2. Khi đang tải
                 else -> {
                     putExtra("is_ongoing", true)
+                    putExtra("oi_auto_dismiss_ms", PROGRESS_WATCHDOG_MS)
                     putExtra("icon_res", R.mipmap.ic_launcher_round)
                     putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                     putExtra("oi_card_ring", pct)
@@ -264,28 +294,41 @@ object DownloadCard {
         context.startService(intent)
 
         // Tự động dọn dẹp đảo:
-        if (isCompleted) {
-            handler.postDelayed({
-                context.startService(
-                    Intent(context, PlaygroundService::class.java)
+        if (isTerminated) {
+            scheduleDismiss(context, id, TERMINAL_HOLD_MS)
+        } else {
+            scheduleDismiss(context, id, PROGRESS_WATCHDOG_MS)
+        }
+    }
+
+    @JvmOverloads
+    fun cancel(context: Context, id: Int? = null) {
+        val app = context.applicationContext
+        if (id != null) {
+            clear(id)
+            app.startService(
+                Intent(app, PlaygroundService::class.java)
+                    .setAction(PlaygroundService.ACTION_CANCEL)
+                    .putExtra("id", id)
+                    .putExtra("oi_scene", "NAVIGATION")
+            )
+        } else {
+            val idsToCancel = activeDownloadIds.toSet() + dismissTasks.keys.toSet()
+            for (targetId in idsToCancel) {
+                clear(targetId)
+                app.startService(
+                    Intent(app, PlaygroundService::class.java)
                         .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", id)
+                        .putExtra("id", targetId)
                         .putExtra("oi_scene", "NAVIGATION")
                 )
-            }, 3500L)
-        } else if (isCanceled) {
-            handler.postDelayed({
-                context.startService(
-                    Intent(context, PlaygroundService::class.java)
-                        .setAction(PlaygroundService.ACTION_CANCEL)
-                        .putExtra("id", id)
-                        .putExtra("oi_scene", "NAVIGATION")
-                )
-            }, 2500L)
+            }
         }
     }
 
     fun clear(id: Int) {
+        dismissTasks.remove(id)?.let(handler::removeCallbacks)
+        activeDownloadIds.remove(id)
         lastPostTimeMap.remove(id)
         lastProgressMap.remove(id)
         firstSeenTimeMap.remove(id)

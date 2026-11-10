@@ -29,7 +29,7 @@ import com.originisle.android.tiktok.TikTokStreakDetector
 object TikTokStreakCard {
 
     const val ID = 35012
-    private const val HOLD_MS = 20_000L
+    private const val HOLD_MS = 4_500L
     const val COLOR_STREAK = "#FFFF5E00"
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -115,7 +115,8 @@ object TikTokStreakCard {
             putExtra("oi_left_icon", flameBadgeIcon)
             putExtra("oi_large_icon", flameBadgeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
-            putExtra("is_ongoing", true)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", HOLD_MS)
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", false)
             putExtra("is_high_priority", true)

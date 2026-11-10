@@ -356,6 +356,7 @@ object IslandSamples {
             putExtra("oi_island_show_time", 15)
             configure()
         }
+        intent.putExtra("oi_auto_dismiss_ms", 5_000L)
         context.startService(intent)
     }
 

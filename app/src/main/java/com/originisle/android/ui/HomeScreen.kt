@@ -127,7 +127,7 @@ fun HomeScreen(
 
     // 4. Nhóm quy tắc hiển thị & Giờ yên tĩnh
     var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
-    var autoDismissSec by remember { mutableStateOf(prefs.getInt("cast_auto_dismiss_seconds", 0)) }
+    var autoDismissSec by remember { mutableStateOf(prefs.getInt("cast_auto_dismiss_seconds", 5)) }
     var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
     var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
     var lockscreenRedactSensitive by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_redact_sensitive", true)) }

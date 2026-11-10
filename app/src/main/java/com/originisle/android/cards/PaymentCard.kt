@@ -38,7 +38,7 @@ object PaymentCard {
     const val COLOR_EXPENSE = "#FF5247"
 
     private const val PROCESS_MS = 850L   // spinner phase
-    private const val HOLD_MS = 6000L     // how long "Hoàn tất" stays before auto-dismiss
+    private const val HOLD_MS = 4_500L    // how long "Hoàn tất" stays before auto-dismiss
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -265,6 +265,8 @@ object PaymentCard {
             putExtra("oi_bg_color", bgColor)
             putExtra("oi_fg_color", fgColor)
             putExtra("oi_light_color", lightColor)
+            putExtra("is_ongoing", false)
+            putExtra("oi_auto_dismiss_ms", HOLD_MS)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
             clickResp?.let { putExtra("click_resp", it) }
