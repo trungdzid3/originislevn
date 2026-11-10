@@ -2147,15 +2147,15 @@ object EarbudsCard {
         val hasDetailedBuds = !isWearableDevice && (safeTelemetry.left in 0..100 || safeTelemetry.right in 0..100)
         val hasDualBuds = !isWearableDevice && (safeTelemetry.left in 0..100 && safeTelemetry.right in 0..100)
         val leftContent = when {
-            hasDualBuds -> "L:${safeTelemetry.left}%"
-            !isWearableDevice && safeTelemetry.left in 0..100 -> "L:${safeTelemetry.left}%"
-            !isWearableDevice && safeTelemetry.right in 0..100 -> "R:${safeTelemetry.right}%"
+            hasDualBuds -> "${safeTelemetry.left}%"
+            !isWearableDevice && safeTelemetry.left in 0..100 -> "${safeTelemetry.left}%"
+            !isWearableDevice && safeTelemetry.right in 0..100 -> "${safeTelemetry.right}%"
             known -> "${effectivePct}%"
             else -> ""
         }
         val pillStatus = when {
-            hasDualBuds -> "R:${safeTelemetry.right}%"
-            !isWearableDevice && safeTelemetry.case in 0..100 -> "C:${safeTelemetry.case}%"
+            hasDualBuds -> "${safeTelemetry.right}%"
+            !isWearableDevice && safeTelemetry.case in 0..100 -> "Case ${safeTelemetry.case}%"
             known -> "${effectivePct}%"
             else -> "Đã kết nối"
         }
@@ -2177,13 +2177,14 @@ object EarbudsCard {
             putExtra("oi_island_click_expand", true)
 
             if (hasDetailedBuds) {
-                val leftBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                // Tạo icon tai nghe in-ear ngọc trai trắng siêu nét đối xứng 2 bên Đảo
+                val leftBudIcon = BatteryCanvasRenderer.createBudCapsuleIcon(
                     context,
                     isLeft = true,
                     level = safeTelemetry.left,
                     isCharging = safeTelemetry.isLeftCharging,
                 )
-                val rightBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                val rightBudIcon = BatteryCanvasRenderer.createBudCapsuleIcon(
                     context,
                     isLeft = false,
                     level = safeTelemetry.right,
@@ -2194,6 +2195,7 @@ object EarbudsCard {
                     context,
                     level = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct,
                     isCharging = safeTelemetry.isCaseCharging,
+                    size = 240,
                 )
                 val midText = if (safeTelemetry.case in 0..100) {
                     "Case ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) " ⚡" else ""}"
@@ -2203,16 +2205,23 @@ object EarbudsCard {
                 val expandedTitle = name
                 val expandedText = if (lowWarning) "Pin yếu · Cần sạc" else "Đã kết nối"
                 val expandedSubtext = ""
-                val extra1 = if (safeTelemetry.left in 0..100) "L ${safeTelemetry.left}%" else "L --%"
+                // Loại bỏ tiền tố "L" và "R" thừa thãi, chỉ giữ % pin và nhãn tai trái/phải/đang sạc
+                val extra1 = if (safeTelemetry.left in 0..100) "${safeTelemetry.left}%" else "--%"
                 val extra2 = if (safeTelemetry.isLeftCharging) "Đang sạc ⚡" else "Tai trái"
-                val extra3 = if (safeTelemetry.right in 0..100) "R ${safeTelemetry.right}%" else "R --%"
+                val extra3 = if (safeTelemetry.right in 0..100) "${safeTelemetry.right}%" else "--%"
                 val extra4 = if (safeTelemetry.isRightCharging) "Đang sạc ⚡" else "Tai phải"
 
-                // 1. Viên nang thu gọn
+                val leftIslandContent = if (safeTelemetry.left in 0..100) "${safeTelemetry.left}%" else ""
+                val rightIslandContent = if (safeTelemetry.right in 0..100) "${safeTelemetry.right}%" else ""
+
+                // 1. Viên nang thu gọn: Hiển thị rõ mỗi bên 1 icon tai nghe in-ear đối xứng (Trái quay phải, Phải quay trái)
                 putExtra("oi_left_icon", leftBudIcon)
                 putExtra("oi_right_icon", rightBudIcon)
+                putExtra("oi_left_content", leftIslandContent)
+                putExtra("oi_right_content", rightIslandContent)
+                putExtra("status_chip_text", rightIslandContent)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-                putExtra("oi_show_right_icon", false)
+                putExtra("oi_show_right_icon", true)
                 putExtra("oi_fg_color", "#FFFFFFFF")
 
                 // 2. Thẻ mở rộng đối xứng 3 cột chuẩn 100% Poster OriginOS 6 (TEMPLATE_TEXT_SYMMETRY = 3)
