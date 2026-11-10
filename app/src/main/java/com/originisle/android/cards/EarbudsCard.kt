@@ -2021,8 +2021,6 @@ object EarbudsCard {
             putExtra("id", cardId)
             putExtra("is_ongoing", true)
             putExtra("oi_scene", "NAVIGATION")
-            putExtra("title", if (low || isLow) "Pin yếu · $displayTitle" else displayTitle)
-            putExtra("text", displayText)
             putExtra("subtext", "")
             putExtra("oi_left_content", leftContent)
             putExtra("oi_left_icon", safeIcon)
@@ -2030,29 +2028,46 @@ object EarbudsCard {
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("oi_right_content", pillStatus)
             putExtra("status_chip_text", pillStatus)
-            // Khi ấn vào viên nang Đảo sẽ mở rộng thẻ (ISLAND_CLICK_SHOW_CARD) để xem rõ pin Trái / Phải / Hộp
+            // Khi ấn vào viên nang Đảo sẽ mở rộng thẻ (ISLAND_CLICK_SHOW_CARD)
             putExtra("oi_island_click_expand", true)
 
             if (hasDualBuds) {
-                // Hiển thị chữ trắng thanh lịch cho Tai Phải (R:xx%) đồng bộ tuyệt đối với Tai Trái (L:xx%), loại bỏ hoàn toàn khung xanh
+                // 1. Viên nang thu gọn: Hiển thị chữ trắng thanh lịch cho Tai Phải (R:xx%) đồng bộ tuyệt đối với Tai Trái (L:xx%)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_show_right_icon", false)
                 putExtra("oi_fg_color", "#FFFFFFFF")
-            } else if (known) {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
-                putExtra("oi_progress", effectivePct.coerceIn(0, 100))
-                putExtra("oi_fg_color", if (isLow) RED else GREEN)
-                putExtra("oi_bg_color", if (isLow) RED_TRACK else GREEN_TRACK)
-            } else {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
-                putExtra("oi_show_right_icon", false)
-            }
 
-            // Chuẩn hóa giao diện mở rộng: Dùng TEMPLATE_BASE (4) squircle G2 của OriginOS 6
-            // Thay thế hoàn toàn 3 nút bấm Material Expressive bằng vòng tròn tiến độ pin (cardRing) thanh lịch
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
-            if (known) {
-                putExtra("oi_card_ring", effectivePct)
+                // 2. Thẻ mở rộng đối xứng 3 cột chuẩn OriginOS 6 (TEMPLATE_TEXT_SYMMETRY):
+                // - Trái: % pin tai trái to rõ + nhãn "Tai trái"
+                // - Giữa: Biểu tượng tai nghe/hộp sạc + thông số Hộp sạc
+                // - Phải: % pin tai phải to rõ + nhãn "Tai phải"
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
+                putExtra("title", name.take(20))
+                val centerMsg = if (activeTelemetry.case in 0..100) {
+                    "Hộp sạc: ${activeTelemetry.case}%${if (activeTelemetry.isCaseCharging) " ⚡" else ""}"
+                } else {
+                    "Đã kết nối"
+                }
+                putExtra("text", centerMsg)
+                putExtra("oi_extra1", "${activeTelemetry.left}%")
+                putExtra("oi_extra2", "Tai trái${if (activeTelemetry.isLeftCharging) " ⚡" else ""}")
+                putExtra("oi_extra3", "${activeTelemetry.right}%")
+                putExtra("oi_extra4", "Tai phải${if (activeTelemetry.isRightCharging) " ⚡" else ""}")
+            } else {
+                // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                putExtra("title", if (low || isLow) "Pin yếu · $displayTitle" else displayTitle)
+                putExtra("text", displayText)
+                if (known) {
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS) // 2
+                    putExtra("oi_progress", effectivePct.coerceIn(0, 100))
+                    putExtra("oi_fg_color", if (isLow) RED else GREEN)
+                    putExtra("oi_bg_color", if (isLow) RED_TRACK else GREEN_TRACK)
+                    putExtra("oi_card_ring", effectivePct)
+                } else {
+                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                    putExtra("oi_show_right_icon", false)
+                }
             }
 
             // Viền xanh #00D084 khi kết nối thành công, đỏ khi pin yếu

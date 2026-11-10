@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.2` (mã bản dựng `versionCode = 10702`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.3` (mã bản dựng `versionCode = 10703`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,13 +54,14 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.2.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 2)
+└── OriginIsle-VN-v1.7.3.apk          # File APK xuất bản siêu nhẹ (~4.3 MB, Thế hệ 1, Nâng cấp 7, Bản vá 3)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
 - `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`), `OriginIslandBuilder.kt` & `PlaygroundService.kt`:
-  - Loại bỏ hoàn toàn khung xanh lệch màu (`TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT` 6) trên viên nang thu gọn; chuyển sang `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (4) với `showRightIcon = false`, hiển thị chữ trắng `R:xx%` cân xứng đối xứng hoàn hảo với `L:xx%` bên trái.
-  - Chuẩn hóa giao diện mở rộng: Gỡ bỏ hoàn toàn `TEMPLATE_BUTTONS` (8) và các nút bấm kiểu Material Expressive; chuyển sang `TEMPLATE_BASE` (4) squircle G2 liên tục chuẩn OriginOS 6 kết hợp vòng tròn tiến độ pin (`cardRing = effectivePct`), hiển thị dòng chi tiết thanh lịch `"Tai trái: 50%   ·   Tai phải: 100%   ·   Hộp sạc: 20%"`, xóa sạch khối chữ xám subtext.
+  - Thẻ mở rộng tai nghe TWS đối xứng 3 cột cao cấp (`TEMPLATE_TEXT_SYMMETRY` 3): Cột trái hiển thị % pin Tai trái to rõ + nhãn "Tai trái", Cột giữa đặt biểu tượng tai nghe lớn + thông số "Hộp sạc: xx%", Cột phải hiển thị % pin Tai phải to rõ + nhãn "Tai phải". Tuyệt đối không còn tình trạng nhồi nhét text dài một dòng hoặc dùng nút bấm Material giả.
+  - Thiết bị đơn/thiết bị đeo giữ chuẩn `TEMPLATE_BASE` (4) với vòng tròn tiến độ pin (`cardRing = effectivePct`).
+  - Viên nang thu gọn hiển thị `[Icon] L:xx%` bên trái và `R:xx%` (template 4) bên phải cân xứng 100%, không viền xanh lệch màu.
 - `CalendarEventDetector.kt` & `CalendarEventCard.kt` (`ID = 35015`): Nhận diện thông báo nhắc lịch hẹn, cuộc họp, sự kiện sắp diễn ra và chuyến bay/tàu xe từ Google Calendar, Lịch Vivo, Samsung Calendar, Microsoft Outlook và các thông báo `CATEGORY_EVENT` / `CATEGORY_REMINDER`; trích xuất khung giờ / thời gian đếm ngược và hiển thị viên nang nhắc lịch kèm icon lịch vẽ trực tiếp bằng Canvas 100% tương thích Vivo SuperX SDK.
 - `app/build.gradle.kts`, `proguard-rules.pro` & `ScreenshotSmartExtractor.kt`: Gỡ bỏ phụ thuộc `com.google.mlkit:text-recognition` (~55 MB native `.so`), gỡ quyền thừa `READ_MEDIA_IMAGES` và bật R8 `isMinifyEnabled = true` + `isShrinkResources = true` giúp giảm dung lượng APK từ 69.1 MB xuống còn **4.3 MB**.
 - `UpdateChecker.kt` (`app/src/main/java/com/originisle/android/ui/UpdateChecker.kt`): Gia cố bảo mật toàn diện: lọc `sanitizeApkFileName` & kiểm tra `canonicalPath` chống Path Traversal, khóa `HttpsURLConnection` & whitelist tên miền GitHub (`isAllowedGithubUrl`) khi redirect, xác thực `packageName` và chứng chỉ ký (`verifyDownloadedApk`) trước khi cài đặt, tự động dọn dẹp APK cũ (`cleanupOldApks`).
