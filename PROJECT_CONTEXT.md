@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.5` (mã bản dựng `versionCode = 10705`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.6` (mã bản dựng `versionCode = 10706`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,10 +54,16 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.5.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 5)
+└── OriginIsle-VN-v1.7.6.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 6)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- `BatteryCanvasRenderer.kt` & `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`):
+  - Chuẩn hóa giao diện thẻ mở rộng tai nghe TWS theo đúng hình ảnh Poster chính thức của Vivo TWS trên OriginOS 6:
+    1. Icon trung tâm: Dựng biểu tượng Hộp sạc tai nghe TWS (Charging Case) màu trắng ngọc ngà `#F8FAFC` cao cấp bằng Canvas Bitmap (`createChargingCaseIcon`) với bo góc mềm mại 0.18f, viền mảnh #E2E8F0, đường rãnh nắp (seam line) ở 38% và đèn LED trạng thái xanh lá (#00D084) hoặc vàng cam (#FFB020 khi sạc).
+    2. Header: Hiển thị tên tai nghe (ví dụ `vivo TWS` / `heobeos plus`) kèm dòng phụ đề `Đã kết nối` (`subtext = "Đã kết nối"`).
+    3. Bố cục 3 cột đối xứng: Cột trái `L xx%` (to) / `Tai trái` (nhỏ), Cột giữa Biểu tượng Hộp sạc + `Case xx%`, Cột phải `R xx%` (to) / `Tai phải` (nhỏ).
+    4. Mẫu thử nghiệm trong `postSample(context)` được cập nhật sang `vivo TWS` với thông số `L 85%`, `R 90%`, `Case 50%` khớp hoàn toàn với poster gốc.
 - `DownloadCard.kt` & `NotificationCastListener.kt`:
   - Đồng bộ trạng thái tải xuống hoàn tất chuẩn như Quick Share (chuyển tệp): loại bỏ hoàn toàn các chuỗi ký tự thô `"Tải xong"` và `"100%"` trên viên nang thu gọn; thay bằng biểu tượng dấu tích tròn xanh lá Canvas rực rỡ (`createGreenTickCircleIcon`) ở bên phải (`oi_show_right_icon = true`), bên trái giữ logo ứng dụng nguồn, tiêu đề mở rộng `"$appLabel · Đã tải xong"`. Chống drop icon trên Vivo OriginOS 6 SuperX.
 - `QuickShareDetector.kt` & `NotificationCastListener.kt`:

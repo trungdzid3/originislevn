@@ -216,4 +216,95 @@ object BatteryCanvasRenderer {
 
         return Icon.createWithBitmap(bitmap)
     }
+
+    /**
+     * Dựng Icon hộp sạc tai nghe TWS màu trắng sang trọng (#F8FAFC) bằng Canvas Bitmap:
+     * - Thân hộp sạc RectF bo góc mềm mại (corner = size * 0.18f).
+     * - Đổ bóng mờ nhẹ dưới hộp sạc.
+     * - Viền mảnh tinh tế #E2E8F0.
+     * - Đường rãnh nắp (seam line) ở 38% chiều cao thân hộp.
+     * - Chấm đèn LED tròn màu xanh lá (#00D084) hoặc vàng cam (#FFB020 khi sạc) ở giữa thân dưới.
+     */
+    fun createChargingCaseIcon(
+        context: Context,
+        level: Int = -1,
+        isCharging: Boolean = false,
+        size: Int = 120,
+    ): Icon {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val s = size.toFloat()
+        val padX = s * 0.12f
+        val padTop = s * 0.10f
+        val padBottom = s * 0.14f
+        val caseWidth = s - padX * 2f
+        val caseHeight = s - padTop - padBottom
+        val corner = size * 0.18f
+
+        // 1. Đổ bóng mờ nhẹ dưới hộp sạc
+        val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#30000000")
+        }
+        val shadowRect = RectF(
+            padX + s * 0.03f,
+            padTop + s * 0.04f,
+            padX + caseWidth + s * 0.03f,
+            padTop + caseHeight + s * 0.04f,
+        )
+        canvas.drawRoundRect(shadowRect, corner, corner, shadowPaint)
+
+        // 2. Thân hộp sạc RectF bo góc mềm mại
+        val caseRect = RectF(
+            padX,
+            padTop,
+            padX + caseWidth,
+            padTop + caseHeight,
+        )
+        val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#F8FAFC")
+        }
+        canvas.drawRoundRect(caseRect, corner, corner, bodyPaint)
+
+        // 3. Viền mảnh tinh tế #E2E8F0
+        val strokeW = maxOf(1.5f, s * 0.02f)
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = strokeW
+            color = Color.parseColor("#E2E8F0")
+        }
+        canvas.drawRoundRect(caseRect, corner, corner, strokePaint)
+
+        // 4. Đường rãnh nắp (seam line) ở 38% chiều cao thân hộp
+        val seamY = padTop + caseHeight * 0.38f
+        val seamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = maxOf(1f, s * 0.015f)
+            color = Color.parseColor("#CBD5E1")
+        }
+        canvas.drawLine(padX + strokeW, seamY, padX + caseWidth - strokeW, seamY, seamPaint)
+
+        // 5. Chấm đèn LED tròn màu xanh lá (#00D084) hoặc vàng cam (#FFB020 khi sạc) ở giữa thân dưới
+        val ledCenterX = s / 2f
+        val lowerBodyHeight = (padTop + caseHeight) - seamY
+        val ledCenterY = seamY + lowerBodyHeight * 0.45f
+        val ledRadius = maxOf(2.5f, s * 0.035f)
+
+        val ledColor = if (isCharging) {
+            Color.parseColor("#FFB020")
+        } else if (level in 0..20) {
+            Color.parseColor("#FF5247")
+        } else {
+            Color.parseColor("#00D084")
+        }
+        val ledPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = ledColor
+        }
+        canvas.drawCircle(ledCenterX, ledCenterY, ledRadius, ledPaint)
+
+        return Icon.createWithBitmap(bitmap)
+    }
 }

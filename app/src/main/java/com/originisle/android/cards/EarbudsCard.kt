@@ -2142,16 +2142,25 @@ object EarbudsCard {
                 // - Giữa: Biểu tượng tai nghe/hộp sạc + thông số Hộp sạc
                 // - Phải: % pin tai phải to rõ + nhãn "Tai phải"
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
+                putExtra(
+                    "oi_large_icon",
+                    BatteryCanvasRenderer.createChargingCaseIcon(
+                        context,
+                        safeTelemetry.case,
+                        safeTelemetry.isCaseCharging,
+                    ),
+                )
                 putExtra("title", name.take(20))
+                putExtra("subtext", "Đã kết nối")
                 val centerMsg = if (safeTelemetry.case in 0..100) {
-                    "Hộp sạc: ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) " ⚡" else ""}"
+                    "Case ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) " ⚡" else ""}"
                 } else {
                     "Đã kết nối"
                 }
                 putExtra("text", centerMsg)
-                putExtra("oi_extra1", "${safeTelemetry.left}%")
+                putExtra("oi_extra1", "L ${safeTelemetry.left}%")
                 putExtra("oi_extra2", "Tai trái${if (safeTelemetry.isLeftCharging) " ⚡" else ""}")
-                putExtra("oi_extra3", "${safeTelemetry.right}%")
+                putExtra("oi_extra3", "R ${safeTelemetry.right}%")
                 putExtra("oi_extra4", "Tai phải${if (safeTelemetry.isRightCharging) " ⚡" else ""}")
             } else {
                 // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
@@ -2382,20 +2391,20 @@ object EarbudsCard {
     }
 
     /**
-     * Phát thẻ mẫu Tai nghe TWS đa thành phần (Tai Trái 50%, Tai Phải 100%, Hộp sạc 20%)
+     * Phát thẻ mẫu Tai nghe TWS đa thành phần (Tai Trái 85%, Tai Phải 90%, Hộp sạc 50%) chuẩn poster Vivo TWS trên OriginOS 6
      * để kiểm thử trực tiếp viên nang L/R và thẻ mở rộng 3 ô khi ấn vào Đảo.
      */
     fun postSample(context: Context) {
         val ctx = context.applicationContext
-        val sampleName = "Tai nghe TWS"
+        val sampleName = "vivo TWS"
         val sampleTelemetry = EarbudsTelemetry(
-            main = 75,
-            left = 50,
-            right = 100,
-            case = 20,
+            main = 85,
+            left = 85,
+            right = 90,
+            case = 50,
             isLeftCharging = false,
             isRightCharging = false,
-            isCaseCharging = true,
+            isCaseCharging = false,
         )
         storeTelemetry(ctx, null, sampleName, sampleTelemetry)
         show(
