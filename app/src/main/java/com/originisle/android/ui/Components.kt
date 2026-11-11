@@ -1,13 +1,19 @@
 package com.originisle.android.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,8 +50,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -160,6 +170,12 @@ fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
                 width = 0.8.dp,
                 color = IsleColors.BorderHairline,
                 shape = RoundedCornerShape(GroupRadius),
+            )
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                ),
             ),
         content = content,
     )
@@ -311,7 +327,14 @@ fun NestedSettingContainer(
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .animateContentSize(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow,
+                            ),
+                        ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     content = content,
                 )
@@ -471,6 +494,132 @@ fun ChoiceChip(
             fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) selectedContent else IsleColors.TextChip,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * Nút chọn màu viền phát sáng chuẩn OriginOS 6 với hiệu ứng vòng chọn spring scale mượt mà.
+ */
+@Composable
+fun ColorSwatchPill(
+    label: String,
+    swatchColor: Color?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isAuto: Boolean = false,
+) {
+    val ringScale by animateFloatAsState(
+        targetValue = if (selected) 1.08f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "swatchRingScale",
+    )
+    val accentRef = swatchColor ?: IsleColors.Accent
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) IsleColors.SurfaceHigher else IsleColors.SurfaceHigh,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "swatchContainer",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) accentRef.copy(alpha = 0.72f) else IsleColors.BorderHairline,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "swatchBorder",
+    )
+    val ringAlpha by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "swatchRingAlpha",
+    )
+
+    Row(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(containerColor)
+            .border(
+                width = if (selected) 1.2.dp else 0.8.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(14.dp),
+            )
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .scale(ringScale),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (ringAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .alpha(ringAlpha)
+                        .border(1.8.dp, accentRef, CircleShape),
+                )
+            }
+            when {
+                isAuto -> {
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.sweepGradient(
+                                    listOf(
+                                        Color(0xFF00BFA5),
+                                        Color(0xFF0A59F7),
+                                        Color(0xFF9D4EDD),
+                                        Color(0xFFFFB020),
+                                        Color(0xFF00BFA5),
+                                    ),
+                                ),
+                            ),
+                    )
+                }
+                swatchColor != null -> {
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(swatchColor),
+                    )
+                }
+                else -> {
+                    val slashColor = IsleColors.TextSecondary
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(IsleColors.TextTertiary.copy(alpha = 0.25f))
+                            .border(0.8.dp, IsleColors.BorderHairline, CircleShape),
+                    ) {
+                        Canvas(Modifier.matchParentSize()) {
+                            drawLine(
+                                color = slashColor,
+                                start = Offset(size.width * 0.24f, size.height * 0.76f),
+                                end = Offset(size.width * 0.76f, size.height * 0.24f),
+                                strokeWidth = 1.6.dp.toPx(),
+                                cap = StrokeCap.Round,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) IsleColors.Text else IsleColors.TextChip,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

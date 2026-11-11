@@ -9,6 +9,10 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,12 +55,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,6 +83,8 @@ import com.originisle.android.service.QuietHours
 import com.originisle.android.ui.samples.IslandSamples
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.Normalizer
+import java.util.Locale
 
 /**
  * OriginOS 6 Settings Home (Đại tu giao diện chuẩn Vivo OriginOS 6):
@@ -86,15 +102,38 @@ fun HomeScreen(
     autoUpdateRelease: UpdateChecker.ReleaseInfo? = null,
     onDismissUpdate: () -> Unit = {},
 ) {
-    // 1. Quản lý trạng thái Theme (Sáng / Tối / Hệ thống)
+    // 1. Quản lý trạng thái Theme (Sáng / Tối / Hệ thống) & Tùy biến Đảo 2.0.0
     var themePref by remember { mutableStateOf(prefs.getString("app_theme", "SYSTEM") ?: "SYSTEM") }
     var islandPosition by remember { mutableStateOf(prefs.getString("island_position", "CENTER") ?: "CENTER") }
+    var suppressHeadsUp by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)) }
+    var suppressMode by remember {
+        mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
+    }
+    var customLightColor by remember {
+        mutableStateOf(prefs.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, LIGHT_COLOR_AUTO) ?: LIGHT_COLOR_AUTO)
+    }
+    var islandDurationSec by remember {
+        mutableIntStateOf(prefs.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC))
+    }
+    var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
+    var searchQuery by remember { mutableStateOf("") }
 
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             when (key) {
                 "app_theme" -> themePref = sp.getString("app_theme", "SYSTEM") ?: "SYSTEM"
                 "island_position" -> islandPosition = sp.getString("island_position", "CENTER") ?: "CENTER"
+                PREF_CAST_SUPPRESS_HEADS_UP -> suppressHeadsUp = sp.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)
+                PREF_CAST_SUPPRESS_MODE -> {
+                    suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
+                }
+                PREF_CAST_CUSTOM_LIGHT_COLOR -> {
+                    customLightColor = sp.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, LIGHT_COLOR_AUTO) ?: LIGHT_COLOR_AUTO
+                }
+                PREF_CAST_ISLAND_DURATION_SEC -> {
+                    islandDurationSec = sp.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC)
+                }
+                PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -199,8 +238,16 @@ fun HomeScreen(
     }
 
     var connected by remember { mutableStateOf(NotificationCastListener.instance != null) }
+    var deviceSnapshot by remember { mutableStateOf(DeviceInfoHelper.collect(context)) }
+    val superXSupported = remember { DeviceInfoHelper.isSuperXSupported(context) }
+
+    LaunchedEffect(tick.intValue) {
+        deviceSnapshot = DeviceInfoHelper.collect(context)
+    }
+
     LaunchedEffect(Unit) {
         CastLog.ensureLoaded(context)
+        deviceSnapshot = DeviceInfoHelper.collect(context)
         while (true) {
             connected = NotificationCastListener.instance != null
             delay(1000)
@@ -220,6 +267,44 @@ fun HomeScreen(
             },
         )
     }
+
+    val showHero = matchesSearchQuery(
+        searchQuery,
+        "thông tin thiết bị", "trạng thái", "superx", "ram", "pin", "chip", "soc",
+        deviceSnapshot.modelName, deviceSnapshot.originOsVersion, deviceSnapshot.socName,
+    )
+    val showGroup1 = matchesSearchQuery(
+        searchQuery,
+        "trạng thái", "dịch vụ cốt lõi", "đảo origin", "giao diện", "sáng", "tối", "vị trí đảo", "trái", "giữa", "phải",
+    )
+    val showGroupCustom20 = matchesSearchQuery(
+        searchQuery,
+        "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze", "màu viền",
+        "phát sáng", "thời lượng", "mở rộng thẻ", "chạm viên thuốc",
+    )
+    val showGroup2 = matchesSearchQuery(
+        searchQuery,
+        "dịch vụ trực tiếp", "tiện ích việt nam", "gọi xe", "grab", "be", "xanh sm", "shopeefood",
+        "ngân hàng", "biến động số dư", "zalo", "tiktok", "chuỗi", "tải xuống", "quick share", "lịch", "cuộc gọi",
+    )
+    val showGroup3 = matchesSearchQuery(
+        searchQuery,
+        "tiện ích hệ thống", "phần cứng", "nhạc", "spotify", "tai nghe", "earbuds", "pin", "sạc",
+        "âm thanh", "chuông", "rung", "im lặng", "đèn pin", "camera", "micro", "bảo mật",
+    )
+    val showGroup4 = matchesSearchQuery(
+        searchQuery,
+        "quy tắc hiển thị", "giờ yên tĩnh", "lọc thông báo", "tự ẩn", "màn hình khóa",
+        "otp", "số dư", "dnd", "không làm phiền", "nút thao tác",
+    )
+    val showGroup5 = matchesSearchQuery(
+        searchQuery,
+        "quản lý", "hỗ trợ", "ứng dụng được phép", "quyền hệ thống", "nhật ký hoạt động", "cập nhật",
+    )
+    val showTester = matchesSearchQuery(
+        searchQuery,
+        "phòng thử nghiệm", "mẫu đảo", "hiện lại tất cả", "dừng tất cả",
+    )
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -266,30 +351,57 @@ fun HomeScreen(
                 }
 
                 // Thanh tìm kiếm Pill shape bo tròn chuẩn Vivo Settings
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp)
-                        .clip(RoundedCornerShape(21.dp))
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
                         .background(IsleColors.SurfaceHigh)
+                        .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(22.dp))
                         .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.CenterStart,
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Icon(
-                            IsleIcons.Search,
-                            contentDescription = null,
-                            tint = IsleColors.TextSecondary,
-                            modifier = Modifier.size(18.dp),
+                    Icon(
+                        IsleIcons.Search,
+                        contentDescription = null,
+                        tint = IsleColors.TextSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Tìm kiếm cài đặt Đảo Origin",
+                                color = IsleColors.TextSecondary,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 14.sp, color = IsleColors.Text),
+                            cursorBrush = SolidColor(IsleColors.Accent),
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                        Text(
-                            text = "Tìm kiếm cài đặt Đảo Origin",
-                            color = IsleColors.TextSecondary,
-                            fontSize = 14.sp,
-                        )
+                    }
+                    if (searchQuery.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable(role = Role.Button, onClick = { searchQuery = "" }),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                IsleIcons.Close,
+                                contentDescription = "Xóa tìm kiếm",
+                                tint = IsleColors.TextSecondary,
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -306,7 +418,7 @@ fun HomeScreen(
 
         // BANNER QUYỀN THÔNG MINH: Chỉ hiển thị khi thiếu quyền hoặc bị chặn bởi OriginOS
         val missingPermissions = !connected || !listenerOk || !batteryOk
-        if (missingPermissions) {
+        if (missingPermissions && searchQuery.isBlank()) {
             item {
                 VivoOriginAttentionBanner(
                     connected = connected,
@@ -328,10 +440,29 @@ fun HomeScreen(
             }
         }
 
+        // THẺ HERO CHÍNH: THÔNG TIN THIẾT BỊ & TRẠNG THÁI ORIGIN ISLAND 2.0.0
+        if (showHero) {
+            item {
+                DeviceHeroCard(
+                    snapshot = deviceSnapshot,
+                    castOn = castOn,
+                    connected = connected,
+                    superXSupported = superXSupported,
+                    customLightColor = customLightColor,
+                    islandPosition = islandPosition,
+                    islandDurationSec = islandDurationSec,
+                    onRefresh = {
+                        CastLog.ensureLoaded(context)
+                        deviceSnapshot = DeviceInfoHelper.collect(context)
+                    },
+                )
+            }
+        }
+
         // ==========================================
         // NHÓM 1: TRẠNG THÁI & DỊCH VỤ CỐT LÕI
         // ==========================================
-        item {
+        if (showGroup1) item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel("Trạng thái & Dịch vụ cốt lõi")
                 GroupCard {
@@ -462,9 +593,161 @@ fun HomeScreen(
         }
 
         // ==========================================
+        // NHÓM TÙY BIẾN ĐẢO 2.0.0 & CHẶN POP-UP
+        // ==========================================
+        if (showGroupCustom20) item {
+            Column(
+                modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SectionLabel("Tùy biến Đảo 2.0.0 & Chặn Pop-up")
+                GroupCard {
+                    ToggleRow(
+                        IsleIcons.Shield,
+                        IsleColors.Accent,
+                        title = "Chỉ hiện trên viên thuốc (Chặn Pop-up nổi)",
+                        checked = suppressHeadsUp,
+                        subtitle = "Ngăn biểu ngữ thả xuống che màn hình, giữ trải nghiệm tập trung trên Đảo",
+                    ) {
+                        suppressHeadsUp = it
+                        prefs.edit().putBoolean(PREF_CAST_SUPPRESS_HEADS_UP, it).apply()
+                    }
+
+                    NestedSettingContainer(visible = suppressHeadsUp) {
+                        Text(
+                            "Chế độ xử lý thông báo gốc:",
+                            fontSize = 13.sp,
+                            color = IsleColors.TextSecondary,
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                SUPPRESS_MODE_SNOOZE to "Ẩn Pop-up nổi (Giữ trong khay)",
+                                SUPPRESS_MODE_ISLAND_ONLY to "Chỉ hiện trên Đảo (Ẩn thông báo phụ)",
+                            ).forEach { (mode, label) ->
+                                ChoiceChip(
+                                    label = label,
+                                    selected = suppressMode == mode,
+                                    onClick = {
+                                        suppressMode = mode
+                                        prefs.edit().putString(PREF_CAST_SUPPRESS_MODE, mode).apply()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalPadding = 12.dp,
+                                )
+                            }
+                        }
+                        Text(
+                            if (suppressMode == SUPPRESS_MODE_ISLAND_ONLY) {
+                                "Thông báo đã phát lên Đảo sẽ không lưu thêm bản phụ trong thanh thông báo."
+                            } else {
+                                "Chỉ chặn biểu ngữ pop-up bật xuống, vẫn lưu thông báo trong khay hệ thống."
+                            },
+                            fontSize = 12.sp,
+                            color = IsleColors.TextSecondary,
+                            lineHeight = 16.sp,
+                        )
+                    }
+
+                    GroupDivider()
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Màu viền phát sáng Đảo",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IsleColors.Text,
+                            )
+                            Text(
+                                "Chọn màu hào quang xung quanh viên thuốc Origin Island 2.0.0",
+                                fontSize = 13.sp,
+                                color = IsleColors.TextSecondary,
+                            )
+                        }
+                        val lightOptions = listOf(
+                            Triple(LIGHT_COLOR_AUTO, "Tự động", null),
+                            Triple(LIGHT_COLOR_NONE, "Tắt viền", null),
+                            Triple(LIGHT_COLOR_EMERALD, "Ngọc lục", Color(0xFF00D084)),
+                            Triple(LIGHT_COLOR_BLUE, "Xanh lam", Color(0xFF0A59F7)),
+                            Triple(LIGHT_COLOR_PURPLE, "Tím Neon", Color(0xFF9D4EDD)),
+                            Triple(LIGHT_COLOR_AMBER, "Hổ phách", Color(0xFFFFB020)),
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            lightOptions.chunked(3).forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    rowItems.forEach { (value, label, color) ->
+                                        ColorSwatchPill(
+                                            label = label,
+                                            swatchColor = color,
+                                            isAuto = value == LIGHT_COLOR_AUTO,
+                                            selected = customLightColor == value,
+                                            onClick = {
+                                                customLightColor = value
+                                                prefs.edit().putString(PREF_CAST_CUSTOM_LIGHT_COLOR, value).apply()
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    GroupDivider()
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "Thời lượng hiển thị viên thuốc",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IsleColors.Text,
+                        )
+                        val durationValues = listOf(3, 5, 7, 10)
+                        val durationIdx = durationValues.indexOf(islandDurationSec).let { if (it >= 0) it else 1 }
+                        SegmentedControl(
+                            options = listOf("3s", "5s", "7s", "10s"),
+                            selected = durationIdx,
+                            onSelect = { idx ->
+                                val sec = durationValues.getOrElse(idx) { DEFAULT_ISLAND_DURATION_SEC }
+                                islandDurationSec = sec
+                                prefs.edit().putInt(PREF_CAST_ISLAND_DURATION_SEC, sec).apply()
+                            },
+                        )
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Buttons,
+                        IsleColors.Accent,
+                        title = "Chạm viên thuốc để mở rộng thẻ",
+                        checked = tapExpandCard,
+                        subtitle = "Nhấn vào viên thuốc thu gọn để bung thẻ thông báo chi tiết trên Đảo",
+                    ) {
+                        tapExpandCard = it
+                        prefs.edit().putBoolean(PREF_CAST_TAP_EXPAND_CARD, it).apply()
+                    }
+                }
+            }
+        }
+
+        // ==========================================
         // NHÓM 2: DỊCH VỤ TRỰC TIẾP & TIỆN ÍCH VIỆT NAM
         // ==========================================
-        item {
+        if (showGroup2) item {
             Column(
                 modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -598,7 +881,7 @@ fun HomeScreen(
         // ==========================================
         // NHÓM 3: TIỆN ÍCH HỆ THỐNG & PHẦN CỨNG
         // ==========================================
-        item {
+        if (showGroup3) item {
             Column(
                 modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -714,7 +997,7 @@ fun HomeScreen(
         // ==========================================
         // NHÓM 4: QUY TẮC HIỂN THỊ & GIỜ YÊN TĨNH
         // ==========================================
-        item {
+        if (showGroup4) item {
             Column(
                 modifier = Modifier.alpha(if (castOn) 1f else 0.4f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -877,7 +1160,7 @@ fun HomeScreen(
         // ==========================================
         // NHÓM 5: QUẢN LÝ & TRẢI NGHIỆM ĐẢO
         // ==========================================
-        item {
+        if (showGroup5) item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel("Quản lý & Hỗ trợ")
                 GroupCard {
@@ -912,7 +1195,7 @@ fun HomeScreen(
         }
 
         // Phòng thử nghiệm mẫu Đảo & Nút điều khiển
-        item {
+        if (showTester) item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SectionLabel("Phòng thử nghiệm mẫu Đảo")
                 SampleTester(context)
@@ -933,6 +1216,16 @@ fun HomeScreen(
                         content = IsleColors.Danger,
                     )
                 }
+            }
+        }
+
+        if (
+            searchQuery.isNotBlank() &&
+            !showHero && !showGroup1 && !showGroupCustom20 &&
+            !showGroup2 && !showGroup3 && !showGroup4 && !showGroup5 && !showTester
+        ) {
+            item {
+                EmptyMessage("Không tìm thấy cài đặt phù hợp.")
             }
         }
     }
@@ -1140,4 +1433,441 @@ private fun VivoOriginAttentionBanner(
             }
         }
     }
+}
+
+@Composable
+private fun DeviceHeroCard(
+    snapshot: DeviceSnapshot,
+    castOn: Boolean,
+    connected: Boolean,
+    superXSupported: Boolean,
+    customLightColor: String,
+    islandPosition: String,
+    islandDurationSec: Int,
+    onRefresh: () -> Unit,
+) {
+    val targetGlowColor = resolveGlowColor(customLightColor, IsleColors.GlowAccent)
+    val animatedGlowColor by animateColorAsState(
+        targetValue = if (castOn) targetGlowColor else Color.Transparent,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "heroIslandGlow",
+    )
+    val hasGlow = castOn && customLightColor != LIGHT_COLOR_NONE
+    var spinDegrees by remember { mutableFloatStateOf(0f) }
+    val animatedSpin by animateFloatAsState(
+        targetValue = spinDegrees,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "heroRefreshSpin",
+    )
+
+    val displayModel = remember(snapshot.marketBrand, snapshot.modelName) {
+        if (snapshot.modelName.startsWith(snapshot.marketBrand, ignoreCase = true)) {
+            snapshot.modelName
+        } else {
+            "${snapshot.marketBrand} ${snapshot.modelName}"
+        }
+    }
+
+    GroupCard {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Mô phỏng khung màn hình & viên thuốc Origin Island 2.0.0 thu nhỏ
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(IsleColors.PreviewBg)
+                    .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                val pillAlignment = when (islandPosition) {
+                    "LEFT" -> Alignment.CenterStart
+                    "RIGHT" -> Alignment.CenterEnd
+                    else -> Alignment.Center
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = pillAlignment,
+                ) {
+                    if (islandPosition == "CENTER") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "09:41",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IsleColors.PreviewLabel,
+                            )
+                            Text(
+                                text = "${snapshot.batteryPct}%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IsleColors.PreviewLabel,
+                            )
+                        }
+                    }
+
+                    // Viên thuốc Origin Island 2.0.0 có viền hào quang phát sáng
+                    Row(
+                        modifier = Modifier
+                            .width(164.dp)
+                            .height(30.dp)
+                            .drawBehind {
+                                if (hasGlow) {
+                                    val radius = size.height / 2f
+                                    drawRoundRect(
+                                        color = animatedGlowColor.copy(alpha = 0.14f),
+                                        topLeft = Offset(-5.dp.toPx(), -5.dp.toPx()),
+                                        size = Size(size.width + 10.dp.toPx(), size.height + 10.dp.toPx()),
+                                        cornerRadius = CornerRadius(radius + 5.dp.toPx(), radius + 5.dp.toPx()),
+                                    )
+                                    drawRoundRect(
+                                        color = animatedGlowColor.copy(alpha = 0.30f),
+                                        topLeft = Offset(-2.dp.toPx(), -2.dp.toPx()),
+                                        size = Size(size.width + 4.dp.toPx(), size.height + 4.dp.toPx()),
+                                        cornerRadius = CornerRadius(radius + 2.dp.toPx(), radius + 2.dp.toPx()),
+                                        style = Stroke(width = 2.dp.toPx()),
+                                    )
+                                }
+                            }
+                            .clip(CircleShape)
+                            .background(Color.Black)
+                            .then(
+                                if (hasGlow) {
+                                    Modifier.border(
+                                        width = 1.4.dp,
+                                        brush = Brush.horizontalGradient(
+                                            listOf(
+                                                animatedGlowColor,
+                                                animatedGlowColor.copy(alpha = 0.65f),
+                                                animatedGlowColor,
+                                            ),
+                                        ),
+                                        shape = CircleShape,
+                                    )
+                                } else {
+                                    Modifier.border(1.dp, Color(0xFF2E2E32), CircleShape)
+                                },
+                            )
+                            .padding(horizontal = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (!castOn) Color(0xFF5A5D66)
+                                        else if (hasGlow) animatedGlowColor
+                                        else IsleColors.Accent,
+                                    ),
+                            )
+                            Text(
+                                text = if (castOn) "Origin" else "Tạm tắt",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White.copy(alpha = if (castOn) 0.92f else 0.55f),
+                                maxLines = 1,
+                            )
+                        }
+
+                        // Camera punch-hole
+                        Box(
+                            modifier = Modifier
+                                .size(11.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF0C0D12))
+                                .border(0.8.dp, Color(0xFF252832), CircleShape),
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            listOf(0.5f, 0.95f, 0.65f).forEach { ratio ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(2.5.dp)
+                                        .height((11f * ratio).dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (castOn && hasGlow) animatedGlowColor else Color.White.copy(alpha = 0.7f),
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Viền sáng: ${lightColorLabel(customLightColor)} · Giữ ${islandDurationSec}s",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = IsleColors.PreviewLabel,
+                    )
+                    Text(
+                        text = if (castOn) "2.0.0 LIVE" else "CHỜ BẬT",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (castOn) IsleColors.AccentText else IsleColors.PreviewLabel,
+                    )
+                }
+            }
+
+            // Tiêu đề thiết bị + Hệ điều hành + Nút làm mới thông số nhanh
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(IsleColors.Accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        IsleIcons.Smartphone,
+                        contentDescription = null,
+                        tint = IsleColors.Accent,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = displayModel,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IsleColors.Text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${snapshot.originOsVersion} · Android ${snapshot.androidVersion}",
+                        fontSize = 13.sp,
+                        color = IsleColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(IsleColors.SurfaceHigh)
+                        .border(0.8.dp, IsleColors.BorderHairline, CircleShape)
+                        .clickable(
+                            role = Role.Button,
+                            onClick = {
+                                spinDegrees += 360f
+                                onRefresh()
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        IsleIcons.Refresh,
+                        contentDescription = "Làm mới thông số thiết bị",
+                        tint = IsleColors.Accent,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(animatedSpin),
+                    )
+                }
+            }
+
+            // Lưới thông số phần cứng (Squircle 16dp SurfaceHigh + Hairline 0.8dp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    HeroSpecTile(
+                        label = "Vi xử lý (SoC)",
+                        value = snapshot.socName,
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeroSpecTile(
+                        label = "RAM khả dụng / Tổng",
+                        value = "${snapshot.availRamGb} / ${snapshot.totalRamGb}",
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val tempText = String.format(Locale.US, "%.1f°C", snapshot.batteryTempC)
+                    val batteryText = buildString {
+                        append("${snapshot.batteryPct}% · $tempText")
+                        if (snapshot.isCharging) append(" · Sạc")
+                    }
+                    HeroSpecTile(
+                        label = "Pin & Nhiệt độ",
+                        value = batteryText,
+                        valueColor = when {
+                            snapshot.batteryTempC >= 42f -> IsleColors.Warn
+                            snapshot.isCharging -> IsleColors.GoodText
+                            else -> IsleColors.Text
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeroSpecTile(
+                        label = "Lượt Đảo hôm nay",
+                        value = "${snapshot.todayCastCount} thẻ đã phát",
+                        valueColor = IsleColors.AccentText,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            // Thanh trạng thái SuperX Engine & Phiên bản 2.0.0
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(IsleColors.SurfaceHigh)
+                    .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val engineColor = when {
+                        superXSupported && connected && castOn -> IsleColors.Good
+                        superXSupported -> IsleColors.Warn
+                        else -> IsleColors.Accent
+                    }
+                    val engineLabel = when {
+                        superXSupported && connected && castOn -> "SuperX Engine: Hoạt động"
+                        superXSupported && !castOn -> "SuperX Engine: Đang tạm tắt"
+                        superXSupported -> "SuperX Engine: Chờ kết nối"
+                        else -> "SuperX Engine: Chế độ tương thích"
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(engineColor),
+                    )
+                    Text(
+                        text = engineLabel,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = IsleColors.Text,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(IsleColors.Accent.copy(alpha = 0.14f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = "v2.0.0",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IsleColors.AccentText,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroSpecTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = IsleColors.Text,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(IsleColors.SurfaceHigh)
+            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = IsleColors.TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun resolveGlowColor(prefValue: String, autoFallback: Color): Color = when (prefValue) {
+    LIGHT_COLOR_NONE -> Color.Transparent
+    LIGHT_COLOR_EMERALD -> Color(0xFF00D084)
+    LIGHT_COLOR_BLUE -> Color(0xFF0A59F7)
+    LIGHT_COLOR_PURPLE -> Color(0xFF9D4EDD)
+    LIGHT_COLOR_AMBER -> Color(0xFFFFB020)
+    else -> autoFallback
+}
+
+private fun lightColorLabel(prefValue: String): String = when (prefValue) {
+    LIGHT_COLOR_NONE -> "Tắt"
+    LIGHT_COLOR_EMERALD -> "Ngọc lục"
+    LIGHT_COLOR_BLUE -> "Xanh lam"
+    LIGHT_COLOR_PURPLE -> "Tím Neon"
+    LIGHT_COLOR_AMBER -> "Hổ phách"
+    else -> "Tự động"
+}
+
+private fun matchesSearchQuery(query: String, vararg keywords: String): Boolean {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return true
+    val normalizedQuery = normalizeForSearch(trimmed)
+    return keywords.any { normalizeForSearch(it).contains(normalizedQuery) }
+}
+
+private fun normalizeForSearch(input: String): String {
+    val decomposed = Normalizer.normalize(input, Normalizer.Form.NFD)
+    return decomposed
+        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+        .replace('đ', 'd')
+        .replace('Đ', 'd')
+        .lowercase(Locale.ROOT)
 }
