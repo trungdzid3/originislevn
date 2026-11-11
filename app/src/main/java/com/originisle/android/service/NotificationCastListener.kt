@@ -170,6 +170,12 @@ class NotificationCastListener : NotificationListenerService() {
         /** Minimum gap between component toggles in [forceRebind]. */
         private const val REBIND_THROTTLE_MS = 10_000L
 
+        /** Thời lượng tạm ẩn pop-up (ms) trong chế độ SNOOZE và TTL chống lặp. */
+        private const val SNOOZE_DURATION_MS = 150L
+        private const val SUPPRESS_DEDUP_TTL_MS = 3_000L
+        private const val ISLAND_ONLY_CANCEL_DELAY_MS = 120L
+        private const val ISLAND_ONLY_TTL_MS = 15_000L
+
         @Volatile
         private var lastRebindAt = 0L
 
@@ -397,6 +403,12 @@ class NotificationCastListener : NotificationListenerService() {
      * deliberately re-cast with an unchanged postTime (see [pollRunnable]).
      */
     private val lastCastPostTime = ConcurrentHashMap<String, Long>()
+
+    /** Chống lặp chặn pop-up nổi (TTL 3s) và giữ thẻ Đảo khi tự ẩn thông báo gốc (TTL 15s). */
+    private val suppressedPopupKeys = ConcurrentHashMap<String, Long>()
+    private val islandOnlyCancelledKeys = ConcurrentHashMap<String, Long>()
+    private val recentlySnoozedKeys = ConcurrentHashMap<String, Long>()
+    private val pendingIslandOnlyCancels = ConcurrentHashMap<String, Runnable>()
 
     /** Lưu trữ tiến độ và trạng thái hoàn tất cuối cùng của tệp đang truyền / tải xuống. */
     private val transferProgressMap = ConcurrentHashMap<Int, Int>()
@@ -938,6 +950,11 @@ class NotificationCastListener : NotificationListenerService() {
         stopSystemCards()
         wearableConnectionState.clear()
         fullyChargedNoticeMap.clear()
+        suppressedPopupKeys.clear()
+        islandOnlyCancelledKeys.clear()
+        recentlySnoozedKeys.clear()
+        pendingIslandOnlyCancels.values.forEach { pollHandler.removeCallbacks(it) }
+        pendingIslandOnlyCancels.clear()
         if (instance === this) instance = null
         connectedAt = 0L
         pollHandler.removeCallbacks(pollRunnable)
@@ -986,6 +1003,7 @@ class NotificationCastListener : NotificationListenerService() {
             // a redelivery, and it's the one way to bring back a message/payment card the user
             // dismissed from the island while its source notification is still on the device.
             lastCastPostTime.remove(sbn.key)
+            recentlySnoozedKeys.remove(sbn.key)
             if (sbn.packageName != packageName) runCatching { onNotificationPosted(sbn) }
         }
         return notifs.size
@@ -1080,13 +1098,27 @@ class NotificationCastListener : NotificationListenerService() {
 
             // 1) Biến động số dư ngân hàng Việt Nam (Vietcombank, Techcombank, MB, MoMo, …).
             //    Phải kiểm tra đầu tiên để không bị nhận diện nhầm mã giao dịch/số tài khoản.
+            val nowMs = System.currentTimeMillis()
+            val isOngoingOrLiveEarly = sbn.isOngoing ||
+                (n.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
+                isCall ||
+                extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0) > 0
+            if (!isOngoingOrLiveEarly && isRecentlySnoozed(sbn.key, nowMs)) {
+                return
+            }
+
             val bankTx = VietnamBankDetector.parse(sbn)
             if (bankTx != null && prefs.getBoolean("cast_payment", true) && prefs.getBoolean("cast_vietnam_banks", true)) {
+                if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
+                    log(sbn, "bỏ qua — biến động số dư chưa thay đổi", false)
+                    return
+                }
                 val id = IconCache.castIdFor(sbn)
                 val appIcon = IconCache.safeAppIcon(applicationContext, sbn.packageName)
                 val click = sbn.notification.contentIntent
                     ?: fallbackClickIntent(applicationContext, sbn.packageName)
                 PaymentCard.postBankTransaction(applicationContext, id, appIcon, bankTx, click)
+                suppressSystemPopupIfEnabled(sbn, isOngoingOrLive = false, isTransientPriority = true)
                 val dir = if (bankTx.isIncome) "cộng tiền" else "trừ tiền"
                 log(sbn, "hiển thị — biến động số dư $dir: ${bankTx.formattedAmount}", true)
                 return
@@ -1121,7 +1153,12 @@ class NotificationCastListener : NotificationListenerService() {
             ) {
                 val streakInfo = TikTokStreakDetector.parse(sbn)
                 if (streakInfo != null) {
+                    if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
+                        log(sbn, "bỏ qua — chuỗi TikTok chưa thay đổi", false)
+                        return
+                    }
                     TikTokStreakCard.post(applicationContext, streakInfo, sbn)
+                    suppressSystemPopupIfEnabled(sbn, isOngoingOrLive = false, isTransientPriority = true)
                     log(sbn, "hiển thị — chuỗi TikTok: ${streakInfo.friendName}", true)
                     return
                 }
@@ -1471,6 +1508,7 @@ class NotificationCastListener : NotificationListenerService() {
                 }
                 log(sbn, "hiển thị — nhắc lịch hẹn: ${calInfo.title}", true)
                 CalendarEventCard.post(applicationContext, calInfo, sbn)
+                suppressSystemPopupIfEnabled(sbn, isOngoingOrLive = false, isTransientPriority = true)
                 return
             }
         }
@@ -1483,7 +1521,10 @@ class NotificationCastListener : NotificationListenerService() {
                 if (lastCastPostTime.put(sbn.key, sbn.postTime) == sbn.postTime) {
                     log(sbn, "bỏ qua — thông tin chưa thay đổi", false); return
                 }
-                castPayment(sbn, it); log(sbn, "hiển thị — biến động số dư", true); return
+                castPayment(sbn, it)
+                suppressSystemPopupIfEnabled(sbn, isOngoingOrLive = false, isTransientPriority = true)
+                log(sbn, "hiển thị — biến động số dư", true)
+                return
             }
         }
 
@@ -1530,11 +1571,86 @@ class NotificationCastListener : NotificationListenerService() {
                     Log.e(TAG, "message card failed, falling back", it)
                     GenericCard.post(applicationContext, sbn, isLive)
                 }
+            suppressSystemPopupIfEnabled(sbn, isOngoingOrLive = false, isTransientPriority = false)
         } else {
             GenericCard.post(applicationContext, sbn, isLive)
+            suppressSystemPopupIfEnabled(sbn, isOngoingOrLive = isLive, isTransientPriority = false)
         }
         } catch (t: Throwable) {
             Log.e(TAG, "Loi onNotificationPosted", t)
+        }
+    }
+
+    private fun pruneSuppressCaches(now: Long) {
+        suppressedPopupKeys.entries.removeIf { now - it.value >= SUPPRESS_DEDUP_TTL_MS }
+        recentlySnoozedKeys.entries.removeIf { now - it.value >= SUPPRESS_DEDUP_TTL_MS }
+        islandOnlyCancelledKeys.entries.removeIf { now - it.value >= ISLAND_ONLY_TTL_MS }
+    }
+
+    private fun isRecentlySnoozed(key: String, now: Long): Boolean {
+        val ts = recentlySnoozedKeys[key] ?: return false
+        if (now - ts < SUPPRESS_DEDUP_TTL_MS) return true
+        recentlySnoozedKeys.remove(key, ts)
+        return false
+    }
+
+    private fun isIslandOnlyCancelled(key: String, now: Long): Boolean {
+        val ts = islandOnlyCancelledKeys[key] ?: return false
+        if (now - ts < ISLAND_ONLY_TTL_MS) return true
+        islandOnlyCancelledKeys.remove(key, ts)
+        return false
+    }
+
+    /**
+     * Chặn Pop-up nổi (Heads-Up) của hệ thống hoặc tự ẩn thông báo gốc ở thanh trạng thái
+     * ngay sau khi thông báo thoáng qua đã cast thành công lên Đảo Origin.
+     */
+    private fun suppressSystemPopupIfEnabled(
+        sbn: StatusBarNotification,
+        isOngoingOrLive: Boolean,
+        isTransientPriority: Boolean,
+    ) {
+        if (isOngoingOrLive) return
+        val n = sbn.notification
+        val extras = n.extras
+        val template = extras?.getString(NotificationCompat.EXTRA_TEMPLATE)
+        val isCall = n.category == NotificationCompat.CATEGORY_CALL ||
+            template == "android.app.Notification\$CallStyle"
+        if (isCall) return
+        if (sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0) return
+        if (!isTransientPriority && (n.flags and Notification.FLAG_NO_CLEAR) != 0) return
+        if (DownloadDetector.isDownload(sbn) || QuickShareDetector.isQuickShare(sbn)) return
+        if (isActualMediaPlaybackNotification(sbn, extractMediaSessionToken(extras))) return
+
+        val prefs = getSharedPreferences(PREFS, 0)
+        if (!prefs.getBoolean("cast_suppress_heads_up", false)) return
+
+        val key = sbn.key
+        val now = System.currentTimeMillis()
+        pruneSuppressCaches(now)
+
+        if (isRecentlySnoozed(key, now)) return
+        val lastSuppressedAt = suppressedPopupKeys[key]
+        if (lastSuppressedAt != null && now - lastSuppressedAt < SUPPRESS_DEDUP_TTL_MS) return
+
+        val mode = prefs.getString("cast_suppress_mode", "SNOOZE")?.uppercase() ?: "SNOOZE"
+        suppressedPopupKeys[key] = now
+
+        if (mode == "ISLAND_ONLY") {
+            pendingIslandOnlyCancels.remove(key)?.let { pollHandler.removeCallbacks(it) }
+            val task = Runnable {
+                pendingIslandOnlyCancels.remove(key)
+                islandOnlyCancelledKeys[key] = System.currentTimeMillis()
+                runCatching { cancelNotification(key) }
+                    .onFailure { Log.w(TAG, "cancelNotification failed for $key", it) }
+            }
+            pendingIslandOnlyCancels[key] = task
+            pollHandler.postDelayed(task, ISLAND_ONLY_CANCEL_DELAY_MS)
+        } else {
+            lastCastPostTime[key] = sbn.postTime
+            recentlySnoozedKeys[key] = now
+            runCatching { snoozeNotification(key, SNOOZE_DURATION_MS) }
+                .onFailure { Log.w(TAG, "snoozeNotification failed for $key", it) }
         }
     }
 
@@ -1815,11 +1931,20 @@ class NotificationCastListener : NotificationListenerService() {
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        lastEventAt = System.currentTimeMillis()
+        val now = System.currentTimeMillis()
+        lastEventAt = now
+        pruneSuppressCaches(now)
+
+        if (isIslandOnlyCancelled(sbn.key, now) || isRecentlySnoozed(sbn.key, now)) {
+            return
+        }
+
+        pendingIslandOnlyCancels.remove(sbn.key)?.let { pollHandler.removeCallbacks(it) }
         lastOutcome.remove(sbn.key)
         lastScorePostTime.remove(sbn.key)
         lastCastPostTime.remove(sbn.key)
         lastEarbudsNotifText.remove(sbn.key)
+        suppressedPopupKeys.remove(sbn.key)
 
         if (TikTokStreakDetector.isTikTokStreak(sbn)) {
             TikTokStreakCard.clear(applicationContext)

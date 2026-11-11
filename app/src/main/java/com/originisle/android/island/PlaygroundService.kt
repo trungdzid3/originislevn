@@ -228,10 +228,12 @@ class PlaygroundService : Service() {
         val navMsg = intent.getStringExtra("oi_nav_msg")
         val navAssist = intent.getStringExtra("oi_nav_assist")
 
+        val prefs = getSharedPreferences(PREFS_NAME, 0)
+
         val bgColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_bg_color"), 0)
         val fgColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_fg_color"), 0)
         val cardBgColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_card_bg_color"), 0)
-        val lightColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_light_color"), 0)
+        val rawLightColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_light_color"), 0)
 
         val showProgress = intent.getBooleanExtra("show_progress", false)
         val progressMax = intent.getIntExtra("progress_max", 0)
@@ -247,13 +249,18 @@ class PlaygroundService : Service() {
             "oi_displays",
             OriginIslandConstants.DISPLAY_STATUSBAR or OriginIslandConstants.DISPLAY_AOD,
         )
-        val lockscreenOptIn = getSharedPreferences(PREFS_NAME, 0)
-            .getBoolean("cast_lockscreen_live_card", false)
+        val lockscreenOptIn = prefs.getBoolean("cast_lockscreen_live_card", false)
         val displays = (baseDisplays and OriginIslandConstants.DISPLAY_LOCKSCREEN.inv()) or
             (if (lockscreenOptIn) OriginIslandConstants.DISPLAY_LOCKSCREEN else 0)
         val showNotify = intent.getBooleanExtra("oi_show_notify", false)
         val islandNotify = intent.getBooleanExtra("oi_island_notify", false)
-        val islandShowTime = intent.getIntExtra("oi_island_show_time", 0)
+        val rawIslandShowTime = intent.getIntExtra("oi_island_show_time", 0)
+        val customDurationSec = prefs.getInt("cast_island_duration_sec", 5).coerceAtLeast(0)
+        val islandShowTime = when {
+            rawIslandShowTime > 0 -> rawIslandShowTime
+            customDurationSec > 0 -> customDurationSec
+            else -> 0
+        }
         val forceShow = intent.getBooleanExtra("oi_force_show", false)
         val dismissWhenKill = intent.getBooleanExtra("oi_dismiss_when_kill", true)
         val keepScreenOn = intent.getBooleanExtra("oi_keep_screen_on", false)
@@ -263,6 +270,16 @@ class PlaygroundService : Service() {
         val lightMode = intent.getIntExtra("oi_light_mode", 0)
         val generatingStatus = intent.getIntExtra("oi_generating_status", 0)
         val iconStatusType = intent.getIntExtra("oi_icon_status_type", -1)
+        val customLightPref = prefs.getString("cast_custom_light_color", "AUTO")?.trim().orEmpty()
+        val lightColor = when {
+            customLightPref.equals("NONE", ignoreCase = true) -> 0
+            customLightPref.startsWith("#") &&
+                iconStatusType != OriginIslandConstants.ICON_STATUS_FAIL -> {
+                val parsed = OriginIslandBuilder.parseColor(customLightPref, 0)
+                if ((parsed ushr 24) != 0) parsed else rawLightColor
+            }
+            else -> rawLightColor
+        }
         val waveState = intent.getIntExtra("oi_wave_state", 1)
         val waveColorList = intent.getStringArrayListExtra("oi_wave_color_list")
             ?: intent.getStringArrayListExtra("oi_wave_colors")
@@ -326,7 +343,15 @@ class PlaygroundService : Service() {
 
         val btnTransparent = intent.getBooleanExtra("oi_btn_transparent", false)
         val btnType = intent.getIntExtra("oi_btn_type", 1)
-        val islandClickExpand = intent.getBooleanExtra("oi_island_click_expand", false)
+        val rawIslandClickExpand = intent.getBooleanExtra("oi_island_click_expand", false)
+        val tapExpandCard = prefs.getBoolean("cast_tap_expand_card", true)
+        val isMandatoryCallOrBattery = id in setOf(35001, 35004, 35011, 35014) ||
+            scene in setOf("INCALLING", "VOIPCALL")
+        val islandClickExpand = when {
+            isMandatoryCallOrBattery -> rawIslandClickExpand
+            !tapExpandCard && clickResp != null -> false
+            else -> tapExpandCard || rawIslandClickExpand
+        }
         val subImage: Icon? = if (plain) null else intent.getParcelableExtra("oi_sub_image", Icon::class.java)
         val subClickResp: PendingIntent? = if (plain) null else intent.getParcelableExtra("oi_sub_click_resp", PendingIntent::class.java)
 
@@ -421,12 +446,25 @@ class PlaygroundService : Service() {
         // card posters set — media, sports and any ongoing/call/progress GenericCard all mark
         // themselves live), and only when the user opted into a duration in Cast settings.
         val explicitAutoDismissMs = intent.getLongExtra("oi_auto_dismiss_ms", 0L)
-        val autoDismissSec = getSharedPreferences(PREFS_NAME, 0).getInt("cast_auto_dismiss_seconds", 5)
+        val hasAutoDismissPref = prefs.contains("cast_auto_dismiss_seconds")
+        val autoDismissSec = prefs.getInt("cast_auto_dismiss_seconds", 5).coerceAtLeast(0)
         val isTransientCardId = id in setOf(35004, 35008, 35009, 35011, 35012, 35014, 35015) || id >= 40000 || id in 9900..9999
         val dismissDelayMs: Long = when {
             explicitAutoDismissMs > 0L -> explicitAutoDismissMs
-            !isOngoing && autoDismissSec > 0 -> autoDismissSec * 1000L
-            isTransientCardId && !isOngoing -> 5000L
+            !isOngoing -> {
+                val resolvedSec = when {
+                    hasAutoDismissPref && autoDismissSec == 0 -> 0
+                    autoDismissSec != 5 && autoDismissSec > 0 -> autoDismissSec
+                    customDurationSec > 0 -> customDurationSec
+                    autoDismissSec > 0 -> autoDismissSec
+                    else -> 0
+                }
+                when {
+                    resolvedSec > 0 -> resolvedSec * 1000L
+                    isTransientCardId -> if (customDurationSec > 0) customDurationSec * 1000L else 5000L
+                    else -> 0L
+                }
+            }
             else -> 0L
         }
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
