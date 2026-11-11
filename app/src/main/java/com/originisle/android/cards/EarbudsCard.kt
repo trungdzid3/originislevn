@@ -2177,69 +2177,58 @@ object EarbudsCard {
             putExtra("oi_island_click_expand", true)
 
             if (hasDetailedBuds) {
-                // Tạo icon tai nghe in-ear ngọc trai trắng siêu nét đối xứng 2 bên Đảo
-                val leftBudIcon = BatteryCanvasRenderer.createBudCapsuleIcon(
+                // 1. Viên nang thu gọn: 2 icon tai nghe 3D ngọc trai sắc nét kèm vạch pin mini đứng
+                val leftBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
                     context,
                     isLeft = true,
                     level = safeTelemetry.left,
                     isCharging = safeTelemetry.isLeftCharging,
+                    size = 96,
                 )
-                val rightBudIcon = BatteryCanvasRenderer.createBudCapsuleIcon(
+                val rightBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
                     context,
                     isLeft = false,
                     level = safeTelemetry.right,
                     isCharging = safeTelemetry.isRightCharging,
+                    size = 96,
                 )
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
-                // Tạo Banner 3D Toàn cảnh gồm cả 3 thiết bị (Tai trái 3D - Hộp sạc 3D - Tai phải 3D) chuẩn 100% Poster OriginOS 6
-                val expandedLargeIcon = BatteryCanvasRenderer.createTwsTrioBannerIcon(
+
+                // 2. Thẻ mở rộng: Hộp sạc 3D mở nắp kích thước chuẩn 240x240 px
+                val expandedLargeIcon = BatteryCanvasRenderer.createChargingCaseIcon(
                     context,
-                    leftLevel = safeTelemetry.left,
-                    rightLevel = safeTelemetry.right,
-                    caseLevel = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct,
-                    isLeftCharging = safeTelemetry.isLeftCharging,
-                    isRightCharging = safeTelemetry.isRightCharging,
-                    isCaseCharging = safeTelemetry.isCaseCharging,
-                    width = 600,
-                    height = 200,
+                    level = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct,
+                    isCharging = safeTelemetry.isCaseCharging,
+                    size = 240,
                 )
-                val midText = if (safeTelemetry.case in 0..100) {
-                    "Case ${safeTelemetry.case}%${if (safeTelemetry.isCaseCharging) " ⚡" else ""}"
-                } else {
-                    "Đã kết nối"
-                }
-                val expandedTitle = name
-                val expandedText = if (lowWarning) "Pin yếu · Cần sạc" else "Đã kết nối"
-                val expandedSubtext = ""
-                // Cột trái: Mức pin và nhãn Tai trái rõ ràng (ngay dưới hình tai nghe trái 3D)
+                val casePct = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct
+                val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
+                val midText = "Hộp sạc " + casePct + "%" + caseCharge
+
+                // Cột trái: Mức pin và nhãn Tai trái
                 val extra1 = if (safeTelemetry.left in 0..100) "${safeTelemetry.left}%" else "--%"
-                val extra2 = if (safeTelemetry.isLeftCharging) "Đang sạc ⚡" else "Tai trái"
-                // Cột phải: Mức pin và nhãn Tai phải rõ ràng (ngay dưới hình tai nghe phải 3D)
+                val extra2 = if (safeTelemetry.isLeftCharging) "Tai trái ⚡" else "Tai trái"
+                // Cột phải: Mức pin và nhãn Tai phải
                 val extra3 = if (safeTelemetry.right in 0..100) "${safeTelemetry.right}%" else "--%"
-                val extra4 = if (safeTelemetry.isRightCharging) "Đang sạc ⚡" else "Tai phải"
+                val extra4 = if (safeTelemetry.isRightCharging) "Tai phải ⚡" else "Tai phải"
 
-                val leftIslandContent = if (safeTelemetry.left in 0..100) "${safeTelemetry.left}%" else ""
-                val rightIslandContent = if (safeTelemetry.right in 0..100) "${safeTelemetry.right}%" else ""
-
-                // 1. Viên nang thu gọn: Hiển thị rõ mỗi bên 1 icon tai nghe in-ear đối xứng (Trái quay trái, Phải quay phải theo đúng giải phẫu tai)
                 putExtra("oi_left_icon", leftBudIcon)
                 putExtra("oi_right_icon", rightBudIcon)
-                putExtra("oi_left_content", leftIslandContent)
-                putExtra("oi_right_content", rightIslandContent)
-                putExtra("status_chip_text", rightIslandContent)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                putExtra("oi_left_content", "")
+                putExtra("oi_right_content", "")
+                putExtra("status_chip_text", "")
                 putExtra("oi_show_right_icon", true)
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_fg_color", "#FFFFFFFF")
 
-                // 2. Thẻ mở rộng đối xứng 3 cột chuẩn 100% Poster OriginOS 6 (TEMPLATE_TEXT_SYMMETRY = 3)
-                // Icon lớn ở giữa trải dài 3 thiết bị 3D ngọc trai (Tai trái - Hộp sạc - Tai phải) khớp hoàn hảo với 3 cột nhãn bên dưới
+                // Thẻ mở rộng đối xứng 3 cột chuẩn OriginOS 6 (TEMPLATE_TEXT_SYMMETRY = 3)
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
                 putExtra("oi_base_icon", baseHeaderIcon)
                 putExtra("oi_large_icon", expandedLargeIcon)
                 putExtra("oi_mid_text", midText)
-                putExtra("title", expandedTitle)
-                putExtra("text", expandedText)
-                putExtra("subtext", expandedSubtext)
+                putExtra("title", "${name.take(20)} · Đã kết nối")
+                putExtra("text", if (lowWarning) "Pin yếu · Cần sạc" else "Tai nghe Bluetooth")
+                putExtra("subtext", "")
                 putExtra("oi_extra1", extra1)
                 putExtra("oi_extra2", extra2)
                 putExtra("oi_extra3", extra3)

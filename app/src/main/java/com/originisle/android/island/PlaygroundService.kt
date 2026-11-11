@@ -553,7 +553,7 @@ class PlaygroundService : Service() {
         val title = last.getStringExtra("title").orEmpty()
         val simpler = last.getIntExtra("oi_template", 0) in FANCY_TEMPLATES ||
             last.hasExtra("actions") || last.hasExtra("oi_button_titles")
-        if (id == 35004 || id in plainIds || !simpler) {
+        if (id in plainIds || !simpler) {
             CastLog.add(app, title, "bị Đảo từ chối", false)
             return
         }

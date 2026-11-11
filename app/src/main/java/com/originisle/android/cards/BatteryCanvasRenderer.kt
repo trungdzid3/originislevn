@@ -222,8 +222,8 @@ object BatteryCanvasRenderer {
 
     /**
      * Vẽ chi tiết tai nghe in-ear Vivo TWS 3D trắng ngọc trai:
-     * - isLeft = true: Cuống tai ở bên trái quay xuống dưới, củ tai vươn sang phải (hướng vào tai).
-     * - isLeft = false: Đối xứng hoàn hảo qua phép lật trục x quanh tâm bounds.
+     * - isLeft = true (tai trái, nằm bên trái đảo): Cuống tai ở bên ngoài bên trái, củ tai vươn vào tâm đảo bên phải (không lật).
+     * - isLeft = false (tai phải, nằm bên phải đảo): Lật quanh trục X để cuống tai ở bên ngoài bên phải, củ tai vươn vào tâm đảo bên trái.
      */
     fun drawInEarBud(
         canvas: Canvas,
@@ -232,8 +232,8 @@ object BatteryCanvasRenderer {
         isCharging: Boolean = false,
     ) {
         val count = canvas.save()
-        if (isLeft) {
-            // Tai TRÁI: Lật trục X quanh tâm bounds để củ tai vươn sang BÊN TRÁI, cuống tai ở BÊN PHẢI (đúng giải phẫu và chuẩn Poster)
+        if (!isLeft) {
+            // Tai PHẢI: Lật trục X quanh tâm bounds để cuống tai ở bên ngoài bên phải, củ tai vươn vào tâm đảo bên trái
             canvas.scale(-1f, 1f, bounds.centerX(), bounds.centerY())
         }
 
@@ -626,12 +626,13 @@ object BatteryCanvasRenderer {
         isLeft: Boolean,
         level: Int = -1,
         isCharging: Boolean = false,
+        size: Int = 96,
     ): Icon {
-        val size = 96
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // Vẽ tai nghe in-ear 3D ở phần bên trái/phải
+        // isLeft = true (nằm ở bên trái đảo): tai nghe ở bên trái (6..62), thanh pin đứng ở bên phải (68..80) hướng về phía tâm đảo
+        // isLeft = false (nằm ở bên phải đảo): thanh pin đứng ở bên trái (16..28) hướng về phía tâm đảo, tai nghe ở bên phải (34..90)
         val budBounds = if (isLeft) {
             RectF(6f, 8f, 62f, 88f)
         } else {
