@@ -232,8 +232,8 @@ object BatteryCanvasRenderer {
         isCharging: Boolean = false,
     ) {
         val count = canvas.save()
-        if (!isLeft) {
-            // Đối xứng hoàn hảo sang tai phải
+        if (isLeft) {
+            // Tai TRÁI: Lật trục X quanh tâm bounds để củ tai vươn sang BÊN TRÁI, cuống tai ở BÊN PHẢI (đúng giải phẫu và chuẩn Poster)
             canvas.scale(-1f, 1f, bounds.centerX(), bounds.centerY())
         }
 
@@ -376,7 +376,7 @@ object BatteryCanvasRenderer {
 
         // Nếu có level hợp lệ hoặc đang sạc, vẽ chấm pin mini ở góc ngoài
         if (level in 0..100 || isCharging) {
-            val dotCx = if (isLeft) size * 0.22f else size * 0.78f
+            val dotCx = if (isLeft) size * 0.28f else size * 0.72f
             val dotCy = size * 0.88f
             val dotRadius = size * 0.07f
 
@@ -677,17 +677,25 @@ object BatteryCanvasRenderer {
      * - Lớp 3: Thân chính hộp sạc phía trước bo tròn mềm mại chuẩn Vivo TWS, rãnh mở nắp mảnh, viền highlight ánh sáng bóng bẩy.
      * - Lớp 4: Đèn LED trung tâm phát sáng rực rỡ với quầng sáng halo glow lớn, màu xanh lá #00D084 (hoặc đỏ cam khi pin yếu / sạc).
      */
-    fun createChargingCaseIcon(
-        context: Context,
+    /**
+     * Dựng Hộp sạc tai nghe 3D mở nắp trên Canvas với bounds tùy biến:
+     * - Lớp 0: Đổ bóng nền 3D Ambient Drop Shadow.
+     * - Lớp 1: Nắp hộp sạc mở ngửa góc rộng phía sau, chiều sâu hốc nắp rõ rệt.
+     * - Lớp 2: Khay sạc & 2 đầu tai nghe nhô lên to, rõ bóng bẩy 3D, có lỗ micro/loa kim loại.
+     * - Lớp 3: Thân chính hộp sạc phía trước bo tròn mềm mại chuẩn Vivo TWS, rãnh mở nắp mảnh, viền highlight ánh sáng bóng bẩy.
+     * - Lớp 4: Đèn LED trung tâm phát sáng rực rỡ với quầng sáng halo glow lớn.
+     */
+    fun drawChargingCaseOnCanvas(
+        canvas: Canvas,
+        bounds: RectF,
         level: Int = -1,
         isCharging: Boolean = false,
-        size: Int = 240,
-    ): Icon {
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-
-        val scale = size / 240f
-        canvas.save()
+    ) {
+        val count = canvas.save()
+        val scale = minOf(bounds.width() / 240f, bounds.height() / 240f)
+        val offsetX = bounds.left + (bounds.width() - 240f * scale) / 2f
+        val offsetY = bounds.top + (bounds.height() - 240f * scale) / 2f
+        canvas.translate(offsetX, offsetY)
         canvas.scale(scale, scale)
 
         // Lớp 0 — Đổ bóng nền 3D Ambient Drop Shadow bên dưới đáy hộp sạc
@@ -894,7 +902,60 @@ object BatteryCanvasRenderer {
         }
         canvas.drawCircle(cx, cy, 2.2f, centerGlowPaint)
 
-        canvas.restore()
+        canvas.restoreToCount(count)
+    }
+
+    /**
+     * Dựng Icon Hộp sạc 3D đơn chiếc:
+     */
+    fun createChargingCaseIcon(
+        context: Context,
+        level: Int = -1,
+        isCharging: Boolean = false,
+        size: Int = 240,
+    ): Icon {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawChargingCaseOnCanvas(canvas, RectF(0f, 0f, size.toFloat(), size.toFloat()), level, isCharging)
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Dựng Banner 3D Toàn cảnh gồm cả 3 thiết bị chuẩn 100% Poster OriginOS 6:
+     * - Bên trái: Chiếc tai nghe TRÁI 3D (củ tai hướng sang trái, cuống tai bên phải)
+     * - Ở giữa: Chiếc Hộp sạc 3D mở nắp rộng rãi, bóng bẩy ngọc trai, đèn LED phát sáng
+     * - Bên phải: Chiếc tai nghe PHẢI 3D (củ tai hướng sang phải, cuống tai bên trái)
+     * Kích thước 600x200 px, hiển thị ở tâm Thẻ mở rộng để mỗi hình nằm chuẩn xác phía trên từng cột tương ứng!
+     */
+    fun createTwsTrioBannerIcon(
+        context: Context,
+        leftLevel: Int = -1,
+        rightLevel: Int = -1,
+        caseLevel: Int = -1,
+        isLeftCharging: Boolean = false,
+        isRightCharging: Boolean = false,
+        isCaseCharging: Boolean = false,
+        width: Int = 600,
+        height: Int = 200,
+    ): Icon {
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        val colW = width / 3f
+
+        // Cột 1 (Bên trái): Chiếc tai nghe TRÁI 3D
+        // Củ tai hướng sang TRÁI, cuống tai ở bên PHẢI
+        val leftBudBounds = RectF(colW * 0.12f, height * 0.08f, colW * 0.88f, height * 0.92f)
+        drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+
+        // Cột 2 (Ở giữa): Chiếc Hộp sạc 3D mở nắp
+        val caseBounds = RectF(colW + colW * 0.08f, height * 0.04f, colW * 2f - colW * 0.08f, height * 0.96f)
+        drawChargingCaseOnCanvas(canvas, caseBounds, caseLevel, isCaseCharging)
+
+        // Cột 3 (Bên phải): Chiếc tai nghe PHẢI 3D
+        // Củ tai hướng sang PHẢI, cuống tai ở bên TRÁI
+        val rightBudBounds = RectF(colW * 2f + colW * 0.12f, height * 0.08f, width - colW * 0.12f, height * 0.92f)
+        drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
 
         return Icon.createWithBitmap(bmp)
     }

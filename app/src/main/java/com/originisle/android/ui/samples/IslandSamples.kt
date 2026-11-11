@@ -289,22 +289,8 @@ object IslandSamples {
             if (hasRealDevice) {
                 android.widget.Toast.makeText(ctx, "Đã nhận diện tai nghe thật đang kết nối!", android.widget.Toast.LENGTH_SHORT).show()
             } else {
-                android.widget.Toast.makeText(ctx, "Chưa kết nối tai nghe · Hiển thị dữ liệu xem trước", android.widget.Toast.LENGTH_SHORT).show()
-                start(ctx, 40012) {
-                    putExtra("oi_scene", "NAVIGATION")
-                    putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                    putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-                    putExtra("oi_progress", 95)
-                    putExtra("title", "Vivo TWS 4 · Hộp: 100% ⚡")
-                    putExtra("text", "Trái (L): 95% ⚡   ·   Phải (R): 90%")
-                    putExtra("subtext", "Chưa kết nối tai nghe · Dữ liệu xem trước")
-                    putExtra("oi_left_content", "95%")
-                    putExtra("oi_right_content", "")
-                    putExtra("status_chip_text", "95%")
-                    putExtra("oi_fg_color", "#FF29E683")
-                    putExtra("oi_bg_color", "#4C29E683")
-                    putExtra("icon_res", R.drawable.ic_earbuds)
-                }
+                android.widget.Toast.makeText(ctx, "Chưa kết nối tai nghe · Hiển thị dữ liệu xem trước vivo TWS 3D", android.widget.Toast.LENGTH_SHORT).show()
+                EarbudsCard.postSample(ctx)
             }
         },
         OriginSample(

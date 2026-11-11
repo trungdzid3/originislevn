@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.8` (mã bản dựng `versionCode = 10708`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.9` (mã bản dựng `versionCode = 10709`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -54,15 +54,16 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-└── OriginIsle-VN-v1.7.8.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 8)
+├── OriginIsle-VN-v1.7.9.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 9)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
 - `BatteryCanvasRenderer.kt` & `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`):
-  - Đại tu giao diện tai nghe TWS chuẩn ảnh poster OriginOS 6:
-    1. Đảo viên nang thu gọn: Hiển thị rõ mỗi bên camera 1 icon tai nghe in-ear đối xứng (`createBudCapsuleIcon`, bên trái quay phải, bên phải quay trái) kèm số % pin thanh lịch (bỏ tiền tố L: / R: thô kệch), bật `oi_show_right_icon = true`.
-    2. Hộp sạc 3D mở nắp to hoành tráng (`createChargingCaseIcon`, size 240px) ở cột giữa thẻ mở rộng.
-    3. Thẻ mở rộng ở 2 cột Trái / Phải hiển thị % pin rõ nét + nhãn Tai trái/Tai phải/Đang sạc, bỏ hẳn tiền tố L/R.
+  - Đại tu giao diện tai nghe TWS chuẩn ảnh poster OriginOS 6 (v1.7.9):
+    1. Chuẩn hóa giải phẫu hướng tai nghe: Tai TRÁI (`isLeft = true`) có củ tai vươn sang TRÁI, cuống tai ở bên PHẢI; Tai PHẢI (`isLeft = false`) có củ tai vươn sang PHẢI, cuống tai ở bên TRÁI. Xóa bỏ hoàn toàn hiện tượng cảm giác ngược phải trái ở cả Đảo thu gọn và Thẻ mở rộng.
+    2. Đảo thu gọn: Bên trái camera hiện rõ icon tai nghe trái 3D (củ tai hướng sang trái) + % pin, bên phải camera hiện rõ icon tai nghe phải 3D (củ tai hướng sang phải) + % pin.
+    3. Thẻ mở rộng: Tích hợp `createTwsTrioBannerIcon` (Banner 3D toàn cảnh gồm cả 3 thiết bị: Tai nghe Trái 3D - Hộp sạc 3D mở nắp - Tai nghe Phải 3D) đặt làm icon chính ở giữa, nằm chuẩn xác phía trên 3 cột nhãn tương ứng (Cột trái: mức pin + Tai trái, Cột giữa: Case + mức pin, Cột phải: mức pin + Tai phải).
+    4. Cập nhật `IslandSamples.kt`: Khi chưa có tai nghe thật, bấm vào mẫu Tai nghe Bluetooth sẽ trực tiếp gọi `EarbudsCard.postSample(ctx)` để người dùng chiêm ngưỡng toàn bộ đồ họa 3D vivo TWS chuẩn poster.
 - `DownloadCard.kt` & `NotificationCastListener.kt`:
   - Đồng bộ trạng thái tải xuống hoàn tất chuẩn như Quick Share (chuyển tệp): loại bỏ hoàn toàn các chuỗi ký tự thô `"Tải xong"` và `"100%"` trên viên nang thu gọn; thay bằng biểu tượng dấu tích tròn xanh lá Canvas rực rỡ (`createGreenTickCircleIcon`) ở bên phải (`oi_show_right_icon = true`), bên trái giữ logo ứng dụng nguồn, tiêu đề mở rộng `"$appLabel · Đã tải xong"`. Chống drop icon trên Vivo OriginOS 6 SuperX.
 - `QuickShareDetector.kt` & `NotificationCastListener.kt`:
