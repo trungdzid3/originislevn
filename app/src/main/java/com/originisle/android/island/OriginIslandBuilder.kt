@@ -385,7 +385,7 @@ object OriginIslandBuilder {
         bundle.putBundle(C.BUNDLE_KEY_INFOS, infos)
 
         // --- shortInfos (collapsed) ---
-        val shortImage = largeIcon ?: defaultIcon
+        val shortImage = baseHeaderIcon ?: defaultIcon
         val shortInfos = Bundle()
         shortInfos.putParcelable(C.BUNDLE_KEY_SHORT_INFO_IMAGE, shortImage)
         shortInfos.putString(C.BUNDLE_KEY_SHORT_INFO_CORE_INFO_SHORT, content)

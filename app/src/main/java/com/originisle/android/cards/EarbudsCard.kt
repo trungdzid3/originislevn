@@ -110,6 +110,11 @@ object EarbudsCard {
 
     private const val TAG = "EarbudsCard"
 
+    private fun resolveShowMs(context: Context): Long {
+        val sec = context.getSharedPreferences(PREFS_NAME, 0).getInt("cast_island_duration_sec", 0)
+        return if (sec > 0) (sec * 1000L).coerceIn(2_000L, 15_000L) else SHOW_MS
+    }
+
     private val handler by lazy { Handler(Looper.getMainLooper()) }
     private var app: Context? = null
 
@@ -2164,11 +2169,12 @@ object EarbudsCard {
             else -> "Đã kết nối"
         }
 
+        val effectiveShowMs = resolveShowMs(context)
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", cardId)
             putExtra("is_ongoing", false)
-            putExtra("oi_auto_dismiss_ms", SHOW_MS)
+            putExtra("oi_auto_dismiss_ms", effectiveShowMs)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("subtext", "")
             putExtra("oi_left_content", leftContent)
@@ -2182,57 +2188,44 @@ object EarbudsCard {
 
             if (hasDualBuds) {
                 // Đảo thu nhỏ khi có cả 2 tai nghe:
-                // Bên trái: leftBudIcon + text "${safeTelemetry.left}%"
-                // Bên phải: text "${safeTelemetry.right}%" + rightBudIcon
-                val leftBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                // Biểu tượng tai nghe 3D thuần khiết (không thanh pin xanh lá) + % pin ở mỗi bên
+                val leftBudIcon = BatteryCanvasRenderer.createPureEarbudIcon(
                     context,
                     isLeft = true,
-                    level = safeTelemetry.left,
-                    isCharging = safeTelemetry.isLeftCharging,
                     size = 96,
                 )
-                val rightBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                val rightBudIcon = BatteryCanvasRenderer.createPureEarbudIcon(
                     context,
                     isLeft = false,
-                    level = safeTelemetry.right,
-                    isCharging = safeTelemetry.isRightCharging,
                     size = 96,
                 )
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
 
                 val hasCaseBattery = safeTelemetry.case in 0..100
-                val expandedLargeIcon = if (hasCaseBattery) {
-                    BatteryCanvasRenderer.createChargingCaseIcon(
-                        context,
-                        level = safeTelemetry.case,
-                        isCharging = safeTelemetry.isCaseCharging,
-                        size = 240,
-                    )
-                } else {
-                    // Khi đã lấy tai nghe ra khỏi case (case không báo pin): ẨN HOÀN TOÀN PHẦN CASE ĐI
-                    BatteryCanvasRenderer.createDualBudsLargeIcon(
-                        context,
-                        leftLevel = safeTelemetry.left,
-                        rightLevel = safeTelemetry.right,
-                        isLeftCharging = safeTelemetry.isLeftCharging,
-                        isRightCharging = safeTelemetry.isRightCharging,
-                        size = 240,
-                    )
-                }
+                val expandedLargeIcon = BatteryCanvasRenderer.createTwsExpandedCompositeIcon(
+                    context,
+                    hasCaseBattery = hasCaseBattery,
+                    caseLevel = safeTelemetry.case,
+                    isLeftCharging = safeTelemetry.isLeftCharging,
+                    isRightCharging = safeTelemetry.isRightCharging,
+                    isCaseCharging = safeTelemetry.isCaseCharging,
+                    width = 320,
+                    height = 144,
+                )
 
                 val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
                 val midText = if (hasCaseBattery) {
-                    "${safeTelemetry.case}% · Hộp sạc${caseCharge}"
+                    "Hộp ${safeTelemetry.case}%${caseCharge}"
                 } else {
                     "Âm thanh TWS"
                 }
 
-                // Cột trái: Mức pin và nhãn Tai trái với biểu tượng ◖ (củ tai trái hướng vào tâm)
-                val extra1 = "${safeTelemetry.left}%"
-                val extra2 = "◖ Trái${if (safeTelemetry.isLeftCharging) " ⚡" else ""}"
-                // Cột phải: Mức pin và nhãn Tai phải với biểu tượng ◗ (củ tai phải hướng vào tâm)
-                val extra3 = "${safeTelemetry.right}%"
-                val extra4 = "Phải ◗${if (safeTelemetry.isRightCharging) " ⚡" else ""}"
+                // Không truyền % pin vào oi_extra1 / oi_extra3 (font tỷ số 38sp khổng lồ),
+                // đưa toàn bộ nhãn + % pin vào oi_extra2 / oi_extra4 / oi_mid_text (cỡ chữ chuẩn 13-14sp).
+                val extra1 = ""
+                val extra2 = "Trái ${safeTelemetry.left}%${if (safeTelemetry.isLeftCharging) " ⚡" else ""}"
+                val extra3 = ""
+                val extra4 = "Phải ${safeTelemetry.right}%${if (safeTelemetry.isRightCharging) " ⚡" else ""}"
 
                 putExtra("oi_left_icon", leftBudIcon)
                 putExtra("oi_left_content", "${safeTelemetry.left}%")
@@ -2262,23 +2255,21 @@ object EarbudsCard {
                 val isSingleCharging = if (isLeftOnly) safeTelemetry.isLeftCharging else safeTelemetry.isRightCharging
                 val singleSideName = if (isLeftOnly) "Tai trái" else "Tai phải"
 
-                val singleBudCapsuleIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                val singleBudCapsuleIcon = BatteryCanvasRenderer.createPureEarbudIcon(
                     context,
                     isLeft = isLeftOnly,
-                    level = singleLevel,
-                    isCharging = isSingleCharging,
                     size = 96,
                 )
-                val singleBudLargeIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                val singleBudLargeIcon = BatteryCanvasRenderer.createPureEarbudIcon(
                     context,
                     isLeft = isLeftOnly,
-                    level = singleLevel,
-                    isCharging = isSingleCharging,
                     size = 240,
+                    isCharging = isSingleCharging,
                 )
+                val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
 
                 // Đảo thu nhỏ:
-                // oi_left_icon = budIcon, oi_left_content = "${singleLevel}%", oi_show_right_icon = false, oi_right_content = ""
+                // oi_left_icon = budIcon thuần khiết, oi_left_content = "${singleLevel}%", ẩn icon bên phải
                 putExtra("oi_left_icon", singleBudCapsuleIcon)
                 putExtra("oi_left_content", "${singleLevel}%")
                 putExtra("oi_show_right_icon", false)
@@ -2287,8 +2278,9 @@ object EarbudsCard {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_fg_color", "#FFFFFFFF")
 
-                // Thẻ mở rộng: TEMPLATE_BASE (4), largeIcon 240x240
+                // Thẻ mở rộng: TEMPLATE_BASE (4), largeIcon 240x240 thuần khiết + oi_base_icon nhẹ tránh Binder IPC lớn
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                putExtra("oi_base_icon", baseHeaderIcon)
                 putExtra("oi_large_icon", singleBudLargeIcon)
                 putExtra("title", "${name.take(18)} · $singleSideName ${singleLevel}%")
                 putExtra(
@@ -2328,13 +2320,13 @@ object EarbudsCard {
             showingWearableAddress = shownKey
             if (refreshDuration || hideWearableTask == null) {
                 hideWearableTask?.let(handler::removeCallbacks)
-                hideWearableTask = Runnable { hide(context, isWearable = true) }.also { handler.postDelayed(it, SHOW_MS) }
+                hideWearableTask = Runnable { hide(context, isWearable = true) }.also { handler.postDelayed(it, effectiveShowMs) }
             }
         } else {
             showingEarbudsAddress = shownKey
             if (refreshDuration || hideEarbudsTask == null) {
                 hideEarbudsTask?.let(handler::removeCallbacks)
-                hideEarbudsTask = Runnable { hide(context, isWearable = false) }.also { handler.postDelayed(it, SHOW_MS) }
+                hideEarbudsTask = Runnable { hide(context, isWearable = false) }.also { handler.postDelayed(it, effectiveShowMs) }
             }
         }
     }

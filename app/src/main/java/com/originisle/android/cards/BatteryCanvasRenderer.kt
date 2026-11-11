@@ -222,8 +222,9 @@ object BatteryCanvasRenderer {
 
     /**
      * Vẽ chi tiết tai nghe in-ear Vivo TWS 3D trắng ngọc trai:
-     * - isLeft = true (tai trái, nằm bên trái đảo): Cuống tai ở bên ngoài bên trái, củ tai vươn vào tâm đảo bên phải (không lật).
-     * - isLeft = false (tai phải, nằm bên phải đảo): Lật quanh trục X để cuống tai ở bên ngoài bên phải, củ tai vươn vào tâm đảo bên trái.
+     * - Hình gốc có cuống tai bên trái, củ tai hướng sang phải (dùng trực tiếp cho tai PHẢI).
+     * - isLeft = true (tai trái, nằm bên trái đảo): Lật trục X để củ tai hướng sang trái, cuống tai ở bên phải gần tâm đảo.
+     * - isLeft = false (tai phải, nằm bên phải đảo): Giữ nguyên để củ tai hướng sang phải, cuống tai ở bên trái gần tâm đảo.
      */
     fun drawInEarBud(
         canvas: Canvas,
@@ -232,8 +233,8 @@ object BatteryCanvasRenderer {
         isCharging: Boolean = false,
     ) {
         val count = canvas.save()
-        if (!isLeft) {
-            // Tai PHẢI: Lật trục X quanh tâm bounds để cuống tai ở bên ngoài bên phải, củ tai vươn vào tâm đảo bên trái
+        if (isLeft) {
+            // Tai TRÁI: Lật trục X quanh tâm bounds để củ tai hướng ra bên trái, cuống tai nằm phía trong gần tâm
             canvas.scale(-1f, 1f, bounds.centerX(), bounds.centerY())
         }
 
@@ -411,11 +412,25 @@ object BatteryCanvasRenderer {
         isLeft: Boolean,
         size: Int = 96
     ): Icon {
+        return createPureEarbudIcon(context, isLeft = isLeft, size = size, isCharging = false)
+    }
+
+    /**
+     * Dựng Icon tai nghe 3D trắng ngọc trai thuần khiết cho viên nang thu gọn hoặc thẻ đơn chiếc:
+     * - Xóa hoàn toàn thanh pin xanh lá đứng bên cạnh.
+     * - Phóng to tai nghe tràn khung sạch đẹp, giữ nguyên hướng quay chuẩn Trái/Phải.
+     */
+    fun createPureEarbudIcon(
+        context: Context,
+        isLeft: Boolean,
+        size: Int = 96,
+        isCharging: Boolean = false,
+    ): Icon {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val padding = size * 0.06f
-        val bounds = RectF(padding, padding, size - padding, size - padding)
-        drawInEarBud(canvas, bounds, isLeft, isCharging = false)
+        val bleed = size * 0.04f
+        val bounds = RectF(-bleed, -bleed, size + bleed, size + bleed)
+        drawInEarBud(canvas, bounds, isLeft = isLeft, isCharging = isCharging)
         return Icon.createWithBitmap(bmp)
     }
 
@@ -997,6 +1012,219 @@ object BatteryCanvasRenderer {
         val rightBudBounds = RectF(colW * 2f + colW * 0.12f, height * 0.08f, width - colW * 0.12f, height * 0.92f)
         drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
 
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Vẽ hộp sạc 3D trắng ngọc trai mở nắp cao tràn khung cho ảnh Composite thẻ mở rộng:
+     * - Nắp trên và lòng nắp dùng sắc trắng/bạc sáng nổi bật trên nền thẻ tối (tuyệt đối không dùng màu tối).
+     * - Có khay sạc ánh bạc, đèn LED phát sáng ở thân case, không vẽ chữ % đè lên thân hộp.
+     */
+    private fun drawOpenChargingCaseForComposite(
+        canvas: Canvas,
+        bounds: RectF,
+        level: Int,
+        isCharging: Boolean,
+    ) {
+        val l = bounds.left
+        val t = bounds.top
+        val w = bounds.width()
+        val h = bounds.height()
+
+        // 1. Nắp hộp mở ngửa cao tràn sát mép trên
+        val lidRect = RectF(l + w * 0.08f, t + h * 0.01f, l + w * 0.92f, t + h * 0.45f)
+        val lidRadius = w * 0.24f
+        val lidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                lidRect.centerX(),
+                lidRect.top,
+                lidRect.centerX(),
+                lidRect.bottom,
+                intArrayOf(
+                    Color.parseColor("#FFFFFF"),
+                    Color.parseColor("#EEF2F8"),
+                    Color.parseColor("#D5DCE8"),
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(lidRect, lidRadius, lidRadius, lidPaint)
+
+        // Viền sáng mảnh ở mép nắp để tách bạch hoàn toàn khỏi nền đen
+        val lidRimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = maxOf(1.4f, w * 0.012f)
+            color = Color.parseColor("#E6FFFFFF")
+        }
+        canvas.drawRoundRect(lidRect, lidRadius, lidRadius, lidRimPaint)
+
+        // Lòng nắp mở lõm bên trong (tông bạc ngọc trai sáng, không tối)
+        val innerLidRect = RectF(l + w * 0.14f, t + h * 0.055f, l + w * 0.86f, t + h * 0.40f)
+        val innerLidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                innerLidRect.centerX(),
+                innerLidRect.top,
+                innerLidRect.centerX(),
+                innerLidRect.bottom,
+                Color.parseColor("#CBD3E2"),
+                Color.parseColor("#F5F8FC"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(innerLidRect, w * 0.19f, w * 0.19f, innerLidPaint)
+
+        // 2. Khay giữa & 2 hốc sạc ánh bạc
+        val trayRect = RectF(l + w * 0.06f, t + h * 0.36f, l + w * 0.94f, t + h * 0.50f)
+        val trayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                trayRect.centerX(),
+                trayRect.top,
+                trayRect.centerX(),
+                trayRect.bottom,
+                Color.parseColor("#B6C0D0"),
+                Color.parseColor("#DCE2EC"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(trayRect, w * 0.12f, w * 0.12f, trayPaint)
+
+        val wellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#929CB0")
+        }
+        canvas.drawOval(RectF(l + w * 0.17f, t + h * 0.38f, l + w * 0.45f, t + h * 0.46f), wellPaint)
+        canvas.drawOval(RectF(l + w * 0.55f, t + h * 0.38f, l + w * 0.83f, t + h * 0.46f), wellPaint)
+
+        val hingeRect = RectF(l + w * 0.36f, t + h * 0.385f, l + w * 0.64f, t + h * 0.435f)
+        val hingePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#A4AEBF")
+        }
+        canvas.drawRoundRect(hingeRect, w * 0.03f, w * 0.03f, hingePaint)
+
+        // 3. Thân chính hộp sạc trắng ngọc trai phía trước (tràn sát mép dưới)
+        val bodyRect = RectF(l + w * 0.04f, t + h * 0.43f, l + w * 0.96f, t + h * 0.98f)
+        val bodyRadius = w * 0.28f
+        val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                bodyRect.centerX(),
+                bodyRect.top,
+                bodyRect.centerX(),
+                bodyRect.bottom,
+                intArrayOf(
+                    Color.parseColor("#FFFFFF"),
+                    Color.parseColor("#F4F7FB"),
+                    Color.parseColor("#E1E6F0"),
+                    Color.parseColor("#C2CAD8"),
+                ),
+                floatArrayOf(0f, 0.35f, 0.72f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(bodyRect, bodyRadius, bodyRadius, bodyPaint)
+
+        // Rãnh mở nắp & đường viền highlight trên mép thân hộp
+        val notchRect = RectF(l + w * 0.38f, t + h * 0.43f, l + w * 0.62f, t + h * 0.475f)
+        val notchPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#CBD3E0")
+        }
+        canvas.drawRoundRect(notchRect, w * 0.03f, w * 0.03f, notchPaint)
+
+        val topHighlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = maxOf(1.5f, w * 0.015f)
+            color = Color.WHITE
+        }
+        canvas.drawLine(
+            l + w * 0.20f,
+            t + h * 0.436f,
+            l + w * 0.80f,
+            t + h * 0.436f,
+            topHighlightPaint,
+        )
+
+        // 4. Đèn LED trạng thái phát sáng rõ ở thân case (không vẽ text % đè lên hộp)
+        val ledColor = when {
+            isCharging -> Color.parseColor("#00E676")
+            level in 0..15 -> Color.parseColor("#FF5247")
+            level in 16..30 -> Color.parseColor("#FFB020")
+            else -> Color.parseColor("#00D084")
+        }
+        val ledCx = bodyRect.centerX()
+        val ledCy = t + h * 0.695f
+
+        val outerHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(58, Color.red(ledColor), Color.green(ledColor), Color.blue(ledColor))
+        }
+        canvas.drawCircle(ledCx, ledCy, w * 0.14f, outerHaloPaint)
+
+        val midHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(120, Color.red(ledColor), Color.green(ledColor), Color.blue(ledColor))
+        }
+        canvas.drawCircle(ledCx, ledCy, w * 0.085f, midHaloPaint)
+
+        val ledCorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = ledColor
+        }
+        canvas.drawCircle(ledCx, ledCy, w * 0.042f, ledCorePaint)
+
+        val ledGlintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.WHITE
+        }
+        canvas.drawCircle(ledCx, ledCy, w * 0.016f, ledGlintPaint)
+    }
+
+    /**
+     * Dựng ảnh Composite 3D (mặc định 320 x 144 px, ~180KB an toàn tuyệt đối Binder IPC)
+     * cho thẻ mở rộng tai nghe TWS:
+     * - Khi hasCaseBattery = true: [Tai nghe Trái 3D] + [Hộp sạc 3D mở nắp cao tràn khung] + [Tai nghe Phải 3D].
+     * - Khi hasCaseBattery = false: Ẩn hoàn toàn hộp sạc, chỉ vẽ [Tai nghe Trái 3D lớn] + [Tai nghe Phải 3D lớn].
+     */
+    fun createTwsExpandedCompositeIcon(
+        context: Context,
+        hasCaseBattery: Boolean,
+        caseLevel: Int = -1,
+        isLeftCharging: Boolean = false,
+        isRightCharging: Boolean = false,
+        isCaseCharging: Boolean = false,
+        width: Int = 320,
+        height: Int = 144,
+    ): Icon {
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val sx = width / 320f
+        val sy = height / 144f
+        canvas.save()
+        canvas.scale(sx, sy)
+
+        if (hasCaseBattery) {
+            val leftBudBounds = RectF(4f, 10f, 94f, 134f)
+            drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+
+            val caseBounds = RectF(98f, 2f, 222f, 142f)
+            drawOpenChargingCaseForComposite(canvas, caseBounds, caseLevel, isCaseCharging)
+
+            val rightBudBounds = RectF(226f, 10f, 316f, 134f)
+            drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+        } else {
+            val leftBudBounds = RectF(40f, 6f, 148f, 138f)
+            drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+
+            val rightBudBounds = RectF(172f, 6f, 280f, 138f)
+            drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+        }
+
+        canvas.restore()
         return Icon.createWithBitmap(bmp)
     }
 }
