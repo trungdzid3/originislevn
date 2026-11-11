@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.11` (mã bản dựng `versionCode = 10711`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.0.0` (mã bản dựng `versionCode = 20000`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v1.5.0 / 10500)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.0 / 20000)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -45,8 +45,8 @@ origin-isle-vn/
 │       │       ├── smart/            # Bóc tách thông tin màn hình
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
-│       │       └── ui/               # Giao diện Compose (công tắc Messenger Call, Zalo Call, TikTok Streak, nút Thử Tai nghe)
-│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest)
+│       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo 2.0.0 & Chặn Pop-up)
+│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -54,16 +54,21 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── OriginIsle-VN-v1.7.9.apk          # File APK xuất bản siêu nhẹ (~4.5 MB, Thế hệ 1, Nâng cấp 7, Bản vá 9)
+├── release/OriginIsle-VN-v2.0.0.apk  # File APK xuất bản v2.0.0 (~4.4 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- `BatteryCanvasRenderer.kt` & `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`):
-  - Đại tu giao diện tai nghe TWS chuẩn ảnh poster OriginOS 6 (v1.7.11):
-    1. Đảo thu nhỏ: Hiển thị rõ % pin từng tai nghe kèm icon 3D ngọc trai đối xứng 2 bên (Trái: [Icon] xx% | Phải: xx% [Icon]). Khi chỉ đeo 1 bên tai thì chỉ hiển thị duy nhất 1 bên tai đó kèm % pin.
-    2. Thẻ mở rộng: Đổi chữ L/R thô thành biểu tượng tai nghe trực quan `◖ Trái` và `Phải ◗`. Phóng to phần pin Hộp sạc ở giữa (vẽ % pin trực tiếp lên thân case 3D và đưa % pin lên đầu dòng).
-    3. Tự động ẩn case khi lấy tai nghe ra: Khi case không còn báo pin, tự động ẩn phần hộp sạc và phóng to Cặp tai nghe 3D khổng lồ (createDualBudsLargeIcon 240x240 px) để tăng diện tích hiển thị pin tai nghe.
-    4. Chế độ Single Bud: Khi chỉ dùng 1 bên tai, thẻ mở rộng chuyển sang TEMPLATE_BASE hiển thị đồ họa chiếc tai nghe đơn lẻ 3D phóng to 240x240 px. Tự động tắt sau 4.5 giây.
+- **Origin Isle VN v2.0.0 — Hợp đồng `experimental_prefs` (`Prefs.kt`), Device Hero UI (`DeviceInfoHelper.kt`, `HomeScreen.kt`, `Components.kt`)**:
+  - `DeviceInfoHelper.kt` (`collect`, `isSuperXSupported`): Thu thập `DeviceSnapshot` (Model, OriginOS/Android, SoC, RAM khả dụng/Tổng, Pin & Nhiệt độ, lượt Đảo hôm nay từ `CastLog.entries`).
+  - `HomeScreen.kt` (`DeviceHeroCard`, nhóm `Tùy biến Đảo 2.0.0 & Chặn Pop-up`): Mô phỏng viên thuốc Origin Island 2.0.0 với viền phát sáng `animateColorAsState`, bộ lọc chặn pop-up nổi (`cast_suppress_heads_up`, `cast_suppress_mode`: `SNOOZE` / `ISLAND_ONLY`), chọn màu viền (`ColorSwatchPill` trong `Components.kt`), thời lượng viên thuốc (`3s`/`5s`/`7s`/`10s`) và tùy chọn chạm mở rộng thẻ (`cast_tap_expand_card`).
+- **Chặn Pop-up nổi & Engine Tùy biến Đảo (`NotificationCastListener.kt`, `PlaygroundService.kt`)**:
+  - `NotificationCastListener.kt` (`suppressSystemPopupIfEnabled`, `onNotificationRemoved`): Hỗ trợ 2 chế độ chặn heads-up cho thông báo thoáng qua (bỏ qua cuộc gọi/media/download/Quick Share/ongoing): `SNOOZE` (`snoozeNotification(key, 150L)` kèm guard `recentlySnoozedKeys` TTL 3s & `lastCastPostTime`) và `ISLAND_ONLY` (`cancelNotification(key)` trễ 120ms kèm `islandOnlyCancelledKeys` TTL 15s giữ nguyên thẻ Đảo).
+  - `PlaygroundService.kt` (`startCard`): Áp dụng `cast_custom_light_color` (`NONE` -> `0`, hex `#...` trừ `ICON_STATUS_FAIL`), `cast_island_duration_sec` cho `oi_island_show_time` & auto-dismiss thẻ thoáng qua, và `cast_tap_expand_card` cho `oi_island_click_expand` (trừ cuộc gọi/tai nghe/thiết bị đeo bắt buộc).
+- `BatteryCanvasRenderer.kt`, `EarbudsCard.kt` & `OriginIslandBuilder.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`):
+  - Đại tu giao diện tai nghe TWS 3D v2.0.0:
+    1. `OriginIslandBuilder.kt`: Đổi `shortImage = baseHeaderIcon ?: defaultIcon` trong `shortInfos` để tránh nhân đôi Bitmap lớn gây `TransactionTooLargeException` Binder IPC.
+    2. `BatteryCanvasRenderer.kt`: Đảo hướng `drawInEarBud` (`isLeft=true` lật X) đúng mắt nhìn Trái/Phải; thêm `createPureEarbudIcon` (xóa hoàn toàn thanh pin xanh lá) và `createTwsExpandedCompositeIcon` (`320x144` px: `[Tai Trái 3D] + [Case trắng ngọc trai mở nắp cao tràn khung + đèn LED] + [Tai Phải 3D]` khi có pin case, tự ẩn case khi lấy tai nghe ra).
+    3. `EarbudsCard.kt` (`post`, `resolveShowMs`): Viên nang thu gọn và Single Bud (`240x240`) dùng `createPureEarbudIcon`; thẻ mở rộng `TEMPLATE_TEXT_SYMMETRY` bỏ text 38sp khổng lồ ở `oi_extra1`/`oi_extra3` (đặt `""`), đưa nhãn+% vào `oi_extra2`/`oi_extra4`/`oi_mid_text`; đọc `cast_island_duration_sec` từ `experimental_prefs`.
 - `DownloadCard.kt` & `NotificationCastListener.kt`:
   - Đồng bộ trạng thái tải xuống hoàn tất chuẩn như Quick Share (chuyển tệp): loại bỏ hoàn toàn các chuỗi ký tự thô `"Tải xong"` và `"100%"` trên viên nang thu gọn; thay bằng biểu tượng dấu tích tròn xanh lá Canvas rực rỡ (`createGreenTickCircleIcon`) ở bên phải (`oi_show_right_icon = true`), bên trái giữ logo ứng dụng nguồn, tiêu đề mở rộng `"$appLabel · Đã tải xong"`. Chống drop icon trên Vivo OriginOS 6 SuperX.
 - `QuickShareDetector.kt` & `NotificationCastListener.kt`:
