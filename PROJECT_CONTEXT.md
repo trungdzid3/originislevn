@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `1.7.9` (mã bản dựng `versionCode = 10709`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `1.7.10` (mã bản dựng `versionCode = 10710`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -59,11 +59,11 @@ origin-isle-vn/
 
 ## 3. Bản Đồ Code (Code Map)
 - `BatteryCanvasRenderer.kt` & `EarbudsCard.kt` (`ID_EARBUDS = 35004`, `ID_WEARABLE = 35014`):
-  - Đại tu giao diện tai nghe TWS chuẩn ảnh poster OriginOS 6 (v1.7.9):
-    1. Chuẩn hóa giải phẫu hướng tai nghe: Tai TRÁI (`isLeft = true`) có củ tai vươn sang TRÁI, cuống tai ở bên PHẢI; Tai PHẢI (`isLeft = false`) có củ tai vươn sang PHẢI, cuống tai ở bên TRÁI. Xóa bỏ hoàn toàn hiện tượng cảm giác ngược phải trái ở cả Đảo thu gọn và Thẻ mở rộng.
-    2. Đảo thu gọn: Bên trái camera hiện rõ icon tai nghe trái 3D (củ tai hướng sang trái) + % pin, bên phải camera hiện rõ icon tai nghe phải 3D (củ tai hướng sang phải) + % pin.
-    3. Thẻ mở rộng: Tích hợp `createTwsTrioBannerIcon` (Banner 3D toàn cảnh gồm cả 3 thiết bị: Tai nghe Trái 3D - Hộp sạc 3D mở nắp - Tai nghe Phải 3D) đặt làm icon chính ở giữa, nằm chuẩn xác phía trên 3 cột nhãn tương ứng (Cột trái: mức pin + Tai trái, Cột giữa: Case + mức pin, Cột phải: mức pin + Tai phải).
-    4. Cập nhật `IslandSamples.kt`: Khi chưa có tai nghe thật, bấm vào mẫu Tai nghe Bluetooth sẽ trực tiếp gọi `EarbudsCard.postSample(ctx)` để người dùng chiêm ngưỡng toàn bộ đồ họa 3D vivo TWS chuẩn poster.
+  - Đại tu giao diện tai nghe TWS chuẩn ảnh poster OriginOS 6 (v1.7.10):
+    1. Sửa triệt để lỗi Vivo SuperX từ chối/drop ngầm thẻ tai nghe: chuyển expandedLargeIcon về icon Hộp sạc 3D vuông 240x240 px (createChargingCaseIcon) an toàn tuyệt đối với Binder IPC; tháo bỏ loại trừ id 35004 trong PlaygroundService.onRejected để luôn fallback an toàn thay vì bị huỷ vĩnh viễn.
+    2. Chuẩn hóa giải phẫu hướng tai nghe: Tai TRÁI (isLeft = true) nằm bên trái đảo giữ nguyên không lật (cuống tai ngoài rìa trái, củ tai vươn vào tâm đảo); Tai PHẢI (isLeft = false) nằm bên phải đảo lật quanh trục X (cuống tai ngoài rìa phải, củ tai vươn vào tâm đảo). Cả 2 tai nghe đối xứng tự nhiên, cùng chầu vào tâm đảo.
+    3. Viên nang thu gọn: 2 icon tai nghe 3D ngọc trai sắc nét kèm vạch pin đứng mini (createSingleEarbudWithBatteryIcon 96x96 px) đối xứng 2 bên, nội dung text để rỗng để SuperX hiển thị chế độ 2 icon hoàn hảo không bị tràn capsule.
+    4. Thẻ mở rộng: Hộp sạc 3D mở nắp to rõ nét 240x240 px ở giữa; hai cột bên hiển thị mức pin và nhãn "Tai trái" / "Tai phải" rõ ràng (xóa bỏ hoàn toàn chữ L/R). Tự động đóng sau 4.5 giây (SHOW_MS = 4500ms).
 - `DownloadCard.kt` & `NotificationCastListener.kt`:
   - Đồng bộ trạng thái tải xuống hoàn tất chuẩn như Quick Share (chuyển tệp): loại bỏ hoàn toàn các chuỗi ký tự thô `"Tải xong"` và `"100%"` trên viên nang thu gọn; thay bằng biểu tượng dấu tích tròn xanh lá Canvas rực rỡ (`createGreenTickCircleIcon`) ở bên phải (`oi_show_right_icon = true`), bên trái giữ logo ứng dụng nguồn, tiêu đề mở rộng `"$appLabel · Đã tải xong"`. Chống drop icon trên Vivo OriginOS 6 SuperX.
 - `QuickShareDetector.kt` & `NotificationCastListener.kt`:
