@@ -854,7 +854,7 @@ object BatteryCanvasRenderer {
         }
         canvas.drawLine(46f, 89.2f, 194f, 89.2f, topHighlightPaint)
 
-        // Lớp 4 — Đèn LED trung tâm phát sáng rực rỡ với quầng sáng (halo glow) lớn
+        // Đèn LED trung tâm phát sáng rực rỡ với quầng sáng (halo glow) lớn
         val ledColor = when {
             isCharging -> Color.parseColor("#00E676")
             level in 0..15 -> Color.parseColor("#FF5247")
@@ -863,7 +863,7 @@ object BatteryCanvasRenderer {
         }
 
         val cx = 120f
-        val cy = 142f
+        val cy = 132f
 
         // Vòng quầng sáng lớn ngoài cùng (Outer Halo)
         val outerHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -903,7 +903,46 @@ object BatteryCanvasRenderer {
         }
         canvas.drawCircle(cx, cy, 2.2f, centerGlowPaint)
 
+        // Số % pin case to rõ nét ở thân hộp sạc (dưới đèn LED)
+        if (level in 0..100) {
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#2C3038")
+                textSize = 28f
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
+                textAlign = Paint.Align.CENTER
+            }
+            val text = "$level%"
+            canvas.drawText(text, cx, 172f, textPaint)
+        }
+
         canvas.restoreToCount(count)
+    }
+
+    /**
+     * Dựng Icon Cặp tai nghe 3D phóng to khổng lồ chiếm trọn khung hình (không có hộp sạc)
+     * hiển thị khi đã lấy cả 2 tai nghe ra khỏi hộp sạc.
+     */
+    fun createDualBudsLargeIcon(
+        context: Context,
+        leftLevel: Int = -1,
+        rightLevel: Int = -1,
+        isLeftCharging: Boolean = false,
+        isRightCharging: Boolean = false,
+        size: Int = 240,
+    ): Icon {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        val s = size.toFloat()
+        // Tai trái: chiếm nửa trái, củ tai vươn vào tâm
+        val leftBudBounds = RectF(s * 0.04f, s * 0.08f, s * 0.48f, s * 0.92f)
+        drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+
+        // Tai phải: chiếm nửa phải, củ tai vươn vào tâm
+        val rightBudBounds = RectF(s * 0.52f, s * 0.08f, s * 0.96f, s * 0.92f)
+        drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+
+        return Icon.createWithBitmap(bmp)
     }
 
     /**

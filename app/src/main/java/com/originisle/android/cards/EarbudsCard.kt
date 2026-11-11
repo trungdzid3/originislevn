@@ -2146,15 +2146,19 @@ object EarbudsCard {
 
         val hasDetailedBuds = !isWearableDevice && (safeTelemetry.left in 0..100 || safeTelemetry.right in 0..100)
         val hasDualBuds = !isWearableDevice && (safeTelemetry.left in 0..100 && safeTelemetry.right in 0..100)
+        val hasLeft = !isWearableDevice && safeTelemetry.left in 0..100
+        val hasRight = !isWearableDevice && safeTelemetry.right in 0..100
+        val hasSingleBud = hasDetailedBuds && !hasDualBuds
         val leftContent = when {
             hasDualBuds -> "${safeTelemetry.left}%"
-            !isWearableDevice && safeTelemetry.left in 0..100 -> "${safeTelemetry.left}%"
-            !isWearableDevice && safeTelemetry.right in 0..100 -> "${safeTelemetry.right}%"
+            hasLeft -> "${safeTelemetry.left}%"
+            hasRight -> "${safeTelemetry.right}%"
             known -> "${effectivePct}%"
             else -> ""
         }
         val pillStatus = when {
             hasDualBuds -> "${safeTelemetry.right}%"
+            hasSingleBud -> ""
             !isWearableDevice && safeTelemetry.case in 0..100 -> "Case ${safeTelemetry.case}%"
             known -> "${effectivePct}%"
             else -> "Đã kết nối"
@@ -2176,8 +2180,10 @@ object EarbudsCard {
             // Khi ấn vào viên nang Đảo sẽ mở rộng thẻ (ISLAND_CLICK_SHOW_CARD)
             putExtra("oi_island_click_expand", true)
 
-            if (hasDetailedBuds) {
-                // 1. Viên nang thu gọn: 2 icon tai nghe 3D ngọc trai sắc nét kèm vạch pin mini đứng
+            if (hasDualBuds) {
+                // Đảo thu nhỏ khi có cả 2 tai nghe:
+                // Bên trái: leftBudIcon + text "${safeTelemetry.left}%"
+                // Bên phải: text "${safeTelemetry.right}%" + rightBudIcon
                 val leftBudIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
                     context,
                     isLeft = true,
@@ -2194,29 +2200,45 @@ object EarbudsCard {
                 )
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
 
-                // 2. Thẻ mở rộng: Hộp sạc 3D mở nắp kích thước chuẩn 240x240 px
-                val expandedLargeIcon = BatteryCanvasRenderer.createChargingCaseIcon(
-                    context,
-                    level = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct,
-                    isCharging = safeTelemetry.isCaseCharging,
-                    size = 240,
-                )
-                val casePct = safeTelemetry.case.takeIf { it in 0..100 } ?: effectivePct
-                val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
-                val midText = "Hộp sạc " + casePct + "%" + caseCharge
+                val hasCaseBattery = safeTelemetry.case in 0..100
+                val expandedLargeIcon = if (hasCaseBattery) {
+                    BatteryCanvasRenderer.createChargingCaseIcon(
+                        context,
+                        level = safeTelemetry.case,
+                        isCharging = safeTelemetry.isCaseCharging,
+                        size = 240,
+                    )
+                } else {
+                    // Khi đã lấy tai nghe ra khỏi case (case không báo pin): ẨN HOÀN TOÀN PHẦN CASE ĐI
+                    BatteryCanvasRenderer.createDualBudsLargeIcon(
+                        context,
+                        leftLevel = safeTelemetry.left,
+                        rightLevel = safeTelemetry.right,
+                        isLeftCharging = safeTelemetry.isLeftCharging,
+                        isRightCharging = safeTelemetry.isRightCharging,
+                        size = 240,
+                    )
+                }
 
-                // Cột trái: Mức pin và nhãn Tai trái
-                val extra1 = if (safeTelemetry.left in 0..100) "${safeTelemetry.left}%" else "--%"
-                val extra2 = if (safeTelemetry.isLeftCharging) "Tai trái ⚡" else "Tai trái"
-                // Cột phải: Mức pin và nhãn Tai phải
-                val extra3 = if (safeTelemetry.right in 0..100) "${safeTelemetry.right}%" else "--%"
-                val extra4 = if (safeTelemetry.isRightCharging) "Tai phải ⚡" else "Tai phải"
+                val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
+                val midText = if (hasCaseBattery) {
+                    "${safeTelemetry.case}% · Hộp sạc${caseCharge}"
+                } else {
+                    "Âm thanh TWS"
+                }
+
+                // Cột trái: Mức pin và nhãn Tai trái với biểu tượng ◖ (củ tai trái hướng vào tâm)
+                val extra1 = "${safeTelemetry.left}%"
+                val extra2 = "◖ Trái${if (safeTelemetry.isLeftCharging) " ⚡" else ""}"
+                // Cột phải: Mức pin và nhãn Tai phải với biểu tượng ◗ (củ tai phải hướng vào tâm)
+                val extra3 = "${safeTelemetry.right}%"
+                val extra4 = "Phải ◗${if (safeTelemetry.isRightCharging) " ⚡" else ""}"
 
                 putExtra("oi_left_icon", leftBudIcon)
+                putExtra("oi_left_content", "${safeTelemetry.left}%")
                 putExtra("oi_right_icon", rightBudIcon)
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "")
-                putExtra("status_chip_text", "")
+                putExtra("oi_right_content", "${safeTelemetry.right}%")
+                putExtra("status_chip_text", "${safeTelemetry.right}%")
                 putExtra("oi_show_right_icon", true)
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_fg_color", "#FFFFFFFF")
@@ -2233,6 +2255,49 @@ object EarbudsCard {
                 putExtra("oi_extra2", extra2)
                 putExtra("oi_extra3", extra3)
                 putExtra("oi_extra4", extra4)
+            } else if (hasSingleBud) {
+                // Khi chỉ lấy 1 bên tai nghe ra (hasSingleBud: chỉ có left HOẶC chỉ có right)
+                val isLeftOnly = hasLeft
+                val singleLevel = if (isLeftOnly) safeTelemetry.left else safeTelemetry.right
+                val isSingleCharging = if (isLeftOnly) safeTelemetry.isLeftCharging else safeTelemetry.isRightCharging
+                val singleSideName = if (isLeftOnly) "Tai trái" else "Tai phải"
+
+                val singleBudCapsuleIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                    context,
+                    isLeft = isLeftOnly,
+                    level = singleLevel,
+                    isCharging = isSingleCharging,
+                    size = 96,
+                )
+                val singleBudLargeIcon = BatteryCanvasRenderer.createSingleEarbudWithBatteryIcon(
+                    context,
+                    isLeft = isLeftOnly,
+                    level = singleLevel,
+                    isCharging = isSingleCharging,
+                    size = 240,
+                )
+
+                // Đảo thu nhỏ:
+                // oi_left_icon = budIcon, oi_left_content = "${singleLevel}%", oi_show_right_icon = false, oi_right_content = ""
+                putExtra("oi_left_icon", singleBudCapsuleIcon)
+                putExtra("oi_left_content", "${singleLevel}%")
+                putExtra("oi_show_right_icon", false)
+                putExtra("oi_right_content", "")
+                putExtra("status_chip_text", "")
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+                putExtra("oi_fg_color", "#FFFFFFFF")
+
+                // Thẻ mở rộng: TEMPLATE_BASE (4), largeIcon 240x240
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
+                putExtra("oi_large_icon", singleBudLargeIcon)
+                putExtra("title", "${name.take(18)} · $singleSideName ${singleLevel}%")
+                putExtra(
+                    "text",
+                    if (isSingleCharging) "Đang sạc ⚡ · Pin ${singleLevel}%"
+                    else "Đang sử dụng một bên tai · Pin ${singleLevel}%"
+                )
+                putExtra("subtext", if (lowWarning) "Pin yếu · Cần sạc" else "")
+                putExtra("oi_card_ring", singleLevel)
             } else {
                 // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
