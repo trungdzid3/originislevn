@@ -1185,10 +1185,310 @@ object BatteryCanvasRenderer {
     }
 
     /**
-     * Dựng ảnh Composite 3D (mặc định 320 x 144 px, ~180KB an toàn tuyệt đối Binder IPC)
-     * cho thẻ mở rộng tai nghe TWS:
-     * - Khi hasCaseBattery = true: [Tai nghe Trái 3D] + [Hộp sạc 3D mở nắp cao tràn khung] + [Tai nghe Phải 3D].
-     * - Khi hasCaseBattery = false: Ẩn hoàn toàn hộp sạc, chỉ vẽ [Tai nghe Trái 3D lớn] + [Tai nghe Phải 3D lớn].
+     * Dựng ảnh Hộp sạc 3D mở nắp vuông 1:1 (192x192 px) chuẩn OriginOS 6 / Apple AirPods Pro:
+     * - Thân hộp sạc trắng ngọc trai bo tròn squircle nổi bật trên nền tối #141519.
+     * - Nắp hộp mở ngửa, khoang lõm bạc với 2 hốc giữ tai nghe đối xứng.
+     * - 2 đầu tai nghe trắng bóng nhô nhẹ trong lòng hộp sạc.
+     * - Rãnh bản lề kim loại và đèn LED phát sáng ở chính giữa thân hộp.
+     */
+    fun createChargingCase3DIcon(
+        context: Context,
+        casePct: Int = -1,
+    ): Icon {
+        val size = 192
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        // 1. Nắp hộp sạc mở phía trên (Open Top Lid)
+        val lidRect = RectF(24f, 18f, 168f, 82f)
+        val lidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                96f,
+                18f,
+                96f,
+                82f,
+                Color.parseColor("#F8FAFC"),
+                Color.parseColor("#DCE2EC"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(lidRect, 34f, 34f, lidPaint)
+
+        // 2. Khoang lõm bên trong nắp (Inner Lid Cavity)
+        val innerLidRect = RectF(34f, 26f, 158f, 78f)
+        val innerLidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#C5CEDB")
+        }
+        canvas.drawRoundRect(innerLidRect, 26f, 26f, innerLidPaint)
+
+        // 2 hốc lõm tối đối xứng trái/phải mô phỏng khuôn giữ tai nghe trong nắp hộp
+        val cavityRecessPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#8E98A8")
+        }
+        canvas.drawOval(RectF(48f, 34f, 88f, 64f), cavityRecessPaint)
+        canvas.drawOval(RectF(104f, 34f, 144f, 64f), cavityRecessPaint)
+
+        // 3. 2 đầu tai nghe trắng bóng nhô nhẹ trong hốc sạc (Seated Buds inside Case)
+        val cxLeft = 68f
+        val cxRight = 124f
+        val budCy = 70f
+        val budRadius = 20f
+
+        val leftBudPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = RadialGradient(
+                cxLeft - 4f,
+                budCy - 5f,
+                budRadius * 1.2f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#D8E0EC"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawCircle(cxLeft, budCy, budRadius, leftBudPaint)
+
+        val rightBudPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = RadialGradient(
+                cxRight + 4f,
+                budCy - 5f,
+                budRadius * 1.2f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#D8E0EC"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawCircle(cxRight, budCy, budRadius, rightBudPaint)
+
+        // Khe loa đen mảnh hướng vào trong trên mỗi đầu tai nghe
+        val slotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#1A1D24")
+        }
+        canvas.drawOval(RectF(cxLeft + 6f, 65f, cxLeft + 13f, 73f), slotPaint)
+        canvas.drawOval(RectF(cxRight - 13f, 65f, cxRight - 6f, 73f), slotPaint)
+
+        // 4. Thân hộp sạc dưới (Lower Case Body) vẽ đè lên phần dưới của 2 tai nghe
+        val bodyRect = RectF(20f, 78f, 172f, 174f)
+        val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                96f,
+                78f,
+                96f,
+                174f,
+                intArrayOf(
+                    Color.parseColor("#FFFFFF"),
+                    Color.parseColor("#EAEEF5"),
+                    Color.parseColor("#D0D7E3"),
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(bodyRect, 36f, 36f, bodyPaint)
+
+        // Viền highlight mảnh 1.5f màu #FFFFFF để nổi bật 100% trên nền thẻ đen #141519
+        val bodyBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            color = Color.parseColor("#FFFFFF")
+        }
+        canvas.drawRoundRect(bodyRect, 36f, 36f, bodyBorderPaint)
+
+        // 5. Rãnh bản lề kim loại (Metallic Hinge Lip) & đường khớp nối mảnh ngang tại y = 78f
+        val seamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            color = Color.parseColor("#B8C0CC")
+        }
+        canvas.drawLine(34f, 78f, 158f, 78f, seamPaint)
+
+        val hingeLipRect = RectF(74f, 78f, 118f, 85f)
+        val hingeLipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#B0B8C6")
+        }
+        canvas.drawRoundRect(hingeLipRect, 3.5f, 3.5f, hingeLipPaint)
+
+        // 6. Đèn báo LED phát sáng (Front LED Indicator) tại chính giữa thân hộp (cx = 96f, cy = 122f)
+        val ledCx = 96f
+        val ledCy = 122f
+        val isLowBattery = casePct in 1..19
+        val ledCoreColor = if (isLowBattery) Color.parseColor("#FF5247") else Color.parseColor("#00D084")
+        val ledHaloStart = if (isLowBattery) Color.parseColor("#66FF5247") else Color.parseColor("#6600D084")
+        val ledHaloEnd = if (isLowBattery) Color.parseColor("#00FF5247") else Color.parseColor("#0000D084")
+
+        val ledHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = RadialGradient(
+                ledCx,
+                ledCy,
+                12f,
+                ledHaloStart,
+                ledHaloEnd,
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawCircle(ledCx, ledCy, 12f, ledHaloPaint)
+
+        val ledCorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = ledCoreColor
+        }
+        canvas.drawCircle(ledCx, ledCy, 4.5f, ledCorePaint)
+
+        val ledWhiteCenterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#CCFFFFFF")
+        }
+        canvas.drawCircle(ledCx, ledCy, 1.6f, ledWhiteCenterPaint)
+
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Dựng Icon tai nghe đơn chiếc 3D Pearl White độ phân giải cao (192x192 px):
+     * - Chiếm ~82% chiều cao khung 192x192, không có thanh pin xanh lá dưới chân.
+     * - isLeft = true: đầu tai & nút silicone hướng vào trong (sang phải).
+     * - isLeft = false: đầu tai & nút silicone hướng vào trong (sang trái).
+     */
+    fun createSingleEarbudIcon(context: Context, isLeft: Boolean): Icon {
+        val size = 192
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        canvas.save()
+        if (!isLeft) {
+            // Tai phải: lật trục X quanh tâm để đầu tai hướng sang trái (vào trong)
+            canvas.scale(-1f, 1f, size / 2f, size / 2f)
+        }
+
+        // Vẽ chuẩn ở hướng tai trái (cuống bên trái, đầu tai & nút silicone hướng sang phải)
+        // Chiếm ~82% chiều cao (từ y = 17f đến y = 175f => 158f / 192f = 82.3%)
+
+        // 1. Thân cuống tai (Stem) với bóng khối 3D LinearGradient
+        val stemRect = RectF(48f, 58f, 76f, 173f)
+        val stemRadius = 14f
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                stemRect.left,
+                stemRect.top,
+                stemRect.right,
+                stemRect.top,
+                intArrayOf(
+                    Color.parseColor("#FFFFFF"),
+                    Color.parseColor("#F1F4F9"),
+                    Color.parseColor("#D6DCE8"),
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(stemRect, stemRadius, stemRadius, stemPaint)
+
+        // Vạch cảm ứng lực (Force-touch groove) trên thân cuống
+        val forceGroovePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#C2CAD8")
+        }
+        canvas.drawRoundRect(RectF(50f, 108f, 55f, 134f), 2.5f, 2.5f, forceGroovePaint)
+
+        // Khuyên sạc bạc ở đuôi cuống
+        val ringRect = RectF(50f, 162f, 74f, 174f)
+        val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                ringRect.left,
+                ringRect.top,
+                ringRect.right,
+                ringRect.top,
+                Color.parseColor("#CBD2DE"),
+                Color.parseColor("#8D97A8"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(ringRect, 6f, 6f, ringPaint)
+
+        // 2. Củ tai 3D Pearl White (Earbud Housing)
+        val housingRect = RectF(44f, 18f, 128f, 94f)
+        val housingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = RadialGradient(
+                76f,
+                42f,
+                54f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#D6DCE8"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawOval(housingRect, housingPaint)
+
+        // Điểm bóng phản chiếu (Specular highlight) trên lưng củ tai
+        val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#88FFFFFF")
+        }
+        canvas.drawOval(RectF(56f, 26f, 88f, 44f), highlightPaint)
+
+        // Chấm cảm biến (Proximity sensor dot) #252830
+        val sensorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#252830")
+        }
+        canvas.drawCircle(92f, 74f, 5f, sensorPaint)
+
+        // 3. Nút tai silicone (Silicone Ear Tip) hướng sang phải (vào trong)
+        val tipPath = Path().apply {
+            moveTo(110f, 34f)
+            cubicTo(132f, 28f, 152f, 38f, 152f, 56f)
+            cubicTo(152f, 74f, 132f, 84f, 110f, 78f)
+            close()
+        }
+        val tipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                110f,
+                30f,
+                152f,
+                82f,
+                Color.parseColor("#FFFFFF"),
+                Color.parseColor("#DCE2EE"),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawPath(tipPath, tipPaint)
+
+        // Lưới âm thanh bầu dục đen #1A1D24 ở đầu nút tai
+        val meshPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#1A1D24")
+        }
+        canvas.drawOval(RectF(134f, 43f, 148f, 69f), meshPaint)
+
+        canvas.restore()
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Dựng Icon Hộp sạc 3D cho ô vuông chính giữa (oi_large_icon) của Thẻ mở rộng TWS.
+     */
+    fun createTwsExpandedCompositeIcon(
+        context: Context,
+        leftPct: Int,
+        rightPct: Int,
+        casePct: Int,
+    ): Icon {
+        return createChargingCase3DIcon(context, casePct)
+    }
+
+    /**
+     * Overload tương thích ngược cho caller cũ: trả về duy nhất Hộp sạc 3D 192x192.
      */
     fun createTwsExpandedCompositeIcon(
         context: Context,
@@ -1200,31 +1500,6 @@ object BatteryCanvasRenderer {
         width: Int = 320,
         height: Int = 144,
     ): Icon {
-        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        val sx = width / 320f
-        val sy = height / 144f
-        canvas.save()
-        canvas.scale(sx, sy)
-
-        if (hasCaseBattery) {
-            val leftBudBounds = RectF(4f, 10f, 94f, 134f)
-            drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
-
-            val caseBounds = RectF(98f, 2f, 222f, 142f)
-            drawOpenChargingCaseForComposite(canvas, caseBounds, caseLevel, isCaseCharging)
-
-            val rightBudBounds = RectF(226f, 10f, 316f, 134f)
-            drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
-        } else {
-            val leftBudBounds = RectF(40f, 6f, 148f, 138f)
-            drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
-
-            val rightBudBounds = RectF(172f, 6f, 280f, 138f)
-            drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
-        }
-
-        canvas.restore()
-        return Icon.createWithBitmap(bmp)
+        return createChargingCase3DIcon(context, caseLevel)
     }
 }
