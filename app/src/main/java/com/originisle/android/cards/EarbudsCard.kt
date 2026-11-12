@@ -4,12 +4,14 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.PendingIntent
+import android.bluetooth.BluetoothA2dp
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
@@ -63,10 +65,14 @@ object EarbudsCard {
 
     private const val BATTERY_WAIT_MS = 2500L
     private const val SHOW_MS = 4_500L
-    private const val DISCONNECT_DEBOUNCE_MS = 8000L
+    private const val DISCONNECT_DEBOUNCE_MS = 1200L
+    private const val WEARABLE_DISCONNECT_DEBOUNCE_MS = 6000L
     private const val DISCONNECT_SHOW_MS = 3_000L
     private const val ANTI_FLAP_COOLDOWN_MS = 10_000L
     private const val LOW_LEVEL = 15
+
+    private fun disconnectDebounceFor(isWearable: Boolean): Long =
+        if (isWearable) WEARABLE_DISCONNECT_DEBOUNCE_MS else DISCONNECT_DEBOUNCE_MS
 
     // Màu sắc tiêu chuẩn OriginOS & Trạng thái
     private const val GREEN = "#00D084"
@@ -160,6 +166,9 @@ object EarbudsCard {
     private val lastConnectedTimestamp = ConcurrentHashMap<String, Long>()
     private var showingEarbudsAddress: String? = null
     private var showingWearableAddress: String? = null
+    private var lastConnectedAudioDeviceName: String? = null
+    private var lastConnectedAudioDeviceAddress: String? = null
+    private var lastDisconnectCardShownMs: Long = 0L
     private var hideEarbudsTask: Runnable? = null
     private var hideWearableTask: Runnable? = null
 
@@ -200,9 +209,15 @@ object EarbudsCard {
 
     /**
      * Kiểm tra trạng thái phần cứng Bluetooth thực tế qua BluetoothManager và BluetoothAdapter.
-     * Quét qua GATT, GATT_SERVER, A2DP, HEADSET và bondedDevices.
+     * - Khi !isWearable (tai nghe âm thanh): CHỈ kiểm tra các profile âm thanh (HEADSET, A2DP, LE_AUDIO=22),
+     *   tuyệt đối không kiểm tra GATT/GATT_SERVER hay device.isConnected() vì BLE GATT của Fast Pair giữ kết nối ngầm sau khi đóng nắp hộp.
+     * - Khi isWearable == true (đồng hồ / vòng đeo): kiểm tra cả GATT, GATT_SERVER và device.isConnected().
      */
-    fun isDeviceHardwareConnected(context: Context, nameOrAddress: String?): Boolean {
+    fun isDeviceHardwareConnected(
+        context: Context,
+        nameOrAddress: String?,
+        isWearable: Boolean = isWearable(null, nameOrAddress),
+    ): Boolean {
         if (nameOrAddress.isNullOrBlank()) return false
         val target = nameOrAddress.trim().lowercase()
         return runCatching {
@@ -220,12 +235,20 @@ object EarbudsCard {
                 return false
             }
 
-            val profiles = intArrayOf(
-                BluetoothProfile.GATT,
-                BluetoothProfile.GATT_SERVER,
-                BluetoothProfile.A2DP,
-                BluetoothProfile.HEADSET,
-            )
+            val profiles = if (isWearable) {
+                intArrayOf(
+                    BluetoothProfile.GATT,
+                    BluetoothProfile.GATT_SERVER,
+                    BluetoothProfile.A2DP,
+                    BluetoothProfile.HEADSET,
+                )
+            } else {
+                intArrayOf(
+                    BluetoothProfile.HEADSET,
+                    BluetoothProfile.A2DP,
+                    22, // BluetoothProfile.LE_AUDIO
+                )
+            }
 
             for (p in profiles) {
                 val connectedDevices = runCatching { btManager.getConnectedDevices(p) }.getOrNull()
@@ -235,7 +258,11 @@ object EarbudsCard {
             }
 
             val bonded = runCatching { adapter.bondedDevices }.getOrNull().orEmpty()
-            val isConnectedMethod = runCatching { BluetoothDevice::class.java.getMethod("isConnected") }.getOrNull()
+            val isConnectedMethod = if (isWearable) {
+                runCatching { BluetoothDevice::class.java.getMethod("isConnected") }.getOrNull()
+            } else {
+                null
+            }
 
             for (dev in bonded) {
                 if (matchesDevice(dev)) {
@@ -245,7 +272,7 @@ object EarbudsCard {
                             return@runCatching true
                         }
                     }
-                    if (isConnectedMethod != null) {
+                    if (isWearable && isConnectedMethod != null) {
                         val connected = runCatching { isConnectedMethod.invoke(dev) as? Boolean }.getOrDefault(false)
                         if (connected == true) {
                             return@runCatching true
@@ -789,6 +816,8 @@ object EarbudsCard {
         val filter = IntentFilter().apply {
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
             addAction(ACTION_BATTERY_LEVEL_CHANGED)
 
             // Lắng nghe thêm các broadcast mở rộng của Vivo / Google Fast Pair / AOSP
@@ -900,6 +929,40 @@ object EarbudsCard {
         return OVER_EAR_NAMES.any { it in n }
     }
 
+    private fun isAudioEarbudsCandidate(device: BluetoothDevice?, name: String): Boolean {
+        if (device != null && isAudio(device)) return true
+        val lower = name.trim().lowercase()
+        return lower.isNotBlank() && AUDIO_KEYWORDS.any { lower.contains(it) }
+    }
+
+    private fun syncAudioDeviceConnectedState(context: Context, deviceName: String, explicitAddress: String? = null) {
+        if (deviceName.isNotBlank()) {
+            lastConnectedAudioDeviceName = deviceName
+            setConnectedState(deviceName, true)
+        }
+        if (!explicitAddress.isNullOrBlank() && explicitAddress != "device_unknown") {
+            lastConnectedAudioDeviceAddress = explicitAddress
+            setConnectedState(explicitAddress, true)
+            return
+        }
+        val matched = findBluetoothDevice(context, deviceName)
+        if (matched?.address != null) {
+            lastConnectedAudioDeviceAddress = matched.address
+            setConnectedState(matched.address, true)
+            return
+        }
+        runCatching {
+            val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return@runCatching
+            val connectedAudio = (btManager.getConnectedDevices(BluetoothProfile.A2DP).orEmpty() +
+                btManager.getConnectedDevices(BluetoothProfile.HEADSET).orEmpty())
+                .firstOrNull { !isWearable(it) }
+            if (connectedAudio?.address != null) {
+                lastConnectedAudioDeviceAddress = connectedAudio.address
+                setConnectedState(connectedAudio.address, true)
+            }
+        }
+    }
+
     private fun handle(intent: Intent) {
         val context = app ?: return
         val action = intent.action ?: return
@@ -942,9 +1005,23 @@ object EarbudsCard {
             wearableRegistry.add(devName)
         }
 
+        val isAudioProfileAction =
+            action == BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ||
+            action == BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED
+        val profileState = if (isAudioProfileAction) intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) else -1
+        val prevProfileState = if (isAudioProfileAction) intent.getIntExtra(BluetoothProfile.EXTRA_PREVIOUS_STATE, -1) else -1
+        val isProfileConnected = isAudioProfileAction && profileState == BluetoothProfile.STATE_CONNECTED
+        val isProfileDisconnected = isAudioProfileAction &&
+            profileState == BluetoothProfile.STATE_DISCONNECTED &&
+            (prevProfileState == BluetoothProfile.STATE_CONNECTED || prevProfileState == BluetoothProfile.STATE_DISCONNECTING)
+        if (isAudioProfileAction && !isProfileConnected && !isProfileDisconnected) {
+            return
+        }
+
         when {
             // --- KẾT NỐI (CONNECTED) ---
             action == BluetoothDevice.ACTION_ACL_CONNECTED ||
+            isProfileConnected ||
             action == ACTION_SAMSUNG_FIT_CONNECTED ||
             action == ACTION_SAMSUNG_WEARABLE_CONNECTED ||
             isSamsungAccessoryConnected(intent) -> {
@@ -955,6 +1032,9 @@ object EarbudsCard {
 
                 setConnectedState(address, true)
                 setConnectedState(devName, true)
+                if (!isWearableDevice) {
+                    syncAudioDeviceConnectedState(context, devName, address)
+                }
 
                 var initial = readTelemetry(device, intent)
                 if (!isWearableDevice) {
@@ -1004,29 +1084,40 @@ object EarbudsCard {
                 }
             }
 
-            // --- MẤT KẾT NỐI (DISCONNECTED) VỚI DEBOUNCE 8000MS & XÁC THỰC PHẦN CỨNG ---
+            // --- MẤT KẾT NỐI (DISCONNECTED) VỚI DEBOUNCE 1200MS (TAI NGHE) / 6000MS (WEARABLE) & XÁC THỰC PHẦN CỨNG ---
             action == BluetoothDevice.ACTION_ACL_DISCONNECTED ||
+            isProfileDisconnected ||
             action == ACTION_SAMSUNG_FIT_DISCONNECTED ||
             action == ACTION_SAMSUNG_WEARABLE_DISCONNECTED ||
             isSamsungAccessoryDisconnected(intent) -> {
                 val wasConnected = isConnected(address) || isConnected(devName)
+                val allowAudioDisconnect = !isWearableDevice && (
+                    wasConnected ||
+                    devName.equals(lastConnectedAudioDeviceName, ignoreCase = true) ||
+                    address == lastConnectedAudioDeviceAddress ||
+                    isAudioEarbudsCandidate(device, devName)
+                )
                 pending.remove(address)?.let(handler::removeCallbacks)
                 disconnectDebounce.remove(address)?.let(handler::removeCallbacks)
                 disconnectDebounce.remove(devName)?.let(handler::removeCallbacks)
 
-                if (!wasConnected) {
+                if (!wasConnected && !allowAudioDisconnect) {
+                    return
+                }
+                if (!isWearableDevice && System.currentTimeMillis() - lastDisconnectCardShownMs < 5000L) {
                     return
                 }
 
                 val disconnectTask = Runnable {
                     disconnectDebounce.remove(address)
                     disconnectDebounce.remove(devName)
-                    if (isDeviceHardwareConnected(context, devName) || isDeviceHardwareConnected(context, address)) {
+                    if (isDeviceHardwareConnected(context, devName, isWearable = isWearableDevice) ||
+                        isDeviceHardwareConnected(context, address, isWearable = isWearableDevice)) {
                         setConnectedState(address, true)
                         setConnectedState(devName, true)
                         return@Runnable
                     }
-                    if (isWithinAntiFlapCooldown(address) || isWithinAntiFlapCooldown(devName)) {
+                    if (isWearableDevice && (isWithinAntiFlapCooldown(address) || isWithinAntiFlapCooldown(devName))) {
                         Log.i(TAG, "Anti-flap: skip disconnect popup for $devName within cooldown")
                         setConnectedState(address, true)
                         setConnectedState(devName, true)
@@ -1044,7 +1135,7 @@ object EarbudsCard {
                 }
                 disconnectDebounce[address] = disconnectTask
                 disconnectDebounce[devName] = disconnectTask
-                handler.postDelayed(disconnectTask, DISCONNECT_DEBOUNCE_MS)
+                handler.postDelayed(disconnectTask, disconnectDebounceFor(isWearableDevice))
             }
 
             // --- VENDOR SPECIFIC AT COMMAND ---
@@ -1881,6 +1972,9 @@ object EarbudsCard {
         if (btAddress != null) {
             setConnectedState(btAddress, true)
         }
+        if (!isWearableDevice) {
+            syncAudioDeviceConnectedState(context, devName, btAddress)
+        }
 
         val changed = existing != merged
         val currentlyShowing = if (isWearableDevice) {
@@ -2098,6 +2192,9 @@ object EarbudsCard {
         } else activeTelemetry
 
         storeTelemetry(context, (targetDev ?: device)?.address, name, safeTelemetry, isWearableDevice)
+        if (!isWearableDevice) {
+            syncAudioDeviceConnectedState(context, name, (targetDev ?: device)?.address)
+        }
         if (known) {
             saveCachedBattery(context, name, effectivePct)
             (targetDev ?: device)?.address?.let { saveCachedBattery(context, it, effectivePct) }
@@ -2188,40 +2285,26 @@ object EarbudsCard {
 
             if (hasDualBuds) {
                 // Đảo thu nhỏ khi có cả 2 tai nghe:
-                // Biểu tượng tai nghe 3D thuần khiết (không thanh pin xanh lá) + % pin ở mỗi bên
-                val leftBudIcon = BatteryCanvasRenderer.createPureEarbudIcon(
-                    context,
-                    isLeft = true,
-                    size = 96,
-                )
-                val rightBudIcon = BatteryCanvasRenderer.createPureEarbudIcon(
-                    context,
-                    isLeft = false,
-                    size = 96,
-                )
+                // Biểu tượng tai nghe 3D thuần khiết + % pin ở mỗi bên
+                val leftBudIcon = BatteryCanvasRenderer.createSingleEarbudIcon(context, isLeft = true)
+                val rightBudIcon = BatteryCanvasRenderer.createSingleEarbudIcon(context, isLeft = false)
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
 
-                val hasCaseBattery = safeTelemetry.case in 0..100
-                val expandedLargeIcon = BatteryCanvasRenderer.createTwsExpandedCompositeIcon(
-                    context,
-                    hasCaseBattery = hasCaseBattery,
-                    caseLevel = safeTelemetry.case,
-                    isLeftCharging = safeTelemetry.isLeftCharging,
-                    isRightCharging = safeTelemetry.isRightCharging,
-                    isCaseCharging = safeTelemetry.isCaseCharging,
-                    width = 320,
-                    height = 144,
-                )
-
-                val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
-                val midText = if (hasCaseBattery) {
-                    "Hộp ${safeTelemetry.case}%${caseCharge}"
+                val hasCase = safeTelemetry.case in 0..100
+                val centerIcon = if (hasCase) {
+                    BatteryCanvasRenderer.createTwsExpandedCompositeIcon(
+                        context,
+                        safeTelemetry.left,
+                        safeTelemetry.right,
+                        safeTelemetry.case,
+                    )
                 } else {
-                    "Âm thanh TWS"
+                    createTransparentIcon()
                 }
 
-                // Không truyền % pin vào oi_extra1 / oi_extra3 (font tỷ số 38sp khổng lồ),
-                // đưa toàn bộ nhãn + % pin vào oi_extra2 / oi_extra4 / oi_mid_text (cỡ chữ chuẩn 13-14sp).
+                val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
+                val midText = if (hasCase) "Hộp sạc ${safeTelemetry.case}%$caseCharge" else ""
+
                 val extra1 = ""
                 val extra2 = "Trái ${safeTelemetry.left}%${if (safeTelemetry.isLeftCharging) " ⚡" else ""}"
                 val extra3 = ""
@@ -2239,11 +2322,12 @@ object EarbudsCard {
                 // Thẻ mở rộng đối xứng 3 cột chuẩn OriginOS 6 (TEMPLATE_TEXT_SYMMETRY = 3)
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
                 putExtra("oi_base_icon", baseHeaderIcon)
-                putExtra("oi_large_icon", expandedLargeIcon)
+                putExtra("oi_large_icon", centerIcon)
+                putExtra("oi_mid_title", "")
                 putExtra("oi_mid_text", midText)
                 putExtra("title", "${name.take(20)} · Đã kết nối")
                 putExtra("text", if (lowWarning) "Pin yếu · Cần sạc" else "Tai nghe Bluetooth")
-                putExtra("subtext", "")
+                putExtra("subtext", "Đã kết nối")
                 putExtra("oi_extra1", extra1)
                 putExtra("oi_extra2", extra2)
                 putExtra("oi_extra3", extra3)
@@ -2254,23 +2338,13 @@ object EarbudsCard {
                 val singleLevel = if (isLeftOnly) safeTelemetry.left else safeTelemetry.right
                 val isSingleCharging = if (isLeftOnly) safeTelemetry.isLeftCharging else safeTelemetry.isRightCharging
                 val singleSideName = if (isLeftOnly) "Tai trái" else "Tai phải"
+                val hasCase = safeTelemetry.case in 0..100
 
-                val singleBudCapsuleIcon = BatteryCanvasRenderer.createPureEarbudIcon(
-                    context,
-                    isLeft = isLeftOnly,
-                    size = 96,
-                )
-                val singleBudLargeIcon = BatteryCanvasRenderer.createPureEarbudIcon(
-                    context,
-                    isLeft = isLeftOnly,
-                    size = 240,
-                    isCharging = isSingleCharging,
-                )
+                val singleBudIcon = BatteryCanvasRenderer.createSingleEarbudIcon(context, isLeft = isLeftOnly)
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
 
-                // Đảo thu nhỏ:
-                // oi_left_icon = budIcon thuần khiết, oi_left_content = "${singleLevel}%", ẩn icon bên phải
-                putExtra("oi_left_icon", singleBudCapsuleIcon)
+                // Đảo thu nhỏ: chỉ hiện bên đang đeo
+                putExtra("oi_left_icon", singleBudIcon)
                 putExtra("oi_left_content", "${singleLevel}%")
                 putExtra("oi_show_right_icon", false)
                 putExtra("oi_right_content", "")
@@ -2278,17 +2352,17 @@ object EarbudsCard {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_fg_color", "#FFFFFFFF")
 
-                // Thẻ mở rộng: TEMPLATE_BASE (4), largeIcon 240x240 thuần khiết + oi_base_icon nhẹ tránh Binder IPC lớn
+                // Thẻ mở rộng: TEMPLATE_BASE (4)
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                 putExtra("oi_base_icon", baseHeaderIcon)
-                putExtra("oi_large_icon", singleBudLargeIcon)
-                putExtra("title", "${name.take(18)} · $singleSideName ${singleLevel}%")
+                putExtra("oi_large_icon", singleBudIcon)
+                putExtra("title", name.take(20))
                 putExtra(
                     "text",
-                    if (isSingleCharging) "Đang sạc ⚡ · Pin ${singleLevel}%"
-                    else "Đang sử dụng một bên tai · Pin ${singleLevel}%"
+                    if (isSingleCharging) "$singleSideName ${singleLevel}% ⚡ · Đang đeo"
+                    else "$singleSideName ${singleLevel}% · Đang đeo"
                 )
-                putExtra("subtext", if (lowWarning) "Pin yếu · Cần sạc" else "")
+                putExtra("subtext", if (hasCase) "Hộp sạc ${safeTelemetry.case}%" else "Đã kết nối")
                 putExtra("oi_card_ring", singleLevel)
             } else {
                 // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
@@ -2314,6 +2388,9 @@ object EarbudsCard {
             putExtra("oi_dismiss_when_kill", true)
         }
 
+        if (!isWearable) {
+            lastDisconnectCardShownMs = System.currentTimeMillis()
+        }
         context.startService(intent)
         val shownKey = device?.address ?: name
         if (isWearableDevice) {
@@ -2331,6 +2408,9 @@ object EarbudsCard {
         }
     }
 
+    private fun createTransparentIcon(): Icon =
+        Icon.createWithBitmap(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+
     /**
      * Hiển thị thẻ Mất kết nối Bluetooth với huy hiệu chữ "Ngắt" đồng bộ định dạng với khi kết nối, viền đỏ #FF5247.
      * Tự động đóng sau 3000ms.
@@ -2338,7 +2418,11 @@ object EarbudsCard {
     fun showDisconnected(context: Context, name: String, isWearable: Boolean = false) {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
         if (!prefs.getBoolean("cast_earbuds", true)) return
-        if (isDeviceHardwareConnected(context, name) || isWithinAntiFlapCooldown(name)) {
+        if (!isWearable && System.currentTimeMillis() - lastDisconnectCardShownMs < 5000L) {
+            return
+        }
+        if (isDeviceHardwareConnected(context, name, isWearable = isWearable) ||
+            (isWearable && isWithinAntiFlapCooldown(name))) {
             setConnectedState(name, true)
             return
         }
@@ -2385,6 +2469,9 @@ object EarbudsCard {
             putExtra("oi_dismiss_when_kill", true)
         }
 
+        if (!isWearable) {
+            lastDisconnectCardShownMs = System.currentTimeMillis()
+        }
         context.startService(intent)
         if (isWearable) {
             showingWearableAddress = null
@@ -2475,18 +2562,22 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
-        val wasConnected = isConnected(name)
+        val wasConnected = isConnected(name) ||
+            (!isWearable && name.equals(lastConnectedAudioDeviceName, ignoreCase = true))
         if (!wasConnected) {
             // Thiết bị chưa từng kết nối hoặc đã ở trạng thái ngắt, không hiển thị pop-up ảo
             return
         }
+        if (!isWearable && System.currentTimeMillis() - lastDisconnectCardShownMs < 5000L) {
+            return
+        }
         val task = Runnable {
             disconnectDebounce.remove(name)
-            if (isDeviceHardwareConnected(ctx, name)) {
+            if (isDeviceHardwareConnected(ctx, name, isWearable = isWearable)) {
                 setConnectedState(name, true)
                 return@Runnable
             }
-            if (isWithinAntiFlapCooldown(name)) {
+            if (isWearable && isWithinAntiFlapCooldown(name)) {
                 Log.i(TAG, "Anti-flap: skip onDeviceDisconnected for $name within cooldown")
                 setConnectedState(name, true)
                 return@Runnable
@@ -2497,7 +2588,35 @@ object EarbudsCard {
             showDisconnected(ctx, name, isWearable)
         }
         disconnectDebounce[name] = task
-        handler.postDelayed(task, DISCONNECT_DEBOUNCE_MS)
+        handler.postDelayed(task, disconnectDebounceFor(isWearable))
+    }
+
+    /**
+     * Bắt sự kiện hệ thống xóa thông báo pin tai nghe / Google Fast Pair khi đóng nắp hộp sạc.
+     */
+    fun onFastPairNotificationRemoved(rawTitle: String, rawText: String) {
+        val ctx = app ?: return
+        if (!enabled(ctx)) return
+        val extracted = extractDeviceNameFromNotificationText(rawTitle, rawText, isWearable = false)
+            .takeIf { it.isNotBlank() && it != "Tai nghe" }
+        val targetName = extracted ?: lastConnectedAudioDeviceName ?: "Tai nghe"
+        if (isWearable(null, targetName)) return
+
+        handler.postDelayed({
+            val currentCtx = app ?: return@postDelayed
+            if (!enabled(currentCtx)) return@postDelayed
+            val stillConnected = isDeviceHardwareConnected(currentCtx, targetName, isWearable = false) ||
+                (lastConnectedAudioDeviceAddress?.let {
+                    isDeviceHardwareConnected(currentCtx, it, isWearable = false)
+                } == true)
+            if (!stillConnected && System.currentTimeMillis() - lastDisconnectCardShownMs >= 5000L) {
+                setConnectedState(targetName, false)
+                lastConnectedAudioDeviceAddress?.let { setConnectedState(it, false) }
+                deviceTelemetry -= targetName
+                deviceTelemetry -= targetName.lowercase()
+                showDisconnected(currentCtx, targetName, isWearable = false)
+            }
+        }, 1500L)
     }
 
     fun onBatteryUpdated(context: Context, name: String, telemetry: EarbudsTelemetry, isWearable: Boolean = false) {

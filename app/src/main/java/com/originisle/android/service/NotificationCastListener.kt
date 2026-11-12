@@ -1943,7 +1943,14 @@ class NotificationCastListener : NotificationListenerService() {
         lastOutcome.remove(sbn.key)
         lastScorePostTime.remove(sbn.key)
         lastCastPostTime.remove(sbn.key)
-        lastEarbudsNotifText.remove(sbn.key)
+        val removedEarbudsText = lastEarbudsNotifText.remove(sbn.key)
+        if (removedEarbudsText != null) {
+            val extras = sbn.notification?.extras
+            val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+            val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                ?.takeIf { it.isNotBlank() } ?: removedEarbudsText
+            EarbudsCard.onFastPairNotificationRemoved(title, text)
+        }
         suppressedPopupKeys.remove(sbn.key)
 
         if (TikTokStreakDetector.isTikTokStreak(sbn)) {
