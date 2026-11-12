@@ -1,5 +1,7 @@
 package com.originisle.android.ui
 
+import com.originisle.android.BuildConfig
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -1627,7 +1629,7 @@ private fun DeviceHeroCard(
                         color = IsleColors.PreviewLabel,
                     )
                     Text(
-                        text = if (castOn) "2.0.0 LIVE" else "CHỜ BẬT",
+                        text = if (castOn) "${BuildConfig.VERSION_NAME} LIVE" else "CHỜ BẬT",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (castOn) IsleColors.AccentText else IsleColors.PreviewLabel,
@@ -1793,7 +1795,7 @@ private fun DeviceHeroCard(
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
                     Text(
-                        text = "v2.0.0",
+                        text = "v${BuildConfig.VERSION_NAME}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = IsleColors.AccentText,
