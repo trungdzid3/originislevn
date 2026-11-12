@@ -55,32 +55,16 @@ Quy chuẩn Kỹ thuật và Quy trình Vận hành bắt buộc cho mọi phiê
   * Không dừng giữa chừng để bắt người dùng test thủ công. Tự sửa lỗi khép kín (`Coder` -> `Reviewer` -> `QA Bot` -> đọc traceback từ `test_results.json` sửa đến khi PASS).
   * **Cầu chì Ngắt Vòng lặp (Circuit Breaker - Tối đa 3 lần)**: Một Subagent chỉ được phép tự động debug và thử lại tối đa **3 lần** cho cùng một lỗi cụ thể. Nếu sau 3 lần vẫn thất bại, Subagent BẮT BUỘC dừng lại, giữ nguyên hiện trạng, ghi chép chi tiết nguyên nhân vào `task.md` và bàn giao lại cho Lead Orchestrator để xin chỉ thị từ người dùng, tránh cạn kiệt context hoặc lặp vô tận.
 
-### 6. Giao thức Cưỡng chế Đa Đại lý (Mandatory Subagent Enforcement Protocol)
-* **Định danh Vai trò (Role Lock)**: Agent chính giữ vai trò **Lead Orchestrator (Tổng Điều Phối)**. Lead Orchestrator **BỊ CẤM** trực tiếp viết code triển khai khi nhiệm vụ thuộc diện phải chia Subagent.
-* **Điều kiện Kích hoạt Cứng (Hard Trigger Condition)**:
-  * `IF` (Số lượng đầu việc `>= 2` HOẶC số lượng file cần tạo/sửa `>= 2` files độc lập):
-    -> **BẮT BUỘC** khởi tạo các Subagent chuyên biệt để thực hiện song song hoặc tuần tự.
-    -> **NGHIÊM CẤM** Lead Orchestrator tự gọi công cụ tạo/sửa code liên tiếp trên nhiều module trong một luồng đơn lẻ (Single-thread).
-  * `ELSE` (Chỉ sửa nhanh 1 file duy nhất hoặc hotfix nhỏ dưới 30 dòng code):
-    -> Cho phép Lead Orchestrator trực tiếp thực thi (`Mode: DIRECT`).
-* **Khóa Giao ước Dữ liệu trước khi Chạy song song (Contract Freeze Gate)**:
-  * Trước khi khởi chạy các Subagent phụ thuộc lẫn nhau (ví dụ: `Subagent-FE` cần gọi API của `Subagent-BE`, hoặc 2 Subagent dùng chung logic), Lead Orchestrator hoặc Lead Architect **BẮT BUỘC tạo và chốt trước file Contract/Schema chung** (ví dụ: `shared/types.ts`, `schema.prisma`, hoặc interface contracts).
-  * Các Subagent song song chỉ được lập trình dựa trên Contract đã chốt, tuyệt đối không tự ý thay đổi interface dùng chung.
-* **Mở rộng Đa Subagent Cùng Chuyên Môn (Parallel Domain Scaling)**:
-  * Cho phép và khuyến khích tạo **nhiều hơn 1 Subagent trong cùng một lĩnh vực** (ví dụ: `Subagent-FE-1`, `Subagent-FE-2` cùng làm Frontend; `Subagent-BE-1`, `Subagent-BE-2` cùng làm Backend chạy song song) nhằm tăng tốc tối đa tiến độ.
-  * **Ràng buộc Độc lập Tuyệt đối (Decoupled Scope)**: Các phần việc phải hoàn toàn tách rời, không can thiệp, không phụ thuộc chéo và không xen vào tiến trình của nhau.
-  * **Cấm Xung đột Ghi đè (Zero Race Condition & File Lock)**: Tuyệt đối **KHÔNG để 2 Subagent cùng chỉnh sửa chung một file tại cùng một thời điểm**. Mỗi Subagent chỉ được toàn quyền thao tác trên các file, module hoặc endpoint độc lập được Lead Orchestrator phân định rõ ràng trong `task.md`.
-* **Chuẩn định dạng Phân quyền trong `task.md` (Bắt buộc)**:
-  Mọi danh sách công việc trong `task.md` BẮT BUỘC phải khai báo rõ `Agent`, `Skill` và `Locked Files` trước khi bắt đầu viết code:
-  * `[ ] Task 1: Mô tả công việc A | [Agent: Subagent-FE-1] | [Skill: tên-skill] | [Locked Files: path/to/fileA.js]`
-  * `[ ] Task 2: Mô tả công việc B | [Agent: Subagent-FE-2] | [Skill: tên-skill] | [Locked Files: path/to/fileB.js]`
-  * `[ ] Task 3: Mô tả công việc C | [Agent: Subagent-BE-1] | [Skill: tên-skill] | [Locked Files: path/to/api.py]`
-* **Quy chuẩn Báo cáo Ngắn gọn từ Subagent (Subagent Output Handshake)**:
-  * Để chống tràn Context Window của Lead Orchestrator, mỗi Subagent sau khi hoàn tất công việc **CHỈ ĐƯỢC TRẢ VỀ báo cáo tóm tắt tối đa 10 dòng** gồm:
-    1. `Status`: `PASS` hoặc `FAIL` (kèm số lần retry).
-    2. `Modified Files`: Danh sách các file thực tế đã chạm vào.
-    3. `Syntax/QA Verification`: Kết quả chạy lệnh kiểm tra cú pháp.
-    4. `Summary`: Tóm tắt ngắn gọn thay đổi cốt lõi (tuyệt đối không in lại toàn bộ mã nguồn hoặc raw terminal log dài vào báo cáo trả về).
+### 6. Giao thức Điều phối Đa Đại lý Thống nhất (Unified Subagent & Swarm Protocol)
+* **Định danh Vai trò (Role Lock)**: Agent chính giữ vai trò **Lead Orchestrator (Tổng Điều Phối)**. Lead Orchestrator **BỊ CẤM** trực tiếp viết code triển khai khi nhiệm vụ thuộc diện phải chia Subagent/Swarm.
+* **Phân tầng Chế độ Thực thi & Định tuyến Model (Tiered Routing)**:
+  * **Mức 1 — `Mode: DIRECT`**: Chỉ sửa nhanh 1 file duy nhất hoặc hotfix nhỏ dưới 30 dòng code -> Lead Orchestrator trực tiếp thực thi.
+  * **Mức 2 — Subagent thường (`invoke_subagent`)**: Việc nhỏ/trung bình (2–3 file độc lập, không cần build/verify chéo hoặc chỉ đọc/tra cứu) -> dùng Subagent thường với **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`) để tối ưu tốc độ và tiết kiệm quota.
+  * **Mức 3 — `/swarm` Mode**: Tác vụ lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi người dùng kích hoạt `/swarm` -> **Coordinator** BẮT BUỘC chạy **Gemini 4 Argon** (`gemini-4-argon-medium`, tự chuyển bằng `swarm{action:"model", model:"gemini-4-argon-medium"}` nếu đang ở model khác), toàn bộ **Workers** BẮT BUỘC chạy **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`), thay thế hoàn toàn `gemini-3.8-flash`.
+* **Quy chuẩn Dùng chung (Áp dụng cho cả Subagent & `/swarm`)**:
+  * **Contract Freeze Gate**: Trước khi chạy song song các tác nhân phụ thuộc lẫn nhau, BẮT BUỘC chốt trước Contract/Schema dùng chung; các worker chỉ lập trình theo Contract đã khóa.
+  * **Decoupled Scope & File Lock**: Tuyệt đối không để 2 worker cùng sửa chung 1 file tại cùng thời điểm; phân định rõ `[Agent: ...] | [Skill: ...] | [Locked Files: ...]` trong `task.md`. Khuyến khích nhân bản đa worker cùng chuyên môn (`FE-1`, `FE-2`...) trên các phạm vi tách rời.
+  * **Output Handshake (<= 10 dòng)**: Mọi worker/subagent chỉ trả về báo cáo tóm tắt gồm `Status` (`PASS`/`FAIL` + số lần retry), `Modified Files`, `Syntax/QA Verification`, `Summary` (không in raw log hoặc toàn bộ mã nguồn).
 
 ### 7. Điều Khiển Tác Tử Độc Lập Qua Multi-Agent CLI (OpenCode & Antigravity)
 * **Định vị CLI**:

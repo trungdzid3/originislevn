@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.0.1` (mã bản dựng `versionCode = 20001`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.0.2` (mã bản dựng `versionCode = 20002`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.1 / 20001)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.2 / 20002)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -54,10 +54,17 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.0.1.apk  # File APK xuất bản v2.0.1 (~4.4 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.0.2.apk  # File APK xuất bản v2.0.2 (~4.4 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.0.2 — Đại tu Đảo tai nghe TWS bằng `oi_sub_image` Full-Width & Tắt viền phát sáng mặc định**:
+  - `BatteryCanvasRenderer.kt` (`createEarbudsExpandedBanner`, `drawHorizontalBatteryBadge`):
+    + Tạo Bitmap `600 x 210 px` (`ARGB_8888`, ~492 KB, an toàn Binder IPC) vẽ thẻ banner mở rộng nền kính tối `#EB16181E` bo góc 28dp, viền hairline 1.2dp.
+    + Hỗ trợ 3 kịch bản: 3 cột đối xứng có Hộp sạc (`hasCase`), 2 cột lớn cân đối khi đã lấy tai ra khỏi hộp (`!hasCase`), và 1 bên tai nghe (ghép hộp sạc hoặc tai đơn phóng to giữa).
+    + Huy hiệu pin ngang chuẩn mẫu Vivo: số % chữ trắng đậm kèm viên pin ngang 30x16dp bo tròn góc (`#00D084` hoặc đỏ `#FF5247` khi <= 15%), tia sét vàng `#FFD54F` khi đang sạc.
+  - `EarbudsCard.kt`: Chuyển thẻ mở rộng tai nghe sang `TEMPLATE_BASE = 4` kèm `oi_sub_image = banner`, `title = name.take(22)`, `text = if (lowWarning) ... else "Đã kết nối"`, `subtext = ""` (xóa sạch các extra thừa của Template 3). Xóa bỏ toàn bộ `putExtra("oi_light_color", ...)` để không còn viền phát sáng trên thẻ tai nghe.
+  - `Prefs.kt`, `PlaygroundService.kt`, `HomeScreen.kt`: Đặt giá trị mặc định `cast_custom_light_color = "NONE"`. Trong `PlaygroundService.kt`, khi `"NONE"` gán `lightColor = 0` tắt hoàn toàn viền hào quang phát sáng xung quanh Đảo (trừ khi người dùng chủ động vào Cài đặt chọn màu khác).
 - **Origin Isle VN v2.0.0 — Hợp đồng `experimental_prefs` (`Prefs.kt`), Device Hero UI (`DeviceInfoHelper.kt`, `HomeScreen.kt`, `Components.kt`)**:
   - `DeviceInfoHelper.kt` (`collect`, `isSuperXSupported`): Thu thập `DeviceSnapshot` (Model, OriginOS/Android, SoC, RAM khả dụng/Tổng, Pin & Nhiệt độ, lượt Đảo hôm nay từ `CastLog.entries`).
   - `HomeScreen.kt` (`DeviceHeroCard`, nhóm `Tùy biến Đảo 2.0.0 & Chặn Pop-up`): Mô phỏng viên thuốc Origin Island 2.0.0 với viền phát sáng `animateColorAsState`, bộ lọc chặn pop-up nổi (`cast_suppress_heads_up`, `cast_suppress_mode`: `SNOOZE` / `ISLAND_ONLY`), chọn màu viền (`ColorSwatchPill` trong `Components.kt`), thời lượng viên thuốc (`3s`/`5s`/`7s`/`10s`) và tùy chọn chạm mở rộng thẻ (`cast_tap_expand_card`).
