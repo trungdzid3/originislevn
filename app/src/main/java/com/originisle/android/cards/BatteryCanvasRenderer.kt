@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
 import android.graphics.drawable.Icon
 import com.originisle.android.R
 
@@ -1191,13 +1192,22 @@ object BatteryCanvasRenderer {
      * - 2 đầu tai nghe trắng bóng nhô nhẹ trong lòng hộp sạc.
      * - Rãnh bản lề kim loại và đèn LED phát sáng ở chính giữa thân hộp.
      */
-    fun createChargingCase3DIcon(
-        context: Context,
+    /**
+     * Vẽ Hộp sạc 3D mở nắp vuông (tỷ lệ chuẩn 192x192 px) lên canvas với bounds tùy biến.
+     */
+    fun drawChargingCase3DOnCanvas(
+        canvas: Canvas,
+        bounds: RectF,
         casePct: Int = -1,
-    ): Icon {
-        val size = 192
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
+        isCharging: Boolean = false,
+    ) {
+        val count = canvas.save()
+        val size = 192f
+        val scale = minOf(bounds.width() / size, bounds.height() / size)
+        val offsetX = bounds.left + (bounds.width() - size * scale) / 2f
+        val offsetY = bounds.top + (bounds.height() - size * scale) / 2f
+        canvas.translate(offsetX, offsetY)
+        canvas.scale(scale, scale)
 
         // 1. Nắp hộp sạc mở phía trên (Open Top Lid)
         val lidRect = RectF(24f, 18f, 168f, 82f)
@@ -1318,9 +1328,21 @@ object BatteryCanvasRenderer {
         val ledCx = 96f
         val ledCy = 122f
         val isLowBattery = casePct in 1..19
-        val ledCoreColor = if (isLowBattery) Color.parseColor("#FF5247") else Color.parseColor("#00D084")
-        val ledHaloStart = if (isLowBattery) Color.parseColor("#66FF5247") else Color.parseColor("#6600D084")
-        val ledHaloEnd = if (isLowBattery) Color.parseColor("#00FF5247") else Color.parseColor("#0000D084")
+        val ledCoreColor = when {
+            isCharging -> Color.parseColor("#00E676")
+            isLowBattery -> Color.parseColor("#FF5247")
+            else -> Color.parseColor("#00D084")
+        }
+        val ledHaloStart = when {
+            isCharging -> Color.parseColor("#6600E676")
+            isLowBattery -> Color.parseColor("#66FF5247")
+            else -> Color.parseColor("#6600D084")
+        }
+        val ledHaloEnd = when {
+            isCharging -> Color.parseColor("#0000E676")
+            isLowBattery -> Color.parseColor("#00FF5247")
+            else -> Color.parseColor("#0000D084")
+        }
 
         val ledHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
@@ -1346,6 +1368,284 @@ object BatteryCanvasRenderer {
             color = Color.parseColor("#CCFFFFFF")
         }
         canvas.drawCircle(ledCx, ledCy, 1.6f, ledWhiteCenterPaint)
+
+        canvas.restoreToCount(count)
+    }
+
+    fun createChargingCase3DIcon(
+        context: Context,
+        casePct: Int = -1,
+    ): Icon {
+        val size = 192
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawChargingCase3DOnCanvas(canvas, RectF(0f, 0f, size.toFloat(), size.toFloat()), casePct)
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Helper nội bộ vẽ nhãn phần trăm pin + icon viên pin nằm ngang chuẩn OriginOS 6:
+     * - Căn giữa theo trục cx tại tâm dọc cy.
+     * - Dòng chữ trắng sắc nét label ("Trái 85%", "Hộp sạc 50%", "Phải 90%"), textSize = 22f, Typeface.DEFAULT_BOLD, #F4F6FA.
+     * - Ngay bên phải chữ cách 8f là icon viên pin nằm ngang (30x16f, bo góc 4f, viền #88FFFFFF, cực dương bên phải).
+     * - Tô màu pin theo pct: #00D084 (hoặc #FF5247 nếu pct <= 15).
+     * - Có tia sét nhỏ vàng #FFD54F nếu isCharging.
+     */
+    private fun drawHorizontalBatteryBadge(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        label: String,
+        pct: Int,
+        isCharging: Boolean,
+    ) {
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#F4F6FA")
+            textSize = 22f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+        val textWidth = textPaint.measureText(label)
+        val spacing = 8f
+        val batWidth = 30f
+        val batHeight = 16f
+        val totalWidth = textWidth + spacing + batWidth
+        val startX = cx - totalWidth / 2f
+
+        // 1. Dòng chữ label
+        val fontMetrics = textPaint.fontMetrics
+        val textBaseY = cy - (fontMetrics.descent + fontMetrics.ascent) / 2f
+        canvas.drawText(label, startX, textBaseY, textPaint)
+
+        // 2. Icon viên pin nằm ngang bên phải chữ
+        val batLeft = startX + textWidth + spacing
+        val batTop = cy - batHeight / 2f
+        val batBottom = cy + batHeight / 2f
+
+        val bodyWidth = 26f
+        val capWidth = 3f
+        val capGap = 1f
+
+        val bodyRect = RectF(batLeft, batTop, batLeft + bodyWidth, batBottom)
+        val bodyRadius = 4f
+
+        // Viền pin mờ #88FFFFFF
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            color = Color.parseColor("#88FFFFFF")
+        }
+        val insetBodyRect = RectF(
+            bodyRect.left + 0.6f,
+            bodyRect.top + 0.6f,
+            bodyRect.right - 0.6f,
+            bodyRect.bottom - 0.6f
+        )
+        canvas.drawRoundRect(insetBodyRect, bodyRadius, bodyRadius, borderPaint)
+
+        // Đầu cực dương nhỏ bên phải
+        val capLeft = batLeft + bodyWidth + capGap
+        val capTop = cy - 4f
+        val capRight = capLeft + capWidth
+        val capBottom = cy + 4f
+        val capRect = RectF(capLeft, capTop, capRight, capBottom)
+        val capPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#88FFFFFF")
+        }
+        canvas.drawRoundRect(capRect, 1.5f, 1.5f, capPaint)
+
+        // Tô ruột viên pin theo pct
+        val innerPadding = 2f
+        val fillMaxW = (bodyWidth - innerPadding * 2f).coerceAtLeast(0f)
+        val clampedPct = pct.coerceIn(0, 100)
+        val fillW = fillMaxW * (clampedPct / 100f)
+
+        if (fillW > 0f) {
+            val fillRect = RectF(
+                bodyRect.left + innerPadding,
+                bodyRect.top + innerPadding,
+                bodyRect.left + innerPadding + fillW,
+                bodyRect.bottom - innerPadding
+            )
+            val fillColor = if (clampedPct <= 15) Color.parseColor("#FF5247") else Color.parseColor("#00D084")
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = fillColor
+            }
+            val innerRadius = (bodyRadius - 1f).coerceAtLeast(1.5f)
+            canvas.drawRoundRect(fillRect, innerRadius, innerRadius, fillPaint)
+        }
+
+        // Tia sét nhỏ vàng #FFD54F nếu isCharging
+        if (isCharging) {
+            val boltCx = bodyRect.centerX()
+            val boltCy = bodyRect.centerY()
+            val boltW = 6f
+            val boltH = 10f
+
+            val boltPath = Path().apply {
+                moveTo(boltCx + boltW * 0.15f, boltCy - boltH * 0.5f)
+                lineTo(boltCx - boltW * 0.5f, boltCy + boltH * 0.05f)
+                lineTo(boltCx - boltW * 0.05f, boltCy + boltH * 0.05f)
+                lineTo(boltCx - boltW * 0.2f, boltCy + boltH * 0.5f)
+                lineTo(boltCx + boltW * 0.5f, boltCy - boltH * 0.05f)
+                lineTo(boltCx + boltW * 0.05f, boltCy - boltH * 0.05f)
+                close()
+            }
+
+            val boltPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.parseColor("#FFD54F")
+            }
+            canvas.drawPath(boltPath, boltPaint)
+        }
+    }
+
+    /**
+     * Dựng Banner 3D toàn khung rộng 600x210 px cho thẻ mở rộng tai nghe TWS trên OriginOS 6 SuperX (oi_sub_image).
+     * - Kích thước Bitmap: 600 x 210 px (ARGB_8888, an toàn Binder IPC dưới 1MB).
+     * - Nền banner: Bo góc 28f, màu kính OriginOS (#EB16181E) kèm viền hairline mảnh 1.2f (#1CFFFFFF).
+     * - Tự động bố cục theo 3 kịch bản hiển thị:
+     *   + Kịch bản A: 3 cột đối xứng (Tai Trái - Hộp sạc - Tai Phải) khi có đầy đủ 3 thiết bị.
+     *   + Kịch bản B: 2 cột đối xứng phóng to khi 2 tai nghe đã ra khỏi hộp (ẩn hộp sạc).
+     *   + Kịch bản C: Chỉ đeo 1 bên tai nghe (ghép đôi Tai nghe + Hộp sạc hoặc chỉ 1 Tai nghe giữa banner).
+     */
+    fun createEarbudsExpandedBanner(
+        context: Context,
+        leftPct: Int,
+        rightPct: Int,
+        casePct: Int,
+        isLeftCharging: Boolean = false,
+        isRightCharging: Boolean = false,
+        isCaseCharging: Boolean = false,
+    ): Icon {
+        val width = 600
+        val height = 210
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        // 1. Nền kính bán trong suốt chuẩn OriginOS
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(235, 22, 24, 30) // #EB16181E
+        }
+        val bgRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
+        canvas.drawRoundRect(bgRect, 28f, 28f, bgPaint)
+
+        // Viền hairline mảnh 1.2f
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            color = Color.argb(28, 255, 255, 255)
+        }
+        val borderRect = RectF(0.6f, 0.6f, width - 0.6f, height - 0.6f)
+        canvas.drawRoundRect(borderRect, 28f, 28f, borderPaint)
+
+        // 2. Xác định trạng thái thiết bị
+        val hasLeft = leftPct in 0..100
+        val hasRight = rightPct in 0..100
+        val hasCase = casePct in 0..100
+
+        when {
+            // Kịch bản A (hasLeft && hasRight && hasCase) — 3 cột đối xứng
+            hasLeft && hasRight && hasCase -> {
+                val budW = 82f
+                val budH = 115f
+
+                // Cột Trái (cx = 110f): Tai nghe Trái 3D Pearl White
+                val leftBudBounds = RectF(110f - budW / 2f, 78f - budH / 2f, 110f + budW / 2f, 78f + budH / 2f)
+                drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+                drawHorizontalBatteryBadge(canvas, 110f, 172f, "Trái $leftPct%", leftPct, isLeftCharging)
+
+                // Cột Giữa (cx = 300f): Hộp sạc 3D mở nắp LỚN (~124x124f)
+                val caseBounds = RectF(300f - 62f, 78f - 62f, 300f + 62f, 78f + 62f)
+                drawChargingCase3DOnCanvas(canvas, caseBounds, casePct, isCaseCharging)
+                drawHorizontalBatteryBadge(canvas, 300f, 172f, "Hộp sạc $casePct%", casePct, isCaseCharging)
+
+                // Cột Phải (cx = 490f): Tai nghe Phải 3D Pearl White
+                val rightBudBounds = RectF(490f - budW / 2f, 78f - budH / 2f, 490f + budW / 2f, 78f + budH / 2f)
+                drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+                drawHorizontalBatteryBadge(canvas, 490f, 172f, "Phải $rightPct%", rightPct, isRightCharging)
+            }
+
+            // Kịch bản B (hasLeft && hasRight && !hasCase) — Đã lấy 2 tai nghe khỏi hộp (Ẩn Case)
+            hasLeft && hasRight && !hasCase -> {
+                val budW = 91f
+                val budH = 128f
+
+                // Cột Trái (cx = 175f): Tai nghe Trái 3D phóng to
+                val leftBudBounds = RectF(175f - budW / 2f, 80f - budH / 2f, 175f + budW / 2f, 80f + budH / 2f)
+                drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+                drawHorizontalBatteryBadge(canvas, 175f, 174f, "Trái $leftPct%", leftPct, isLeftCharging)
+
+                // Cột Phải (cx = 425f): Tai nghe Phải 3D phóng to
+                val rightBudBounds = RectF(425f - budW / 2f, 80f - budH / 2f, 425f + budW / 2f, 80f + budH / 2f)
+                drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+                drawHorizontalBatteryBadge(canvas, 425f, 174f, "Phải $rightPct%", rightPct, isRightCharging)
+            }
+
+            // Kịch bản C (hasLeft != hasRight) — Chỉ đeo 1 bên tai nghe
+            hasLeft != hasRight -> {
+                if (hasCase) {
+                    val budW = 91f
+                    val budH = 128f
+
+                    // Cột 1 (cx = 175f): Tai nghe đang đeo
+                    if (hasLeft) {
+                        val leftBudBounds = RectF(175f - budW / 2f, 80f - budH / 2f, 175f + budW / 2f, 80f + budH / 2f)
+                        drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+                        drawHorizontalBatteryBadge(canvas, 175f, 174f, "Trái $leftPct%", leftPct, isLeftCharging)
+                    } else {
+                        val rightBudBounds = RectF(175f - budW / 2f, 80f - budH / 2f, 175f + budW / 2f, 80f + budH / 2f)
+                        drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+                        drawHorizontalBatteryBadge(canvas, 175f, 174f, "Phải $rightPct%", rightPct, isRightCharging)
+                    }
+
+                    // Cột 2 (cx = 425f): Hộp sạc 3D
+                    val caseBounds = RectF(425f - 62f, 78f - 62f, 425f + 62f, 78f + 62f)
+                    drawChargingCase3DOnCanvas(canvas, caseBounds, casePct, isCaseCharging)
+                    drawHorizontalBatteryBadge(canvas, 425f, 174f, "Hộp sạc $casePct%", casePct, isCaseCharging)
+                } else {
+                    // Không có case: vẽ tai nghe duy nhất ở chính giữa (cx = 300f)
+                    val budW = 94f
+                    val budH = 132f
+                    val centerBudBounds = RectF(300f - budW / 2f, 80f - budH / 2f, 300f + budW / 2f, 80f + budH / 2f)
+
+                    if (hasLeft) {
+                        drawInEarBud(canvas, centerBudBounds, isLeft = true, isCharging = isLeftCharging)
+                        drawHorizontalBatteryBadge(canvas, 300f, 174f, "Tai trái $leftPct%", leftPct, isLeftCharging)
+                    } else {
+                        drawInEarBud(canvas, centerBudBounds, isLeft = false, isCharging = isRightCharging)
+                        drawHorizontalBatteryBadge(canvas, 300f, 174f, "Tai phải $rightPct%", rightPct, isRightCharging)
+                    }
+                }
+            }
+
+            // Trường hợp chỉ có Hộp sạc
+            hasCase -> {
+                val caseBounds = RectF(300f - 62f, 78f - 62f, 300f + 62f, 78f + 62f)
+                drawChargingCase3DOnCanvas(canvas, caseBounds, casePct, isCaseCharging)
+                drawHorizontalBatteryBadge(canvas, 300f, 172f, "Hộp sạc $casePct%", casePct, isCaseCharging)
+            }
+
+            // Fallback mặc định
+            else -> {
+                val budW = 82f
+                val budH = 115f
+                val leftBudBounds = RectF(110f - budW / 2f, 78f - budH / 2f, 110f + budW / 2f, 78f + budH / 2f)
+                drawInEarBud(canvas, leftBudBounds, isLeft = true, isCharging = isLeftCharging)
+                drawHorizontalBatteryBadge(canvas, 110f, 172f, "Trái $leftPct%", leftPct, isLeftCharging)
+
+                val caseBounds = RectF(300f - 62f, 78f - 62f, 300f + 62f, 78f + 62f)
+                drawChargingCase3DOnCanvas(canvas, caseBounds, casePct, isCaseCharging)
+                drawHorizontalBatteryBadge(canvas, 300f, 172f, "Hộp sạc $casePct%", casePct, isCaseCharging)
+
+                val rightBudBounds = RectF(490f - budW / 2f, 78f - budH / 2f, 490f + budW / 2f, 78f + budH / 2f)
+                drawInEarBud(canvas, rightBudBounds, isLeft = false, isCharging = isRightCharging)
+                drawHorizontalBatteryBadge(canvas, 490f, 172f, "Phải $rightPct%", rightPct, isRightCharging)
+            }
+        }
 
         return Icon.createWithBitmap(bmp)
     }
