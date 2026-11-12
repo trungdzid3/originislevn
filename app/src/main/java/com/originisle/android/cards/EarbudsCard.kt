@@ -2281,26 +2281,6 @@ object EarbudsCard {
                 val rightBudIcon = BatteryCanvasRenderer.createSingleEarbudIcon(context, isLeft = false)
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
 
-                val hasCase = safeTelemetry.case in 0..100
-                val centerIcon = if (hasCase) {
-                    BatteryCanvasRenderer.createTwsExpandedCompositeIcon(
-                        context,
-                        safeTelemetry.left,
-                        safeTelemetry.right,
-                        safeTelemetry.case,
-                    )
-                } else {
-                    createTransparentIcon()
-                }
-
-                val caseCharge = if (safeTelemetry.isCaseCharging) " ⚡" else ""
-                val midText = if (hasCase) "Hộp sạc ${safeTelemetry.case}%$caseCharge" else ""
-
-                val extra1 = ""
-                val extra2 = "Trái ${safeTelemetry.left}%${if (safeTelemetry.isLeftCharging) " ⚡" else ""}"
-                val extra3 = ""
-                val extra4 = "Phải ${safeTelemetry.right}%${if (safeTelemetry.isRightCharging) " ⚡" else ""}"
-
                 putExtra("oi_left_icon", leftBudIcon)
                 putExtra("oi_left_content", "${safeTelemetry.left}%")
                 putExtra("oi_right_icon", rightBudIcon)
@@ -2310,26 +2290,27 @@ object EarbudsCard {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_fg_color", "#FFFFFFFF")
 
-                // Thẻ mở rộng đối xứng 3 cột chuẩn OriginOS 6 (TEMPLATE_TEXT_SYMMETRY = 3)
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_TEXT_SYMMETRY) // 3
+                // Thẻ mở rộng: TEMPLATE_BASE (4) + oi_sub_image toàn chiều rộng
+                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                 putExtra("oi_base_icon", baseHeaderIcon)
-                putExtra("oi_large_icon", centerIcon)
-                putExtra("oi_mid_title", "")
-                putExtra("oi_mid_text", midText)
-                putExtra("title", "${name.take(20)} · Đã kết nối")
-                putExtra("text", if (lowWarning) "Pin yếu · Cần sạc" else "Tai nghe Bluetooth")
-                putExtra("subtext", "Đã kết nối")
-                putExtra("oi_extra1", extra1)
-                putExtra("oi_extra2", extra2)
-                putExtra("oi_extra3", extra3)
-                putExtra("oi_extra4", extra4)
+                putExtra("oi_large_icon", baseHeaderIcon)
+                putExtra("title", name.take(22))
+                putExtra("text", if (lowWarning) "Pin yếu · Cần sạc" else "Đã kết nối")
+                putExtra("subtext", "")
+                val banner = BatteryCanvasRenderer.createEarbudsExpandedBanner(
+                    context,
+                    safeTelemetry.left,
+                    safeTelemetry.right,
+                    safeTelemetry.case,
+                    safeTelemetry.isLeftCharging,
+                    safeTelemetry.isRightCharging,
+                    safeTelemetry.isCaseCharging,
+                )
+                putExtra("oi_sub_image", banner)
             } else if (hasSingleBud) {
                 // Khi chỉ lấy 1 bên tai nghe ra (hasSingleBud: chỉ có left HOẶC chỉ có right)
                 val isLeftOnly = hasLeft
                 val singleLevel = if (isLeftOnly) safeTelemetry.left else safeTelemetry.right
-                val isSingleCharging = if (isLeftOnly) safeTelemetry.isLeftCharging else safeTelemetry.isRightCharging
-                val singleSideName = if (isLeftOnly) "Tai trái" else "Tai phải"
-                val hasCase = safeTelemetry.case in 0..100
 
                 val singleBudIcon = BatteryCanvasRenderer.createSingleEarbudIcon(context, isLeft = isLeftOnly)
                 val baseHeaderIcon = BatteryCanvasRenderer.createTwsHeaderBadgeIcon(context)
@@ -2343,18 +2324,23 @@ object EarbudsCard {
                 putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                 putExtra("oi_fg_color", "#FFFFFFFF")
 
-                // Thẻ mở rộng: TEMPLATE_BASE (4)
+                // Thẻ mở rộng: TEMPLATE_BASE (4) + oi_sub_image toàn chiều rộng
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
                 putExtra("oi_base_icon", baseHeaderIcon)
-                putExtra("oi_large_icon", singleBudIcon)
-                putExtra("title", name.take(20))
-                putExtra(
-                    "text",
-                    if (isSingleCharging) "$singleSideName ${singleLevel}% ⚡ · Đang đeo"
-                    else "$singleSideName ${singleLevel}% · Đang đeo"
+                putExtra("oi_large_icon", baseHeaderIcon)
+                putExtra("title", name.take(22))
+                putExtra("text", if (lowWarning) "Pin yếu · Cần sạc" else "Đã kết nối")
+                putExtra("subtext", "")
+                val banner = BatteryCanvasRenderer.createEarbudsExpandedBanner(
+                    context,
+                    safeTelemetry.left,
+                    safeTelemetry.right,
+                    safeTelemetry.case,
+                    safeTelemetry.isLeftCharging,
+                    safeTelemetry.isRightCharging,
+                    safeTelemetry.isCaseCharging,
                 )
-                putExtra("subtext", if (hasCase) "Hộp sạc ${safeTelemetry.case}%" else "Đã kết nối")
-                putExtra("oi_card_ring", singleLevel)
+                putExtra("oi_sub_image", banner)
             } else {
                 // Thiết bị đơn / Thiết bị đeo: Dùng TEMPLATE_BASE (4) kèm vòng tròn tiến độ pin cardRing
                 putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE) // 4
@@ -2372,8 +2358,6 @@ object EarbudsCard {
                 }
             }
 
-            // Viền xanh #00D084 khi kết nối thành công, đỏ khi pin yếu
-            putExtra("oi_light_color", if (lowWarning) RED else GREEN)
             putExtra("click_resp", click)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
@@ -2454,7 +2438,6 @@ object EarbudsCard {
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4 - Text thuần
             putExtra("oi_right_content", chipText)
             putExtra("oi_fg_color", "#FFFFFFFF")
-            putExtra("oi_light_color", RED)
             putExtra("click_resp", click)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)
@@ -2719,7 +2702,6 @@ object EarbudsCard {
             putExtra("oi_right_content", "100%")
             putExtra("status_chip_text", "100%")
             putExtra("oi_card_ring", 100)
-            putExtra("oi_light_color", GREEN)
             putExtra("click_resp", click)
             putExtra("oi_force_show", true)
             putExtra("oi_dismiss_when_kill", true)

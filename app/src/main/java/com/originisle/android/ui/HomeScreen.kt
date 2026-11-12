@@ -112,7 +112,7 @@ fun HomeScreen(
         mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
     }
     var customLightColor by remember {
-        mutableStateOf(prefs.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, LIGHT_COLOR_AUTO) ?: LIGHT_COLOR_AUTO)
+        mutableStateOf(prefs.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, DEFAULT_CAST_CUSTOM_LIGHT_COLOR) ?: DEFAULT_CAST_CUSTOM_LIGHT_COLOR)
     }
     var islandDurationSec by remember {
         mutableIntStateOf(prefs.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC))
@@ -130,7 +130,7 @@ fun HomeScreen(
                     suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
                 }
                 PREF_CAST_CUSTOM_LIGHT_COLOR -> {
-                    customLightColor = sp.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, LIGHT_COLOR_AUTO) ?: LIGHT_COLOR_AUTO
+                    customLightColor = sp.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, DEFAULT_CAST_CUSTOM_LIGHT_COLOR) ?: DEFAULT_CAST_CUSTOM_LIGHT_COLOR
                 }
                 PREF_CAST_ISLAND_DURATION_SEC -> {
                     islandDurationSec = sp.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC)
@@ -672,8 +672,8 @@ fun HomeScreen(
                             )
                         }
                         val lightOptions = listOf(
-                            Triple(LIGHT_COLOR_AUTO, "Tự động", null),
                             Triple(LIGHT_COLOR_NONE, "Tắt viền", null),
+                            Triple(LIGHT_COLOR_AUTO, "Tự động", null),
                             Triple(LIGHT_COLOR_EMERALD, "Ngọc lục", Color(0xFF00D084)),
                             Triple(LIGHT_COLOR_BLUE, "Xanh lam", Color(0xFF0A59F7)),
                             Triple(LIGHT_COLOR_PURPLE, "Tím Neon", Color(0xFF9D4EDD)),

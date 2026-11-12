@@ -270,7 +270,7 @@ class PlaygroundService : Service() {
         val lightMode = intent.getIntExtra("oi_light_mode", 0)
         val generatingStatus = intent.getIntExtra("oi_generating_status", 0)
         val iconStatusType = intent.getIntExtra("oi_icon_status_type", -1)
-        val customLightPref = prefs.getString("cast_custom_light_color", "AUTO")?.trim().orEmpty()
+        val customLightPref = prefs.getString("cast_custom_light_color", "NONE")?.trim().orEmpty()
         val lightColor = when {
             customLightPref.equals("NONE", ignoreCase = true) -> 0
             customLightPref.startsWith("#") &&
