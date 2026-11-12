@@ -633,7 +633,7 @@ object EarbudsCard {
             val bundle = context.contentResolver.call(FIT3_CAPSULE_URI, "getBattery", null, null)
                 ?: context.contentResolver.call(FIT3_CAPSULE_URI, "get_battery_level", null, null)
             if (bundle != null) {
-                val b = extractBattery(bundle, "battery", "level", "battery_level", "value", "LEVEL")
+                val b = extractBattery(bundle, "battery", "level", "battery_level", "LEVEL")
                 if (b in 0..100) {
                     saveCachedBattery(context, devName, b)
                     return b
@@ -660,7 +660,7 @@ object EarbudsCard {
         return runCatching {
             val cursor = context.contentResolver.query(uri, null, null, null, null)
             cursor?.use { c ->
-                val batteryColNames = listOf("Value", "value", "battery_level", "battery", "level", "batteryLevel", "percentage", "capacity")
+                val batteryColNames = listOf("battery_level", "battery", "level", "batteryLevel", "percentage", "capacity")
                 var matchedColIndex = -1
                 for (name in batteryColNames) {
                     val idx = c.getColumnIndex(name)
@@ -678,15 +678,6 @@ object EarbudsCard {
                         if (num != null && num in 0..100) {
                             saveCachedBattery(context, devName, num)
                             Log.i(TAG, "queryProviderForBattery ($uri): $devName = $num%")
-                            return num
-                        }
-                    }
-                    for (i in 0 until c.columnCount) {
-                        val str = runCatching { c.getString(i) }.getOrNull()
-                        val num = str?.trim()?.replace("%", "")?.toIntOrNull()
-                        if (num != null && num in 0..100) {
-                            saveCachedBattery(context, devName, num)
-                            Log.i(TAG, "queryProviderForBattery ($uri, col $i): $devName = $num%")
                             return num
                         }
                     }
@@ -813,6 +804,14 @@ object EarbudsCard {
         val ctx = context.applicationContext
         if (app != null || !enabled(ctx)) return
         app = ctx
+
+        // Dọn sạch dữ liệu pin ảo 3% đã lưu trong cache trước đó
+        val prefs = ctx.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("cleaned_fake_3pct_v201", false)) {
+            prefs.edit().clear().putBoolean("cleaned_fake_3pct_v201", true).apply()
+            deviceTelemetry.clear()
+        }
+
         val filter = IntentFilter().apply {
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
@@ -844,26 +843,6 @@ object EarbudsCard {
             addAction(ACTION_SAMSUNG_PLUGIN_RESPONSE)
         }
         runCatching { ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED) }
-
-        // Đăng ký ContentObserver theo dõi cập nhật pin Samsung Galaxy Fit 3
-        runCatching {
-            if (fit3Observer == null) {
-                fit3Observer = object : ContentObserver(handler) {
-                    override fun onChange(selfChange: Boolean, uri: Uri?) {
-                        super.onChange(selfChange, uri)
-                        val level = querySamsungFit3Battery(ctx, "Galaxy Fit 3")
-                        if (level in 0..100) {
-                            onBatteryUpdated(ctx, "Galaxy Fit 3", EarbudsTelemetry(main = level), isWearable = true)
-                        }
-                    }
-                }
-                ctx.contentResolver.registerContentObserver(
-                    FIT3_BATTERY_URI,
-                    true,
-                    fit3Observer!!
-                )
-            }
-        }.onFailure { Log.w(TAG, "registerContentObserver failed", it) }
     }
 
     fun stop() {
@@ -1210,16 +1189,6 @@ object EarbudsCard {
                         pending.remove(address)?.let(handler::removeCallbacks)
                         show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
                     }
-                    !wasAlreadyConnected -> {
-                        setConnectedState(address, true)
-                        setConnectedState(devName, true)
-                        show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
-                    }
-                    low && address !in warnedLow && devName !in warnedLow -> {
-                        warnedLow += address
-                        warnedLow += devName
-                        show(context, device, devName, updated, low = true, isWearable = isWearableDevice, refreshDuration = true)
-                    }
                     currentlyShowing && changed -> {
                         show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = false)
                     }
@@ -1382,7 +1351,7 @@ object EarbudsCard {
 
     private fun extractSamsungBattery(intent: Intent): Int {
         val extras = intent.extras ?: return -1
-        for (key in listOf("LEVEL", "level", "battery", "battery_level", "capacity", "battery_status", "EXTRA_BATTERY_LEVEL", "percentage", "batteryPct", "value")) {
+        for (key in listOf("LEVEL", "level", "battery", "battery_level", "capacity", "EXTRA_BATTERY_LEVEL", "percentage", "batteryPct", "batteryLevel")) {
             val v = extras.get(key)
             val num = when (v) {
                 is Number -> v.toInt()
@@ -1945,6 +1914,13 @@ object EarbudsCard {
         val matchedBtDevice = findBluetoothDevice(context, devName)
         val btAddress = matchedBtDevice?.address
 
+        if (isWearableDevice) {
+            val addrOrName = matchedBtDevice?.address ?: devName
+            if (matchedBtDevice == null || !isDeviceHardwareConnected(context, addrOrName, isWearable = true)) {
+                return false
+            }
+        }
+
         // Hủy các timer pending 2.5s để không bắn đè main lên kết quả chi tiết L/R/Case vừa bóc tách
         if (!isWearableDevice) {
             pending.values.forEach(handler::removeCallbacks)
@@ -1989,7 +1965,22 @@ object EarbudsCard {
         if (isNewLowWarning) warnedLow.add(devName)
         if (merged.effectiveLevel > LOW_LEVEL + 5) warnedLow.remove(devName)
 
-        if (!wasAlreadyConnected || newlyDiscoveredDetails || (currentlyShowing && changed) || isNewLowWarning) {
+        val shouldShow = if (isWearableDevice) {
+            (currentlyShowing && changed) || isWithinAntiFlapCooldown(devName)
+        } else {
+            val isAudioHardwareConnected = isDeviceHardwareConnected(context, btAddress ?: devName, isWearable = false) ||
+                runCatching {
+                    val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                    (bm?.getConnectedDevices(BluetoothProfile.A2DP).orEmpty() +
+                        bm?.getConnectedDevices(BluetoothProfile.HEADSET).orEmpty()).any { !isWearable(it) }
+                }.getOrDefault(false)
+            val canShowNew = !wasAlreadyConnected && isAudioHardwareConnected
+            val canUpdateExisting = (currentlyShowing && changed) || newlyDiscoveredDetails
+            val canShowLow = isNewLowWarning && (currentlyShowing || isWithinAntiFlapCooldown(devName))
+            canShowNew || canUpdateExisting || canShowLow
+        }
+
+        if (shouldShow) {
             val lowWarn = merged.effectiveLevel in 0..LOW_LEVEL
             show(
                 context = context,
@@ -2488,11 +2479,13 @@ object EarbudsCard {
     fun onDeviceConnected(context: Context, name: String, battery: Int = -1, isWearable: Boolean = false) {
         val ctx = context.applicationContext
         if (!enabled(ctx)) return
+        val targetDevice: BluetoothDevice? = findBluetoothDevice(ctx, name)
+        if (isWearable && !isDeviceHardwareConnected(ctx, targetDevice?.address ?: name, isWearable = true)) {
+            return
+        }
         disconnectDebounce.remove(name)?.let(handler::removeCallbacks)
         val alreadyConnected = isConnected(name)
         setConnectedState(name, true)
-
-        val targetDevice: BluetoothDevice? = findBluetoothDevice(ctx, name)
 
         var effectiveBattery = battery
         if (effectiveBattery !in 0..100 && targetDevice != null) {
@@ -2637,8 +2630,8 @@ object EarbudsCard {
         if (isNewLowWarning) warnedLow += name
         if (eff > LOW_LEVEL + 5) warnedLow -= name
 
-        // Cập nhật hiển thị nếu Đang hiển thị trên đảo (và có thay đổi), vừa phát hiện thêm chi tiết L/R/Case mới trong cooldown, hoặc pin tụt xuống mức cảnh báo yếu
-        if ((currentlyShowing && before != merged) || newlyDiscoveredDetails || isNewLowWarning) {
+        // Cập nhật hiển thị nếu Đang hiển thị trên đảo (và có thay đổi), hoặc vừa phát hiện thêm chi tiết L/R/Case mới trong cooldown
+        if ((currentlyShowing && before != merged) || newlyDiscoveredDetails) {
             show(
                 context = ctx,
                 device = null,
