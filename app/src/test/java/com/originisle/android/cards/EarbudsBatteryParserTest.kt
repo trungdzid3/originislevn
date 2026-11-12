@@ -2,6 +2,7 @@ package com.originisle.android.cards
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,5 +48,20 @@ class EarbudsBatteryParserTest {
         assertEquals(20, merged.case)
         assertEquals(50, merged.main)
         assertTrue(merged.hasDetails)
+    }
+
+    @Test
+    fun parseBatteryText_galaxyFit3BackgroundOrDisconnected_returnsNullNeverParsesAs3Percent() {
+        val backgroundNotif = EarbudsCard.parseBatteryText(
+            title = "Galaxy Fit 3",
+            text = "Galaxy Fit 3 — Đang chạy nền",
+        )
+        assertNull(backgroundNotif)
+
+        val disconnectedNotif = EarbudsCard.parseBatteryText(
+            title = "Galaxy Fit 3",
+            text = "Không thể kết nối với Galaxy Fit 3",
+        )
+        assertNull(disconnectedNotif)
     }
 }
