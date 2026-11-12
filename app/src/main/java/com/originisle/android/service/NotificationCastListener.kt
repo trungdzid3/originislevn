@@ -448,7 +448,7 @@ class NotificationCastListener : NotificationListenerService() {
         // 1. Kiểm tra trực tiếp các key số nguyên trong extras
         val directKeys = listOf(
             "battery_level", "level", "percentage", "battery", "capacity",
-            "batteryLevel", "EXTRA_BATTERY_LEVEL", "value", "LEVEL", "battery_status"
+            "batteryLevel", "EXTRA_BATTERY_LEVEL", "LEVEL"
         )
         for (key in directKeys) {
             val v = extras.get(key)
@@ -521,11 +521,12 @@ class NotificationCastListener : NotificationListenerService() {
         }
 
         // 3. Quét regex trên từng text snippet
-        // Định dạng "Pin: 85%", "Galaxy Fit3 · 85%", "Fit 3: 85%", "Mức pin: 85%", hoặc "85%"
-        val labelRegex = Regex("""(?:pin|battery|mức pin|fit\s*3|galaxy\s*fit|watch)\s*[:：·\-]?\s*(\d{1,3})\s*%?""", RegexOption.IGNORE_CASE)
+        // Định dạng "Pin: 85%", "Battery: 85%", "Mức pin: 85%", hoặc "85%" (bắt buộc có dấu %)
+        val labelRegex = Regex("""(?:pin|battery|mức\s*pin)\s*[:：·\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
         val percentRegex = Regex("""(\d{1,3})\s*%""")
 
         for (text in textSnippets) {
+            if (!text.contains('%')) continue
             val lblMatch = labelRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
             if (lblMatch != null && lblMatch in 0..100) return lblMatch
             val pctMatch = percentRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
@@ -1344,6 +1345,10 @@ class NotificationCastListener : NotificationListenerService() {
 
                 var handled = false
                 if (isConnect) {
+                    if (!EarbudsCard.isDeviceHardwareConnected(applicationContext, devName, isWearable = isWearableDevice)) {
+                        log(sbn, "bỏ qua — thiết bị đeo chưa kết nối phần cứng thực tế", false)
+                        return
+                    }
                     // 2.b) Nếu batteryPct == -1, chủ động gọi EarbudsCard.querySamsungFit3Battery
                     if (batteryPct == -1) {
                         val fit3Battery = EarbudsCard.querySamsungFit3Battery(applicationContext, devName)
@@ -1397,23 +1402,16 @@ class NotificationCastListener : NotificationListenerService() {
                     // để EarbudsCard.onDeviceDisconnected kiểm soát debounce và xác thực phần cứng
                     EarbudsCard.onDeviceDisconnected(applicationContext, devName, isWearable = isWearableDevice)
                     handled = true
-                } else if (hasBattery && batteryPct != -1) {
-                    val isAlreadyActive = isCurrentlyConnected || isOldOngoingNotification ||
-                        (EarbudsCard.isDeviceHardwareConnected(applicationContext, devName) && EarbudsCard.isConnected(devName))
-
-                    if (isAlreadyActive) {
-                        setWearableConnected(deviceKey, devName, true)
-                        EarbudsCard.onBatteryUpdated(
-                            applicationContext,
-                            devName,
-                            EarbudsCard.EarbudsTelemetry(main = batteryPct),
-                            isWearable = isWearableDevice,
-                        )
-                    } else {
-                        setWearableConnected(deviceKey, devName, true)
-                        EarbudsCard.onDeviceConnected(applicationContext, devName, batteryPct, isWearable = isWearableDevice)
-                    }
-                    handled = true
+                } else if (hasBattery && batteryPct in 0..100) {
+                    EarbudsCard.saveCachedBattery(applicationContext, devName, batteryPct)
+                    EarbudsCard.onBatteryUpdated(
+                        applicationContext,
+                        devName,
+                        EarbudsCard.EarbudsTelemetry(main = batteryPct),
+                        isWearable = isWearableDevice,
+                    )
+                    log(sbn, "cập nhật pin thiết bị đeo vào cache/đảo: $batteryPct%", false)
+                    return
                 } else if (isOngoingNotification) {
                     // Thông báo thường trực nền khác của Fit 3 (bước chân, đồng bộ)
                     log(sbn, "bỏ qua — thông báo thường trực nền thiết bị đeo", false)

@@ -74,6 +74,7 @@ class KeepAliveAccessibilityService : AccessibilityService() {
 
     private fun parseBattery(str: String): Int {
         val trimmed = str.trim()
+        if (!trimmed.contains('%')) return -1
         val labeledMatch = BATTERY_LABELED_REGEX.find(trimmed)
         if (labeledMatch != null) {
             val num = labeledMatch.groupValues[1].toIntOrNull()
@@ -88,6 +89,10 @@ class KeepAliveAccessibilityService : AccessibilityService() {
     }
 
     private fun updateFit3Battery(level: Int) {
+        if (!EarbudsCard.isDeviceHardwareConnected(applicationContext, "Galaxy Fit 3", isWearable = true)) {
+            Log.d(TAG, "Fit 3 hardware not connected, ignoring a11y battery scan")
+            return
+        }
         val now = System.currentTimeMillis()
         if (level == lastScannedLevel && now - lastScanTime < 5_000L) return
         lastScannedLevel = level
@@ -99,19 +104,21 @@ class KeepAliveAccessibilityService : AccessibilityService() {
         val prefs = applicationContext.getSharedPreferences("wearable_battery_cache", Context.MODE_PRIVATE)
         prefs.edit().putInt("wearable_last_known_battery", level).apply()
 
-        EarbudsCard.onBatteryUpdated(
-            applicationContext,
-            "Galaxy Fit 3",
-            EarbudsCard.EarbudsTelemetry(main = level),
-            isWearable = true
-        )
+        if (EarbudsCard.isShowing(isWearable = true, nameOrAddress = "Galaxy Fit 3")) {
+            EarbudsCard.onBatteryUpdated(
+                applicationContext,
+                "Galaxy Fit 3",
+                EarbudsCard.EarbudsTelemetry(main = level),
+                isWearable = true
+            )
+        }
     }
 
     override fun onInterrupt() = Unit
 
     companion object {
         private const val TAG = "KeepAliveA11y"
-        private val BATTERY_LABELED_REGEX = Regex("""(?:pin|battery|mức pin)\s*[:：\-]?\s*(\d{1,3})\s*%?""", RegexOption.IGNORE_CASE)
+        private val BATTERY_LABELED_REGEX = Regex("""(?:pin|battery|mức\s*pin)\s*[:：\-]?\s*(\d{1,3})\s*%""", RegexOption.IGNORE_CASE)
         private val BATTERY_PCT_REGEX = Regex("""(\d{1,3})\s*%""")
     }
 }
