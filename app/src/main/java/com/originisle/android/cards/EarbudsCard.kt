@@ -196,15 +196,15 @@ object EarbudsCard {
         lastConnectedTimestamp[nameOrAddress] = now
     }
 
-    /** Kiểm tra xem thiết bị có đang trong thời gian hạ nhiệt chống dập tắt (10 giây sau khi vừa kết nối) hay không. */
-    fun isWithinAntiFlapCooldown(nameOrAddress: String?): Boolean {
+    /** Kiểm tra xem thiết bị có đang trong thời gian hạ nhiệt chống dập tắt (mặc định 10 giây sau khi vừa kết nối) hay không. */
+    fun isWithinAntiFlapCooldown(nameOrAddress: String?, windowMs: Long = ANTI_FLAP_COOLDOWN_MS): Boolean {
         if (nameOrAddress.isNullOrBlank()) return false
         val key = nameOrAddress.trim().lowercase()
         val now = System.currentTimeMillis()
         val t1 = lastConnectedTimestamp[key] ?: 0L
         val t2 = lastConnectedTimestamp[nameOrAddress] ?: 0L
         val lastConn = maxOf(t1, t2)
-        return (now - lastConn) in 0 until ANTI_FLAP_COOLDOWN_MS
+        return (now - lastConn) in 0 until windowMs
     }
 
     /**
@@ -569,6 +569,29 @@ object EarbudsCard {
             saveCachedTelemetry(context, k, finalMerged)
         }
         return finalMerged
+    }
+
+    private fun clearCachedTelemetry(context: Context, vararg keysOrNull: String?) {
+        val rawKeys = keysOrNull.mapNotNull { it?.trim()?.takeIf { s -> s.isNotBlank() } }
+        if (rawKeys.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        for (raw in rawKeys) {
+            val lower = raw.lowercase().trim()
+            deviceTelemetry -= raw
+            deviceTelemetry -= lower
+            for (k in listOf(raw, lower).distinct()) {
+                editor.remove(k)
+                editor.remove("telemetry_${k}_left")
+                editor.remove("telemetry_${k}_right")
+                editor.remove("telemetry_${k}_case")
+                editor.remove("telemetry_${k}_main")
+                editor.remove("telemetry_${k}_l_chg")
+                editor.remove("telemetry_${k}_r_chg")
+                editor.remove("telemetry_${k}_c_chg")
+            }
+        }
+        editor.apply()
     }
 
     private val FIT3_BATTERY_URI by lazy { Uri.parse("content://com.samsung.wearable.providers.find.batteryproviderhelper/BatteryDBProvider/Battery_tb") }
@@ -1009,6 +1032,11 @@ object EarbudsCard {
                 warnedLow -= address
                 pending.remove(address)?.let(handler::removeCallbacks)
 
+                val wasAlreadyConnectedBefore = isConnected(address) || isConnected(devName)
+                if (!wasAlreadyConnectedBefore && !isWearableDevice) {
+                    clearCachedTelemetry(context, address, devName)
+                }
+
                 setConnectedState(address, true)
                 setConnectedState(devName, true)
                 if (!isWearableDevice) {
@@ -1021,12 +1049,14 @@ object EarbudsCard {
                         initial = mergeTelemetry(initial, scanned)
                     }
                 }
-                initial = mergeTelemetry(getStoredTelemetry(context, address, devName), initial)
-                if (initial.effectiveLevel !in 0..100) {
-                    val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
-                        ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
-                    if (cached in 0..100) {
-                        initial = initial.copy(main = cached)
+                if (isWearableDevice || wasAlreadyConnectedBefore) {
+                    initial = mergeTelemetry(getStoredTelemetry(context, address, devName), initial)
+                    if (initial.effectiveLevel !in 0..100) {
+                        val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
+                            ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
+                        if (cached in 0..100) {
+                            initial = initial.copy(main = cached)
+                        }
                     }
                 }
                 if (initial.effectiveLevel !in 0..100) {
@@ -1043,13 +1073,22 @@ object EarbudsCard {
                             scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
                                 telemetry = mergeTelemetry(telemetry, scanned)
                             }
-                        }
-                        telemetry = mergeTelemetry(getStoredTelemetry(context, address, devName), telemetry)
-                        if (telemetry.effectiveLevel !in 0..100) {
-                            val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
-                                ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
-                            if (cached in 0..100) {
-                                telemetry = telemetry.copy(main = cached)
+                            listOfNotNull(
+                                address.takeIf { it.isNotBlank() },
+                                address.lowercase().takeIf { it.isNotBlank() },
+                                devName.takeIf { it.isNotBlank() },
+                                devName.lowercase().takeIf { it.isNotBlank() },
+                            ).distinct().forEach { k ->
+                                deviceTelemetry[k]?.let { telemetry = mergeTelemetry(telemetry, it) }
+                            }
+                        } else {
+                            telemetry = mergeTelemetry(getStoredTelemetry(context, address, devName), telemetry)
+                            if (telemetry.effectiveLevel !in 0..100) {
+                                val cached = getCachedBattery(context, devName).takeIf { it in 0..100 }
+                                    ?: (device?.address?.let { getCachedBattery(context, it) } ?: -1)
+                                if (cached in 0..100) {
+                                    telemetry = telemetry.copy(main = cached)
+                                }
                             }
                         }
                         if (telemetry.effectiveLevel !in 0..100) {
@@ -1104,10 +1143,7 @@ object EarbudsCard {
                     }
                     setConnectedState(address, false)
                     setConnectedState(devName, false)
-                    deviceTelemetry -= address
-                    deviceTelemetry -= address.lowercase()
-                    deviceTelemetry -= devName
-                    deviceTelemetry -= devName.lowercase()
+                    clearCachedTelemetry(context, address, devName)
                     warnedLow -= address
                     warnedLow -= devName
                     showDisconnected(context, devName, isWearable = isWearableDevice)
@@ -1184,9 +1220,16 @@ object EarbudsCard {
                     warnedLow -= devName
                 }
 
+                val isFreshConnectBatteryUpdate = changed && (
+                    isWithinAntiFlapCooldown(address, 15_000L) ||
+                        isWithinAntiFlapCooldown(devName, 15_000L)
+                    )
                 when {
                     pending.containsKey(address) -> {
                         pending.remove(address)?.let(handler::removeCallbacks)
+                        show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
+                    }
+                    isFreshConnectBatteryUpdate -> {
                         show(context, device, devName, updated, low = low, isWearable = isWearableDevice, refreshDuration = true)
                     }
                     currentlyShowing && changed -> {
@@ -1781,6 +1824,7 @@ object EarbudsCard {
         "com.samsung.accessory",
         "com.huawei.health",
         "com.xiaomi.wearable",
+        "com.mi.earphone",
     )
 
     /**
@@ -1965,6 +2009,10 @@ object EarbudsCard {
         if (isNewLowWarning) warnedLow.add(devName)
         if (merged.effectiveLevel > LOW_LEVEL + 5) warnedLow.remove(devName)
 
+        val isFreshConnectBatteryUpdate = changed && (
+            isWithinAntiFlapCooldown(devName, 15_000L) ||
+                (btAddress != null && isWithinAntiFlapCooldown(btAddress, 15_000L))
+            )
         val shouldShow = if (isWearableDevice) {
             (currentlyShowing && changed) || isWithinAntiFlapCooldown(devName)
         } else {
@@ -1975,7 +2023,7 @@ object EarbudsCard {
                         bm?.getConnectedDevices(BluetoothProfile.HEADSET).orEmpty()).any { !isWearable(it) }
                 }.getOrDefault(false)
             val canShowNew = !wasAlreadyConnected && isAudioHardwareConnected
-            val canUpdateExisting = (currentlyShowing && changed) || newlyDiscoveredDetails
+            val canUpdateExisting = (currentlyShowing && changed) || newlyDiscoveredDetails || isFreshConnectBatteryUpdate
             val canShowLow = isNewLowWarning && (currentlyShowing || isWithinAntiFlapCooldown(devName))
             canShowNew || canUpdateExisting || canShowLow
         }
@@ -1989,7 +2037,7 @@ object EarbudsCard {
                 telemetry = merged,
                 low = lowWarn,
                 isWearable = isWearableDevice,
-                refreshDuration = !currentlyShowing,
+                refreshDuration = !currentlyShowing || isFreshConnectBatteryUpdate,
             )
         }
         return true
@@ -2559,7 +2607,7 @@ object EarbudsCard {
                 return@Runnable
             }
             setConnectedState(name, false)
-            deviceTelemetry -= name
+            clearCachedTelemetry(ctx, name)
             warnedLow -= name
             showDisconnected(ctx, name, isWearable)
         }
@@ -2588,8 +2636,7 @@ object EarbudsCard {
             if (!stillConnected && System.currentTimeMillis() - lastDisconnectCardShownMs >= 5000L) {
                 setConnectedState(targetName, false)
                 lastConnectedAudioDeviceAddress?.let { setConnectedState(it, false) }
-                deviceTelemetry -= targetName
-                deviceTelemetry -= targetName.lowercase()
+                clearCachedTelemetry(currentCtx, targetName, lastConnectedAudioDeviceAddress)
                 showDisconnected(currentCtx, targetName, isWearable = false)
             }
         }, 1500L)
