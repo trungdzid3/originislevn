@@ -710,6 +710,8 @@ class NotificationCastListener : NotificationListenerService() {
                             "com.vivo.tws",
                             "com.vivo.earphone",
                             "com.android.bluetooth",
+                            "com.mi.earphone",
+                            "com.xiaomi.wearable",
                         )
                         if (isEarbudsPkg) {
                             val ex = sbn.notification.extras
