@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.0.2` (mã bản dựng `versionCode = 20002`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.0.3` (mã bản dựng `versionCode = 20003`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.2 / 20002)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.3 / 20003)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -54,10 +54,17 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.0.2.apk  # File APK xuất bản v2.0.2 (~4.4 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.0.3.apk  # File APK xuất bản v2.0.3 (~4.5 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.0.3 — Diệt lỗi báo pin cũ lần trước khi mở tai nghe & Hỗ trợ Xiaomi Earbuds (`com.mi.earphone`)**:
+  - `EarbudsCard.kt` (`clearCachedTelemetry`, `isWithinAntiFlapCooldown`, `handle`, `tryParseBatteryFromNotification`, `TWS_NOTIFICATION_PACKAGES`):
+    + Thêm `clearCachedTelemetry(context, vararg keysOrNull)` xóa sạch cache RAM (`deviceTelemetry`) và `SharedPreferences("wearable_battery_cache")` khi ngắt kết nối và khi mới kết nối tai nghe TWS (`!wasAlreadyConnectedBefore && !isWearableDevice`).
+    + Không đọc lại `getStoredTelemetry` / `getCachedBattery` từ lần mở trước khi mới kết nối TWS; chờ `BATTERY_WAIT_MS = 2500L` đón gói tin Fast Pair / HFP mới nhất.
+    + Mở rộng `isWithinAntiFlapCooldown(..., windowMs = 15_000L)`: trong 15 giây đầu vừa kết nối, nếu nhận được pin mới thật (`changed == true`) qua thông báo hoặc `BATTERY_LEVEL_CHANGED`, luôn cho phép `show(..., refreshDuration = true)` cập nhật ngay lên Đảo.
+    + Thêm `"com.mi.earphone"` vào `TWS_NOTIFICATION_PACKAGES`.
+  - `NotificationCastListener.kt` (`pollRunnable`): Bổ sung `"com.mi.earphone"` và `"com.xiaomi.wearable"` vào `isEarbudsPkg` để chủ động quét thông báo pin Xiaomi Earbuds.
 - **Origin Isle VN v2.0.2 — Đại tu Đảo tai nghe TWS bằng `oi_sub_image` Full-Width & Tắt viền phát sáng mặc định**:
   - `BatteryCanvasRenderer.kt` (`createEarbudsExpandedBanner`, `drawHorizontalBatteryBadge`):
     + Tạo Bitmap `600 x 210 px` (`ARGB_8888`, ~492 KB, an toàn Binder IPC) vẽ thẻ banner mở rộng nền kính tối `#EB16181E` bo góc 28dp, viền hairline 1.2dp.
