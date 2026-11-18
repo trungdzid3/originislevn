@@ -1,8 +1,8 @@
 # TỔNG QUAN DỰ ÁN - ORIGIN ISLE VIỆT NAM (DAO ORIGIN)
 
 ## 1. Mục đích và Phạm vi
-Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.0.3` (mã bản dựng `versionCode = 20003`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) và mở rộng hỗ trợ Samsung One UI 5.1+ (Android 13+) tại thị trường Việt Nam:
+- **Phiên bản hiện tại**: `2.1.0` (mã bản dựng `versionCode = 20100`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.3 / 20003)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.0 / 20100, minSdk = 33)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -37,7 +37,7 @@ origin-isle-vn/
 │       │       │   ├── TikTokStreakCard.kt # Cố định ID = 35012, hiển thị thông báo nhắc chuỗi TikTok ngọn lửa rực rỡ & nút 1 chạm duy trì chuỗi
 │       │       │   └── ZaloCallCard.kt   # Cố định ID = 35011, chuẩn phong cách Messenger của OriginOS gốc: icon cuộc gọi trắng, nhãn phải "Zalo", chạm mở cuộc gọi Zalo, bỏ nút nghe (chỉ giữ "Từ chối" / "Kết thúc")
 │       │       ├── download/         # DownloadDetector chặn triệt để 100% Quick Share, Google Play Services & app nhạc
-│       │       ├── island/           # PlaygroundService, OriginIslandBuilder (hỗ trợ oi_island_click_expand mở rộng thẻ khi chạm vào Đảo, BASE_SUB_INFO = 0 khi subText rỗng)
+│       │       ├── island/           # PlaygroundService, OriginIslandBuilder, OneUiOverlayIsland (WindowManager + ComposeView cho One UI 5.1+)
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
 │       │       ├── quickshare/       # Nhận diện Quick Share
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
@@ -54,10 +54,16 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.0.3.apk  # File APK xuất bản v2.0.3 (~4.5 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.1.0.apk  # File APK xuất bản v2.1.0 (4.48 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.1.0 — Mở rộng hỗ trợ Samsung One UI 5.1+ (WindowManager + Compose Overlay, Không Trợ năng)**:
+  - `OneUiOverlayIsland.kt` (`app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`): Engine đảo nổi trực tiếp qua `WindowManager` (`TYPE_APPLICATION_OVERLAY`, `LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS`) + `ComposeView`, lắng nghe trực tiếp `SharedPreferences("experimental_prefs")` (`oneui_island_offset_x_px`, `oneui_island_offset_y_px`, `oneui_island_pill_scale_pct`, `island_position`, `cast_custom_light_color`). Chống lệch 4 lớp: đọc `currentWindowMetrics` & `displayCutout.boundingRectsTop`, kết hợp offset X/Y, tự bù `deltaY` qua `getLocationOnScreen`, và chừa khoảng trống `cutoutWidthDp + 12.dp` giữa viên thuốc khi ở `CENTER`.
+  - `PlaygroundService.kt`: Định tuyến giữa Vivo SuperX gốc và `OneUiOverlayIsland` qua `DeviceInfoHelper.isSuperXSupported(this)`; `ensureForeground()` chỉ truyền `FOREGROUND_SERVICE_TYPE_SPECIAL_USE` khi `SDK_INT >= 34`.
+  - `app/build.gradle.kts` & `AndroidManifest.xml`: Hạ `minSdk = 33`, nâng `versionCode = 20100`, `versionName = "2.1.0"`, bổ sung quyền `SYSTEM_ALERT_WINDOW`.
+  - `DeviceInfoHelper.kt`, `StatusHelpers.kt`, `Prefs.kt`, `HomeScreen.kt`, `OnboardingScreen.kt`, `PermissionsSheet.kt`: Nhận diện One UI >= 5.1, thêm helper kiểm tra/xin quyền Overlay (`Settings.canDrawOverlays`), bỏ yêu cầu Trợ năng trên One UI và thêm UI tinh chỉnh tâm Đảo X/Y.
+  - `EarbudsCard.kt` & `NotificationCastListener.kt`: Bổ sung các package Samsung Galaxy Buds (`com.samsung.accessory.*`, `com.samsung.android.hearablemgr`) để hỗ trợ thiết bị đeo & tai nghe Samsung trên One UI 5.1+.
 - **Origin Isle VN v2.0.3 — Diệt lỗi báo pin cũ lần trước khi mở tai nghe & Hỗ trợ Xiaomi Earbuds (`com.mi.earphone`)**:
   - `EarbudsCard.kt` (`clearCachedTelemetry`, `isWithinAntiFlapCooldown`, `handle`, `tryParseBatteryFromNotification`, `TWS_NOTIFICATION_PACKAGES`):
     + Thêm `clearCachedTelemetry(context, vararg keysOrNull)` xóa sạch cache RAM (`deviceTelemetry`) và `SharedPreferences("wearable_battery_cache")` khi ngắt kết nối và khi mới kết nối tai nghe TWS (`!wasAlreadyConnectedBefore && !isWearableDevice`).
