@@ -712,7 +712,8 @@ class NotificationCastListener : NotificationListenerService() {
                             "com.android.bluetooth",
                             "com.mi.earphone",
                             "com.xiaomi.wearable",
-                        )
+                            "com.samsung.android.hearablemgr",
+                        ) || sbn.packageName.startsWith("com.samsung.accessory.")
                         if (isEarbudsPkg) {
                             val ex = sbn.notification.extras
                             val titleStr = ex?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()

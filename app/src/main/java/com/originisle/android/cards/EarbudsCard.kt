@@ -1816,6 +1816,13 @@ object EarbudsCard {
         "com.google.android.apps.wearables.maestro.companion",
         "com.samsung.accessory.neobeanmgr",
         "com.samsung.accessory.atticmgr",
+        "com.samsung.accessory.berrymgr",
+        "com.samsung.accessory.fridaymgr",
+        "com.samsung.accessory.popcornmgr",
+        "com.samsung.accessory.zenithmgr",
+        "com.samsung.accessory.jellymgr",
+        "com.samsung.accessory.paranmgr",
+        "com.samsung.android.hearablemgr",
         "com.samsung.android.app.watchmanager",
         "com.samsung.android.wearable.fit3plugin",
         "com.samsung.android.wearable.watch6plugin",
@@ -1851,7 +1858,7 @@ object EarbudsCard {
             val combined = "$title | $text | $subText | $bigText | $extraAll"
 
             val pkg = sbn.packageName
-            val isTwsPkg = pkg in TWS_NOTIFICATION_PACKAGES
+            val isTwsPkg = pkg in TWS_NOTIFICATION_PACKAGES || pkg.startsWith("com.samsung.accessory.")
             val hasKeyword = (AUDIO_KEYWORDS + WEARABLE_KEYWORDS + listOf("bên trái", "bên phải", "hộp sạc")).any {
                 combined.contains(it, ignoreCase = true)
             }
@@ -1937,7 +1944,7 @@ object EarbudsCard {
         val fullText = "$title | $text | $subText | $bigText | $extraAll"
 
         val pkg = sbn.packageName
-        val isTwsPkg = pkg in TWS_NOTIFICATION_PACKAGES
+        val isTwsPkg = pkg in TWS_NOTIFICATION_PACKAGES || pkg.startsWith("com.samsung.accessory.")
         val hasKeyword = (AUDIO_KEYWORDS + WEARABLE_KEYWORDS + listOf("bên trái", "bên phải", "hộp sạc")).any {
             fullText.contains(it, ignoreCase = true)
         }
