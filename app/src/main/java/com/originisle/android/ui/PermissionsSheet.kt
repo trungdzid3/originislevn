@@ -69,7 +69,7 @@ fun PermissionsSheet(
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
-    val keepAliveOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
+    val overlayOk = remember(tick.intValue) { isOverlayPermissionGranted(context) }
     // Neither vivo toggle is readable, so all we can track is whether the user has been sent to that
     // screen — the same ack flag the onboarding row writes.
     var autoStartAck by remember { mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false)) }
@@ -117,21 +117,21 @@ fun PermissionsSheet(
                 GroupDivider()
                 PermissionRow(
                     IsleIcons.Battery, IsleColors.TileGreen, "Tối ưu hóa pin",
-                    ok = batteryOk, status = if (batteryOk) "Không giới hạn" else "Bị giới hạn — OriginOS có thể đóng app",
+                    ok = batteryOk, status = if (batteryOk) "Không giới hạn" else "Bị giới hạn — OriginOS / One UI có thể đóng app",
                 ) { requestIgnoreBattery(context) }
                 GroupDivider()
                 PermissionRow(
-                    IsleIcons.Heart, IsleColors.TileTeal, "Duy trì chạy ngầm (Trợ năng)",
-                    ok = keepAliveOk,
-                    status = if (keepAliveOk) "Đã bật — tự phục hồi sau khi bị đóng" else "Đang tắt — khôi phục chậm hơn",
-                    note = "Bật \"Origin Isle keep-alive\" trong mục Trợ năng. Không hiện icon trạng thái, không đọc dữ liệu cá nhân.",
-                ) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    IsleIcons.Smartphone, IsleColors.TileTeal, "Hiển thị Đảo trên ứng dụng khác (Overlay)",
+                    ok = overlayOk,
+                    status = if (overlayOk) "Đã cấp — sẵn sàng vẽ Đảo nổi" else "Chưa cấp — cần cho Samsung One UI",
+                    note = "Cần thiết trên Samsung One UI 5.1+ để vẽ Đảo quanh camera mà không cần bật quyền Trợ năng (An toàn 100% với app Ngân hàng & VNeID)",
+                ) { requestOverlayPermission(context) }
                 GroupDivider()
                 PermissionRow(
-                    IsleIcons.Power, IsleColors.TileAmber, "Tự khởi chạy & Khởi chạy liên kết",
+                    IsleIcons.Power, IsleColors.TileAmber, "Tự khởi chạy & Chạy nền",
                     ok = autoStartAck,
-                    status = if (autoStartAck) "Đã mở cài đặt — hãy đảm bảo đã bật cả hai" else "Chưa xác nhận",
-                    note = "Bật CẢ HAI mục, nếu không khi vuốt đóng đa nhiệm đảo sẽ dừng hoạt động cho đến khi khởi động lại máy.",
+                    status = if (autoStartAck) "Đã mở cài đặt — hãy đảm bảo đã bật đầy đủ" else "Chưa xác nhận",
+                    note = "Trên Vivo OriginOS: bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết. Trên Samsung One UI: vào Pin -> chọn Không giới hạn (Unrestricted).",
                 ) {
                     if (openAutoStartSettings(context)) {
                         autoStartAck = true

@@ -50,6 +50,28 @@ fun isAccessibilityEnabled(context: Context): Boolean {
     return flat.split(':').any { android.content.ComponentName.unflattenFromString(it) == target }
 }
 
+fun isOverlayPermissionGranted(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+fun requestOverlayPermission(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }.onFailure {
+        runCatching {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${context.packageName}"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+}
+
 fun isBatteryUnrestricted(context: Context): Boolean {
     val pm = context.getSystemService(PowerManager::class.java)
     return pm?.isIgnoringBatteryOptimizations(context.packageName) == true
@@ -84,6 +106,16 @@ fun requestIgnoreBattery(context: Context) {
  * proof the user saw the right one, hence the hedged wording in [PermissionsSheet].
  */
 fun openAutoStartSettings(context: Context): Boolean {
+    if (DeviceInfoHelper.isOneUiDevice()) {
+        return runCatching {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${context.packageName}"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.isSuccess
+    }
     val targets = listOf(
         Intent("permission.intent.action.softPermissionDetail")
             .setClassName(

@@ -118,6 +118,8 @@ fun HomeScreen(
         mutableIntStateOf(prefs.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC))
     }
     var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
+    var oneUiOffsetX by remember { mutableIntStateOf(prefs.getInt(PREF_ONEUI_OFFSET_X_PX, DEFAULT_ONEUI_OFFSET_X_PX)) }
+    var oneUiOffsetY by remember { mutableIntStateOf(prefs.getInt(PREF_ONEUI_OFFSET_Y_PX, DEFAULT_ONEUI_OFFSET_Y_PX)) }
     var searchQuery by remember { mutableStateOf("") }
 
     DisposableEffect(prefs) {
@@ -136,6 +138,12 @@ fun HomeScreen(
                     islandDurationSec = sp.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC)
                 }
                 PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
+                PREF_ONEUI_OFFSET_X_PX -> {
+                    oneUiOffsetX = sp.getInt(PREF_ONEUI_OFFSET_X_PX, DEFAULT_ONEUI_OFFSET_X_PX)
+                }
+                PREF_ONEUI_OFFSET_Y_PX -> {
+                    oneUiOffsetY = sp.getInt(PREF_ONEUI_OFFSET_Y_PX, DEFAULT_ONEUI_OFFSET_Y_PX)
+                }
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -205,6 +213,7 @@ fun HomeScreen(
 
     val listenerOk = remember(tick.intValue) { isListenerEnabled(context) }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
+    val overlayOk = remember(tick.intValue) { isOverlayPermissionGranted(context) }
     var permissionsOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
@@ -283,6 +292,7 @@ fun HomeScreen(
         searchQuery,
         "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze", "màu viền",
         "phát sáng", "thời lượng", "mở rộng thẻ", "chạm viên thuốc",
+        "oneui", "one ui", "căn chỉnh", "camera", "overlay",
     )
     val showGroup2 = matchesSearchQuery(
         searchQuery,
@@ -418,14 +428,16 @@ fun HomeScreen(
             }
         }
 
-        // BANNER QUYỀN THÔNG MINH: Chỉ hiển thị khi thiếu quyền hoặc bị chặn bởi OriginOS
-        val missingPermissions = !connected || !listenerOk || !batteryOk
+        // BANNER QUYỀN THÔNG MINH: Chỉ hiển thị khi thiếu quyền hoặc bị chặn bởi hệ thống
+        val missingPermissions = !connected || !listenerOk || !batteryOk || (!superXSupported && !overlayOk)
         if (missingPermissions && searchQuery.isBlank()) {
             item {
                 VivoOriginAttentionBanner(
                     connected = connected,
                     listenerOk = listenerOk,
                     batteryOk = batteryOk,
+                    superXSupported = superXSupported,
+                    overlayOk = overlayOk,
                     onOpenPermissions = { permissionsOpen = true },
                     onOpenSettings = {
                         runCatching {
@@ -435,6 +447,7 @@ fun HomeScreen(
                             )
                         }
                     },
+                    onRequestOverlay = { requestOverlayPermission(context) },
                     onReconnect = {
                         recastAll(context)
                     },
@@ -450,6 +463,7 @@ fun HomeScreen(
                     castOn = castOn,
                     connected = connected,
                     superXSupported = superXSupported,
+                    overlayOk = overlayOk,
                     customLightColor = customLightColor,
                     islandPosition = islandPosition,
                     islandDurationSec = islandDurationSec,
@@ -741,6 +755,84 @@ fun HomeScreen(
                     ) {
                         tapExpandCard = it
                         prefs.edit().putBoolean(PREF_CAST_TAP_EXPAND_CARD, it).apply()
+                    }
+
+                    GroupDivider()
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Căn chỉnh tâm Đảo quanh Camera (One UI 5.1+)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IsleColors.Text,
+                            )
+                            Text(
+                                "Tinh chỉnh tọa độ X/Y của Đảo nổi (Overlay) khớp chính xác cụm camera đục lỗ",
+                                fontSize = 13.sp,
+                                color = IsleColors.TextSecondary,
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Dịch dọc (Y): ${if (oneUiOffsetY > 0) "+${oneUiOffsetY}px" else "${oneUiOffsetY}px"}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = IsleColors.TextSecondary,
+                            )
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                val yOffsets = listOf(-12, -6, -2, 0, 2, 6, 12)
+                                itemsIndexed(yOffsets) { _, offsetPx ->
+                                    val label = if (offsetPx > 0) "+${offsetPx}" else "$offsetPx"
+                                    ChoiceChip(
+                                        label = "${label}px",
+                                        selected = oneUiOffsetY == offsetPx,
+                                        onClick = {
+                                            oneUiOffsetY = offsetPx
+                                            prefs.edit().putInt(PREF_ONEUI_OFFSET_Y_PX, offsetPx).apply()
+                                        },
+                                        height = 38.dp,
+                                        horizontalPadding = 12.dp,
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Dịch ngang (X): ${if (oneUiOffsetX > 0) "+${oneUiOffsetX}px" else "${oneUiOffsetX}px"}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = IsleColors.TextSecondary,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                listOf(-12, -4, 0, 4, 12).forEach { offsetPx ->
+                                    val label = if (offsetPx > 0) "+${offsetPx}" else "$offsetPx"
+                                    ChoiceChip(
+                                        label = "${label}px",
+                                        selected = oneUiOffsetX == offsetPx,
+                                        onClick = {
+                                            oneUiOffsetX = offsetPx
+                                            prefs.edit().putInt(PREF_ONEUI_OFFSET_X_PX, offsetPx).apply()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        height = 38.dp,
+                                        horizontalPadding = 6.dp,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1176,7 +1268,7 @@ fun HomeScreen(
                     NavRow(
                         IsleIcons.Shield, IsleColors.Accent,
                         title = "Quyền hệ thống",
-                        value = if (listenerOk && batteryOk) "Đã hoàn tất" else "Cần cấp quyền",
+                        value = if (listenerOk && batteryOk && (superXSupported || overlayOk)) "Đã hoàn tất" else "Cần cấp quyền",
                         onClick = { permissionsOpen = true },
                     )
                     GroupDivider()
@@ -1355,10 +1447,14 @@ private fun VivoOriginAttentionBanner(
     connected: Boolean,
     listenerOk: Boolean,
     batteryOk: Boolean,
+    superXSupported: Boolean,
+    overlayOk: Boolean,
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
+    onRequestOverlay: () -> Unit,
     onReconnect: () -> Unit,
 ) {
+    val needOverlay = !superXSupported && !overlayOk
     val isRed = !connected || !listenerOk
     val bg = if (isRed) IsleColors.BadBg else IsleColors.WarnBg
     val borderCol = if (isRed) IsleColors.Bad.copy(alpha = 0.5f) else IsleColors.Warn.copy(alpha = 0.5f)
@@ -1384,18 +1480,24 @@ private fun VivoOriginAttentionBanner(
             IconTile(IsleIcons.Shield, iconTileCol)
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (!connected) "Dịch vụ thông báo chưa kết nối" else "Cài đặt cần lưu ý trên Vivo OriginOS",
+                    when {
+                        !connected -> "Dịch vụ thông báo chưa kết nối"
+                        needOverlay -> "Cần cấp quyền vẽ đè trên Samsung One UI"
+                        superXSupported -> "Cài đặt cần lưu ý trên Vivo OriginOS"
+                        else -> "Cài đặt cần lưu ý trên hệ thống"
+                    },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = IsleColors.Text,
                 )
                 Text(
-                    if (!listenerOk) {
-                        "Chưa cấp quyền Truy cập thông báo"
-                    } else if (!connected) {
-                        "Dịch vụ bị OriginOS chặn hoặc cần mở khóa Cài đặt bị hạn chế"
-                    } else {
-                        "Cần tắt hạn chế pin để chạy nền ổn định"
+                    when {
+                        !listenerOk -> "Chưa cấp quyền Truy cập thông báo"
+                        !connected && superXSupported -> "Dịch vụ bị OriginOS chặn hoặc cần mở khóa Cài đặt bị hạn chế"
+                        !connected -> "Dịch vụ bị hệ thống chặn hoặc chưa kết nối bộ lắng nghe thông báo"
+                        needOverlay -> "Cấp quyền Hiển thị trên ứng dụng khác để vẽ Đảo quanh camera (Không cần Trợ năng)"
+                        !batteryOk -> "Cần tắt hạn chế pin để chạy nền ổn định"
+                        else -> "Cần hoàn tất quyền hệ thống để Đảo hoạt động ổn định"
                     },
                     fontSize = 13.sp,
                     color = textCol,
@@ -1406,7 +1508,11 @@ private fun VivoOriginAttentionBanner(
 
         if (!connected) {
             Text(
-                "Để khắc phục trên OriginOS: Vào Cài đặt ứng dụng -> dấu 3 chấm góc trên -> Cho phép cài đặt bị hạn chế (Restricted Settings) & bật Tự khởi chạy.",
+                if (superXSupported) {
+                    "Để khắc phục trên OriginOS: Vào Cài đặt ứng dụng -> dấu 3 chấm góc trên -> Cho phép cài đặt bị hạn chế (Restricted Settings) & bật Tự khởi chạy."
+                } else {
+                    "Để khắc phục: Vào Cài đặt ứng dụng -> cho phép Cài đặt bị hạn chế (nếu có) và đặt Pin ở mức Không giới hạn (Unrestricted)."
+                },
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
                 color = IsleColors.TextSecondary,
@@ -1434,6 +1540,18 @@ private fun VivoOriginAttentionBanner(
                 )
             }
         }
+
+        if (needOverlay) {
+            PillButton(
+                text = "Cấp quyền vẽ đè (Overlay)",
+                onClick = onRequestOverlay,
+                modifier = Modifier.fillMaxWidth(),
+                icon = IsleIcons.Smartphone,
+                container = IsleColors.Accent,
+                content = Color.White,
+                height = 38.dp,
+            )
+        }
     }
 }
 
@@ -1443,6 +1561,7 @@ private fun DeviceHeroCard(
     castOn: Boolean,
     connected: Boolean,
     superXSupported: Boolean,
+    overlayOk: Boolean,
     customLightColor: String,
     islandPosition: String,
     islandDurationSec: Int,
@@ -1766,13 +1885,17 @@ private fun DeviceHeroCard(
                     val engineColor = when {
                         superXSupported && connected && castOn -> IsleColors.Good
                         superXSupported -> IsleColors.Warn
-                        else -> IsleColors.Accent
+                        !overlayOk -> IsleColors.Warn
+                        connected && castOn -> IsleColors.Good
+                        else -> IsleColors.TextSecondary
                     }
                     val engineLabel = when {
                         superXSupported && connected && castOn -> "SuperX Engine: Hoạt động"
                         superXSupported && !castOn -> "SuperX Engine: Đang tạm tắt"
                         superXSupported -> "SuperX Engine: Chờ kết nối"
-                        else -> "SuperX Engine: Chế độ tương thích"
+                        !overlayOk -> "OneUI Overlay Engine: Chờ cấp quyền vẽ đè"
+                        connected && castOn -> "OneUI Overlay Engine: Hoạt động"
+                        else -> "OneUI Overlay Engine: Đang tạm tắt"
                     }
                     Box(
                         modifier = Modifier

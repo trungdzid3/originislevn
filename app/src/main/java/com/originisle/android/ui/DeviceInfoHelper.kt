@@ -39,12 +39,14 @@ object DeviceInfoHelper {
         val displayId = getSystemProperty("ro.vivo.os.build.display.id")
         val osVersion = getSystemProperty("ro.vivo.os.version")
         val productVersion = getSystemProperty("ro.vivo.product.version")
+        val oneUiVersion = formatOneUiVersion()
         val originOsVersion = when {
             displayId.isNotBlank() && displayId.contains("OriginOS", ignoreCase = true) -> displayId
             osVersion.isNotBlank() -> {
                 val clean = osVersion.removePrefix("OriginOS").trim()
                 if (clean.isNotBlank()) "OriginOS $clean" else "OriginOS"
             }
+            isOneUiDevice() || oneUiVersion != null -> oneUiVersion ?: "One UI (Tương thích)"
             displayId.isNotBlank() -> displayId
             productVersion.isNotBlank() -> productVersion
             else -> "OriginOS (Tương thích)"
@@ -106,6 +108,37 @@ object DeviceInfoHelper {
             todayCastCount = todayCastCount,
         )
     }
+
+    /** Đọc mã phiên bản Samsung One UI qua SystemProperties hoặc Build.VERSION.SEM_PLATFORM_INT. */
+    fun getOneUiVersionCode(): Int {
+        val propCode = getSystemProperty("ro.build.version.oneui").toIntOrNull() ?: 0
+        if (propCode > 0) return propCode
+
+        val semPlatformInt = runCatching {
+            Build.VERSION::class.java.getField("SEM_PLATFORM_INT").getInt(null)
+        }.getOrDefault(0)
+        if (semPlatformInt >= 90000) {
+            val sep = semPlatformInt - 90000
+            return (sep / 10000) * 10000 + ((sep % 10000) / 100) * 100
+        }
+        return 0
+    }
+
+    /** Quy đổi mã One UI (vd 50100 -> "One UI 5.1", 50101 -> "One UI 5.1.1", 60100 -> "One UI 6.1"). */
+    fun formatOneUiVersion(code: Int = getOneUiVersionCode()): String? {
+        if (code <= 0) return null
+        val major = code / 10000
+        val minor = (code % 10000) / 100
+        val patch = code % 100
+        if (major <= 0) return null
+        return if (patch > 0) "One UI $major.$minor.$patch" else "One UI $major.$minor"
+    }
+
+    /** Kiểm tra thiết bị có phải Samsung hoặc đang chạy One UI >= 5.0 hay không. */
+    fun isOneUiDevice(): Boolean =
+        Build.MANUFACTURER.equals("samsung", ignoreCase = true) ||
+            Build.BRAND.equals("samsung", ignoreCase = true) ||
+            getOneUiVersionCode() >= 50000
 
     /** Kiểm tra hệ thống có hỗ trợ API SuperX của Vivo OriginOS hay không. */
     fun isSuperXSupported(context: Context): Boolean = runCatching {

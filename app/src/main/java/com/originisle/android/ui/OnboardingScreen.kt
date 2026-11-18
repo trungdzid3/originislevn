@@ -60,7 +60,7 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
-    val accessOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
+    val overlayOk = remember(tick.intValue) { isOverlayPermissionGranted(context) }
     var autoStartAck by remember {
         mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false))
     }
@@ -111,19 +111,19 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 }
                 GroupDivider()
                 OnboardingRow(
-                    icon = IsleIcons.Heart,
+                    icon = IsleIcons.Smartphone,
                     tile = IsleColors.TileTeal,
-                    title = "Duy trì chạy ngầm (Trợ năng)",
-                    description = "Tự động kết nối lại khi OriginOS khởi động lại ứng dụng thay vì chờ bạn mở thủ công.",
-                    granted = accessOk,
+                    title = "Hiển thị Đảo trên ứng dụng khác (Overlay)",
+                    description = "Cần thiết trên Samsung One UI 5.1+ để vẽ Đảo quanh camera mà không cần bật quyền Trợ năng (An toàn 100% với app Ngân hàng & VNeID)",
+                    granted = overlayOk,
                     mandatory = false,
-                ) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                ) { requestOverlayPermission(context) }
                 GroupDivider()
                 OnboardingRow(
                     icon = IsleIcons.Battery,
                     tile = IsleColors.TileGreen,
                     title = "Không hạn chế pin",
-                    description = "Ngăn OriginOS tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
+                    description = "Ngăn OriginOS / Samsung One UI tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
                     granted = batteryOk,
                     mandatory = false,
                 ) { requestIgnoreBattery(context) }
@@ -131,8 +131,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 OnboardingRow(
                     icon = IsleIcons.Power,
                     tile = IsleColors.TileAmber,
-                    title = "Tự khởi chạy & Khởi chạy liên kết",
-                    description = "Bật CẢ HAI mục. Nếu không, khi đóng app từ đa nhiệm đảo sẽ ngừng hoạt động cho đến khi khởi động lại máy.",
+                    title = "Tự khởi chạy & Chạy nền",
+                    description = "Trên Vivo OriginOS: bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết. Trên Samsung One UI: vào Pin -> chọn Không giới hạn để tránh bị dừng khi đóng đa nhiệm.",
                     granted = autoStartAck,
                     mandatory = false,
                 ) {
