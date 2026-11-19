@@ -120,6 +120,9 @@ fun HomeScreen(
     var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
     var oneUiOffsetX by remember { mutableIntStateOf(prefs.getInt(PREF_ONEUI_OFFSET_X_PX, DEFAULT_ONEUI_OFFSET_X_PX)) }
     var oneUiOffsetY by remember { mutableIntStateOf(prefs.getInt(PREF_ONEUI_OFFSET_Y_PX, DEFAULT_ONEUI_OFFSET_Y_PX)) }
+    var oneUiHideLandscape by remember {
+        mutableStateOf(prefs.getBoolean(PREF_ONEUI_HIDE_LANDSCAPE, DEFAULT_ONEUI_HIDE_LANDSCAPE))
+    }
     var searchQuery by remember { mutableStateOf("") }
 
     DisposableEffect(prefs) {
@@ -143,6 +146,9 @@ fun HomeScreen(
                 }
                 PREF_ONEUI_OFFSET_Y_PX -> {
                     oneUiOffsetY = sp.getInt(PREF_ONEUI_OFFSET_Y_PX, DEFAULT_ONEUI_OFFSET_Y_PX)
+                }
+                PREF_ONEUI_HIDE_LANDSCAPE -> {
+                    oneUiHideLandscape = sp.getBoolean(PREF_ONEUI_HIDE_LANDSCAPE, DEFAULT_ONEUI_HIDE_LANDSCAPE)
                 }
             }
         }
@@ -293,6 +299,7 @@ fun HomeScreen(
         "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze", "màu viền",
         "phát sáng", "thời lượng", "mở rộng thẻ", "chạm viên thuốc",
         "oneui", "one ui", "căn chỉnh", "camera", "overlay",
+        "xoay ngang", "landscape", "game", "video", "xem thử",
     )
     val showGroup2 = matchesSearchQuery(
         searchQuery,
@@ -798,6 +805,9 @@ fun HomeScreen(
                                         onClick = {
                                             oneUiOffsetY = offsetPx
                                             prefs.edit().putInt(PREF_ONEUI_OFFSET_Y_PX, offsetPx).apply()
+                                            if (!superXSupported && overlayOk) {
+                                                postOneUiCalibrationPreview(context)
+                                            }
                                         },
                                         height = 38.dp,
                                         horizontalPadding = 12.dp,
@@ -825,6 +835,9 @@ fun HomeScreen(
                                         onClick = {
                                             oneUiOffsetX = offsetPx
                                             prefs.edit().putInt(PREF_ONEUI_OFFSET_X_PX, offsetPx).apply()
+                                            if (!superXSupported && overlayOk) {
+                                                postOneUiCalibrationPreview(context)
+                                            }
                                         },
                                         modifier = Modifier.weight(1f),
                                         height = 38.dp,
@@ -833,6 +846,39 @@ fun HomeScreen(
                                 }
                             }
                         }
+
+                        PillButton(
+                            text = "Xem thử căn chỉnh trên camera",
+                            onClick = {
+                                if (!superXSupported && !overlayOk) {
+                                    requestOverlayPermission(context)
+                                    Toast.makeText(
+                                        context,
+                                        "Vui lòng cấp quyền hiển thị trên ứng dụng khác (Overlay) để xem thử",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } else {
+                                    postOneUiCalibrationPreview(context)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            container = IsleColors.SurfaceHigh,
+                            content = IsleColors.AccentText,
+                            height = 42.dp,
+                        )
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Smartphone,
+                        IsleColors.Accent,
+                        title = "Tự ẩn Đảo khi xoay ngang (Game / Video)",
+                        checked = oneUiHideLandscape,
+                        subtitle = "Tự động ẩn viên thuốc Overlay khi xoay ngang chơi game hoặc xem phim toàn màn hình",
+                    ) {
+                        oneUiHideLandscape = it
+                        prefs.edit().putBoolean(PREF_ONEUI_HIDE_LANDSCAPE, it).apply()
                     }
                 }
             }
@@ -1417,6 +1463,24 @@ private fun pickTime(context: Context, initial: Int, onPicked: (Int) -> Unit) {
         initial / 60, initial % 60,
         android.text.format.DateFormat.is24HourFormat(context),
     ).show()
+}
+
+private fun postOneUiCalibrationPreview(context: Context) {
+    val intent = Intent(context, PlaygroundService::class.java).apply {
+        action = PlaygroundService.ACTION_START
+        putExtra("id", 35019)
+        putExtra("is_ongoing", false)
+        putExtra("oi_auto_dismiss_ms", 6000L)
+        putExtra("oi_scene", "NAVIGATION")
+        putExtra("oi_template", 4)
+        putExtra("oi_right_template", 4)
+        putExtra("title", "Căn chỉnh Đảo")
+        putExtra("text", "Kiểm tra tâm lỗ camera trước")
+        putExtra("oi_left_content", "Origin")
+        putExtra("oi_right_content", "Khớp tâm")
+        putExtra("oi_island_click_expand", true)
+    }
+    context.startService(intent)
 }
 
 private fun stopAll(context: Context) {
