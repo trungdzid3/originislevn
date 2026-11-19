@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
@@ -94,6 +95,13 @@ class PlaygroundService : Service() {
         super.onCreate()
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         OriginIslandBuilder.grantScenes(this)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!DeviceInfoHelper.isSuperXSupported(this)) {
+            OneUiOverlayIsland.onConfigurationChanged(this)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -482,9 +490,17 @@ class PlaygroundService : Service() {
         }
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
         if (dismissDelayMs > 0L) {
-            val task = Runnable {
-                autoDismissTasks.remove(id)
-                cancelCard(id)
+            val task = object : Runnable {
+                override fun run() {
+                    if (!DeviceInfoHelper.isSuperXSupported(this@PlaygroundService) &&
+                        OneUiOverlayIsland.isCardExpanded(id)
+                    ) {
+                        mainHandler.postDelayed(this, 2000L)
+                        return
+                    }
+                    autoDismissTasks.remove(id)
+                    cancelCard(id)
+                }
             }
             autoDismissTasks[id] = task
             mainHandler.postDelayed(task, dismissDelayMs)

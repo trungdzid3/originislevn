@@ -1,20 +1,24 @@
 package com.originisle.android.island
 
+import android.app.ActivityOptions
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedContent
@@ -30,6 +34,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,7 +70,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -106,6 +115,7 @@ object OneUiOverlayIsland {
     private const val KEY_PILL_SCALE = "oneui_island_pill_scale_pct"
     private const val KEY_ISLAND_POS = "island_position"
     private const val KEY_CUSTOM_LIGHT = "cast_custom_light_color"
+    private const val KEY_HIDE_LANDSCAPE = "oneui_island_hide_landscape"
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -203,6 +213,7 @@ object OneUiOverlayIsland {
 
     private val cards = LinkedHashMap<Int, OverlayCard>()
     private var currentCardState by mutableStateOf<OverlayCard?>(null)
+    private var totalCardsState by mutableStateOf(0)
     private var metricsConfigState by mutableStateOf(OverlayMetricsConfig())
     private var isExpandedState by mutableStateOf(false)
 
@@ -213,6 +224,22 @@ object OneUiOverlayIsland {
     private var appContext: Context? = null
     private var prefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var lastShownCardId: Int? = null
+    private var cutoutSpacerCenterOffsetPx: Int = -1
+
+    fun isCardExpanded(id: Int): Boolean = isExpandedState && lastShownCardId == id
+
+    fun onConfigurationChanged(context: Context) {
+        val appCtx = context.applicationContext
+        runOnMain {
+            if (isHiddenByLandscape(appCtx)) {
+                isExpandedState = false
+                hideOverlayLocked()
+            } else if (cards.isNotEmpty() && Settings.canDrawOverlays(appCtx)) {
+                ensureOverlayLocked(appCtx)
+                updateWindowMetricsAndPositionLocked(appCtx)
+            }
+        }
+    }
 
     fun postOrUpdate(context: Context, id: Int, scene: String, intent: Intent) {
         val appCtx = context.applicationContext
@@ -227,8 +254,14 @@ object OneUiOverlayIsland {
             if (lastShownCardId != id) {
                 isExpandedState = false
                 lastShownCardId = id
+                cutoutSpacerCenterOffsetPx = -1
             }
             refreshActiveCardLocked()
+            if (isHiddenByLandscape(appCtx)) {
+                isExpandedState = false
+                hideOverlayLocked()
+                return@runOnMain
+            }
             ensureOverlayLocked(appCtx)
             updateWindowMetricsAndPositionLocked(appCtx)
         }
@@ -240,6 +273,7 @@ object OneUiOverlayIsland {
             cards.remove(id)
             if (lastShownCardId == id) {
                 isExpandedState = false
+                cutoutSpacerCenterOffsetPx = -1
             }
             refreshActiveCardLocked()
             if (cards.isEmpty()) {
@@ -254,9 +288,11 @@ object OneUiOverlayIsland {
     fun cancelAll(context: Context) {
         runOnMain {
             cards.clear()
+            totalCardsState = 0
             isExpandedState = false
             lastShownCardId = null
             currentCardState = null
+            cutoutSpacerCenterOffsetPx = -1
             hideOverlayLocked()
         }
     }
@@ -269,12 +305,35 @@ object OneUiOverlayIsland {
         }
     }
 
+    private fun isHiddenByLandscape(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val hideInLandscape = prefs.getBoolean(KEY_HIDE_LANDSCAPE, true)
+        return hideInLandscape &&
+            context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    }
+
     private fun refreshActiveCardLocked() {
         val priorityCard = cards.values.lastOrNull {
             it.scene == "INCALLING" || it.scene == "VOIPCALL"
         } ?: cards.values.lastOrNull()
+        totalCardsState = cards.size
         currentCardState = priorityCard
         lastShownCardId = priorityCard?.id
+    }
+
+    private fun cycleActiveCard(step: Int) {
+        runOnMain {
+            val list = cards.values.toList()
+            if (list.size <= 1) return@runOnMain
+            val currentIdx = list.indexOfFirst { it.id == lastShownCardId }.let {
+                if (it >= 0) it else list.lastIndex
+            }
+            val nextIdx = (currentIdx + step + list.size) % list.size
+            val nextCard = list[nextIdx]
+            lastShownCardId = nextCard.id
+            currentCardState = nextCard
+            cutoutSpacerCenterOffsetPx = -1
+        }
     }
 
     private fun ensurePrefsListenerLocked(context: Context) {
@@ -285,11 +344,16 @@ object OneUiOverlayIsland {
                 key == KEY_OFFSET_Y ||
                 key == KEY_PILL_SCALE ||
                 key == KEY_ISLAND_POS ||
-                key == KEY_CUSTOM_LIGHT
+                key == KEY_CUSTOM_LIGHT ||
+                key == KEY_HIDE_LANDSCAPE
             ) {
                 runOnMain {
                     val ctx = appContext ?: return@runOnMain
-                    if (cards.isNotEmpty() && Settings.canDrawOverlays(ctx)) {
+                    if (isHiddenByLandscape(ctx)) {
+                        isExpandedState = false
+                        hideOverlayLocked()
+                    } else if (cards.isNotEmpty() && Settings.canDrawOverlays(ctx)) {
+                        ensureOverlayLocked(ctx)
                         updateWindowMetricsAndPositionLocked(ctx)
                     }
                 }
@@ -324,17 +388,25 @@ object OneUiOverlayIsland {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
                 val card = currentCardState
+                val totalCards = totalCardsState
                 val config = metricsConfigState
                 if (card != null) {
                     OneUiIslandRoot(
                         context = context,
                         card = card,
+                        totalCards = totalCards,
                         config = config,
                         isExpanded = isExpandedState,
                         onToggleExpand = { isExpandedState = !isExpandedState },
                         onCollapse = { isExpandedState = false },
                     )
                 }
+            }
+            setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_OUTSIDE && isExpandedState) {
+                    isExpandedState = false
+                }
+                false
             }
             addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
                 v.post { calibratePositionLocked(context) }
@@ -347,6 +419,7 @@ object OneUiOverlayIsland {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
@@ -376,6 +449,10 @@ object OneUiOverlayIsland {
     }
 
     private fun updateWindowMetricsAndPositionLocked(context: Context) {
+        if (isHiddenByLandscape(context)) {
+            hideOverlayLocked()
+            return
+        }
         val wm = windowManager ?: (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)
             ?: return
         windowManager = wm
@@ -444,8 +521,18 @@ object OneUiOverlayIsland {
             "LEFT" -> dpToPx(context, 12f) + config.offsetX
             "RIGHT" -> (config.screenWidthPx - viewWidth - dpToPx(context, 12f) + config.offsetX)
                 .coerceAtLeast(0)
-            else -> (config.cutoutCenterX + config.offsetX - (viewWidth / 2))
-                .coerceIn(0, (config.screenWidthPx - viewWidth).coerceAtLeast(0))
+            else -> {
+                val anchorX = if (!isExpandedState &&
+                    config.islandPosition.equals("CENTER", ignoreCase = true) &&
+                    cutoutSpacerCenterOffsetPx > 0
+                ) {
+                    cutoutSpacerCenterOffsetPx
+                } else {
+                    viewWidth / 2
+                }
+                (config.cutoutCenterX + config.offsetX - anchorX)
+                    .coerceIn(0, (config.screenWidthPx - viewWidth).coerceAtLeast(0))
+            }
         }
 
         val loc = IntArray(2)
@@ -609,6 +696,7 @@ object OneUiOverlayIsland {
     private fun OneUiIslandRoot(
         context: Context,
         card: OverlayCard,
+        totalCards: Int,
         config: OverlayMetricsConfig,
         isExpanded: Boolean,
         onToggleExpand: () -> Unit,
@@ -642,11 +730,18 @@ object OneUiOverlayIsland {
                     CollapsedPill(
                         context = context,
                         card = card,
+                        totalCards = totalCards,
                         isCenter = config.islandPosition.equals("CENTER", ignoreCase = true),
                         pillHeightDp = pillHeightDp,
                         cutoutWidthDp = cutoutWidthDp,
                         scale = scale,
                         glowColor = glowColor,
+                        onSpacerCenterPositioned = { centerPx ->
+                            if (cutoutSpacerCenterOffsetPx != centerPx) {
+                                cutoutSpacerCenterOffsetPx = centerPx
+                                overlayView?.post { calibratePositionLocked(context) }
+                            }
+                        },
                         onClick = {
                             if (card.islandClickExpand) {
                                 onToggleExpand()
@@ -672,16 +767,21 @@ object OneUiOverlayIsland {
     private fun CollapsedPill(
         context: Context,
         card: OverlayCard,
+        totalCards: Int,
         isCenter: Boolean,
         pillHeightDp: Dp,
         cutoutWidthDp: Dp,
         scale: Float,
         glowColor: Color,
+        onSpacerCenterPositioned: (Int) -> Unit = {},
         onClick: () -> Unit,
     ) {
         val interactionSource = remember { MutableInteractionSource() }
         val horizontalPad = (10.dp * scale).coerceAtLeast(6.dp)
         val iconSize = (18.dp * scale).coerceAtLeast(14.dp)
+        if (!isCenter && cutoutSpacerCenterOffsetPx != -1) {
+            cutoutSpacerCenterOffsetPx = -1
+        }
 
         Row(
             modifier = Modifier
@@ -690,6 +790,37 @@ object OneUiOverlayIsland {
                 .clip(CircleShape)
                 .background(Color.Black)
                 .border(1.dp, glowColor, CircleShape)
+                .pointerInput(card.id, totalCards) {
+                    var totalDragX = 0f
+                    var handled = false
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            totalDragX = 0f
+                            handled = false
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            if (handled) return@detectHorizontalDragGestures
+                            totalDragX += dragAmount
+                            if (cards.size > 1 && abs(totalDragX) > 48f) {
+                                handled = true
+                                val step = if (totalDragX > 0f) 1 else -1
+                                cycleActiveCard(step)
+                            } else if (cards.size == 1 && abs(totalDragX) > 90f) {
+                                handled = true
+                                runCatching {
+                                    context.startService(
+                                        Intent(context, PlaygroundService::class.java)
+                                            .setAction(PlaygroundService.ACTION_CANCEL)
+                                            .putExtra("id", card.id)
+                                            .putExtra("oi_scene", card.scene),
+                                    )
+                                }.onFailure {
+                                    cancel(context, card.id)
+                                }
+                            }
+                        },
+                    )
+                }
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -727,7 +858,14 @@ object OneUiOverlayIsland {
             }
 
             if (isCenter) {
-                Spacer(Modifier.width(cutoutWidthDp + 12.dp))
+                Spacer(
+                    Modifier
+                        .width(cutoutWidthDp + 12.dp)
+                        .onGloballyPositioned { coords ->
+                            val centerPx = (coords.positionInRoot().x + coords.size.width / 2f).roundToInt()
+                            onSpacerCenterPositioned(centerPx)
+                        },
+                )
             } else {
                 Spacer(Modifier.width(10.dp))
             }
@@ -739,6 +877,16 @@ object OneUiOverlayIsland {
                 iconSize = iconSize,
                 scale = scale,
             )
+
+            if (totalCards > 1) {
+                Spacer(Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xB3FFFFFF)),
+                )
+            }
         }
     }
 
@@ -927,6 +1075,23 @@ object OneUiOverlayIsland {
                 .clip(shape)
                 .background(Color(0xF216181E))
                 .border(1.dp, borderColor, shape)
+                .pointerInput(card.id) {
+                    var totalDragY = 0f
+                    var collapsed = false
+                    detectVerticalDragGestures(
+                        onDragStart = {
+                            totalDragY = 0f
+                            collapsed = false
+                        },
+                        onVerticalDrag = { _, dragAmount ->
+                            totalDragY += dragAmount
+                            if (!collapsed && totalDragY < -40f) {
+                                collapsed = true
+                                onCollapse()
+                            }
+                        },
+                    )
+                }
                 .clickable {
                     sendPendingIntentSafe(card.clickResp)
                     onCollapse()
@@ -1212,7 +1377,22 @@ object OneUiOverlayIsland {
 
     private fun sendPendingIntentSafe(pi: PendingIntent?) {
         if (pi == null) return
-        runCatching { pi.send() }
-            .onFailure { Log.w(TAG, "Failed to send PendingIntent: ${it.message}") }
+        runCatching {
+            val ctx = appContext
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && ctx != null) {
+                val options = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED,
+                    )
+                    .toBundle()
+                runCatching {
+                    pi.send(ctx, 0, null, null, null, null, options)
+                }.getOrElse {
+                    pi.send()
+                }
+            } else {
+                pi.send()
+            }
+        }.onFailure { Log.w(TAG, "Failed to send PendingIntent: ${it.message}") }
     }
 }
