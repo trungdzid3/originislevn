@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) và mở rộng hỗ trợ Samsung One UI 5.1+ (Android 13+) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.1.0` (mã bản dựng `versionCode = 20100`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.1.1` (mã bản dựng `versionCode = 20101`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.0 / 20100, minSdk = 33)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.1 / 20101, minSdk = 33)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -55,9 +55,15 @@ origin-isle-vn/
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
 ├── release/OriginIsle-VN-v2.1.0.apk  # File APK xuất bản v2.1.0 (4.48 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.1.1.apk  # File APK xuất bản v2.1.1 (4.51 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.1.1 — Hoàn thiện Đảo One UI 5.1+ (Khóa tâm lỗ camera, BAL API 34+, Ẩn xoay ngang, Cử chỉ tự nhiên, Xem thử căn chỉnh)**:
+  - `OneUiOverlayIsland.kt` (`app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`): Khóa tâm thực của vùng `Spacer` (`cutoutSpacerCenterOffsetPx` qua `onGloballyPositioned`) vào `cutoutCenterX + offsetX`; nâng cấp `sendPendingIntentSafe` hỗ trợ `ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED` trên Android 14+ (API 34+); tự động ẩn khi xoay ngang (`Configuration.ORIENTATION_LANDSCAPE`) nếu `oneui_island_hide_landscape == true`; bổ sung cử chỉ chạm ngoài (`FLAG_WATCH_OUTSIDE_TOUCH`) thu gọn, vuốt lên thu gọn, vuốt ngang chuyển/đóng thẻ và trạng thái `isCardExpanded`.
+  - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`): Lắng nghe `onConfigurationChanged` để cập nhật ẩn/hiện khi xoay ngang và hoãn auto-dismiss 2 giây khi thẻ đang mở rộng (`isCardExpanded`).
+  - `Prefs.kt` & `HomeScreen.kt` (`app/src/main/java/com/originisle/android/ui/`): Bổ sung `PREF_ONEUI_HIDE_LANDSCAPE = "oneui_island_hide_landscape"` (mặc định `true`), hàm `postOneUiCalibrationPreview(id = 35019)` tự động xem thử khi bấm chip X/Y, nút `PillButton` xem thử căn chỉnh và công tắc `ToggleRow` ẩn khi xoay ngang.
+  - `app/build.gradle.kts`: Nâng `versionCode = 20101`, `versionName = "2.1.1"`.
 - **Origin Isle VN v2.1.0 — Mở rộng hỗ trợ Samsung One UI 5.1+ (WindowManager + Compose Overlay, Không Trợ năng)**:
   - `OneUiOverlayIsland.kt` (`app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`): Engine đảo nổi trực tiếp qua `WindowManager` (`TYPE_APPLICATION_OVERLAY`, `LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS`) + `ComposeView`, lắng nghe trực tiếp `SharedPreferences("experimental_prefs")` (`oneui_island_offset_x_px`, `oneui_island_offset_y_px`, `oneui_island_pill_scale_pct`, `island_position`, `cast_custom_light_color`). Chống lệch 4 lớp: đọc `currentWindowMetrics` & `displayCutout.boundingRectsTop`, kết hợp offset X/Y, tự bù `deltaY` qua `getLocationOnScreen`, và chừa khoảng trống `cutoutWidthDp + 12.dp` giữa viên thuốc khi ở `CENTER`.
   - `PlaygroundService.kt`: Định tuyến giữa Vivo SuperX gốc và `OneUiOverlayIsland` qua `DeviceInfoHelper.isSuperXSupported(this)`; `ensureForeground()` chỉ truyền `FOREGROUND_SERVICE_TYPE_SPECIAL_USE` khi `SDK_INT >= 34`.

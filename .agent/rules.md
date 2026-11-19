@@ -18,5 +18,5 @@ Chế độ tự động hóa: Tự động kiểm tra bảo mật (Secret Guard
 ## QUY CHUẨN ĐIỀU PHỐI THỐNG NHẤT (SUBAGENT & /SWARM)
 - **Mức 1 (`DIRECT`)**: 1 file hoặc hotfix dưới 30 dòng -> sửa trực tiếp.
 - **Mức 2 (`Subagent thường`)**: 2–3 file độc lập không cần verify chéo -> dùng `Gemini 4 Hydrogen` (`gemini-4-hydrogen-medium`) để tiết kiệm quota.
-- **Mức 3 (`/swarm` Mode)**: Việc lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi gọi `/swarm` -> **Coordinator** dùng **Gemini 4 Argon** (`gemini-4-argon-medium`), **Workers** dùng **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`).
+- **Mức 3 (`/swarm` Mode)**: Việc lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi gọi `/swarm` -> **Coordinator** dùng **Gemini 4 Neon** (`gemini-4-neon-medium`), **Workers** dùng **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`).
 - **Quy chuẩn chung**: Luôn chốt Contract trước khi chạy song song, khóa `Locked Files` trong `task.md` và báo cáo ngắn <= 10 dòng.
