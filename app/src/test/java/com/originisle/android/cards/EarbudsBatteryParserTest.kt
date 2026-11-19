@@ -64,4 +64,27 @@ class EarbudsBatteryParserTest {
         )
         assertNull(disconnectedNotif)
     }
+
+    @Test
+    fun parseBatteryText_xiaomiEarbudsRemoteViewsJoinedText_extractsLeftRightAndCase() {
+        val viJoined = EarbudsCard.parseBatteryText(
+            title = "Xiaomi Buds",
+            text = "Trái 80% Phải 90% Hộp sạc 50%",
+        )
+        assertNotNull(viJoined)
+        assertEquals(80, viJoined!!.left)
+        assertEquals(90, viJoined.right)
+        assertEquals(50, viJoined.case)
+        assertTrue(viJoined.hasDetails)
+
+        val enJoined = EarbudsCard.parseBatteryText(
+            title = "Xiaomi Buds",
+            text = "Left 85% Right 90%",
+        )
+        assertNotNull(enJoined)
+        assertEquals(85, enJoined!!.left)
+        assertEquals(90, enJoined.right)
+        assertEquals(-1, enJoined.case)
+        assertTrue(enJoined.hasDetails)
+    }
 }
