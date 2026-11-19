@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) và mở rộng hỗ trợ Samsung One UI 5.1+ (Android 13+) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.0.4` (mã bản dựng `versionCode = 20004`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.1.2` (mã bản dựng `versionCode = 20102`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.0.4 / 20004, minSdk = 33)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.2 / 20102, minSdk = 33)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -54,13 +54,15 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.0.4.apk  # File APK xuất bản v2.0.4 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.1.0.apk  # File APK xuất bản v2.1.0 (4.48 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.1.1.apk  # File APK xuất bản v2.1.1 (4.51 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.1.2.apk  # File APK xuất bản v2.1.2 (4.51 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
-- **Origin Isle VN v2.0.4 — Vá dứt điểm lỗi báo pin cũ & tách dòng RemoteViews Xiaomi Earbuds (`com.mi.earphone`)**:
+- **Origin Isle VN v2.1.2 — Phát hành hợp nhất (One UI 5.1+ v2.1.1 + Vá dứt điểm lỗi báo pin cũ & tách dòng RemoteViews Xiaomi Earbuds `com.mi.earphone`)**:
+  - `app/build.gradle.kts`: Nâng `versionCode = 20102`, `versionName = "2.1.2"` (thay thế bản đánh nhầm `v2.0.4` / `20004`).
+- **Bản vá TWS & Xiaomi Earbuds (đã gộp vào `v2.1.2`)**:
   - `EarbudsCard.kt` (`app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`):
     + Thêm `clearAllAudioTelemetry(context)` xóa sạch `deviceTelemetry` và `SharedPreferences("wearable_battery_cache")` của mọi thiết bị âm thanh (giữ nguyên wearable) khi ngắt kết nối (`disconnectTask`, `onDeviceDisconnected`, `onFastPairNotificationRemoved`) và khi bắt đầu phiên kết nối mới (`!wasAlreadyConnectedBefore && !isWearableDevice`).
     + Bảo vệ `pending` khi `A2DP`/`HEADSET STATE_CONNECTED` bắn nối đuôi `ACTION_ACL_CONNECTED` (`hasPendingAudioWait && !initial.hasDetails` không hủy `pending` cũ và không đọc cache cũ).
@@ -69,7 +71,6 @@ origin-isle-vn/
     + Trong `extractAllNotificationText`, nối thêm `rvTexts.joinToString(" ")` bên cạnh `" | "` cho `RemoteViews` để bóc tách chuẩn `ConnectNotificationService` của `com.mi.earphone`.
     + Mở rộng cửa sổ cập nhật pin tươi lên `30_000L` trong `tryParseBatteryFromNotification` và `handle(else -> BATTERY_LEVEL_CHANGED)`.
   - `EarbudsBatteryParserTest.kt`: Bổ sung test bóc tách chuỗi `RemoteViews` của Xiaomi Earbuds (`"Trái 80% Phải 90% Hộp sạc 50%"` và `"Left 85% Right 90%"`).
-  - `app/build.gradle.kts`: Nâng `versionCode = 20004`, `versionName = "2.0.4"`.
 - **Origin Isle VN v2.1.1 — Hoàn thiện Đảo One UI 5.1+ (Khóa tâm lỗ camera, BAL API 34+, Ẩn xoay ngang, Cử chỉ tự nhiên, Xem thử căn chỉnh)**:
   - `OneUiOverlayIsland.kt` (`app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`): Khóa tâm thực của vùng `Spacer` (`cutoutSpacerCenterOffsetPx` qua `onGloballyPositioned`) vào `cutoutCenterX + offsetX`; nâng cấp `sendPendingIntentSafe` hỗ trợ `ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED` trên Android 14+ (API 34+); tự động ẩn khi xoay ngang (`Configuration.ORIENTATION_LANDSCAPE`) nếu `oneui_island_hide_landscape == true`; bổ sung cử chỉ chạm ngoài (`FLAG_WATCH_OUTSIDE_TOUCH`) thu gọn, vuốt lên thu gọn, vuốt ngang chuyển/đóng thẻ và trạng thái `isCardExpanded`.
   - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`): Lắng nghe `onConfigurationChanged` để cập nhật ẩn/hiện khi xoay ngang và hoãn auto-dismiss 2 giây khi thẻ đang mở rộng (`isCardExpanded`).

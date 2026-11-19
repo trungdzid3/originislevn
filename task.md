@@ -1,3 +1,7 @@
+# Bản Phát Hành v2.1.2 (`versionCode = 20102`) — Sửa Nhầm Phiên Bản Từ `2.0.4` Lên `2.1.2`
+- Phiên bản hiện tại: `2.1.2` (`versionCode = 20102`), kế thừa toàn bộ nền tảng `v2.1.1` + bản vá pin TWS & Xiaomi Earbuds (`com.mi.earphone`).
+- [x] Cập nhật `app/build.gradle.kts` (`versionCode = 20102`, `versionName = "2.1.2"`), `PROJECT_CONTEXT.md`, `task.md`, xuất `release/OriginIsle-VN-v2.1.2.apk`, xóa `release/OriginIsle-VN-v2.0.4.apk`, thay tag/GitHub Release `v2.0.4` bằng `v2.1.2`.
+
 # Kế Hoạch Điều Phối Swarm — Origin Isle VN v2.1.1 (Hoàn Thiện Đảo One UI 5.1+ & Đổi Điều Phối Sang Gemini 4 Neon)
 
 ## Hợp Đồng Giao Ước Dùng Chung (LOCKED CONTRACT v2.1.1)
