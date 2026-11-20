@@ -56,10 +56,16 @@ origin-isle-vn/
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
 ├── release/OriginIsle-VN-v2.1.0.apk  # File APK xuất bản v2.1.0 (4.48 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.1.1.apk  # File APK xuất bản v2.1.1 (4.51 MB, R8 minify + shrinkResources)
-├── release/OriginIsle-VN-v2.1.2.apk  # File APK xuất bản v2.1.2 (4.51 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.1.2.apk  # File APK xuất bản v2.1.2 (4.50 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.1.2 — Xóa màu viền phát sáng & Diệt triệt để giật lag One UI 5.1+**:
+  - `OneUiOverlayIsland.kt` (`app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`): Xóa `addOnLayoutChangeListener` gây vòng lặp `updateViewLayout`, thay bằng hiệu chuẩn trục `Y` 1 lần theo `(offsetY, pillScalePct, orientation)` + ngưỡng `>= 2px` cho X/Y; thêm `contentSignature` chống spam `postOrUpdate`; đặt `currentCardState = null` trong `hideOverlayLocked()` và `refreshActiveCardLocked()` khi hiện lại; xóa hoàn toàn màu viền phát sáng (dùng viền hairline cố định `#2EFFFFFF` / `#2E2E32`).
+  - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`): Gán cố định `lightColor = 0` (bỏ đọc `cast_custom_light_color`).
+  - `Prefs.kt` & `HomeScreen.kt` (`app/src/main/java/com/originisle/android/ui/`): Xóa hoàn toàn mục chọn màu viền phát sáng trong `Prefs.kt` và `HomeScreen.kt` (giữ viền tối giản `DeviceHeroCard`), thu gọn mặc định Phòng thử nghiệm mẫu Đảo (`testerExpanded = false`), giảm `DeviceInfoHelper.collect` xuống 1 lần lúc khởi động & giãn poll `connected` lên `2500ms` chỉ gán khi đổi.
+  - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Chặn `reload()` lúc `onListenerConnected` và giãn `pollRunnable` lên `2500ms` trên thiết bị không có SuperX.
+  - `release/OriginIsle-VN-v2.1.2.apk`: Xuất bản APK release (4,717,485 bytes / ~4.50 MB, `versionCode = 20102`, `versionName = "2.1.2"`).
 - **Origin Isle VN v2.1.2 — Phát hành hợp nhất (One UI 5.1+ v2.1.1 + Vá dứt điểm lỗi báo pin cũ & tách dòng RemoteViews Xiaomi Earbuds `com.mi.earphone`)**:
   - `app/build.gradle.kts`: Nâng `versionCode = 20102`, `versionName = "2.1.2"` (thay thế bản đánh nhầm `v2.0.4` / `20004`).
 - **Bản vá TWS & Xiaomi Earbuds (đã gộp vào `v2.1.2`)**:

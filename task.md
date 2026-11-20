@@ -1,35 +1,27 @@
-# Bản Phát Hành v2.1.2 (`versionCode = 20102`) — Sửa Nhầm Phiên Bản Từ `2.0.4` Lên `2.1.2`
-- Phiên bản hiện tại: `2.1.2` (`versionCode = 20102`), kế thừa toàn bộ nền tảng `v2.1.1` + bản vá pin TWS & Xiaomi Earbuds (`com.mi.earphone`).
-- [x] Cập nhật `app/build.gradle.kts` (`versionCode = 20102`, `versionName = "2.1.2"`), `PROJECT_CONTEXT.md`, `task.md`, xuất `release/OriginIsle-VN-v2.1.2.apk`, xóa `release/OriginIsle-VN-v2.0.4.apk`, thay tag/GitHub Release `v2.0.4` bằng `v2.1.2`.
+# Kế Hoạch Điều Phối Swarm — Origin Isle VN v2.1.2 (Xóa Màu Viền & Diệt Triệt Để Giật Lag One UI 5.1)
 
-# Kế Hoạch Điều Phối Swarm — Origin Isle VN v2.1.1 (Hoàn Thiện Đảo One UI 5.1+ & Đổi Điều Phối Sang Gemini 4 Neon)
-
-## Hợp Đồng Giao Ước Dùng Chung (LOCKED CONTRACT v2.1.1)
-1. **Khóa SharedPreferences Mới (`experimental_prefs`)**:
-   - `"oneui_island_hide_landscape"` (`Boolean`, mặc định `true`) — khai báo `PREF_ONEUI_HIDE_LANDSCAPE` / `DEFAULT_ONEUI_HIDE_LANDSCAPE = true` trong `Prefs.kt`.
-2. **Hợp đồng Xem Thử Căn Chỉnh Camera Không Phụ Thuộc Import**:
-   - `HomeScreen.kt` gửi `Intent(context, PlaygroundService::class.java)` với:
-     + `action = PlaygroundService.ACTION_START`
-     + `id = 35019`, `is_ongoing = false`, `oi_auto_dismiss_ms = 6000L`, `oi_scene = "NAVIGATION"`
-     + `oi_template = 4`, `oi_right_template = 4`
-     + `title = "Căn chỉnh Đảo"`, `text = "Kiểm tra tâm lỗ camera trước"`
-     + `oi_left_content = "Origin"`, `oi_right_content = "Khớp tâm"`, `oi_island_click_expand = true`
-   - Không import `OneUiOverlayIsland` trong `HomeScreen.kt`.
-3. **4 Nâng Cấp Cốt Lõi `OneUiOverlayIsland.kt` & `PlaygroundService.kt`**:
-   - Khóa tâm thực của vùng `Spacer` (`cutoutSpacerCenterOffsetPx` qua `onGloballyPositioned`) vào `cutoutCenterX + offsetX`.
-   - `sendPendingIntentSafe`: từ API 34+ truyền `ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED`.
-   - Ẩn tự động khi xoay ngang (`Configuration.ORIENTATION_LANDSCAPE`) nếu `oneui_island_hide_landscape == true`.
-   - Cử chỉ tự nhiên: `FLAG_WATCH_OUTSIDE_TOUCH` (chạm ngoài thu gọn), vuốt lên thu gọn, vuốt ngang chuyển/đóng thẻ, hoãn tự ẩn 2s khi thẻ đang mở rộng.
-4. **Đổi Vai Trò Coordinator `/swarm`**:
-   - Chuyển quy chuẩn từ **Gemini 4 Argon** (`gemini-4-argon-medium`) sang **Gemini 4 Neon** (`gemini-4-neon-medium`) trong `C:\Users\Lenovo\.gemini\GEMINI.md`, `.agent/GEMINI.md` và `.agent/rules.md`.
+## Hợp Đồng Giao Ước Dùng Chung (LOCKED CONTRACT v2.1.2)
+1. **Xóa hoàn toàn tính năng Màu viền phát sáng Đảo**:
+   - `HomeScreen.kt`: Xóa bỏ hoàn toàn mục chọn "Màu viền phát sáng Đảo" (`ColorSwatchPill`, `customLightColor`, `resolveGlowColor`, `lightColorLabel`, dòng "Viền sáng: ...", hiệu ứng `drawBehind` hào quang trong `DeviceHeroCard`).
+   - `OneUiOverlayIsland.kt`: Xóa bỏ `KEY_CUSTOM_LIGHT`, `customLightColor`, `resolveGlowColor`, dùng cố định viền hairline mảnh `#2EFFFFFF` / `#2E2E32`.
+   - `PlaygroundService.kt`: Gán cố định `lightColor = 0` (bỏ đọc `cast_custom_light_color`).
+   - `Prefs.kt`: Gỡ bỏ các hằng số `PREF_CAST_CUSTOM_LIGHT_COLOR`, `LIGHT_COLOR_*` (không còn file nào dùng).
+2. **Diệt triệt để lỗi giật lag trên One UI 5.1**:
+   - `OneUiOverlayIsland.kt`:
+     + Xóa bỏ vòng lặp vô tận `addOnLayoutChangeListener -> calibratePositionLocked -> wm.updateViewLayout` (nguyên nhân chính gây giật 60-120 IPC/giây trên One UI 5.1 khi hệ thống kẹp tọa độ `loc[1]`).
+     + Hiệu chuẩn trục `Y` tối đa **1 lần duy nhất** cho mỗi cấu hình `(offsetY, orientation, pillScalePct)` (ngưỡng `abs(deltaY) in 2..160`); nếu One UI kẹp sàn thì dừng ngay, không trừ `lp.y` liên tục.
+     + Chỉ gọi `wm.updateViewLayout` khi `abs(lp.x - desiredX) >= 2` hoặc `lp.y` thực sự thay đổi.
+     + Chống spam cập nhật trùng lặp (`cardSignature`): nếu `postOrUpdate` nhận cùng thẻ với nội dung y hệt đang hiển thị thì bỏ qua hoàn toàn.
+     + Khi `hideOverlayLocked()`, đặt `currentCardState = null` để dừng triệt để mọi animation Compose (`MusicWaveBars`) khi Đảo ẩn.
+   - `HomeScreen.kt`:
+     + Thu gọn **Phòng thử nghiệm mẫu Đảo (`SampleTester`)** mặc định **đóng** (chỉ mở khi người dùng bấm vào để thử demo, không chạy `IslandPreviewView` animation liên tục ngay khi mở app).
+     + Tối ưu không gọi `DeviceInfoHelper.collect(context)` 3 lần lúc khởi động và giãn vòng lặp kiểm tra `connected` lên `2500ms` (chỉ cập nhật khi giá trị đổi).
+   - `NotificationCastListener.kt`:
+     + Trong `onListenerConnected()`: trên máy dùng Overlay (`!DeviceInfoHelper.isSuperXSupported(this)`), **KHÔNG** gọi `reload()` dội hàng loạt thông báo cũ đang tồn đọng trong khay lên Đảo cùng lúc lúc mới mở app; chỉ xử lý thông báo mới đến (hoặc khi người dùng chủ động bấm "Hiện lại tất cả").
+     + Giãn chu kỳ `pollRunnable` trên thiết bị không có SuperX từ `1000L` lên `2500L` để giảm tải Main Thread.
+3. **Phiên bản**: `versionCode = 20102`, `versionName = "2.1.2"`.
 
 ## Ma Trận Phân Quyền Swarm (Coordinator: Gemini 4 Neon | Workers: Gemini 4 Hydrogen)
-- [x] Task 1: Nâng `v2.1.1` (`20101`), hoàn thiện `OneUiOverlayIsland.kt` (khóa tâm Spacer, BAL API 34+, ẩn xoay ngang, cử chỉ chạm ngoài/vuốt lên/vuốt ngang, `isCardExpanded`) và `PlaygroundService.kt` (`onConfigurationChanged`, hoãn auto-dismiss khi đang mở) | [Agent: `oneui-overlay-polish` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `app/build.gradle.kts`, `app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`, `app/src/main/java/com/originisle/android/island/PlaygroundService.kt`]
-- [x] Task 2: Thêm `PREF_ONEUI_HIDE_LANDSCAPE` trong `Prefs.kt`, thêm nút & auto-preview căn chỉnh camera (`id = 35019`) + công tắc tự ẩn xoay ngang trong `HomeScreen.kt` | [Agent: `oneui-ui-preview` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `app/src/main/java/com/originisle/android/ui/Prefs.kt`, `app/src/main/java/com/originisle/android/ui/HomeScreen.kt`]
-- [x] Task 3: Cập nhật rule đổi Coordinator `/swarm` từ Argon sang Gemini 4 Neon (`gemini-4-neon-medium`) | [Agent: `rules-neon-sync` (`gemini-4-hydrogen-medium`, `inherit`)] | [Locked Files: `C:\Users\Lenovo\.gemini\GEMINI.md`, `.agent/GEMINI.md`, `.agent/rules.md`]
-- [x] Task 4: Tích hợp 2 nhánh `share`, giữ rule & `task.md`, chạy `./gradlew.bat testDebugUnitTest assembleRelease`, xuất `release/OriginIsle-VN-v2.1.1.apk`, cập nhật `PROJECT_CONTEXT.md` & `task.md`, kiểm tra Secret Guard, commit & push lên `origin main` | [Agent: `verifier-v211` (`gemini-4-hydrogen-medium`, `inherit`)] | [Locked Files: `PROJECT_CONTEXT.md`, `task.md`, `release/OriginIsle-VN-v2.1.1.apk`]
-
-# Bản Vá v2.0.4 — Dứt Điểm Lỗi Pin Cũ TWS & Xiaomi Earbuds (`com.mi.earphone`)
-- [x] Task 1: Thêm `clearAllAudioTelemetry`, sửa `handle` (pending A2DP/HEADSET), `show`, `scanActiveNotificationsForEarbuds` (`maxAgeMs`), `extractAllNotificationText` (`rvTexts`), mở rộng cooldown `30_000L` trong `EarbudsCard.kt` | [Locked Files: `app/src/main/java/com/originisle/android/cards/EarbudsCard.kt`]
-- [x] Task 2: Bổ sung unit test `EarbudsBatteryParserTest.kt` cho chuỗi `RemoteViews` Xiaomi Earbuds | [Locked Files: `app/src/test/java/com/originisle/android/cards/EarbudsBatteryParserTest.kt`]
-- [x] Task 3: Nâng `versionCode = 20004`, `versionName = "2.0.4"`, chạy `testDebugUnitTest assembleRelease`, xuất `release/OriginIsle-VN-v2.0.4.apk`, commit, push, tạo tag & GitHub Release `v2.0.4` | [Locked Files: `app/build.gradle.kts`, `PROJECT_CONTEXT.md`, `task.md`, `release/OriginIsle-VN-v2.0.4.apk`]
+- [x] Task 1: Nâng `v2.1.2` (`20102`), sửa triệt để vòng lặp `updateViewLayout` + chống spam trùng thẻ + xóa màu viền trong `OneUiOverlayIsland.kt` và `PlaygroundService.kt` | [Agent: `oneui-perf-fix` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `app/build.gradle.kts`, `app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`, `app/src/main/java/com/originisle/android/island/PlaygroundService.kt`]
+- [x] Task 2: Xóa phần chọn màu viền trong `Prefs.kt` & `HomeScreen.kt`, thu gọn `SampleTester` mặc định đóng, tối ưu hiệu năng `HomeScreen.kt`, và tối ưu `onListenerConnected` + `pollRunnable` cho One UI trong `NotificationCastListener.kt` | [Agent: `ui-clean-v212` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `app/src/main/java/com/originisle/android/ui/Prefs.kt`, `app/src/main/java/com/originisle/android/ui/HomeScreen.kt`, `app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`]
+- [x] Task 3: Tích hợp 2 nhánh `share`, chạy `./gradlew.bat testDebugUnitTest assembleRelease`, xuất `release/OriginIsle-VN-v2.1.2.apk`, cập nhật `PROJECT_CONTEXT.md` & `task.md`, kiểm tra Secret Guard, commit & push lên `origin main` | [Agent: `verifier-v212` (`gemini-4-hydrogen-medium`, `inherit`)] | [Locked Files: `PROJECT_CONTEXT.md`, `task.md`, `release/OriginIsle-VN-v2.1.2.apk`]
