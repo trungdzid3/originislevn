@@ -114,7 +114,6 @@ object OneUiOverlayIsland {
     private const val KEY_OFFSET_Y = "oneui_island_offset_y_px"
     private const val KEY_PILL_SCALE = "oneui_island_pill_scale_pct"
     private const val KEY_ISLAND_POS = "island_position"
-    private const val KEY_CUSTOM_LIGHT = "cast_custom_light_color"
     private const val KEY_HIDE_LANDSCAPE = "oneui_island_hide_landscape"
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -208,7 +207,6 @@ object OneUiOverlayIsland {
         val offsetY: Int = 0,
         val pillScalePct: Int = 100,
         val islandPosition: String = "CENTER",
-        val customLightColor: String = "NONE",
     )
 
     private val cards = LinkedHashMap<Int, OverlayCard>()
@@ -225,6 +223,8 @@ object OneUiOverlayIsland {
     private var prefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var lastShownCardId: Int? = null
     private var cutoutSpacerCenterOffsetPx: Int = -1
+    private var calibratedYKey: String? = null
+    private var calibratedSystemOffsetY: Int = 0
 
     fun isCardExpanded(id: Int): Boolean = isExpandedState && lastShownCardId == id
 
@@ -235,6 +235,7 @@ object OneUiOverlayIsland {
                 isExpandedState = false
                 hideOverlayLocked()
             } else if (cards.isNotEmpty() && Settings.canDrawOverlays(appCtx)) {
+                refreshActiveCardLocked()
                 ensureOverlayLocked(appCtx)
                 updateWindowMetricsAndPositionLocked(appCtx)
             }
@@ -247,6 +248,13 @@ object OneUiOverlayIsland {
         runOnMain {
             if (!Settings.canDrawOverlays(appCtx)) {
                 hideOverlayLocked()
+                return@runOnMain
+            }
+            val existingCard = cards[id]
+            if (existingCard != null &&
+                existingCard.contentSignature() == card.contentSignature() &&
+                overlayView?.visibility == View.VISIBLE
+            ) {
                 return@runOnMain
             }
             cards.remove(id)
@@ -344,7 +352,6 @@ object OneUiOverlayIsland {
                 key == KEY_OFFSET_Y ||
                 key == KEY_PILL_SCALE ||
                 key == KEY_ISLAND_POS ||
-                key == KEY_CUSTOM_LIGHT ||
                 key == KEY_HIDE_LANDSCAPE
             ) {
                 runOnMain {
@@ -353,6 +360,7 @@ object OneUiOverlayIsland {
                         isExpandedState = false
                         hideOverlayLocked()
                     } else if (cards.isNotEmpty() && Settings.canDrawOverlays(ctx)) {
+                        refreshActiveCardLocked()
                         ensureOverlayLocked(ctx)
                         updateWindowMetricsAndPositionLocked(ctx)
                     }
@@ -408,9 +416,6 @@ object OneUiOverlayIsland {
                 }
                 false
             }
-            addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
-                v.post { calibratePositionLocked(context) }
-            }
         }
 
         val lp = WindowManager.LayoutParams(
@@ -445,6 +450,7 @@ object OneUiOverlayIsland {
     }
 
     private fun hideOverlayLocked() {
+        currentCardState = null
         overlayView?.visibility = View.GONE
     }
 
@@ -478,8 +484,6 @@ object OneUiOverlayIsland {
         val pillScalePct = prefs.getInt(KEY_PILL_SCALE, 100).coerceIn(60, 160)
         val islandPosition = prefs.getString(KEY_ISLAND_POS, "CENTER")?.trim()
             ?.ifBlank { "CENTER" } ?: "CENTER"
-        val customLightColor = prefs.getString(KEY_CUSTOM_LIGHT, "NONE")?.trim()
-            ?.ifBlank { "NONE" } ?: "NONE"
 
         val config = OverlayMetricsConfig(
             screenWidthPx = screenBounds.width(),
@@ -491,7 +495,6 @@ object OneUiOverlayIsland {
             offsetY = offsetY,
             pillScalePct = pillScalePct,
             islandPosition = islandPosition,
-            customLightColor = customLightColor,
         )
         metricsConfigState = config
 
@@ -502,12 +505,79 @@ object OneUiOverlayIsland {
         }
 
         val desiredTop = computeDesiredTopPx(context, config)
-        lp.y = desiredTop
-        runCatching { wm.updateViewLayout(view, lp) }
-        view.post { calibratePositionLocked(context) }
+        val orientation = context.resources.configuration.orientation
+        val currentYKey = "${config.offsetY}:${config.pillScalePct}:$orientation"
+        val viewWidth = view.width
+
+        if (calibratedYKey == currentYKey) {
+            val targetY = desiredTop - calibratedSystemOffsetY
+            var changed = false
+            if (abs(lp.y - targetY) >= 2) {
+                lp.y = targetY
+                changed = true
+            }
+            if (viewWidth > 0) {
+                val desiredX = computeDesiredXPx(context, config, viewWidth)
+                if (abs(lp.x - desiredX) >= 2) {
+                    lp.x = desiredX
+                    changed = true
+                }
+            }
+            if (changed) {
+                runCatching { wm.updateViewLayout(view, lp) }
+            }
+        } else {
+            calibratedYKey = currentYKey
+            calibratedSystemOffsetY = 0
+            lp.y = desiredTop
+            if (viewWidth > 0) {
+                val desiredX = computeDesiredXPx(context, config, viewWidth)
+                if (abs(lp.x - desiredX) >= 2) {
+                    lp.x = desiredX
+                }
+            }
+            runCatching { wm.updateViewLayout(view, lp) }
+            view.post { calibratePositionOnceLocked(context, currentYKey) }
+        }
     }
 
-    private fun calibratePositionLocked(context: Context) {
+    private fun calibratePositionOnceLocked(context: Context, expectedYKey: String) {
+        val view = overlayView ?: return
+        val lp = layoutParams ?: return
+        val wm = windowManager ?: return
+        if (!view.isAttachedToWindow || view.visibility != View.VISIBLE) return
+        if (calibratedYKey != expectedYKey) return
+
+        val config = metricsConfigState
+        val desiredTop = computeDesiredTopPx(context, config)
+        val loc = IntArray(2)
+        view.getLocationOnScreen(loc)
+        val deltaY = loc[1] - desiredTop
+
+        var changed = false
+        if (abs(deltaY) in 2..160) {
+            calibratedSystemOffsetY = deltaY
+            val targetY = desiredTop - calibratedSystemOffsetY
+            if (abs(lp.y - targetY) >= 2) {
+                lp.y = targetY
+                changed = true
+            }
+        }
+
+        val viewWidth = view.width
+        if (viewWidth > 0) {
+            val desiredX = computeDesiredXPx(context, config, viewWidth)
+            if (abs(lp.x - desiredX) >= 2) {
+                lp.x = desiredX
+                changed = true
+            }
+        }
+        if (changed) {
+            runCatching { wm.updateViewLayout(view, lp) }
+        }
+    }
+
+    private fun updateHorizontalPositionLocked(context: Context) {
         val view = overlayView ?: return
         val lp = layoutParams ?: return
         val wm = windowManager ?: return
@@ -515,41 +585,32 @@ object OneUiOverlayIsland {
         val viewWidth = view.width
         if (viewWidth <= 0) return
 
-        val config = metricsConfigState
-        val desiredTop = computeDesiredTopPx(context, config)
-        val desiredX = when (config.islandPosition.uppercase()) {
-            "LEFT" -> dpToPx(context, 12f) + config.offsetX
-            "RIGHT" -> (config.screenWidthPx - viewWidth - dpToPx(context, 12f) + config.offsetX)
-                .coerceAtLeast(0)
-            else -> {
-                val anchorX = if (!isExpandedState &&
-                    config.islandPosition.equals("CENTER", ignoreCase = true) &&
-                    cutoutSpacerCenterOffsetPx > 0
-                ) {
-                    cutoutSpacerCenterOffsetPx
-                } else {
-                    viewWidth / 2
-                }
-                (config.cutoutCenterX + config.offsetX - anchorX)
-                    .coerceIn(0, (config.screenWidthPx - viewWidth).coerceAtLeast(0))
-            }
-        }
-
-        val loc = IntArray(2)
-        view.getLocationOnScreen(loc)
-        val deltaY = loc[1] - desiredTop
-
-        var changed = false
-        if (abs(deltaY) in 1..200) {
-            lp.y -= deltaY
-            changed = true
-        }
-        if (lp.x != desiredX) {
+        val desiredX = computeDesiredXPx(context, metricsConfigState, viewWidth)
+        if (abs(lp.x - desiredX) >= 2) {
             lp.x = desiredX
-            changed = true
-        }
-        if (changed) {
             runCatching { wm.updateViewLayout(view, lp) }
+        }
+    }
+
+    private fun computeDesiredXPx(
+        context: Context,
+        config: OverlayMetricsConfig,
+        viewWidth: Int,
+    ): Int = when (config.islandPosition.uppercase()) {
+        "LEFT" -> dpToPx(context, 12f) + config.offsetX
+        "RIGHT" -> (config.screenWidthPx - viewWidth - dpToPx(context, 12f) + config.offsetX)
+            .coerceAtLeast(0)
+        else -> {
+            val anchorX = if (!isExpandedState &&
+                config.islandPosition.equals("CENTER", ignoreCase = true) &&
+                cutoutSpacerCenterOffsetPx > 0
+            ) {
+                cutoutSpacerCenterOffsetPx
+            } else {
+                viewWidth / 2
+            }
+            (config.cutoutCenterX + config.offsetX - anchorX)
+                .coerceIn(0, (config.screenWidthPx - viewWidth).coerceAtLeast(0))
         }
     }
 
@@ -692,6 +753,27 @@ object OneUiOverlayIsland {
         )
     }
 
+    private fun OverlayCard.contentSignature(): String = buildString {
+        append(id).append('|')
+        append(scene).append('|')
+        append(title).append('|')
+        append(text).append('|')
+        append(subtext.orEmpty()).append('|')
+        append(leftContent).append('|')
+        append(rightContent).append('|')
+        append(template).append('|')
+        append(rightTemplate).append('|')
+        append(progress).append('|')
+        append(progressIndeterminate).append('|')
+        append(waveState).append('|')
+        append(extra1).append('|')
+        append(extra2).append('|')
+        append(extra3).append('|')
+        append(extra4).append('|')
+        append(midText.orEmpty()).append('|')
+        append(actions.size)
+    }
+
     @Composable
     private fun OneUiIslandRoot(
         context: Context,
@@ -708,10 +790,6 @@ object OneUiOverlayIsland {
         val cutoutWidthDp = with(density) { config.cutoutWidthPx.toDp() }
         val screenWidthDp = with(density) { config.screenWidthPx.toDp() }
         val pillHeightDp = maxOf(cutoutHeightDp + 10.dp, 34.dp) * scale
-
-        val glowColor = remember(config.customLightColor, card.lightColor) {
-            resolveGlowColor(config.customLightColor, card.lightColor)
-        }
 
         Box(
             modifier = Modifier
@@ -735,11 +813,10 @@ object OneUiOverlayIsland {
                         pillHeightDp = pillHeightDp,
                         cutoutWidthDp = cutoutWidthDp,
                         scale = scale,
-                        glowColor = glowColor,
                         onSpacerCenterPositioned = { centerPx ->
-                            if (cutoutSpacerCenterOffsetPx != centerPx) {
+                            if (abs(cutoutSpacerCenterOffsetPx - centerPx) >= 2) {
                                 cutoutSpacerCenterOffsetPx = centerPx
-                                overlayView?.post { calibratePositionLocked(context) }
+                                overlayView?.post { updateHorizontalPositionLocked(context) }
                             }
                         },
                         onClick = {
@@ -755,7 +832,6 @@ object OneUiOverlayIsland {
                         context = context,
                         card = card,
                         screenWidthDp = screenWidthDp,
-                        glowColor = glowColor,
                         onCollapse = onCollapse,
                     )
                 }
@@ -772,7 +848,6 @@ object OneUiOverlayIsland {
         pillHeightDp: Dp,
         cutoutWidthDp: Dp,
         scale: Float,
-        glowColor: Color,
         onSpacerCenterPositioned: (Int) -> Unit = {},
         onClick: () -> Unit,
     ) {
@@ -789,7 +864,7 @@ object OneUiOverlayIsland {
                 .widthIn(min = cutoutWidthDp + 52.dp, max = 340.dp)
                 .clip(CircleShape)
                 .background(Color.Black)
-                .border(1.dp, glowColor, CircleShape)
+                .border(1.dp, Color(0xFF2E2E32), CircleShape)
                 .pointerInput(card.id, totalCards) {
                     var totalDragX = 0f
                     var handled = false
@@ -1062,19 +1137,17 @@ object OneUiOverlayIsland {
         context: Context,
         card: OverlayCard,
         screenWidthDp: Dp,
-        glowColor: Color,
         onCollapse: () -> Unit,
     ) {
         val cardWidth = min(screenWidthDp.value - 24f, 380f).dp
         val shape = RoundedCornerShape(28.dp)
-        val borderColor = if (glowColor != Color(0x2EFFFFFF)) glowColor else Color(0x2EFFFFFF)
 
         Column(
             modifier = Modifier
                 .width(cardWidth)
                 .clip(shape)
                 .background(Color(0xF216181E))
-                .border(1.dp, borderColor, shape)
+                .border(1.dp, Color(0x2EFFFFFF), shape)
                 .pointerInput(card.id) {
                     var totalDragY = 0f
                     var collapsed = false
@@ -1365,15 +1438,6 @@ object OneUiOverlayIsland {
         drawable.draw(canvas)
         bmp.asImageBitmap()
     }.getOrNull()
-
-    private fun resolveGlowColor(customLightPref: String, cardLightColor: Int): Color {
-        if (!customLightPref.equals("NONE", ignoreCase = true) && customLightPref.startsWith("#")) {
-            val parsed = OriginIslandBuilder.parseColor(customLightPref, 0)
-            if ((parsed ushr 24) != 0) return Color(parsed)
-        }
-        if ((cardLightColor ushr 24) != 0) return Color(cardLightColor)
-        return Color(0x2EFFFFFF)
-    }
 
     private fun sendPendingIntentSafe(pi: PendingIntent?) {
         if (pi == null) return

@@ -247,7 +247,6 @@ class PlaygroundService : Service() {
         val bgColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_bg_color"), 0)
         val fgColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_fg_color"), 0)
         val cardBgColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_card_bg_color"), 0)
-        val rawLightColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_light_color"), 0)
 
         val showProgress = intent.getBooleanExtra("show_progress", false)
         val progressMax = intent.getIntExtra("progress_max", 0)
@@ -284,16 +283,6 @@ class PlaygroundService : Service() {
         val lightMode = intent.getIntExtra("oi_light_mode", 0)
         val generatingStatus = intent.getIntExtra("oi_generating_status", 0)
         val iconStatusType = intent.getIntExtra("oi_icon_status_type", -1)
-        val customLightPref = prefs.getString("cast_custom_light_color", "NONE")?.trim().orEmpty()
-        val lightColor = when {
-            customLightPref.equals("NONE", ignoreCase = true) -> 0
-            customLightPref.startsWith("#") &&
-                iconStatusType != OriginIslandConstants.ICON_STATUS_FAIL -> {
-                val parsed = OriginIslandBuilder.parseColor(customLightPref, 0)
-                if ((parsed ushr 24) != 0) parsed else rawLightColor
-            }
-            else -> rawLightColor
-        }
         val waveState = intent.getIntExtra("oi_wave_state", 1)
         val waveColorList = intent.getStringArrayListExtra("oi_wave_color_list")
             ?: intent.getStringArrayListExtra("oi_wave_colors")
@@ -413,7 +402,7 @@ class PlaygroundService : Service() {
             cardRing = intent.getIntExtra("oi_card_ring", -1),
             keepScreenOn = keepScreenOn,
             disableInvertColor = disableInvert,
-            lightColor = lightColor,
+            lightColor = 0,
             lightMode = lightMode,
             generatingStatus = generatingStatus,
             iconStatusType = iconStatusType,
