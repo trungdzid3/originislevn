@@ -9,15 +9,6 @@ const val PREF_CAST_SUPPRESS_MODE = "cast_suppress_mode"
 const val SUPPRESS_MODE_SNOOZE = "SNOOZE"
 const val SUPPRESS_MODE_ISLAND_ONLY = "ISLAND_ONLY"
 
-const val PREF_CAST_CUSTOM_LIGHT_COLOR = "cast_custom_light_color"
-const val LIGHT_COLOR_AUTO = "AUTO"
-const val LIGHT_COLOR_NONE = "NONE"
-const val DEFAULT_CAST_CUSTOM_LIGHT_COLOR = LIGHT_COLOR_NONE
-const val LIGHT_COLOR_EMERALD = "#00D084"
-const val LIGHT_COLOR_BLUE = "#0A59F7"
-const val LIGHT_COLOR_PURPLE = "#9D4EDD"
-const val LIGHT_COLOR_AMBER = "#FFB020"
-
 const val PREF_CAST_ISLAND_DURATION_SEC = "cast_island_duration_sec"
 const val DEFAULT_ISLAND_DURATION_SEC = 5
 

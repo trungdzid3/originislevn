@@ -891,7 +891,8 @@ class NotificationCastListener : NotificationListenerService() {
             } catch (e: Exception) {
                 Log.e(TAG, "poll error", e)
             }
-            pollHandler.postDelayed(this, 1000L)
+            val pollIntervalMs = if (com.originisle.android.ui.DeviceInfoHelper.isSuperXSupported(applicationContext)) 1000L else 2500L
+            pollHandler.postDelayed(this, pollIntervalMs)
         }
     }
 
@@ -902,7 +903,9 @@ class NotificationCastListener : NotificationListenerService() {
         if (getSharedPreferences(PREFS, 0).getBoolean("cast_notifications", true)) {
             runCatching { PlaygroundService.keepAlive(this) }
         }
-        reload()
+        if (com.originisle.android.ui.DeviceInfoHelper.isSuperXSupported(this)) {
+            reload()
+        }
         pollHandler.post(pollRunnable)
         registerBatteryReceiver()
         startSystemCards()

@@ -11,7 +11,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -57,15 +56,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -111,9 +104,6 @@ fun HomeScreen(
     var suppressMode by remember {
         mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
     }
-    var customLightColor by remember {
-        mutableStateOf(prefs.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, DEFAULT_CAST_CUSTOM_LIGHT_COLOR) ?: DEFAULT_CAST_CUSTOM_LIGHT_COLOR)
-    }
     var islandDurationSec by remember {
         mutableIntStateOf(prefs.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC))
     }
@@ -124,6 +114,7 @@ fun HomeScreen(
         mutableStateOf(prefs.getBoolean(PREF_ONEUI_HIDE_LANDSCAPE, DEFAULT_ONEUI_HIDE_LANDSCAPE))
     }
     var searchQuery by remember { mutableStateOf("") }
+    var testerExpanded by remember { mutableStateOf(false) }
 
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
@@ -133,9 +124,6 @@ fun HomeScreen(
                 PREF_CAST_SUPPRESS_HEADS_UP -> suppressHeadsUp = sp.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)
                 PREF_CAST_SUPPRESS_MODE -> {
                     suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
-                }
-                PREF_CAST_CUSTOM_LIGHT_COLOR -> {
-                    customLightColor = sp.getString(PREF_CAST_CUSTOM_LIGHT_COLOR, DEFAULT_CAST_CUSTOM_LIGHT_COLOR) ?: DEFAULT_CAST_CUSTOM_LIGHT_COLOR
                 }
                 PREF_CAST_ISLAND_DURATION_SEC -> {
                     islandDurationSec = sp.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC)
@@ -259,15 +247,17 @@ fun HomeScreen(
     val superXSupported = remember { DeviceInfoHelper.isSuperXSupported(context) }
 
     LaunchedEffect(tick.intValue) {
-        deviceSnapshot = DeviceInfoHelper.collect(context)
+        if (tick.intValue > 0) {
+            deviceSnapshot = DeviceInfoHelper.collect(context)
+        }
     }
 
     LaunchedEffect(Unit) {
         CastLog.ensureLoaded(context)
-        deviceSnapshot = DeviceInfoHelper.collect(context)
         while (true) {
-            connected = NotificationCastListener.instance != null
-            delay(1000)
+            val nowConnected = NotificationCastListener.instance != null
+            if (nowConnected != connected) connected = nowConnected
+            delay(2500L)
         }
     }
 
@@ -296,8 +286,8 @@ fun HomeScreen(
     )
     val showGroupCustom20 = matchesSearchQuery(
         searchQuery,
-        "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze", "màu viền",
-        "phát sáng", "thời lượng", "mở rộng thẻ", "chạm viên thuốc",
+        "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze",
+        "thời lượng", "mở rộng thẻ", "chạm viên thuốc",
         "oneui", "one ui", "căn chỉnh", "camera", "overlay",
         "xoay ngang", "landscape", "game", "video", "xem thử",
     )
@@ -471,7 +461,6 @@ fun HomeScreen(
                     connected = connected,
                     superXSupported = superXSupported,
                     overlayOk = overlayOk,
-                    customLightColor = customLightColor,
                     islandPosition = islandPosition,
                     islandDurationSec = islandDurationSec,
                     onRefresh = {
@@ -669,59 +658,6 @@ fun HomeScreen(
                             color = IsleColors.TextSecondary,
                             lineHeight = 16.sp,
                         )
-                    }
-
-                    GroupDivider()
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                "Màu viền phát sáng Đảo",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = IsleColors.Text,
-                            )
-                            Text(
-                                "Chọn màu hào quang xung quanh viên thuốc Origin Island 2.0.0",
-                                fontSize = 13.sp,
-                                color = IsleColors.TextSecondary,
-                            )
-                        }
-                        val lightOptions = listOf(
-                            Triple(LIGHT_COLOR_NONE, "Tắt viền", null),
-                            Triple(LIGHT_COLOR_AUTO, "Tự động", null),
-                            Triple(LIGHT_COLOR_EMERALD, "Ngọc lục", Color(0xFF00D084)),
-                            Triple(LIGHT_COLOR_BLUE, "Xanh lam", Color(0xFF0A59F7)),
-                            Triple(LIGHT_COLOR_PURPLE, "Tím Neon", Color(0xFF9D4EDD)),
-                            Triple(LIGHT_COLOR_AMBER, "Hổ phách", Color(0xFFFFB020)),
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            lightOptions.chunked(3).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    rowItems.forEach { (value, label, color) ->
-                                        ColorSwatchPill(
-                                            label = label,
-                                            swatchColor = color,
-                                            isAuto = value == LIGHT_COLOR_AUTO,
-                                            selected = customLightColor == value,
-                                            onClick = {
-                                                customLightColor = value
-                                                prefs.edit().putString(PREF_CAST_CUSTOM_LIGHT_COLOR, value).apply()
-                                            },
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                    }
-                                }
-                            }
-                        }
                     }
 
                     GroupDivider()
@@ -1337,24 +1273,44 @@ fun HomeScreen(
         // Phòng thử nghiệm mẫu Đảo & Nút điều khiển
         if (showTester) item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionLabel("Phòng thử nghiệm mẫu Đảo")
-                SampleTester(context)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PillButton(
-                        "Hiện lại tất cả",
-                        onClick = { recastAll(context) },
-                        modifier = Modifier.weight(1f),
-                        icon = IsleIcons.Refresh,
-                        enabled = castOn || mediaOn,
-                    )
-                    PillButton(
-                        "Dừng tất cả",
-                        onClick = { stopAll(context) },
-                        modifier = Modifier.weight(1f),
-                        icon = IsleIcons.Stop,
-                        iconSize = 16.dp,
-                        content = IsleColors.Danger,
-                    )
+                GroupCard {
+                    SettingRow(
+                        icon = IsleIcons.Send,
+                        tileColor = IsleColors.Accent,
+                        title = "Phòng thử nghiệm mẫu Đảo",
+                        subtitle = if (testerExpanded) "Nhấn để thu gọn" else "Nhấn để mở",
+                        onClick = { testerExpanded = !testerExpanded },
+                    ) {
+                        Icon(
+                            IsleIcons.ChevronRight,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .size(18.dp)
+                                .rotate(if (testerExpanded) 90f else 0f),
+                            tint = IsleColors.Chevron,
+                        )
+                    }
+                }
+                if (testerExpanded) {
+                    SampleTester(context)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PillButton(
+                            "Hiện lại tất cả",
+                            onClick = { recastAll(context) },
+                            modifier = Modifier.weight(1f),
+                            icon = IsleIcons.Refresh,
+                            enabled = castOn || mediaOn,
+                        )
+                        PillButton(
+                            "Dừng tất cả",
+                            onClick = { stopAll(context) },
+                            modifier = Modifier.weight(1f),
+                            icon = IsleIcons.Stop,
+                            iconSize = 16.dp,
+                            content = IsleColors.Danger,
+                        )
+                    }
                 }
             }
         }
@@ -1626,18 +1582,10 @@ private fun DeviceHeroCard(
     connected: Boolean,
     superXSupported: Boolean,
     overlayOk: Boolean,
-    customLightColor: String,
     islandPosition: String,
     islandDurationSec: Int,
     onRefresh: () -> Unit,
 ) {
-    val targetGlowColor = resolveGlowColor(customLightColor, IsleColors.GlowAccent)
-    val animatedGlowColor by animateColorAsState(
-        targetValue = if (castOn) targetGlowColor else Color.Transparent,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "heroIslandGlow",
-    )
-    val hasGlow = castOn && customLightColor != LIGHT_COLOR_NONE
     var spinDegrees by remember { mutableFloatStateOf(0f) }
     val animatedSpin by animateFloatAsState(
         targetValue = spinDegrees,
@@ -1703,48 +1651,14 @@ private fun DeviceHeroCard(
                         }
                     }
 
-                    // Viên thuốc Origin Island 2.0.0 có viền hào quang phát sáng
+                    // Viên thuốc Origin Island 2.0.0
                     Row(
                         modifier = Modifier
                             .width(164.dp)
                             .height(30.dp)
-                            .drawBehind {
-                                if (hasGlow) {
-                                    val radius = size.height / 2f
-                                    drawRoundRect(
-                                        color = animatedGlowColor.copy(alpha = 0.14f),
-                                        topLeft = Offset(-5.dp.toPx(), -5.dp.toPx()),
-                                        size = Size(size.width + 10.dp.toPx(), size.height + 10.dp.toPx()),
-                                        cornerRadius = CornerRadius(radius + 5.dp.toPx(), radius + 5.dp.toPx()),
-                                    )
-                                    drawRoundRect(
-                                        color = animatedGlowColor.copy(alpha = 0.30f),
-                                        topLeft = Offset(-2.dp.toPx(), -2.dp.toPx()),
-                                        size = Size(size.width + 4.dp.toPx(), size.height + 4.dp.toPx()),
-                                        cornerRadius = CornerRadius(radius + 2.dp.toPx(), radius + 2.dp.toPx()),
-                                        style = Stroke(width = 2.dp.toPx()),
-                                    )
-                                }
-                            }
                             .clip(CircleShape)
                             .background(Color.Black)
-                            .then(
-                                if (hasGlow) {
-                                    Modifier.border(
-                                        width = 1.4.dp,
-                                        brush = Brush.horizontalGradient(
-                                            listOf(
-                                                animatedGlowColor,
-                                                animatedGlowColor.copy(alpha = 0.65f),
-                                                animatedGlowColor,
-                                            ),
-                                        ),
-                                        shape = CircleShape,
-                                    )
-                                } else {
-                                    Modifier.border(1.dp, Color(0xFF2E2E32), CircleShape)
-                                },
-                            )
+                            .border(1.dp, Color(0xFF2E2E32), CircleShape)
                             .padding(horizontal = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1759,7 +1673,6 @@ private fun DeviceHeroCard(
                                     .clip(CircleShape)
                                     .background(
                                         if (!castOn) Color(0xFF5A5D66)
-                                        else if (hasGlow) animatedGlowColor
                                         else IsleColors.Accent,
                                     ),
                             )
@@ -1791,9 +1704,7 @@ private fun DeviceHeroCard(
                                         .width(2.5.dp)
                                         .height((11f * ratio).dp)
                                         .clip(CircleShape)
-                                        .background(
-                                            if (castOn && hasGlow) animatedGlowColor else Color.White.copy(alpha = 0.7f),
-                                        ),
+                                        .background(Color.White.copy(alpha = 0.7f)),
                                 )
                             }
                         }
@@ -1806,7 +1717,7 @@ private fun DeviceHeroCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Viền sáng: ${lightColorLabel(customLightColor)} · Giữ ${islandDurationSec}s",
+                        text = "Thời lượng viên thuốc: ${islandDurationSec}s",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = IsleColors.PreviewLabel,
@@ -2025,24 +1936,6 @@ private fun HeroSpecTile(
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-private fun resolveGlowColor(prefValue: String, autoFallback: Color): Color = when (prefValue) {
-    LIGHT_COLOR_NONE -> Color.Transparent
-    LIGHT_COLOR_EMERALD -> Color(0xFF00D084)
-    LIGHT_COLOR_BLUE -> Color(0xFF0A59F7)
-    LIGHT_COLOR_PURPLE -> Color(0xFF9D4EDD)
-    LIGHT_COLOR_AMBER -> Color(0xFFFFB020)
-    else -> autoFallback
-}
-
-private fun lightColorLabel(prefValue: String): String = when (prefValue) {
-    LIGHT_COLOR_NONE -> "Tắt"
-    LIGHT_COLOR_EMERALD -> "Ngọc lục"
-    LIGHT_COLOR_BLUE -> "Xanh lam"
-    LIGHT_COLOR_PURPLE -> "Tím Neon"
-    LIGHT_COLOR_AMBER -> "Hổ phách"
-    else -> "Tự động"
 }
 
 private fun matchesSearchQuery(query: String, vararg keywords: String): Boolean {
