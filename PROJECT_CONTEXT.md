@@ -1,8 +1,8 @@
 # TỔNG QUAN DỰ ÁN - ORIGIN ISLE VIỆT NAM (DAO ORIGIN)
 
 ## 1. Mục đích và Phạm vi
-Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) và mở rộng hỗ trợ Samsung One UI 5.1+ (Android 13+) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.1.2` (mã bản dựng `versionCode = 20102`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
+- **Phiên bản hiện tại**: `2.2.0` (mã bản dựng `versionCode = 20200`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.2 / 20102, minSdk = 33)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.0 / 20200, minSdk = 34)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -37,7 +37,7 @@ origin-isle-vn/
 │       │       │   ├── TikTokStreakCard.kt # Cố định ID = 35012, hiển thị thông báo nhắc chuỗi TikTok ngọn lửa rực rỡ & nút 1 chạm duy trì chuỗi
 │       │       │   └── ZaloCallCard.kt   # Cố định ID = 35011, chuẩn phong cách Messenger của OriginOS gốc: icon cuộc gọi trắng, nhãn phải "Zalo", chạm mở cuộc gọi Zalo, bỏ nút nghe (chỉ giữ "Từ chối" / "Kết thúc")
 │       │       ├── download/         # DownloadDetector chặn triệt để 100% Quick Share, Google Play Services & app nhạc
-│       │       ├── island/           # PlaygroundService, OriginIslandBuilder, OneUiOverlayIsland (WindowManager + ComposeView cho One UI 5.1+)
+│       │       ├── island/           # PlaygroundService, OriginIslandBuilder (thuần Vivo OriginOS 6 SuperX)
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
 │       │       ├── quickshare/       # Nhận diện Quick Share
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
@@ -57,9 +57,17 @@ origin-isle-vn/
 ├── release/OriginIsle-VN-v2.1.0.apk  # File APK xuất bản v2.1.0 (4.48 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.1.1.apk  # File APK xuất bản v2.1.1 (4.51 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.1.2.apk  # File APK xuất bản v2.1.2 (4.50 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.2.0.apk  # File APK xuất bản v2.2.0 (4.40 MB, thuần Vivo OriginOS 6)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.2.0 — Thuần hóa Vivo OriginOS 6 SuperX (Gỡ bỏ hoàn toàn One UI Overlay sang dự án độc lập `oneui-isle-vn`)**:
+  - `app/build.gradle.kts` & `AndroidManifest.xml`: Trả về `minSdk = 34`, nâng `versionCode = 20200`, `versionName = "2.2.0"`, gỡ bỏ quyền `SYSTEM_ALERT_WINDOW`.
+  - `OneUiOverlayIsland.kt`: Đã xóa hoàn toàn khỏi `origin-isle-vn`.
+  - `PlaygroundService.kt`: Trả về thuần Vivo SuperX (`lightColor = 0`), bỏ nhánh `OneUiOverlayIsland`.
+  - `Prefs.kt`, `StatusHelpers.kt`, `HomeScreen.kt`, `OnboardingScreen.kt`, `PermissionsSheet.kt`: Gỡ bỏ toàn bộ cấu hình, nút tinh chỉnh X/Y, helper và mục cấp quyền One UI Overlay; giữ `testerExpanded = false` và không có viền phát sáng.
+  - `NotificationCastListener.kt`: Giữ `reload()` chuẩn và `pollRunnable` `1000L` cho Vivo SuperX.
+  - `release/OriginIsle-VN-v2.2.0.apk`: Xuất bản APK release (4,610,695 bytes / ~4.40 MB, `versionCode = 20200`, `versionName = "2.2.0"`).
 - **Origin Isle VN v2.1.2 — Xóa màu viền phát sáng & Diệt triệt để giật lag One UI 5.1+**:
   - `OneUiOverlayIsland.kt` (`app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`): Xóa `addOnLayoutChangeListener` gây vòng lặp `updateViewLayout`, thay bằng hiệu chuẩn trục `Y` 1 lần theo `(offsetY, pillScalePct, orientation)` + ngưỡng `>= 2px` cho X/Y; thêm `contentSignature` chống spam `postOrUpdate`; đặt `currentCardState = null` trong `hideOverlayLocked()` và `refreshActiveCardLocked()` khi hiện lại; xóa hoàn toàn màu viền phát sáng (dùng viền hairline cố định `#2EFFFFFF` / `#2E2E32`).
   - `PlaygroundService.kt` (`app/src/main/java/com/originisle/android/island/PlaygroundService.kt`): Gán cố định `lightColor = 0` (bỏ đọc `cast_custom_light_color`).

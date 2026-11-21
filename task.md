@@ -1,27 +1,32 @@
-# Kế Hoạch Điều Phối Swarm — Origin Isle VN v2.1.2 (Xóa Màu Viền & Diệt Triệt Để Giật Lag One UI 5.1)
+# Kế Hoạch Điều Phối Swarm — Tách 2 Dự Án Độc Lập (OneUI Isle VN v1.0.0 & Origin Isle VN v2.2.0)
 
-## Hợp Đồng Giao Ước Dùng Chung (LOCKED CONTRACT v2.1.2)
-1. **Xóa hoàn toàn tính năng Màu viền phát sáng Đảo**:
-   - `HomeScreen.kt`: Xóa bỏ hoàn toàn mục chọn "Màu viền phát sáng Đảo" (`ColorSwatchPill`, `customLightColor`, `resolveGlowColor`, `lightColorLabel`, dòng "Viền sáng: ...", hiệu ứng `drawBehind` hào quang trong `DeviceHeroCard`).
-   - `OneUiOverlayIsland.kt`: Xóa bỏ `KEY_CUSTOM_LIGHT`, `customLightColor`, `resolveGlowColor`, dùng cố định viền hairline mảnh `#2EFFFFFF` / `#2E2E32`.
-   - `PlaygroundService.kt`: Gán cố định `lightColor = 0` (bỏ đọc `cast_custom_light_color`).
-   - `Prefs.kt`: Gỡ bỏ các hằng số `PREF_CAST_CUSTOM_LIGHT_COLOR`, `LIGHT_COLOR_*` (không còn file nào dùng).
-2. **Diệt triệt để lỗi giật lag trên One UI 5.1**:
-   - `OneUiOverlayIsland.kt`:
-     + Xóa bỏ vòng lặp vô tận `addOnLayoutChangeListener -> calibratePositionLocked -> wm.updateViewLayout` (nguyên nhân chính gây giật 60-120 IPC/giây trên One UI 5.1 khi hệ thống kẹp tọa độ `loc[1]`).
-     + Hiệu chuẩn trục `Y` tối đa **1 lần duy nhất** cho mỗi cấu hình `(offsetY, orientation, pillScalePct)` (ngưỡng `abs(deltaY) in 2..160`); nếu One UI kẹp sàn thì dừng ngay, không trừ `lp.y` liên tục.
-     + Chỉ gọi `wm.updateViewLayout` khi `abs(lp.x - desiredX) >= 2` hoặc `lp.y` thực sự thay đổi.
-     + Chống spam cập nhật trùng lặp (`cardSignature`): nếu `postOrUpdate` nhận cùng thẻ với nội dung y hệt đang hiển thị thì bỏ qua hoàn toàn.
-     + Khi `hideOverlayLocked()`, đặt `currentCardState = null` để dừng triệt để mọi animation Compose (`MusicWaveBars`) khi Đảo ẩn.
-   - `HomeScreen.kt`:
-     + Thu gọn **Phòng thử nghiệm mẫu Đảo (`SampleTester`)** mặc định **đóng** (chỉ mở khi người dùng bấm vào để thử demo, không chạy `IslandPreviewView` animation liên tục ngay khi mở app).
-     + Tối ưu không gọi `DeviceInfoHelper.collect(context)` 3 lần lúc khởi động và giãn vòng lặp kiểm tra `connected` lên `2500ms` (chỉ cập nhật khi giá trị đổi).
-   - `NotificationCastListener.kt`:
-     + Trong `onListenerConnected()`: trên máy dùng Overlay (`!DeviceInfoHelper.isSuperXSupported(this)`), **KHÔNG** gọi `reload()` dội hàng loạt thông báo cũ đang tồn đọng trong khay lên Đảo cùng lúc lúc mới mở app; chỉ xử lý thông báo mới đến (hoặc khi người dùng chủ động bấm "Hiện lại tất cả").
-     + Giãn chu kỳ `pollRunnable` trên thiết bị không có SuperX từ `1000L` lên `2500L` để giảm tải Main Thread.
-3. **Phiên bản**: `versionCode = 20102`, `versionName = "2.1.2"`.
+## Hợp Đồng Giao Ước Dùng Chung (LOCKED CONTRACT)
+1. **Dự án 1 — `oneui-isle-vn` (`c:\Users\Lenovo\.gemini\antigravity\scratch\oneui-isle-vn`, `v1.0.0` / `10000`)**:
+   - `applicationId = "com.oneuiisle.android"`, `minSdk = 33` (Android 13 / One UI 5.1+), `targetSdk = 36`, tên app `"OneUI Isle VN"`.
+   - **KHÔNG có `AccessibilityService`**: Đã gỡ `KeepAliveAccessibilityService.kt` và khai báo trong `AndroidManifest.xml`.
+   - **Khóa SharedPreferences (`"experimental_prefs"`) cho Bộ Thanh Trượt Toàn Dải**:
+     + `PREF_ONEUI_OFFSET_X_PX = "oneui_island_offset_x_px"` (`Int`, `-250..250`, mặc định `0`)
+     + `PREF_ONEUI_OFFSET_Y_PX = "oneui_island_offset_y_px"` (`Int`, `-150..200`, mặc định `0`)
+     + `PREF_ONEUI_WIDTH_DP = "oneui_island_width_dp"` (`Int`, `120..340`, mặc định `196`)
+     + `PREF_ONEUI_HEIGHT_DP = "oneui_island_height_dp"` (`Int`, `24..56`, mặc định `32`)
+     + `PREF_ONEUI_CAMERA_GAP_DP = "oneui_island_camera_gap_dp"` (`Int`, `0..80`, mặc định `28`)
+     + `PREF_ONEUI_HIDE_LANDSCAPE = "oneui_island_hide_landscape"` (`Boolean`, mặc định `true`)
+   - **Hợp đồng Xem Thử Màu Đỏ (Calibration Mode)**:
+     + Gửi `Intent(context, PlaygroundService::class.java)` với `action = PlaygroundService.ACTION_START`, `id = 35019`, `oi_auto_dismiss_ms = 8000L`, `oi_calibration_red = true`, `title = "Căn chỉnh"`, `oi_left_content = "Camera"`, `oi_right_content = "Khớp tâm"`.
+     + Khi `id == 35019` hoặc `oi_calibration_red == true`, `OneUiOverlayIsland` vẽ viên thuốc màu đỏ nổi bật `#E53935` viền trắng `#FFFFFFFF` để người dùng căn khít lỗ camera thật.
+   - **Phong cách Samsung (theo ảnh mẫu)**:
+     + Viên thuốc đen OLED `#000000`, viền mảnh `0.8dp` `#33FFFFFF`, bo tròn hoàn toàn.
+     + Khoang trái là **Huy hiệu Tròn Màu Đặc (Colored Circle Badge)** kích thước khớp chiều cao viên thuốc với icon trắng ở giữa (Tím `#5E5CE6` cho Timer/Lịch, Xanh dương `#3B82F6` cho Đèn pin/Tải xuống/QuickShare, Xanh lá `#34C759` cho Cuộc gọi/Sạc/Tai nghe, Xanh ngọc `#00BFA5` cho Ngân hàng/Thanh toán, Cam `#FF5E00` cho TikTok, hoặc icon trắng nét mảnh trực tiếp trên nền đen cho thông báo hệ thống).
+     + Khoang giữa chừa đúng `cameraGapDp` cố định tuyệt đối quanh tâm `cutoutCenterX + offsetX`.
+     + **Kiến trúc 2 Cửa Sổ (`Display Window MATCH_PARENT FLAG_NOT_TOUCHABLE` + `Touch Window`)**: triệt tiêu 100% lỗi nhảy lệch mỗi thẻ 1 bên và giật khung hình.
+     + Dùng `ContextCompat.startForegroundService` an toàn cho Android 13 (One UI 5.1).
+
+2. **Dự án 2 — `origin-isle-vn` (`c:\Users\Lenovo\.gemini\antigravity\scratch\origin-isle-vn`, `v2.2.0` / `20200`)**:
+   - Trả về bản thuần Vivo OriginOS 6 (`minSdk = 34`, `applicationId = "com.autonavi.minimap"`).
+   - Gỡ bỏ `OneUiOverlayIsland.kt`, quyền `SYSTEM_ALERT_WINDOW`, và toàn bộ cấu hình/UI One UI Overlay.
 
 ## Ma Trận Phân Quyền Swarm (Coordinator: Gemini 4 Neon | Workers: Gemini 4 Hydrogen)
-- [x] Task 1: Nâng `v2.1.2` (`20102`), sửa triệt để vòng lặp `updateViewLayout` + chống spam trùng thẻ + xóa màu viền trong `OneUiOverlayIsland.kt` và `PlaygroundService.kt` | [Agent: `oneui-perf-fix` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `app/build.gradle.kts`, `app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`, `app/src/main/java/com/originisle/android/island/PlaygroundService.kt`]
-- [x] Task 2: Xóa phần chọn màu viền trong `Prefs.kt` & `HomeScreen.kt`, thu gọn `SampleTester` mặc định đóng, tối ưu hiệu năng `HomeScreen.kt`, và tối ưu `onListenerConnected` + `pollRunnable` cho One UI trong `NotificationCastListener.kt` | [Agent: `ui-clean-v212` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `app/src/main/java/com/originisle/android/ui/Prefs.kt`, `app/src/main/java/com/originisle/android/ui/HomeScreen.kt`, `app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`]
-- [x] Task 3: Tích hợp 2 nhánh `share`, chạy `./gradlew.bat testDebugUnitTest assembleRelease`, xuất `release/OriginIsle-VN-v2.1.2.apk`, cập nhật `PROJECT_CONTEXT.md` & `task.md`, kiểm tra Secret Guard, commit & push lên `origin main` | [Agent: `verifier-v212` (`gemini-4-hydrogen-medium`, `inherit`)] | [Locked Files: `PROJECT_CONTEXT.md`, `task.md`, `release/OriginIsle-VN-v2.1.2.apk`]
+- [x] Task 1 (`oneui-isle-vn` Core Engine): Cấu hình Gradle/Manifest/strings `com.oneuiisle.android` (`minSdk = 33`, `v1.0.0`), đại tu `OneUiOverlayIsland.kt` (Kiến trúc 2 Cửa Sổ + Phong cách Samsung Huy hiệu Tròn Màu + 5 thông số tự do + Chế độ đỏ `id=35019`), thuần hóa `PlaygroundService.kt` (`ContextCompat.startForegroundService`, bỏ SuperX) | [Agent: `oneui-engine-builder` (`gemini-4-hydrogen-medium`, `inherit`)] | [Locked Files: `oneui-isle-vn/app/build.gradle.kts`, `oneui-isle-vn/app/src/main/AndroidManifest.xml`, `oneui-isle-vn/app/src/main/res/values/strings.xml`, `oneui-isle-vn/app/src/main/java/com/originisle/android/island/OneUiOverlayIsland.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/island/PlaygroundService.kt`]
+- [x] Task 2 (`oneui-isle-vn` UI & Sliders): Thêm 5 Prefs toàn dải, thay UI căn chỉnh bằng 5 `Slider` + nút `-`/`+` + Xem thử màu đỏ trực tiếp trong `HomeScreen.kt`, thuần hóa `OnboardingScreen.kt`, `PermissionsSheet.kt`, `StatusHelpers.kt`, `MainActivity.kt`, `OriginIsleApp.kt` (bỏ Trợ năng & bỏ Vivo SuperX) | [Agent: `oneui-settings-ui` (`gemini-4-hydrogen-medium`, `inherit`)] | [Locked Files: `oneui-isle-vn/app/src/main/java/com/originisle/android/ui/Prefs.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/ui/HomeScreen.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/ui/OnboardingScreen.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/ui/PermissionsSheet.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/ui/StatusHelpers.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/MainActivity.kt`, `oneui-isle-vn/app/src/main/java/com/originisle/android/OriginIsleApp.kt`]
+- [x] Task 3 (`origin-isle-vn` Vivo Cleanup): Gỡ bỏ `OneUiOverlayIsland.kt` và toàn bộ code/UI One UI Overlay khỏi `origin-isle-vn`, nâng `v2.2.0` (`20200`), trả `minSdk = 34` | [Agent: `vivo-cleanup-v220` (`gemini-4-hydrogen-medium`, `share`)] | [Locked Files: `origin-isle-vn` (`OneUiOverlayIsland.kt`, `PlaygroundService.kt`, `app/build.gradle.kts`, `AndroidManifest.xml`, `Prefs.kt`, `StatusHelpers.kt`, `HomeScreen.kt`, `OnboardingScreen.kt`, `PermissionsSheet.kt`, `NotificationCastListener.kt`)]
+- [x] Task 4 (Dual Build & Verify): Tích hợp nhánh `vivo-cleanup-v220`, build & test CẢ 2 dự án, xuất `origin-isle-vn/release/OriginIsle-VN-v2.2.0.apk` và `oneui-isle-vn/release/OneUIIsle-VN-v1.0.0.apk`, cập nhật `PROJECT_CONTEXT.md` & `task.md`, push `origin-isle-vn` lên `origin main` | [Agent: `verifier-dual-build` (`gemini-4-hydrogen-medium`, `inherit`)]
