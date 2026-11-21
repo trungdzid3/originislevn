@@ -13,10 +13,12 @@ import android.os.Looper
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import com.originisle.android.R
+import com.originisle.android.download.DownloadDetector
 import com.originisle.android.download.DownloadInfo
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
+import com.originisle.android.service.KeepAliveAccessibilityService
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 
@@ -101,6 +103,13 @@ object DownloadCard {
 
     private const val PROGRESS_WATCHDOG_MS = 12_000L
     private const val TERMINAL_HOLD_MS = 3_500L
+    private const val DEFERRED_STALE_MS = 60_000L
+
+    private data class DeferredDownload(
+        val sbn: StatusBarNotification,
+        val info: DownloadInfo,
+        val updatedAt: Long,
+    )
 
     private val handler = Handler(Looper.getMainLooper())
     private val lastPostTimeMap: MutableMap<Int, Long> = ConcurrentHashMap()
@@ -109,6 +118,7 @@ object DownloadCard {
     private val dismissTasks: MutableMap<Int, Runnable> = ConcurrentHashMap()
     private val activeDownloadIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
     private val finishedIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    private val deferredDownloads: MutableMap<Int, DeferredDownload> = ConcurrentHashMap()
 
     private fun scheduleDismiss(context: Context, id: Int, delayMs: Long) {
         dismissTasks.remove(id)?.let(handler::removeCallbacks)
@@ -121,9 +131,40 @@ object DownloadCard {
         handler.postDelayed(task, delayMs)
     }
 
+    private fun hideTemporarily(context: Context, id: Int) {
+        dismissTasks.remove(id)?.let(handler::removeCallbacks)
+        val app = context.applicationContext
+        app.startService(
+            Intent(app, PlaygroundService::class.java)
+                .setAction(PlaygroundService.ACTION_CANCEL)
+                .putExtra("id", id)
+                .putExtra("oi_scene", "NAVIGATION")
+        )
+    }
+
+    fun onForegroundPackageChanged(context: Context, foregroundPkg: String) {
+        if (deferredDownloads.isEmpty()) return
+        val now = System.currentTimeMillis()
+        for ((id, deferred) in deferredDownloads.entries.toList()) {
+            if (now - deferred.updatedAt > DEFERRED_STALE_MS) {
+                deferredDownloads.remove(id)
+                continue
+            }
+            val isStillInBrowser = KeepAliveAccessibilityService.isBrowserCurrentlyOpen(deferred.sbn.packageName)
+            if (isStillInBrowser) {
+                if (id in PlaygroundService.activeCardIds || dismissTasks.containsKey(id)) {
+                    hideTemporarily(context, id)
+                }
+            } else {
+                post(context, deferred.info, deferred.sbn, forceImmediate = true)
+            }
+        }
+    }
+
     fun post(context: Context, sbn: StatusBarNotification, info: DownloadInfo) = post(context, info, sbn)
 
-    fun post(context: Context, info: DownloadInfo, sbn: StatusBarNotification) {
+    @JvmOverloads
+    fun post(context: Context, info: DownloadInfo, sbn: StatusBarNotification, forceImmediate: Boolean = false) {
         val id = IconCache.castIdFor(sbn)
         val now = System.currentTimeMillis()
         val lastTime = lastPostTimeMap[id] ?: 0L
@@ -141,12 +182,24 @@ object DownloadCard {
             return
         }
 
+        if (isTerminated) {
+            deferredDownloads.remove(id)
+        } else if (DownloadDetector.isDownloadPackage(sbn.packageName)) {
+            deferredDownloads[id] = DeferredDownload(sbn, info, now)
+            if (KeepAliveAccessibilityService.isBrowserCurrentlyOpen(sbn.packageName)) {
+                if (id in PlaygroundService.activeCardIds || dismissTasks.containsKey(id)) {
+                    hideTemporarily(context, id)
+                }
+                return
+            }
+        }
+
         activeDownloadIds.add(id)
 
         // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
         // Đăng ngay ở lần đầu, khi hoàn tất/bị hủy, hoặc trôi qua >= 800ms khi tiến độ đổi >= 1% / indeterminate
-        val isFirstPost = lastTime == 0L || lastProg == -1
-        val shouldPost = isTerminated || isFirstPost ||
+        val isFirstPost = lastTime == 0L || lastProg == -1 || id !in PlaygroundService.activeCardIds
+        val shouldPost = forceImmediate || isTerminated || isFirstPost ||
             (now - lastTime >= 800L && (abs(info.progress - lastProg) >= 1 || info.isIndeterminate))
 
         if (!shouldPost) {
@@ -314,7 +367,7 @@ object DownloadCard {
                     .putExtra("oi_scene", "NAVIGATION")
             )
         } else {
-            val idsToCancel = activeDownloadIds.toSet() + dismissTasks.keys.toSet()
+            val idsToCancel = activeDownloadIds.toSet() + dismissTasks.keys.toSet() + deferredDownloads.keys.toSet()
             for (targetId in idsToCancel) {
                 clear(targetId)
                 app.startService(
@@ -333,5 +386,6 @@ object DownloadCard {
         lastPostTimeMap.remove(id)
         lastProgressMap.remove(id)
         firstSeenTimeMap.remove(id)
+        deferredDownloads.remove(id)
     }
 }

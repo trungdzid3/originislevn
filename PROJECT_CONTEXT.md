@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.1.3` (mã bản dựng `versionCode = 20103`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.1.4` (mã bản dựng `versionCode = 20104`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.3 / 20103, minSdk = 34)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.4 / 20104, minSdk = 34)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -27,7 +27,7 @@ origin-isle-vn/
 │       │       ├── cards/            # Các loại thẻ giao diện Đảo Origin
 │       │       │   ├── BatteryCanvasRenderer.kt # Bộ vẽ Canvas tạo icon viên pin động & badge X đỏ
 │       │       │   ├── CalendarEventCard.kt # Cố định ID = 35015, hiển thị nhắc lịch hẹn / đếm ngược sự kiện sắp tới với icon lịch vẽ Canvas
-│       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (thay "100%" bằng icon tích xanh lá ic_success_tick_green khi hoàn tất)
+│       │       │   ├── DownloadCard.kt   # Tiến độ tải xuống (ẩn khi đang mở Chrome/Edge/Play Store, tự động chui vào Đảo ngay khi thoát app, tích xanh khi hoàn tất)
 │       │       │   ├── EarbudsCard.kt    # Tai nghe TWS & Wearable: bóc tách pin Trái (L), Phải (R), Hộp sạc (Case) từ Google Fast Pair (xử lý Unicode Bidi), hợp nhất mergeTelemetry và mở rộng thẻ 3 ô khi chạm vào Đảo
 │       │       │   ├── MediaCard.kt      # Cố định ID = 35010, oi_scene = "NAVIGATION", 3 nút chuẩn SuperX, hỗ trợ postFromController cho các app nhạc (Spotify, YouTube Music...)
 │       │       │   ├── PaymentCard.kt    # Chuẩn hóa giao diện mở rộng: xóa hoàn toàn khối chữ xám to đùng "Tiền ra / Tiền vào", hiển thị tiền gọn gàng sắc nét
@@ -46,7 +46,7 @@ origin-isle-vn/
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
 │       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo 2.0.0 & Chặn Pop-up)
-│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest)
+│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -54,14 +54,16 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.1.0.apk  # File APK xuất bản v2.1.0 (4.48 MB, R8 minify + shrinkResources)
-├── release/OriginIsle-VN-v2.1.1.apk  # File APK xuất bản v2.1.1 (4.51 MB, R8 minify + shrinkResources)
-├── release/OriginIsle-VN-v2.1.2.apk  # File APK xuất bản v2.1.2 (4.50 MB, R8 minify + shrinkResources)
-├── release/OriginIsle-VN-v2.2.0.apk  # File APK xuất bản v2.2.0 (4.40 MB, thuần Vivo OriginOS 6)
-├── release/OriginIsle-VN-v2.1.3.apk  # File APK xuất bản v2.1.3 (4.40 MB, vá báo % tải Chrome/Edge & chống khuyết icon tích xanh)
+├── release/OriginIsle-VN-v2.1.4.apk  # File APK xuất bản v2.1.4 (4.40 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.1.4 — Ẩn tiến trình tải khi đang ở trong Chrome/Edge/Play Store & Tự động chui vào Đảo khi thoát ra**:
+  - `DownloadDetector.kt` (`app/src/main/java/com/originisle/android/download/DownloadDetector.kt`): Thêm `isBrowserPackage(pkg)` nhận diện Chrome, Edge, Vivo Browser, Brave, Firefox, Opera, Cốc Cốc, Samsung Browser, DuckDuckGo, Via và các gói chứa `"browser"`; đồng bộ `isDownloadPackage(pkg)` gọi `isBrowserPackage(pkg)`.
+  - `KeepAliveAccessibilityService.kt` (`app/src/main/java/com/originisle/android/service/KeepAliveAccessibilityService.kt`): Lưu `instance`, `currentForegroundPackage`, `IGNORED_FOREGROUND_PKGS`, `isIgnoredWindowPkg(pkg)`, `isBrowserCurrentlyOpen(downloadSourcePkg)` (kiểm tra live `rootInActiveWindow`, hỗ trợ cả trình duyệt, `com.android.providers.downloads*`, và `com.android.vending` / `isDownloadPackage`); theo dõi đổi cửa sổ tiền cảnh trong `onAccessibilityEvent` và gọi `DownloadCard.onForegroundPackageChanged`.
+  - `DownloadCard.kt` (`app/src/main/java/com/originisle/android/cards/DownloadCard.kt`): Thêm `DeferredDownload`, `deferredDownloads`, `hideTemporarily`, `onForegroundPackageChanged`, và `post(..., forceImmediate: Boolean = false)`. Khi đang tải từ trình duyệt hoặc Play Store (`isDownloadPackage`) mà app nguồn còn ở tiền cảnh thì chỉ lưu `deferredDownloads` và ẩn khỏi Đảo; ngay khi thoát khỏi app nguồn thì `onForegroundPackageChanged` gọi `post(..., forceImmediate = true)` để tiến trình chui ngay vào Đảo.
+  - `DownloadBrowserDetectionTest.kt` (`app/src/test/java/com/originisle/android/download/DownloadBrowserDetectionTest.kt`): Unit tests kiểm tra `isBrowserPackage`, `isIgnoredWindowPkg`, và `isBrowserCurrentlyOpen` cho Chrome/Edge/DownloadManager/Play Store.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.1.4.apk`: Đặt `versionCode = 20104`, `versionName = "2.1.4"`, xuất bản APK release (4,610,699 bytes / ~4.40 MB).
 - **Origin Isle VN v2.1.3 — Khắc phục báo `%` tải Chrome/Edge & chống khuyết cạnh phải icon tích xanh tải xong**:
   - `DownloadDetector.kt` (`app/src/main/java/com/originisle/android/download/DownloadDetector.kt`): Xóa `"tiếp"` khỏi `MEDIA_ACTION_KEYWORDS`; trong `isMediaStyleNotification`, trả về `false` ngay khi `CATEGORY_PROGRESS`, khi có thanh progress (`EXTRA_PROGRESS_MAX > 0` / `EXTRA_PROGRESS_INDETERMINATE`) mà không có cờ MediaSession/MediaStyle, hoặc khi `actions` chứa nút tải (`"hủy"`, `"huỷ"`, `"cancel"`, `"tiếp tục"`, `"resume"`).
   - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Chặn nhận nhầm tải trình duyệt làm Media trong `isActualMediaPlaybackNotification` khi `token == null && DownloadDetector.isDownloadPackage(sbn.packageName)`; đổi `oi_right_content` / `status_chip_text` thành `"\u2009 "` trong `postDownloadFinished`.

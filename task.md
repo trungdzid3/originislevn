@@ -1,20 +1,22 @@
-# Kế Hoạch Điều Phối — Origin Isle VN v2.1.3 (Khắc Phục Báo % Tải Chrome/Edge & Chống Khuyết Icon Tải Xong)
+# Kế Hoạch Điều Phối — Origin Isle VN v2.1.4 (Ẩn Tiến Trình Tải Khi Đang Ở Trong Edge/Chrome/Play Store & Tự Chui Vào Đảo Khi Thoát Ra)
 
 ## Hợp Đồng Giao Ước Dùng Chung (LOCKED CONTRACT)
-1. **Khôi phục 100% báo `%` tiến độ khi đang tải trên Chrome & Edge (`DownloadDetector.kt`, `NotificationCastListener.kt`, `DownloadCard.kt`)**:
-   - Trong `DownloadDetector.isMediaStyleNotification(n, extras)`:
-     + Nếu `n.category == Notification.CATEGORY_PROGRESS` hoặc thông báo có `EXTRA_PROGRESS_MAX > 0` hoặc `EXTRA_PROGRESS_INDETERMINATE == true` mà **không có** `EXTRA_MEDIA_SESSION` (`MediaSession.Token`) và template không chứa `"MediaStyle"` -> trả về `false` ngay lập tức!
-     + Xóa `"tiếp"` khỏi `MEDIA_ACTION_KEYWORDS` (vì `"Tiếp tục"` là nút Resume tải tệp của trình duyệt).
-     + Nếu `n.actions` có nút `"hủy"` / `"cancel"` / `"tiếp tục"` / `"resume"` -> trả về `false` (đây là nút điều khiển tải tệp của Chrome/Edge, tuyệt đối không phải trình phát nhạc).
-   - Trong `NotificationCastListener.isActualMediaPlaybackNotification(sbn, token)`:
-     + Nếu `token == null` và `DownloadDetector.isDownloadPackage(sbn.packageName)` -> trả về `false` ngay để thông báo đang tải của Chrome/Edge không bao giờ bị nhận nhầm là Media và không bị gọi `cancelStrayDownloadCard`.
-   - Trong `DownloadCard.post`:
-     + Sửa `info.progress in 1..99` thành `info.progress in 0..99`.
-     + Sửa `shouldPost`: luôn cho phép đăng ngay ở lần đầu (`val isFirstPost = lastTime == 0L || lastProg == -1`), và giảm ngưỡng cập nhật tiến độ xuống `now - lastTime >= 800L && (abs(info.progress - lastProg) >= 1 || info.isIndeterminate)`.
-2. **Chống khuyết cạnh phải vòng tròn tích xanh & kéo dài nhẹ viên thuốc khi tải xong (`DownloadCard.kt`, `QuickShareCard.kt`, `NotificationCastListener.kt`)**:
-   - Trong `BatteryCanvasRenderer.createGreenTickCircleIcon` (`DownloadCard.kt`):
-     + Thu nhẹ bán kính vòng tròn `r = s * 0.35f` (thay vì `0.42f`) và dịch nhẹ tâm `cx = s * 0.44f` về bên trái để chừa khoảng đệm an toàn bên phải, không chạm vào góc bo của viên thuốc.
-   - Đặt `oi_right_content = "\u2009"` (thin space) và `status_chip_text = "\u2009"` ở trạng thái hoàn tất trong `DownloadCard.kt`, `QuickShareCard.kt`, `NotificationCastListener.kt` để kéo dài nhẹ đuôi phải của viên thuốc Đảo động thêm một chút.
+1. **Nhận diện Trình duyệt & Cửa hàng ứng dụng đang mở ở tiền cảnh (`DownloadDetector.kt`, `KeepAliveAccessibilityService.kt`)**:
+   - `DownloadDetector.isBrowserPackage(pkg: String): Boolean`: Trả về `true` cho các trình duyệt (`com.android.chrome*`, `com.chrome.*`, `com.microsoft.emmx*`, `com.vivo.browser`, `com.brave.browser`, `org.mozilla.*`, `com.opera.*`, `com.coccoc.trinhduyet`, `com.sec.android.app.sbrowser*`, `com.duckduckgo.mobile.android`, `mark.via.gp`, hoặc chứa `"browser"`).
+   - `KeepAliveAccessibilityService`:
+     + Lưu `@Volatile var instance: KeepAliveAccessibilityService? = null` và `@Volatile var currentForegroundPackage: String = ""`.
+     + Trong `onAccessibilityEvent(event)`: lắng nghe mọi sự kiện cửa sổ từ các package thực (bỏ qua `com.android.systemui`, `android`, `com.autonavi.minimap`, các gói bàn phím `inputmethod`/`ime`/`keyboard`, `permissioncontroller`, `com.vivo.upslide`, `com.vivo.smartmultiwindow`, `com.vivo.fingerprint`). Khi `currentForegroundPackage` thay đổi, gọi ngay `DownloadCard.onForegroundPackageChanged(applicationContext, currentForegroundPackage)`.
+     + Hàm `KeepAliveAccessibilityService.isBrowserCurrentlyOpen(downloadSourcePkg: String): Boolean`: kiểm tra live `instance?.rootInActiveWindow?.packageName` (nếu hợp lệ thì cập nhật `currentForegroundPackage`) và trả về `true` nếu người dùng đang mở chính trình duyệt `downloadSourcePkg`, đang mở bất kỳ trình duyệt nào khi `downloadSourcePkg` là `com.android.providers.downloads*`, hoặc đang mở chính ứng dụng tải (`com.android.vending` / `DownloadDetector.isDownloadPackage(downloadSourcePkg)`).
+2. **Ẩn tiến trình tải khi đang ở trong trình duyệt / Play Store & Chui ngay vào Đảo khi thoát ra (`DownloadCard.kt`)**:
+   - Trong `DownloadCard.post(context, info, sbn, forceImmediate: Boolean = false)`:
+     + Khi tệp đang tải (`!info.isFinished && !info.isCanceled`) và `DownloadDetector.isDownloadPackage(sbn.packageName)` (bao gồm trình duyệt, `com.android.vending`, `com.android.providers.downloads*`):
+       * Lưu bản ghi mới nhất vào `deferredDownloads[id] = DeferredDownload(sbn, info, now)`.
+       * Nếu `KeepAliveAccessibilityService.isBrowserCurrentlyOpen(sbn.packageName)` là `true`:
+         - Không đăng thẻ tiến trình lên Đảo; nếu thẻ `id` đang hiện trên Đảo (do người dùng vừa quay lại trình duyệt/Play Store), thu hồi tạm thời thẻ khỏi Đảo (`hideTemporarily(context, id)`) mà vẫn giữ trong `deferredDownloads[id]`.
+         - `return`.
+     + Ngay khi người dùng thoát khỏi Chrome/Edge/Play Store (`DownloadCard.onForegroundPackageChanged` thấy không còn ở trình duyệt / app nguồn):
+       * Duyệt `deferredDownloads.values` và gọi ngay `post(context, item.info, item.sbn, forceImmediate = true)` (bỏ qua throttle 800ms) để viên thuốc tiến trình tải **chui ngay vào Đảo động tức thì** giống hệt trình phát nhạc.
+     + Khi tải xong (`info.isFinished`) hoặc hủy (`info.isCanceled`): xóa khỏi `deferredDownloads[id]` và hiển thị kết quả hoàn tất / hủy.
 
 ## Ma Trận Phân Quyền (Orchestrator: Gemini 4 Argon | Worker: Gemini 4 Hydrogen)
-- [x] Task 1: Sửa `DownloadDetector.kt`, `DownloadCard.kt`, `QuickShareCard.kt`, `NotificationCastListener.kt`, nâng version `2.1.3` (`20103`), chạy test + build `release/OriginIsle-VN-v2.1.3.apk` và phát hành GitHub Release `v2.1.3` | [Agent: Download-And-Tick-Fix (`gemini-4-hydrogen-medium`)] | [Skill: impeccable] | [Locked Files: `app/src/main/java/com/originisle/android/download/DownloadDetector.kt`, `app/src/main/java/com/originisle/android/cards/DownloadCard.kt`, `app/src/main/java/com/originisle/android/cards/QuickShareCard.kt`, `app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`, `app/build.gradle.kts`, `PROJECT_CONTEXT.md`, `task.md`]
+- [x] Task 1: Triển khai cơ chế ẩn tiến trình tải khi đang ở trong Edge/Chrome/Play Store và tự động chui vào Đảo khi thoát ra trên `DownloadDetector.kt`, `KeepAliveAccessibilityService.kt`, `DownloadCard.kt`; bổ sung unit test `DownloadBrowserDetectionTest.kt`; nâng version `2.1.4` (`20104`), build `release/OriginIsle-VN-v2.1.4.apk` và phát hành GitHub Release `v2.1.4` | [Agent: Download-Exit-To-Island (`gemini-4-hydrogen-medium`)] | [Skill: impeccable] | [Locked Files: `app/src/main/java/com/originisle/android/download/DownloadDetector.kt`, `app/src/main/java/com/originisle/android/service/KeepAliveAccessibilityService.kt`, `app/src/main/java/com/originisle/android/cards/DownloadCard.kt`, `app/src/test/java/com/originisle/android/download/DownloadBrowserDetectionTest.kt`, `app/build.gradle.kts`, `PROJECT_CONTEXT.md`, `task.md`]

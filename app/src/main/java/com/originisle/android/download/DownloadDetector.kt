@@ -210,14 +210,26 @@ object DownloadDetector {
         return false
     }
 
+    fun isBrowserPackage(pkg: String): Boolean {
+        return pkg.startsWith("com.android.chrome") ||
+            pkg.startsWith("com.chrome") ||
+            pkg.startsWith("com.microsoft.emmx") ||
+            pkg == "com.vivo.browser" ||
+            pkg == "com.brave.browser" ||
+            pkg.startsWith("org.mozilla.") ||
+            pkg.startsWith("com.opera.") ||
+            pkg == "com.coccoc.trinhduyet" ||
+            pkg.startsWith("com.sec.android.app.sbrowser") ||
+            pkg == "com.duckduckgo.mobile.android" ||
+            pkg == "mark.via.gp" ||
+            pkg.contains("browser")
+    }
+
     fun isDownloadPackage(pkg: String): Boolean {
         return pkg in DOWNLOAD_PACKAGES ||
-            pkg.startsWith("com.microsoft.emmx") ||
-            pkg.startsWith("com.android.chrome") ||
-            pkg.startsWith("com.chrome") ||
+            isBrowserPackage(pkg) ||
             pkg == "com.android.vending" ||
-            pkg.startsWith("com.android.providers.downloads") ||
-            pkg.contains("browser")
+            pkg.startsWith("com.android.providers.downloads")
     }
 
     fun isDownload(sbn: StatusBarNotification): Boolean {
