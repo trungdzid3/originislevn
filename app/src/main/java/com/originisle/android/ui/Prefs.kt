@@ -13,13 +13,3 @@ const val PREF_CAST_ISLAND_DURATION_SEC = "cast_island_duration_sec"
 const val DEFAULT_ISLAND_DURATION_SEC = 5
 
 const val PREF_CAST_TAP_EXPAND_CARD = "cast_tap_expand_card"
-
-/** Pref keys & defaults for Samsung One UI 5.1+ overlay island positioning & scaling. */
-const val PREF_ONEUI_OFFSET_X_PX = "oneui_island_offset_x_px"
-const val PREF_ONEUI_OFFSET_Y_PX = "oneui_island_offset_y_px"
-const val PREF_ONEUI_PILL_SCALE_PCT = "oneui_island_pill_scale_pct"
-const val PREF_ONEUI_HIDE_LANDSCAPE = "oneui_island_hide_landscape"
-const val DEFAULT_ONEUI_OFFSET_X_PX = 0
-const val DEFAULT_ONEUI_OFFSET_Y_PX = 0
-const val DEFAULT_ONEUI_PILL_SCALE_PCT = 100
-const val DEFAULT_ONEUI_HIDE_LANDSCAPE = true

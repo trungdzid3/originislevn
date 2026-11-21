@@ -60,7 +60,6 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
-    val overlayOk = remember(tick.intValue) { isOverlayPermissionGranted(context) }
     var autoStartAck by remember {
         mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false))
     }
@@ -111,19 +110,10 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 }
                 GroupDivider()
                 OnboardingRow(
-                    icon = IsleIcons.Smartphone,
-                    tile = IsleColors.TileTeal,
-                    title = "Hiển thị Đảo trên ứng dụng khác (Overlay)",
-                    description = "Cần thiết trên Samsung One UI 5.1+ để vẽ Đảo quanh camera mà không cần bật quyền Trợ năng (An toàn 100% với app Ngân hàng & VNeID)",
-                    granted = overlayOk,
-                    mandatory = false,
-                ) { requestOverlayPermission(context) }
-                GroupDivider()
-                OnboardingRow(
                     icon = IsleIcons.Battery,
                     tile = IsleColors.TileGreen,
                     title = "Không hạn chế pin",
-                    description = "Ngăn OriginOS / Samsung One UI tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
+                    description = "Ngăn OriginOS tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
                     granted = batteryOk,
                     mandatory = false,
                 ) { requestIgnoreBattery(context) }
@@ -132,7 +122,7 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                     icon = IsleIcons.Power,
                     tile = IsleColors.TileAmber,
                     title = "Tự khởi chạy & Chạy nền",
-                    description = "Trên Vivo OriginOS: bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết. Trên Samsung One UI: vào Pin -> chọn Không giới hạn để tránh bị dừng khi đóng đa nhiệm.",
+                    description = "Bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết trên OriginOS — không có mục này, vuốt đóng app sẽ không thể tự khôi phục.",
                     granted = autoStartAck,
                     mandatory = false,
                 ) {

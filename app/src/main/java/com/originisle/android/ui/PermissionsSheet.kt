@@ -69,7 +69,6 @@ fun PermissionsSheet(
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
-    val overlayOk = remember(tick.intValue) { isOverlayPermissionGranted(context) }
     // Neither vivo toggle is readable, so all we can track is whether the user has been sent to that
     // screen — the same ack flag the onboarding row writes.
     var autoStartAck by remember { mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false)) }
@@ -117,21 +116,14 @@ fun PermissionsSheet(
                 GroupDivider()
                 PermissionRow(
                     IsleIcons.Battery, IsleColors.TileGreen, "Tối ưu hóa pin",
-                    ok = batteryOk, status = if (batteryOk) "Không giới hạn" else "Bị giới hạn — OriginOS / One UI có thể đóng app",
+                    ok = batteryOk, status = if (batteryOk) "Không giới hạn" else "Bị giới hạn — OriginOS có thể đóng app",
                 ) { requestIgnoreBattery(context) }
-                GroupDivider()
-                PermissionRow(
-                    IsleIcons.Smartphone, IsleColors.TileTeal, "Hiển thị Đảo trên ứng dụng khác (Overlay)",
-                    ok = overlayOk,
-                    status = if (overlayOk) "Đã cấp — sẵn sàng vẽ Đảo nổi" else "Chưa cấp — cần cho Samsung One UI",
-                    note = "Cần thiết trên Samsung One UI 5.1+ để vẽ Đảo quanh camera mà không cần bật quyền Trợ năng (An toàn 100% với app Ngân hàng & VNeID)",
-                ) { requestOverlayPermission(context) }
                 GroupDivider()
                 PermissionRow(
                     IsleIcons.Power, IsleColors.TileAmber, "Tự khởi chạy & Chạy nền",
                     ok = autoStartAck,
                     status = if (autoStartAck) "Đã mở cài đặt — hãy đảm bảo đã bật đầy đủ" else "Chưa xác nhận",
-                    note = "Trên Vivo OriginOS: bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết. Trên Samsung One UI: vào Pin -> chọn Không giới hạn (Unrestricted).",
+                    note = "Trên Vivo OriginOS: bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết để tránh bị dừng khi đóng đa nhiệm.",
                 ) {
                     if (openAutoStartSettings(context)) {
                         autoStartAck = true

@@ -8,7 +8,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
@@ -20,7 +19,6 @@ import androidx.core.app.NotificationCompat
 import com.originisle.android.R
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
-import com.originisle.android.ui.DeviceInfoHelper
 import java.util.concurrent.ConcurrentHashMap
 
 private const val PREFS_NAME = "experimental_prefs"
@@ -95,13 +93,6 @@ class PlaygroundService : Service() {
         super.onCreate()
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         OriginIslandBuilder.grantScenes(this)
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        if (!DeviceInfoHelper.isSuperXSupported(this)) {
-            OneUiOverlayIsland.onConfigurationChanged(this)
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -423,34 +414,27 @@ class PlaygroundService : Service() {
         )
 
         val sourceApp = intent.getStringExtra("source_app").orEmpty()
-        val superXSupported = DeviceInfoHelper.isSuperXSupported(this)
 
-        if (superXSupported) {
-            val prevInScene = sceneCurrentId[scene]
-            if (prevInScene != null && prevInScene != id) {
-                activeIds.remove(prevInScene)
-                originChangeRecord.remove(prevInScene)
-                originScenes.remove(prevInScene)
-                lastPosts.remove(prevInScene)
-                plainIds.remove(prevInScene)
-                endOrigin(prevInScene, scene)
-                mainHandler.postDelayed({
-                    try {
-                        notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, prevInScene)
-                        notificationManager.cancel(prevInScene)
-                    } catch (_: Exception) {}
-                }, 200L)
-            }
-            sceneCurrentId[scene] = id
+        val prevInScene = sceneCurrentId[scene]
+        if (prevInScene != null && prevInScene != id) {
+            activeIds.remove(prevInScene)
+            originChangeRecord.remove(prevInScene)
+            originScenes.remove(prevInScene)
+            lastPosts.remove(prevInScene)
+            plainIds.remove(prevInScene)
+            endOrigin(prevInScene, scene)
+            mainHandler.postDelayed({
+                try {
+                    notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, prevInScene)
+                    notificationManager.cancel(prevInScene)
+                } catch (_: Exception) {}
+            }, 200L)
         }
+        sceneCurrentId[scene] = id
         activeIds.add(id)
         originScenes[id] = scene
         activeCardIds = activeIds.toSet()
-        if (superXSupported) {
-            postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle)
-        } else {
-            OneUiOverlayIsland.postOrUpdate(this, id, scene, intent)
-        }
+        postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle)
 
         // Auto-dismiss: only for non-live cards (isOngoing is the same live/persistent flag the
         // card posters set — media, sports and any ongoing/call/progress GenericCard all mark
@@ -479,17 +463,9 @@ class PlaygroundService : Service() {
         }
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
         if (dismissDelayMs > 0L) {
-            val task = object : Runnable {
-                override fun run() {
-                    if (!DeviceInfoHelper.isSuperXSupported(this@PlaygroundService) &&
-                        OneUiOverlayIsland.isCardExpanded(id)
-                    ) {
-                        mainHandler.postDelayed(this, 2000L)
-                        return
-                    }
-                    autoDismissTasks.remove(id)
-                    cancelCard(id)
-                }
+            val task = Runnable {
+                autoDismissTasks.remove(id)
+                cancelCard(id)
             }
             autoDismissTasks[id] = task
             mainHandler.postDelayed(task, dismissDelayMs)
@@ -568,19 +544,14 @@ class PlaygroundService : Service() {
         if (id == -1) return
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
         val scene = originScenes.remove(id) ?: resolveAllowedScene(intent.getStringExtra("oi_scene"))
-        val superXSupported = DeviceInfoHelper.isSuperXSupported(this)
-        if (superXSupported) {
-            if (sceneCurrentId[scene] == id) {
-                sceneCurrentId.remove(scene)
-            }
-            endOrigin(id, scene)
-            mainHandler.postDelayed({
-                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
-                notificationManager.cancel(id)
-            }, 350L)
-        } else {
-            OneUiOverlayIsland.cancel(this, id)
+        if (sceneCurrentId[scene] == id) {
+            sceneCurrentId.remove(scene)
         }
+        endOrigin(id, scene)
+        mainHandler.postDelayed({
+            notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
+            notificationManager.cancel(id)
+        }, 350L)
         activeIds.remove(id)
         originChangeRecord.remove(id)
         lastPosts.remove(id)
@@ -632,7 +603,6 @@ class PlaygroundService : Service() {
     private fun stopEverything() {
         // An explicit stop must not be undone by an alarm a previous swipe left armed.
         cancelRestartAlarm()
-        OneUiOverlayIsland.cancelAll(this)
         autoDismissTasks.values.forEach { mainHandler.removeCallbacks(it) }
         autoDismissTasks.clear()
         val hadScenes = originScenes.isNotEmpty()

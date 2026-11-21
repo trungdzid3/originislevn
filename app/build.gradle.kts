@@ -29,10 +29,10 @@ android {
         // AMap (com.autonavi.minimap) to get onto that whitelist. Change it and the island
         // access will likely stop working on your X200 Pro.
         applicationId = "com.autonavi.minimap"
-        minSdk = 33
+        minSdk = 34
         targetSdk = 36
-        versionCode = 20102
-        versionName = "2.1.2"
+        versionCode = 20200
+        versionName = "2.2.0"
     }
 
     signingConfigs {
