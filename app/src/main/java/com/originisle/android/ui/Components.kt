@@ -5,7 +5,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -17,7 +16,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,18 +28,20 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -120,8 +120,8 @@ fun PillButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     iconSize: Dp = 18.dp,
-    container: Color = IsleColors.Surface,
-    content: Color = IsleColors.Text,
+    container: Color = MaterialTheme.colorScheme.primary,
+    content: Color = MaterialTheme.colorScheme.onPrimary,
     enabled: Boolean = true,
     height: Dp = 52.dp,
 ) {
@@ -158,7 +158,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Squircle card with 24dp rounded corners holding a group of settings rows. */
+/** Material 3 card with 24dp rounded corners holding a group of settings rows. */
 @Composable
 fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -167,7 +167,7 @@ fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
             .clip(RoundedCornerShape(GroupRadius))
             .background(IsleColors.Surface)
             .border(
-                width = 0.8.dp,
+                width = 0.5.dp,
                 color = IsleColors.BorderHairline,
                 shape = RoundedCornerShape(GroupRadius),
             )
@@ -197,14 +197,17 @@ fun GroupDivider(inset: Dp = 56.dp) {
     Box(Modifier.padding(start = inset).fillMaxWidth().height(0.8.dp).background(IsleColors.Divider))
 }
 
-/** OriginOS 6 vector icon without heavy background frames. */
+/** Material 3 tonal container icon badge. */
 @Composable
-fun IconTile(icon: ImageVector, color: Color = IsleColors.Accent, size: Dp = 26.dp) {
+fun IconTile(icon: ImageVector, color: Color = IsleColors.Accent, size: Dp = 38.dp) {
     Box(
-        Modifier.size(size),
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.14f)),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, Modifier.size(24.dp), tint = color)
+        Icon(icon, null, Modifier.size(20.dp), tint = color)
     }
 }
 
@@ -268,7 +271,16 @@ fun NavRow(
     onClick: () -> Unit,
 ) {
     SettingRow(icon, tileColor, title, onClick = onClick) {
-        if (value != null) Text(value, fontSize = 14.sp, color = IsleColors.TextSecondary)
+        if (value != null) {
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                color = IsleColors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 136.dp).padding(end = 4.dp),
+            )
+        }
         Icon(IsleIcons.ChevronRight, null, Modifier.padding(end = 6.dp).size(18.dp), tint = IsleColors.Chevron)
     }
 }
@@ -344,88 +356,25 @@ fun NestedSettingContainer(
 }
 
 /**
- * OriginOS 6/7 Custom Switch (100% pixel-matched to Vivo OriginOS 6/7 physical switch):
- * - Track: soft capsule pill (48.dp width x 24.dp height, RoundedCornerShape(12.dp)).
- *   ON: Soft Pastel Cyan / Mint (#A0D0CF).
- *   OFF: Light gray (#E2E6E8 in Light Mode / #2C2F36 in Dark Mode).
- * - Thumb: circular ring (32.dp diameter), overhangs track equally top & bottom by 4.dp.
- *   Inner disk: Pure White (#FFFFFF).
- *   Outer border ring: 4.8.dp thick.
- *   ON: Deep rich Teal (#006D77).
- *   OFF: Slate gray (#8A9096 in Light Mode / #71767C in Dark Mode).
- * Đảm bảo kích thước chạm tối thiểu đạt chuẩn tiếp cận 48.dp.
+ * Material Design 3 official Switch styled with MaterialTheme.colorScheme tokens.
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
-    val trackWidth = 48.dp
-    val trackHeight = 24.dp
-    val thumbSize = 32.dp
-    val isDark = IsleColors.isDark
-
-    val thumbOffset by animateDpAsState(
-        targetValue = if (checked) trackWidth - thumbSize else 0.dp,
-        animationSpec = tween(durationMillis = 180),
-        label = "thumbOffset",
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+            checkedTrackColor = MaterialTheme.colorScheme.primary,
+            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+        ),
     )
-    val trackColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) Color(0xFFA0D0CF) else if (isDark) Color(0xFF2C2F36) else Color(0xFFE2E6E8),
-        animationSpec = tween(durationMillis = 180),
-        label = "trackColor",
-    )
-    val ringColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) Color(0xFF006D77) else if (isDark) Color(0xFF71767C) else Color(0xFF8A9096),
-        animationSpec = tween(durationMillis = 180),
-        label = "ringColor",
-    )
-
-    Box(
-        modifier = modifier
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .then(
-                if (onCheckedChange != null) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Switch,
-                        onClick = { onCheckedChange(!checked) },
-                    )
-                } else Modifier
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(trackWidth)
-                .height(thumbSize),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            // Track: soft rounded capsule centered horizontally and vertically
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .height(trackHeight)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(trackColor)
-            )
-            // Thumb: pure white center with thick outer ring border that overhangs track
-            Box(
-                modifier = Modifier
-                    .offset(x = thumbOffset)
-                    .size(thumbSize)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(
-                        width = 4.8.dp,
-                        color = ringColor,
-                        shape = CircleShape,
-                    )
-            )
-        }
-    }
 }
 
-/** Segmented control styled for OriginOS 6. */
+/** Material 3 Segmented Pill control. */
 @Composable
 fun SegmentedControl(
     options: List<String>,
@@ -439,7 +388,7 @@ fun SegmentedControl(
         modifier
             .fillMaxWidth()
             .height(height)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(50))
             .background(track)
             .padding(3.dp)
             .selectableGroup(),
@@ -451,8 +400,8 @@ fun SegmentedControl(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(if (on) IsleColors.SurfaceHigher else Color.Transparent)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                     .selectable(selected = on, role = Role.Tab, onClick = { onSelect(i) }),
                 contentAlignment = Alignment.Center,
             ) {
@@ -460,22 +409,22 @@ fun SegmentedControl(
                     label,
                     fontSize = 14.sp,
                     fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                    color = if (on) IsleColors.Text else IsleColors.TextSecondary,
+                    color = if (on) MaterialTheme.colorScheme.onSecondaryContainer else IsleColors.TextSecondary,
                 )
             }
         }
     }
 }
 
-/** A small rounded choice button (delay picker, sample picker), min 48.dp touch size. */
+/** Material 3 FilterChip / Tonal Chip button (delay picker, sample picker). */
 @Composable
 fun ChoiceChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    selectedContainer: Color = IsleColors.Accent,
-    selectedContent: Color = Color.White,
+    selectedContainer: Color = MaterialTheme.colorScheme.primaryContainer,
+    selectedContent: Color = MaterialTheme.colorScheme.onPrimaryContainer,
     shape: Shape = RoundedCornerShape(12.dp),
     height: Dp = 44.dp,
     horizontalPadding: Dp = 8.dp,
@@ -493,7 +442,7 @@ fun ChoiceChip(
             label,
             fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) selectedContent else IsleColors.TextChip,
+            color = if (selected) selectedContent else IsleColors.TextSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

@@ -1,6 +1,5 @@
 package com.originisle.android.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -87,9 +86,9 @@ fun UpdateDialog(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .clip(RoundedCornerShape(28.dp))
-                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(28.dp)),
+                .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(28.dp)),
             shape = RoundedCornerShape(28.dp),
-            color = IsleColors.Surface,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = 6.dp,
         ) {
             Column(
@@ -146,8 +145,8 @@ fun UpdateDialog(
                             .fillMaxWidth()
                             .heightIn(min = 90.dp, max = 220.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(IsleColors.SurfaceHigh)
-                            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
                             .padding(14.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
@@ -242,15 +241,22 @@ fun UpdateDialog(
                             .weight(1f)
                             .height(46.dp),
                         shape = RoundedCornerShape(23.dp),
-                        color = IsleColors.SurfaceHigh,
-                        border = BorderStroke(0.8.dp, IsleColors.BorderHairline),
+                        color = if (isDownloading) {
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        } else {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = "Để sau",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = if (isDownloading) IsleColors.TextTertiary else IsleColors.TextSecondary,
+                                color = if (isDownloading) {
+                                    IsleColors.TextTertiary
+                                } else {
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                                },
                             )
                         }
                     }
@@ -291,14 +297,22 @@ fun UpdateDialog(
                             .weight(1.3f)
                             .height(46.dp),
                         shape = RoundedCornerShape(23.dp),
-                        color = if (isDownloading) IsleColors.SurfaceHigher else IsleColors.Accent,
+                        color = if (isDownloading) {
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = primaryButtonText,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isDownloading) IsleColors.TextTertiary else Color(0xFF002922),
+                                color = if (isDownloading) {
+                                    IsleColors.TextTertiary
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimary
+                                },
                             )
                         }
                     }

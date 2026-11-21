@@ -3,10 +3,14 @@ package com.originisle.android.ui
 import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -323,6 +327,116 @@ private val IsleTypography = Typography(
     ),
 )
 
+private val FallbackDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF5CE0CD),
+    onPrimary = Color(0xFF003831),
+    primaryContainer = Color(0xFF005047),
+    onPrimaryContainer = Color(0xFF7CF8E4),
+    secondary = Color(0xFFB1CCC7),
+    onSecondary = Color(0xFF1C3531),
+    secondaryContainer = Color(0xFF334B47),
+    onSecondaryContainer = Color(0xFFCDE8E3),
+    tertiary = Color(0xFFADC9E5),
+    onTertiary = Color(0xFF143349),
+    tertiaryContainer = Color(0xFF2D4961),
+    onTertiaryContainer = Color(0xFFCBE6FF),
+    background = Color(0xFF0E1513),
+    onBackground = Color(0xFFDDE4E1),
+    surface = Color(0xFF0E1513),
+    onSurface = Color(0xFFDDE4E1),
+    surfaceVariant = Color(0xFF3F4947),
+    onSurfaceVariant = Color(0xFFBEC9C6),
+    surfaceContainerLowest = Color(0xFF090F0E),
+    surfaceContainerLow = Color(0xFF161D1B),
+    surfaceContainer = Color(0xFF1A211F),
+    surfaceContainerHigh = Color(0xFF252B29),
+    surfaceContainerHighest = Color(0xFF303634),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    outline = Color(0xFF899390),
+    outlineVariant = Color(0xFF3F4947),
+)
+
+private val FallbackLightColorScheme = lightColorScheme(
+    primary = Color(0xFF006B5E),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFF7CF8E4),
+    onPrimaryContainer = Color(0xFF00201B),
+    secondary = Color(0xFF4A635E),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFCDE8E3),
+    onSecondaryContainer = Color(0xFF06201C),
+    tertiary = Color(0xFF456179),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFCBE6FF),
+    onTertiaryContainer = Color(0xFF001E30),
+    background = Color(0xFFF5FBF8),
+    onBackground = Color(0xFF171D1B),
+    surface = Color(0xFFF5FBF8),
+    onSurface = Color(0xFF171D1B),
+    surfaceVariant = Color(0xFFDAE5E2),
+    onSurfaceVariant = Color(0xFF3F4947),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFEFF5F2),
+    surfaceContainer = Color(0xFFE9EFEC),
+    surfaceContainerHigh = Color(0xFFE3EAE7),
+    surfaceContainerHighest = Color(0xFFDDE4E1),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    outline = Color(0xFF6F7977),
+    outlineVariant = Color(0xFFBEC9C6),
+)
+
+private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = IsleColorPalette(
+    isDark = isDark,
+    background = surface,
+    surface = surfaceContainerLow,
+    surfaceHigh = surfaceContainer,
+    surfaceHigher = surfaceContainerHigh,
+    menu = surfaceContainerHigh,
+    borderHairline = outlineVariant.copy(alpha = 0.45f),
+    borderActive = primary.copy(alpha = 0.35f),
+    text = onSurface,
+    textSecondary = onSurfaceVariant,
+    textTertiary = onSurfaceVariant.copy(alpha = 0.75f),
+    textChip = onSecondaryContainer,
+    chevron = onSurfaceVariant,
+    accent = primary,
+    glowAccent = primaryContainer,
+    accentText = primary,
+    switchOff = surfaceContainerHighest,
+    divider = outlineVariant.copy(alpha = 0.4f),
+    danger = error,
+    good = if (isDark) Color(0xFF00D084) else Color(0xFF00A86B),
+    goodText = if (isDark) Color(0xFF33DE9E) else Color(0xFF008A56),
+    goodBg = if (isDark) Color(0xFF0E2218) else Color(0xFFE6F7F0),
+    goodButton = if (isDark) Color(0xFF153324) else Color(0xFFC8EEDD),
+    goodSubtle = if (isDark) Color(0xFF8CD8B8) else Color(0xFF008A56),
+    goodIconBg = if (isDark) Color(0xFF122C1F) else Color(0xFFD4F3E4),
+    bad = error,
+    badText = onErrorContainer,
+    badBg = errorContainer,
+    badButton = error.copy(alpha = 0.2f),
+    badSubtle = onErrorContainer.copy(alpha = 0.8f),
+    warn = if (isDark) Color(0xFFFF9F2E) else Color(0xFFF57C00),
+    warnBg = if (isDark) Color(0xFF261A0C) else Color(0xFFFFF3E0),
+    castTagBg = secondaryContainer,
+    castTagFg = onSecondaryContainer,
+    previewBg = surfaceContainerHighest,
+    previewLabel = onSurfaceVariant,
+    tileBlue = primary,
+    tileOrange = tertiary,
+    tileTeal = primary,
+    tilePurple = secondary,
+    tileGreen = if (isDark) Color(0xFF00D084) else Color(0xFF00A86B),
+    tileAmber = if (isDark) Color(0xFFFF9F2E) else Color(0xFFF57C00),
+    tileGray = onSurfaceVariant,
+)
+
 @Composable
 fun OriginIsleTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
@@ -345,38 +459,12 @@ fun OriginIsleTheme(content: @Composable () -> Unit) {
         else -> isSystemInDarkTheme()
     }
 
-    val palette = if (isDark) DarkPalette else LightPalette
-    val colorScheme = if (isDark) {
-        darkColorScheme(
-            primary = palette.accent,
-            onPrimary = Color.White,
-            secondary = palette.good,
-            onSecondary = Color.White,
-            background = palette.background,
-            onBackground = palette.text,
-            surface = palette.surface,
-            onSurface = palette.text,
-            surfaceVariant = palette.surfaceHigh,
-            onSurfaceVariant = palette.textTertiary,
-            surfaceContainer = palette.menu,
-            outline = palette.switchOff,
-        )
+    val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     } else {
-        lightColorScheme(
-            primary = palette.accent,
-            onPrimary = Color.White,
-            secondary = palette.good,
-            onSecondary = Color.White,
-            background = palette.background,
-            onBackground = palette.text,
-            surface = palette.surface,
-            onSurface = palette.text,
-            surfaceVariant = palette.surfaceHigh,
-            onSurfaceVariant = palette.textTertiary,
-            surfaceContainer = palette.menu,
-            outline = palette.switchOff,
-        )
+        if (isDark) FallbackDarkColorScheme else FallbackLightColorScheme
     }
+    val palette = colorScheme.toIsleColorPalette(isDark)
 
     val view = LocalView.current
     if (!view.isInEditMode) {
