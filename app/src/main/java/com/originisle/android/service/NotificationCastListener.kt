@@ -838,7 +838,6 @@ class NotificationCastListener : NotificationListenerService() {
                             TikTokStreakCard.post(applicationContext, streakInfo, sbn)
                         }
                     } else if (castNotifs && prefs.getBoolean("cast_downloads", true) &&
-                        sbn.isOngoing &&
                         !DownloadDetector.isMusicOrMediaApp(sbn.packageName) &&
                         extractMediaSessionToken(extras) == null &&
                         !extras.containsKey("android.compactActions") &&
@@ -894,6 +893,31 @@ class NotificationCastListener : NotificationListenerService() {
                 Log.e(TAG, "poll error", e)
             }
             pollHandler.postDelayed(this, 1000L)
+        }
+    }
+
+    fun refreshActiveDownloadsNow() {
+        pollHandler.post {
+            runCatching {
+                val prefs = getSharedPreferences(PREFS, 0)
+                if (!prefs.getBoolean("cast_notifications", true) || !prefs.getBoolean("cast_downloads", true)) return@runCatching
+                val notifs = activeNotifications ?: return@runCatching
+                for (sbn in notifs) {
+                    val extras = sbn.notification.extras
+                    if (!DownloadDetector.isMusicOrMediaApp(sbn.packageName) &&
+                        extractMediaSessionToken(extras) == null &&
+                        !extras.containsKey("android.compactActions") &&
+                        DownloadDetector.isDownload(sbn)
+                    ) {
+                        val dlInfo = DownloadDetector.parse(sbn) ?: continue
+                        val id = IconCache.castIdFor(sbn)
+                        activeDownloadIds.add(id)
+                        transferProgressMap[id] = dlInfo.progress
+                        transferFinishedMap[id] = dlInfo.isFinished
+                        DownloadCard.post(applicationContext, dlInfo, sbn)
+                    }
+                }
+            }
         }
     }
 
@@ -2101,6 +2125,14 @@ class NotificationCastListener : NotificationListenerService() {
             if (isDl) {
                 if (isFinished || lastProg >= 80) {
                     postDownloadFinished(id, appPkg, title)
+                } else if (KeepAliveAccessibilityService.isBrowserCurrentlyOpen(appPkg)) {
+                    DownloadCard.clear(id)
+                    startService(
+                        Intent(this, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_CANCEL)
+                            .putExtra("id", id)
+                            .putExtra("oi_scene", "NAVIGATION"),
+                    )
                 } else {
                     postDownloadCanceled(id, appPkg)
                 }

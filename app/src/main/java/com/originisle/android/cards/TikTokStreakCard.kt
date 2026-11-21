@@ -29,7 +29,7 @@ import com.originisle.android.tiktok.TikTokStreakDetector
 object TikTokStreakCard {
 
     const val ID = 35012
-    private const val HOLD_MS = 4_500L
+    private const val HOLD_MS = 10_000L
     const val COLOR_STREAK = "#FFFF5E00"
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -39,7 +39,7 @@ object TikTokStreakCard {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val center = size / 2f
-        val radius = size / 2f - 2f
+        val radius = size / 2f - size * 0.05f
 
         // Nền tròn tối (#FF18181A)
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -91,12 +91,17 @@ object TikTokStreakCard {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val tiktokAppIcon = IconCache.safeAppIcon(app, info.sourcePkg)
         val flameBadgeIcon = createGlowingFlameBadge(app)
-        IconCache.activeSmallIcons[ID] = flameBadgeIcon
+        IconCache.activeSmallIcons[ID] = tiktokAppIcon
         IconCache.activeLargeIcons[ID] = flameBadgeIcon
 
-        val chipText = if (info.streakDays > 0) "🔥 ${info.streakDays} ngày" else "🔥 Giữ chuỗi"
-        val buttonTitle = "🔥 Gửi lửa"
+        val expandedTitle = if (info.streakDays > 0) {
+            "${info.friendName} · Chuỗi ${info.streakDays} ngày"
+        } else {
+            "${info.friendName} · Nhắc giữ chuỗi"
+        }
+        val buttonTitle = "Mở TikTok"
         val notifAction = Notification.Action.Builder(null, buttonTitle, streakPi).build()
 
         val intent = Intent(app, PlaygroundService::class.java).apply {
@@ -104,26 +109,30 @@ object TikTokStreakCard {
             putExtra("id", ID)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT) // 6
-            putExtra("title", "TikTok · Chuỗi 🔥")
-            putExtra("text", "${info.friendName}: ${info.message}")
-            putExtra("subtext", "Chạm hoặc bấm $buttonTitle để gửi lửa TikTok")
-            putExtra("oi_left_content", info.friendName.take(10))
-            putExtra("oi_right_content", chipText)
-            putExtra("status_chip_text", chipText)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
+            putExtra("title", expandedTitle)
+            putExtra("text", info.message)
+            putExtra("subtext", "Chạm vào thẻ để mở TikTok & giữ chuỗi")
+            putExtra("oi_left_content", "")
+            putExtra("oi_right_content", "")
+            putExtra("status_chip_text", "")
             putExtra("oi_show_left_icon", true)
-            putExtra("oi_left_icon", flameBadgeIcon)
+            putExtra("oi_left_icon", tiktokAppIcon)
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_right_icon", flameBadgeIcon)
+            putExtra("oi_base_icon", tiktokAppIcon)
             putExtra("oi_large_icon", flameBadgeIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("is_ongoing", false)
             putExtra("oi_auto_dismiss_ms", HOLD_MS)
+            putExtra("oi_island_show_time", 10)
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", false)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
+            putExtra("oi_island_click_expand", true)
 
-            // Bảng màu cam ngọn lửa chuẩn OriginOS
-            putExtra("oi_light_color", COLOR_STREAK)
+            // Bảng màu cam ngọn lửa chuẩn OriginOS (không bật hào quang lòe loẹt)
             putExtra("oi_bg_color", "#33FF5E00")
             putExtra("oi_fg_color", COLOR_STREAK)
 
@@ -131,17 +140,17 @@ object TikTokStreakCard {
             putParcelableArrayListExtra("actions", arrayListOf(notifAction))
             putStringArrayListExtra("oi_button_titles", arrayListOf(buttonTitle))
 
-            // Chạm trực tiếp vào thẻ
+            // Chạm lần 2 vào thẻ mở rộng hoặc nút để mở TikTok & sao chép biểu tượng chuỗi
             putExtra("click_resp", streakPi)
             putExtra("source_content_intent", streakPi)
-            putExtra("oi_capsule_click_resp", streakPi)
             putExtra("source_pkg", info.sourcePkg)
         }
         app.startService(intent)
 
-        CastLog.add("TikTok", "Chuỗi 🔥", "hiển thị — chuỗi TikTok: ${info.friendName} ($chipText)", true, context = app)
+        val logDetail = if (info.streakDays > 0) "${info.streakDays} ngày" else "Nhắc giữ chuỗi"
+        CastLog.add("TikTok", "Chuỗi", "hiển thị — chuỗi TikTok: ${info.friendName} ($logDetail)", true, context = app)
 
-        // Tự động hủy sau 20 giây nếu người dùng không tương tác
+        // Tự động hủy sau 10 giây nếu người dùng không tương tác
         autoCancelRunnable?.let { mainHandler.removeCallbacks(it) }
         val cancelTask = Runnable { clear(app) }
         autoCancelRunnable = cancelTask

@@ -27,8 +27,15 @@ class KeepAliveAccessibilityService : AccessibilityService() {
     private var lastScanTime = 0L
     private val handler = Handler(Looper.getMainLooper())
     private val delayedForegroundCheck = Runnable {
+        val prevFg = currentForegroundPackage
         val resolved = resolveLiveForegroundPackage()
         DownloadCard.onForegroundPackageChanged(applicationContext, resolved)
+        val fgChanged = resolved.isNotBlank() && resolved != prevFg
+        if ((DownloadCard.hasDeferredDownloads() || fgChanged || isLauncherPackage(resolved)) &&
+            !isBrowserCurrentlyOpen(resolved)
+        ) {
+            NotificationCastListener.instance?.refreshActiveDownloadsNow()
+        }
     }
 
     private fun scheduleDelayedForegroundCheck() {
@@ -67,12 +74,25 @@ class KeepAliveAccessibilityService : AccessibilityService() {
         if (event == null) return
         val pkg = event.packageName?.toString().orEmpty()
         val eventType = event.eventType
+        val prevFg = currentForegroundPackage
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
+            lastWindowChangedPkg = pkg
+            lastWindowChangedTimeMs = System.currentTimeMillis()
+            currentForegroundPackage = pkg
+            if (DownloadDetector.isBrowserPackage(pkg)) {
+                lastKnownBrowserPackage = pkg
+            }
+        }
         val shouldCheckForeground = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
-            (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg) && pkg != currentForegroundPackage)
+            (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg) && pkg != prevFg)
         if (shouldCheckForeground) {
             val resolved = resolveLiveForegroundPackage()
             DownloadCard.onForegroundPackageChanged(applicationContext, resolved)
+            val fgChanged = resolved.isNotBlank() && resolved != prevFg
+            if (fgChanged && !isBrowserCurrentlyOpen(resolved)) {
+                NotificationCastListener.instance?.refreshActiveDownloadsNow()
+            }
             scheduleDelayedForegroundCheck()
         }
         if (pkg.isBlank()) return
@@ -174,10 +194,18 @@ class KeepAliveAccessibilityService : AccessibilityService() {
         @Volatile
         var currentForegroundPackage: String = ""
 
+        @Volatile
+        var lastWindowChangedPkg: String = ""
+
+        @Volatile
+        var lastWindowChangedTimeMs: Long = 0L
+
+        @Volatile
+        var lastKnownBrowserPackage: String = ""
+
         private val IGNORED_FOREGROUND_PKGS = setOf(
             "com.android.systemui",
             "android",
-            "com.autonavi.minimap",
             "com.vivo.upslide",
             "com.vivo.smartmultiwindow",
             "com.vivo.fingerprint",
@@ -196,24 +224,57 @@ class KeepAliveAccessibilityService : AccessibilityService() {
                 lower.contains("permissioncontroller")
         }
 
+        fun isLauncherPackage(pkg: String): Boolean {
+            val lower = pkg.lowercase()
+            return lower.contains("launcher") ||
+                pkg == "com.bbk.launcher2" ||
+                pkg == "com.vivo.launcher" ||
+                pkg == "com.vivo.hiboard" ||
+                pkg == "com.vivo.globalsearch"
+        }
+
+        fun resolveDownloadOwnerPackage(downloadSourcePkg: String): String {
+            if (downloadSourcePkg.startsWith("com.android.providers.downloads") &&
+                lastKnownBrowserPackage.isNotBlank() &&
+                DownloadDetector.isBrowserPackage(lastKnownBrowserPackage)
+            ) {
+                return lastKnownBrowserPackage
+            }
+            return downloadSourcePkg
+        }
+
+        private fun matchesDownloadSource(pkg: String, downloadSourcePkg: String): Boolean {
+            if (DownloadDetector.isBrowserPackage(downloadSourcePkg)) {
+                return pkg.equals(downloadSourcePkg, ignoreCase = true) || DownloadDetector.isBrowserPackage(pkg)
+            }
+            if (downloadSourcePkg.startsWith("com.android.providers.downloads")) {
+                return DownloadDetector.isBrowserPackage(pkg)
+            }
+            if (downloadSourcePkg == "com.android.vending" || DownloadDetector.isDownloadPackage(downloadSourcePkg)) {
+                return pkg.equals(downloadSourcePkg, ignoreCase = true)
+            }
+            return false
+        }
+
         fun resolveLiveForegroundPackage(): String {
             val svc = instance ?: return currentForegroundPackage
             var livePkg = ""
             runCatching {
-                val sortedWindows = svc.windows.orEmpty().sortedWith(
-                    compareByDescending<AccessibilityWindowInfo> { it.isActive }
-                        .thenByDescending { it.isFocused }
-                        .thenByDescending { it.layer }
-                )
+                val sortedWindows = svc.windows.orEmpty()
+                    .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused) }
+                    .sortedWith(
+                        compareByDescending<AccessibilityWindowInfo> { it.isActive }
+                            .thenByDescending { it.isFocused }
+                            .thenByDescending { it.layer }
+                    )
                 for (w in sortedWindows) {
-                    if (w.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
                     val root = w.root ?: continue
                     val pkg = try {
                         root.packageName?.toString().orEmpty()
                     } finally {
                         runCatching { root.recycle() }
                     }
-                    if (pkg.isNotBlank() && pkg != "com.autonavi.minimap" && !isIgnoredWindowPkg(pkg)) {
+                    if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
                         livePkg = pkg
                         break
                     }
@@ -227,38 +288,65 @@ class KeepAliveAccessibilityService : AccessibilityService() {
                         } finally {
                             runCatching { root.recycle() }
                         }
-                        if (pkg.isNotBlank() && pkg != "com.autonavi.minimap" && !isIgnoredWindowPkg(pkg)) {
+                        if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
                             livePkg = pkg
                         }
                     }
                 }
             }
+            if (livePkg.isBlank() &&
+                lastWindowChangedPkg.isNotBlank() &&
+                !isIgnoredWindowPkg(lastWindowChangedPkg) &&
+                System.currentTimeMillis() - lastWindowChangedTimeMs <= 4_000L
+            ) {
+                livePkg = lastWindowChangedPkg
+            }
             if (livePkg.isNotBlank()) {
                 currentForegroundPackage = livePkg
+                if (DownloadDetector.isBrowserPackage(livePkg)) {
+                    lastKnownBrowserPackage = livePkg
+                }
             }
             return currentForegroundPackage
         }
 
         fun isBrowserCurrentlyOpen(downloadSourcePkg: String): Boolean {
+            val svc = instance
+            if (svc != null) {
+                val activePkgs = mutableListOf<String>()
+                runCatching {
+                    val sortedWindows = svc.windows.orEmpty()
+                        .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused) }
+                        .sortedWith(
+                            compareByDescending<AccessibilityWindowInfo> { it.isActive }
+                                .thenByDescending { it.isFocused }
+                                .thenByDescending { it.layer }
+                        )
+                    for (w in sortedWindows) {
+                        val root = w.root ?: continue
+                        val pkg = try {
+                            root.packageName?.toString().orEmpty()
+                        } finally {
+                            runCatching { root.recycle() }
+                        }
+                        if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
+                            activePkgs.add(pkg)
+                        }
+                    }
+                }
+                if (activePkgs.isNotEmpty()) {
+                    if (activePkgs.any { isLauncherPackage(it) } ||
+                        activePkgs.none { matchesDownloadSource(it, downloadSourcePkg) }
+                    ) {
+                        currentForegroundPackage = activePkgs.first()
+                        return false
+                    }
+                }
+            }
+
             val fg = resolveLiveForegroundPackage()
-            if (fg.isBlank()) return false
-            if (fg.contains("launcher", ignoreCase = true) ||
-                fg == "com.bbk.launcher2" ||
-                fg == "com.vivo.launcher" ||
-                fg == "com.vivo.hiboard"
-            ) {
-                return false
-            }
-            if (DownloadDetector.isBrowserPackage(downloadSourcePkg)) {
-                return fg.equals(downloadSourcePkg, ignoreCase = true) || DownloadDetector.isBrowserPackage(fg)
-            }
-            if (downloadSourcePkg.startsWith("com.android.providers.downloads")) {
-                return DownloadDetector.isBrowserPackage(fg)
-            }
-            if (downloadSourcePkg == "com.android.vending" || DownloadDetector.isDownloadPackage(downloadSourcePkg)) {
-                return fg.equals(downloadSourcePkg, ignoreCase = true)
-            }
-            return false
+            if (fg.isBlank() || isLauncherPackage(fg)) return false
+            return matchesDownloadSource(fg, downloadSourcePkg)
         }
     }
 }

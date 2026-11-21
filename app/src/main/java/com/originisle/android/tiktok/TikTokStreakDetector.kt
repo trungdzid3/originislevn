@@ -32,42 +32,38 @@ object TikTokStreakDetector {
     }
 
     private val STREAK_KEYWORDS = listOf(
-        "chuỗi",
-        "streak",
-        "lửa",
-        "🔥",
         "giữ chuỗi",
         "duy trì chuỗi",
         "khôi phục chuỗi",
         "bảo vệ chuỗi",
         "lửa chuỗi",
-        "thắp lại",
-        "duy trì",
-        "khôi phục",
-        "sắp hết hạn",
-        "sắp kết thúc",
-        "hết hạn",
+        "thắp lại chuỗi",
+        "đừng làm mất chuỗi",
         "mất chuỗi",
-        "gửi tin nhắn",
-        "đã gửi cho bạn một tin nhắn",
-        "đã gửi một tin nhắn",
-        "tin nhắn mới",
-        "đã gửi video",
-        "trò chuyện",
-        "tin nhắn",
-        "nhắn tin",
+        "chuỗi sắp hết hạn",
+        "chuỗi sắp kết thúc",
+        "chuỗi trò chuyện",
+        "chuỗi của bạn",
+        "chuỗi với",
+        "chuỗi ngày",
+        "ngày chuỗi",
         "restore streak",
+        "restore your streak",
         "keep streak",
+        "keep your streak",
+        "streak with",
+        "your streak",
+        "streak is",
+        "chat streak",
+        "day streak",
+        "streak expires",
+        "streak will expire",
+        "don't lose your streak",
     )
 
     private val STREAK_CHANNELS = listOf(
         "streak",
         "dm_streak",
-        "im_push",
-        "im",
-        "chat",
-        "message",
-        "dm",
     )
 
     val DAYS_REGEX = Regex(
@@ -136,7 +132,7 @@ object TikTokStreakDetector {
 
         val n = sbn.notification ?: return false
         val channelId = n.channelId?.lowercase().orEmpty()
-        val isStreakChannel = STREAK_CHANNELS.any { channelId.contains(it) }
+        val isStreakChannel = STREAK_CHANNELS.any { channelId == it || channelId.contains("streak") }
 
         val extras = n.extras ?: return isStreakChannel
 
@@ -147,9 +143,11 @@ object TikTokStreakDetector {
 
         val fullText = "$title $text $bigText $subText"
 
-        val hasStreakKeyword = STREAK_KEYWORDS.any { fullText.contains(it) }
+        val mentionsStreakWord = fullText.contains("chuỗi") || fullText.contains("streak")
+        val hasStreakKeyword = STREAK_KEYWORDS.any { fullText.contains(it) } ||
+            (mentionsStreakWord && DAYS_REGEX.containsMatchIn(fullText))
 
-        return isStreakChannel || hasStreakKeyword
+        return isStreakChannel || (mentionsStreakWord && hasStreakKeyword)
     }
 
     /**

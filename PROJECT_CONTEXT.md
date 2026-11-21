@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.2.0` (mã bản dựng `versionCode = 20200`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.2.1` (mã bản dựng `versionCode = 20201`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.0 / 20200, minSdk = 34)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.1 / 20201, minSdk = 34)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -46,7 +46,7 @@ origin-isle-vn/
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
 │       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo 2.0.0 & Chặn Pop-up)
-│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest)
+│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -54,10 +54,16 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.2.0.apk  # File APK xuất bản v2.2.0 (4.40 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.2.1.apk  # File APK xuất bản v2.2.1 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.2.1 — Chui Vào Đảo Khi Thoát Chrome/Edge/Play Store & Đảo Chuỗi TikTok 2 Nhịp**:
+  - `OriginIslandBuilder.kt`, `PlaygroundService.kt`, `KeepAliveAccessibilityService.kt`, `DownloadCard.kt`, `NotificationCastListener.kt`: Bổ sung `island.superx.landingPkg` & `capsule.landingAutoHide`; lọc cửa sổ `TYPE_APPLICATION` đang active/focused (kèm `lastWindowChangedPkg`, `lastKnownBrowserPackage`, nhận diện Launcher và chính `com.autonavi.minimap`); ưu tiên Activity `PendingIntent`, `oi_island_click_expand = true`, `refreshActiveDownloadsNow()` và đồng bộ thoát app trình duyệt/Play Store chui vào Đảo.
+  - `TikTokStreakDetector.kt`, `TikTokStreakCard.kt`: Thu hẹp kênh (`streak`, `dm_streak`) và từ khóa nhắc chuỗi để không bắt nhầm thông báo TikTok thường; nâng cấp thẻ `ID = 35012` sang viên nang thu gọn `[Logo TikTok] | [Icon Ngọn lửa]` mở rộng 2 nhịp hiện tên bạn bè & số ngày chuỗi.
+  - `HomeScreen.kt`, `OnboardingScreen.kt`: Bổ sung nhắc quyền Hỗ trợ tiếp cận (`a11yOk`) trên banner chú ý, hàng Quyền hệ thống và màn hình Onboarding.
+  - `DownloadBrowserDetectionTest.kt`, `TikTokStreakDetectorTest.kt`: Cập nhật & bổ sung unit tests (67/67 PASS).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.2.1.apk`: Nâng `versionCode = 20201`, `versionName = "2.2.1"`, xuất bản APK release (4,610,715 bytes).
 - **Origin Isle VN v2.2.0 — Material Design 3 & Sửa triệt để Chui Vào Đảo Khi Thoát App**:
   - `Theme.kt`, `Components.kt`, `UpdateDialog.kt`, `DESIGN.md`: Chuyển đổi toàn bộ hệ thống màu, surface tonal (`surfaceContainerLowest..Highest`), Dynamic Color Android 12+ (`dynamicDarkColorScheme` / `dynamicLightColorScheme`), `IsleSwitch` dùng `androidx.compose.material3.Switch`, `IconTile`/`GroupCard`/`SegmentedControl`/`ChoiceChip`/`PillButton` theo chuẩn M3, và sửa `NavRow` (`widthIn(max = 136.dp)`, `maxLines = 1`, `TextOverflow.Ellipsis`).
   - `HomeScreen.kt`, `ActivityScreen.kt`, `PermissionsSheet.kt`: Tinh gọn `HomeScreen` (xóa "Vị trí Đảo trên màn hình", xóa lưới `HeroSpecTile` RAM/SoC/Pin/Nhiệt độ, rút gọn `updateStatus` trên `NavRow`), xóa `TestNotificationCard` & `TikTokStreakSettingsCard` ở `ActivityScreen`, bổ sung hàng quyền Hỗ trợ tiếp cận (`isAccessibilityEnabled`) trong `PermissionsSheet`.

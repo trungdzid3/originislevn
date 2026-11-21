@@ -2,6 +2,7 @@ package com.originisle.android.download
 
 import com.originisle.android.service.KeepAliveAccessibilityService
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,6 +12,8 @@ class DownloadBrowserDetectionTest {
     @After
     fun tearDown() {
         KeepAliveAccessibilityService.currentForegroundPackage = ""
+        KeepAliveAccessibilityService.lastKnownBrowserPackage = ""
+        KeepAliveAccessibilityService.lastWindowChangedPkg = ""
         KeepAliveAccessibilityService.instance = null
     }
 
@@ -38,13 +41,29 @@ class DownloadBrowserDetectionTest {
     fun isIgnoredWindowPkg_filtersSystemUiAndKeyboards() {
         assertTrue(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.android.systemui"))
         assertTrue(KeepAliveAccessibilityService.isIgnoredWindowPkg("android"))
-        assertTrue(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.autonavi.minimap"))
+        assertFalse(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.autonavi.minimap"))
         assertTrue(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.google.android.inputmethod.latin"))
         assertTrue(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.custom.keyboard.app"))
         assertTrue(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.google.android.permissioncontroller"))
 
         assertFalse(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.microsoft.emmx"))
         assertFalse(KeepAliveAccessibilityService.isIgnoredWindowPkg("com.bbk.launcher2"))
+    }
+
+    @Test
+    fun isLauncherPackage_detectsVivoAndGenericLaunchers() {
+        assertTrue(KeepAliveAccessibilityService.isLauncherPackage("com.bbk.launcher2"))
+        assertTrue(KeepAliveAccessibilityService.isLauncherPackage("com.vivo.launcher"))
+        assertFalse(KeepAliveAccessibilityService.isLauncherPackage("com.android.chrome"))
+    }
+
+    @Test
+    fun resolveDownloadOwnerPackage_fallsBackToLastKnownBrowserForSystemDownloadManager() {
+        KeepAliveAccessibilityService.lastKnownBrowserPackage = "com.android.chrome"
+        assertEquals(
+            "com.android.chrome",
+            KeepAliveAccessibilityService.resolveDownloadOwnerPackage("com.android.providers.downloads"),
+        )
     }
 
     @Test

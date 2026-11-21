@@ -103,7 +103,7 @@ object DownloadCard {
 
     private const val PROGRESS_WATCHDOG_MS = 12_000L
     private const val TERMINAL_HOLD_MS = 3_500L
-    private const val DEFERRED_STALE_MS = 60_000L
+    private const val DEFERRED_STALE_MS = 300_000L
 
     private data class DeferredDownload(
         val sbn: StatusBarNotification,
@@ -142,6 +142,8 @@ object DownloadCard {
         )
     }
 
+    fun hasDeferredDownloads(): Boolean = deferredDownloads.isNotEmpty()
+
     fun checkDeferredDownloads(context: Context) {
         onForegroundPackageChanged(context, KeepAliveAccessibilityService.resolveLiveForegroundPackage())
     }
@@ -160,7 +162,7 @@ object DownloadCard {
                     hideTemporarily(context, id)
                 }
             } else {
-                post(context, deferred.info, deferred.sbn, forceImmediate = true)
+                post(context, deferred.info, deferred.sbn, forceImmediate = id !in PlaygroundService.activeCardIds)
             }
         }
     }
@@ -201,10 +203,12 @@ object DownloadCard {
         activeDownloadIds.add(id)
 
         // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
-        // Đăng ngay ở lần đầu, khi hoàn tất/bị hủy, hoặc trôi qua >= 800ms khi tiến độ đổi >= 1% / indeterminate
+        // Đăng ngay ở lần đầu, khi hoàn tất/bị hủy, khi tiến độ đổi >= 1% / indeterminate (>= 800ms),
+        // hoặc gia hạn định kỳ mỗi 8s trước PROGRESS_WATCHDOG_MS (12s) để thẻ tải chậm không bị xóa nhầm
         val isFirstPost = lastTime == 0L || lastProg == -1 || id !in PlaygroundService.activeCardIds
         val shouldPost = forceImmediate || isTerminated || isFirstPost ||
-            (now - lastTime >= 800L && (abs(info.progress - lastProg) >= 1 || info.isIndeterminate))
+            (now - lastTime >= 800L && (abs(info.progress - lastProg) >= 1 || info.isIndeterminate)) ||
+            (now - lastTime >= 8_000L)
 
         if (!shouldPost) {
             return
@@ -224,22 +228,22 @@ object DownloadCard {
         }
 
         val n = sbn.notification
+        val effectivePkg = KeepAliveAccessibilityService.resolveDownloadOwnerPackage(sbn.packageName)
         // Quản lý Icon chuẩn Resource theo GenericCard:
         IconCache.activeSmallIcons.remove(id)
 
         // 1. Icon bên trái (Logo app): Luôn lấy app icon thực tế của nguồn tải
-        val leftIcon = IconCache.safeAppIcon(context, sbn.packageName)
+        val leftIcon = IconCache.safeAppIcon(context, effectivePkg)
         IconCache.activeLargeIcons[id] = leftIcon
 
-        val clickPi = info.contentIntent
-            ?: n.contentIntent
-            ?: fallbackClickIntent(context, sbn.packageName)
+        val rawPi = info.contentIntent ?: n.contentIntent
+        val clickPi = if (rawPi != null && rawPi.isActivity) rawPi else fallbackClickIntent(context, effectivePkg)
 
         val appLabel = runCatching {
             context.packageManager.getApplicationLabel(
-                context.packageManager.getApplicationInfo(sbn.packageName, 0),
+                context.packageManager.getApplicationInfo(effectivePkg, 0),
             ).toString()
-        }.getOrDefault(sbn.packageName)
+        }.getOrDefault(effectivePkg)
 
         val subText = n.extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString()?.trim().orEmpty()
             .ifBlank { info.statusText }
@@ -255,10 +259,12 @@ object DownloadCard {
             putExtra("id", id)
             putExtra("oi_scene", "NAVIGATION")
             putExtra("oi_show_notify", false)
-            putExtra("source_pkg", sbn.packageName)
+            putExtra("source_pkg", effectivePkg)
             putExtra("source_app", appLabel)
             putExtra("source_content_intent", clickPi)
             putExtra("click_resp", clickPi)
+            putExtra("oi_island_click_expand", true)
+            putExtra("oi_ongoing", !isTerminated)
             putExtra("oi_force_show", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)

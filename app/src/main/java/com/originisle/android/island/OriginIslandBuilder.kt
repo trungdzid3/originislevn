@@ -168,6 +168,7 @@ object OriginIslandBuilder {
         subImage: Icon? = null,
         subClickResp: PendingIntent? = null,
         islandClickExpand: Boolean = false,
+        sourcePkg: String? = null,
     ): Bundle {
         val C = OriginIslandConstants
         val bundle = Bundle()
@@ -401,6 +402,7 @@ object OriginIslandBuilder {
         island.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_TEMPLATE, rightTemplate)
         if (islandShowTime > 0) island.putInt(C.BUNDLE_KEY_ISLAND_SHOW_TIME, islandShowTime)
         if (forceShow) island.putBoolean(C.BUNDLE_KEY_ISLAND_FORCE_SHOW, true)
+        if (!sourcePkg.isNullOrBlank()) island.putString(C.BUNDLE_KEY_ISLAND_LANDING_PKG, sourcePkg)
         // Explicitly opt out of vivo's own "companion bar" — without this, a NAVIGATION-scene card
         // gets a second, untagged, stripped-down copy of the notification auto-generated as a
         // separate promoted chip ("Notification: Starting navigation… [Exit navigation]") in the
@@ -465,6 +467,7 @@ object OriginIslandBuilder {
         // --- capsule (tiny right chip) ---
         val capsule = Bundle()
         capsule.putInt(C.BUNDLE_KEY_CAPSULE_STATE, 1)
+        capsule.putBoolean(C.BUNDLE_KEY_CAPSULE_LANDING_AUTO_HIDE, true)
         capsule.putParcelable(C.BUNDLE_KEY_CAPSULE_ICON, rightIcon)
         capsule.putString(C.BUNDLE_KEY_CAPSULE_CONTENT, rightContent)
         if (!isDefaultColor(fgColor)) capsule.putInt(C.BUNDLE_KEY_CAPSULE_CONTENT_COLOR, fgColor)

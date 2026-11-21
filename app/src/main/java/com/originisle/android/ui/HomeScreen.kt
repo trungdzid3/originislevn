@@ -187,6 +187,7 @@ fun HomeScreen(
 
     val listenerOk = remember(tick.intValue) { isListenerEnabled(context) }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
+    val a11yOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
     var permissionsOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
@@ -395,13 +396,14 @@ fun HomeScreen(
         }
 
         // BANNER QUYỀN THÔNG MINH: Chỉ hiển thị khi thiếu quyền hoặc bị chặn bởi hệ thống
-        val missingPermissions = !connected || !listenerOk || !batteryOk
+        val missingPermissions = !connected || !listenerOk || !batteryOk || !a11yOk
         if (missingPermissions && searchQuery.isBlank()) {
             item {
                 VivoOriginAttentionBanner(
                     connected = connected,
                     listenerOk = listenerOk,
                     batteryOk = batteryOk,
+                    a11yOk = a11yOk,
                     onOpenPermissions = { permissionsOpen = true },
                     onOpenSettings = {
                         runCatching {
@@ -1057,7 +1059,7 @@ fun HomeScreen(
                     NavRow(
                         IsleIcons.Shield, IsleColors.Accent,
                         title = "Quyền hệ thống",
-                        value = if (listenerOk && batteryOk) "Đã hoàn tất" else "Cần cấp quyền",
+                        value = if (listenerOk && batteryOk && a11yOk) "Đã hoàn tất" else "Cần cấp quyền",
                         onClick = { permissionsOpen = true },
                     )
                     GroupDivider()
@@ -1256,6 +1258,7 @@ private fun VivoOriginAttentionBanner(
     connected: Boolean,
     listenerOk: Boolean,
     batteryOk: Boolean,
+    a11yOk: Boolean,
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onReconnect: () -> Unit,
@@ -1295,6 +1298,7 @@ private fun VivoOriginAttentionBanner(
                         !listenerOk -> "Chưa cấp quyền Truy cập thông báo"
                         !connected -> "Dịch vụ bị OriginOS chặn hoặc cần mở khóa Cài đặt bị hạn chế"
                         !batteryOk -> "Cần tắt hạn chế pin để chạy nền ổn định"
+                        !a11yOk -> "Chưa bật Hỗ trợ tiếp cận — cần bật để tiến trình tải chui vào Đảo khi thoát Chrome / Edge / Play Store"
                         else -> "Cần hoàn tất quyền hệ thống để Đảo hoạt động ổn định"
                     },
                     fontSize = 13.sp,

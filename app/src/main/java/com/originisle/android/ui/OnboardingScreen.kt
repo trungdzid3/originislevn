@@ -60,6 +60,7 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
+    val a11yOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
     var autoStartAck by remember {
         mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false))
     }
@@ -131,6 +132,21 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                     if (openAutoStartSettings(context)) {
                         autoStartAck = true
                         prefs.edit().putBoolean("onboarding_autostart_ack", true).apply()
+                    }
+                }
+                GroupDivider()
+                OnboardingRow(
+                    icon = IsleIcons.Shield,
+                    tile = IsleColors.TileTeal,
+                    title = "Hỗ trợ tiếp cận",
+                    description = "Nhận diện lúc thoát Chrome, Edge, Play Store để tiến trình tải xuống tự chui vào Đảo.",
+                    granted = a11yOk,
+                    mandatory = false,
+                ) {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
                     }
                 }
             }

@@ -258,10 +258,12 @@ class PlaygroundService : Service() {
             (if (lockscreenOptIn) OriginIslandConstants.DISPLAY_LOCKSCREEN else 0)
         val showNotify = intent.getBooleanExtra("oi_show_notify", false)
         val islandNotify = intent.getBooleanExtra("oi_island_notify", false)
+        val isOngoing = intent.getBooleanExtra("is_ongoing", false)
         val rawIslandShowTime = intent.getIntExtra("oi_island_show_time", 0)
         val customDurationSec = prefs.getInt("cast_island_duration_sec", 5).coerceAtLeast(0)
         val islandShowTime = when {
             rawIslandShowTime > 0 -> rawIslandShowTime
+            isOngoing -> 0
             customDurationSec > 0 -> customDurationSec
             else -> 0
         }
@@ -296,8 +298,6 @@ class PlaygroundService : Service() {
         val progressNodeIcons = intent.getParcelableArrayListExtra("oi_progress_nodes", Icon::class.java).orEmpty()
         val progressIndicatorIcon = intent.getParcelableExtra("oi_progress_indicator", Icon::class.java)
         val progressColor = OriginIslandBuilder.parseColor(intent.getStringExtra("oi_progress_color"), 0)
-
-        val isOngoing = intent.getBooleanExtra("is_ongoing", false)
 
         // Actions -> OriginActions.
         val sourcePkg = intent.getStringExtra("source_pkg")
@@ -339,7 +339,7 @@ class PlaygroundService : Service() {
         val btnType = intent.getIntExtra("oi_btn_type", 1)
         val rawIslandClickExpand = intent.getBooleanExtra("oi_island_click_expand", false)
         val tapExpandCard = prefs.getBoolean("cast_tap_expand_card", true)
-        val isMandatoryCallOrBattery = id in setOf(35001, 35004, 35011, 35014) ||
+        val isMandatoryCallOrBattery = id in setOf(35001, 35004, 35011, 35012, 35014) ||
             scene in setOf("INCALLING", "VOIPCALL")
         val islandClickExpand = when {
             isMandatoryCallOrBattery -> rawIslandClickExpand
@@ -411,6 +411,7 @@ class PlaygroundService : Service() {
             subImage = subImage,
             subClickResp = subClickResp,
             islandClickExpand = islandClickExpand,
+            sourcePkg = sourcePkg,
         )
 
         val sourceApp = intent.getStringExtra("source_app").orEmpty()
