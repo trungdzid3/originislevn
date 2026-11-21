@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.1.4` (mã bản dựng `versionCode = 20104`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.2.0` (mã bản dựng `versionCode = 20200`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.4 / 20104, minSdk = 34)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.0 / 20200, minSdk = 34)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -54,10 +54,15 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
-├── release/OriginIsle-VN-v2.1.4.apk  # File APK xuất bản v2.1.4 (4.40 MB, R8 minify + shrinkResources)
+├── release/OriginIsle-VN-v2.2.0.apk  # File APK xuất bản v2.2.0 (4.40 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.2.0 — Material Design 3 & Sửa triệt để Chui Vào Đảo Khi Thoát App**:
+  - `Theme.kt`, `Components.kt`, `UpdateDialog.kt`, `DESIGN.md`: Chuyển đổi toàn bộ hệ thống màu, surface tonal (`surfaceContainerLowest..Highest`), Dynamic Color Android 12+ (`dynamicDarkColorScheme` / `dynamicLightColorScheme`), `IsleSwitch` dùng `androidx.compose.material3.Switch`, `IconTile`/`GroupCard`/`SegmentedControl`/`ChoiceChip`/`PillButton` theo chuẩn M3, và sửa `NavRow` (`widthIn(max = 136.dp)`, `maxLines = 1`, `TextOverflow.Ellipsis`).
+  - `HomeScreen.kt`, `ActivityScreen.kt`, `PermissionsSheet.kt`: Tinh gọn `HomeScreen` (xóa "Vị trí Đảo trên màn hình", xóa lưới `HeroSpecTile` RAM/SoC/Pin/Nhiệt độ, rút gọn `updateStatus` trên `NavRow`), xóa `TestNotificationCard` & `TikTokStreakSettingsCard` ở `ActivityScreen`, bổ sung hàng quyền Hỗ trợ tiếp cận (`isAccessibilityEnabled`) trong `PermissionsSheet`.
+  - `keepalive_accessibility_config.xml`, `KeepAliveAccessibilityService.kt`, `DownloadCard.kt`, `NotificationCastListener.kt`: Bật `typeWindowsChanged` + `flagRetrieveInteractiveWindows`, `resolveLiveForegroundPackage()` lọc cửa sổ `TYPE_APPLICATION` và nhận diện Launcher, kiểm tra trễ `250ms` & `650ms`, và đồng bộ `DownloadCard.checkDeferredDownloads(applicationContext)` mỗi 1s trong `pollRunnable`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.2.0.apk`: Nâng `versionCode = 20200`, `versionName = "2.2.0"`, xuất bản APK release (4,610,715 bytes).
 - **Origin Isle VN v2.1.4 — Ẩn tiến trình tải khi đang ở trong Chrome/Edge/Play Store & Tự động chui vào Đảo khi thoát ra**:
   - `DownloadDetector.kt` (`app/src/main/java/com/originisle/android/download/DownloadDetector.kt`): Thêm `isBrowserPackage(pkg)` nhận diện Chrome, Edge, Vivo Browser, Brave, Firefox, Opera, Cốc Cốc, Samsung Browser, DuckDuckGo, Via và các gói chứa `"browser"`; đồng bộ `isDownloadPackage(pkg)` gọi `isBrowserPackage(pkg)`.
   - `KeepAliveAccessibilityService.kt` (`app/src/main/java/com/originisle/android/service/KeepAliveAccessibilityService.kt`): Lưu `instance`, `currentForegroundPackage`, `IGNORED_FOREGROUND_PKGS`, `isIgnoredWindowPkg(pkg)`, `isBrowserCurrentlyOpen(downloadSourcePkg)` (kiểm tra live `rootInActiveWindow`, hỗ trợ cả trình duyệt, `com.android.providers.downloads*`, và `com.android.vending` / `isDownloadPackage`); theo dõi đổi cửa sổ tiền cảnh trong `onAccessibilityEvent` và gọi `DownloadCard.onForegroundPackageChanged`.
