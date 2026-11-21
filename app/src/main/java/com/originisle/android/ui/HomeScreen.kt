@@ -11,9 +11,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -99,7 +95,6 @@ fun HomeScreen(
 ) {
     // 1. Quản lý trạng thái Theme (Sáng / Tối / Hệ thống) & Tùy biến Đảo 2.0.0
     var themePref by remember { mutableStateOf(prefs.getString("app_theme", "SYSTEM") ?: "SYSTEM") }
-    var islandPosition by remember { mutableStateOf(prefs.getString("island_position", "CENTER") ?: "CENTER") }
     var suppressHeadsUp by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)) }
     var suppressMode by remember {
         mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
@@ -115,7 +110,6 @@ fun HomeScreen(
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             when (key) {
                 "app_theme" -> themePref = sp.getString("app_theme", "SYSTEM") ?: "SYSTEM"
-                "island_position" -> islandPosition = sp.getString("island_position", "CENTER") ?: "CENTER"
                 PREF_CAST_SUPPRESS_HEADS_UP -> suppressHeadsUp = sp.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)
                 PREF_CAST_SUPPRESS_MODE -> {
                     suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
@@ -210,18 +204,20 @@ fun HomeScreen(
             updateStatus = "Đang kiểm tra…"
             when (val result = UpdateChecker.check(context)) {
                 is UpdateChecker.Result.UpdateAvailable -> {
-                    updateStatus = "Có bản cập nhật mới: v${result.release.versionName}"
+                    updateStatus = "Có bản v${result.release.versionName}"
                     updateDialogRelease = result.release
                 }
                 is UpdateChecker.Result.UpToDate -> {
-                    val msg = "Bạn đang dùng phiên bản mới nhất (v${result.current})"
-                    updateStatus = msg
-                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    updateStatus = "Đã mới nhất"
+                    Toast.makeText(
+                        context,
+                        "Bạn đang dùng phiên bản mới nhất (v${result.current})",
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
                 is UpdateChecker.Result.Error -> {
-                    val msg = result.message
-                    updateStatus = msg
-                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    updateStatus = "Lỗi kết nối"
+                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -261,12 +257,12 @@ fun HomeScreen(
 
     val showHero = matchesSearchQuery(
         searchQuery,
-        "thông tin thiết bị", "trạng thái", "superx", "ram", "pin", "chip", "soc",
-        deviceSnapshot.modelName, deviceSnapshot.originOsVersion, deviceSnapshot.socName,
+        "thông tin thiết bị", "trạng thái", "superx",
+        deviceSnapshot.modelName, deviceSnapshot.originOsVersion,
     )
     val showGroup1 = matchesSearchQuery(
         searchQuery,
-        "trạng thái", "dịch vụ cốt lõi", "đảo origin", "giao diện", "sáng", "tối", "vị trí đảo", "trái", "giữa", "phải",
+        "trạng thái", "dịch vụ cốt lõi", "đảo origin", "giao diện", "sáng", "tối",
     )
     val showGroupCustom20 = matchesSearchQuery(
         searchQuery,
@@ -396,15 +392,6 @@ fun HomeScreen(
                     }
                 }
             }
-
-            updateStatus?.let {
-                Text(
-                    it,
-                    modifier = Modifier.padding(start = 8.dp, top = 8.dp),
-                    fontSize = 13.sp,
-                    color = IsleColors.AccentText,
-                )
-            }
         }
 
         // BANNER QUYỀN THÔNG MINH: Chỉ hiển thị khi thiếu quyền hoặc bị chặn bởi hệ thống
@@ -438,12 +425,7 @@ fun HomeScreen(
                     snapshot = deviceSnapshot,
                     castOn = castOn,
                     connected = connected,
-                    islandPosition = islandPosition,
                     islandDurationSec = islandDurationSec,
-                    onRefresh = {
-                        CastLog.ensureLoaded(context)
-                        deviceSnapshot = DeviceInfoHelper.collect(context)
-                    },
                 )
             }
         }
@@ -539,41 +521,6 @@ fun HomeScreen(
                                 }
                                 themePref = selectedTheme
                                 prefs.edit().putString("app_theme", selectedTheme).apply()
-                            },
-                        )
-                    }
-
-                    GroupDivider()
-
-                    // Tùy chọn Vị trí Đảo (Trái / Giữa / Phải)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            "Vị trí Đảo trên màn hình",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IsleColors.Text,
-                        )
-                        val posIndex = when (islandPosition) {
-                            "LEFT" -> 0
-                            "RIGHT" -> 2
-                            else -> 1
-                        }
-                        SegmentedControl(
-                            options = listOf("Bên trái", "Ở giữa", "Bên phải"),
-                            selected = posIndex,
-                            onSelect = { idx ->
-                                val selectedPos = when (idx) {
-                                    0 -> "LEFT"
-                                    2 -> "RIGHT"
-                                    else -> "CENTER"
-                                }
-                                islandPosition = selectedPos
-                                prefs.edit().putString("island_position", selectedPos).apply()
                             },
                         )
                     }
@@ -1395,20 +1342,8 @@ private fun DeviceHeroCard(
     snapshot: DeviceSnapshot,
     castOn: Boolean,
     connected: Boolean,
-    islandPosition: String,
     islandDurationSec: Int,
-    onRefresh: () -> Unit,
 ) {
-    var spinDegrees by remember { mutableFloatStateOf(0f) }
-    val animatedSpin by animateFloatAsState(
-        targetValue = spinDegrees,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "heroRefreshSpin",
-    )
-
     val displayModel = remember(snapshot.marketBrand, snapshot.modelName) {
         if (snapshot.modelName.startsWith(snapshot.marketBrand, ignoreCase = true)) {
             snapshot.modelName
@@ -1434,34 +1369,27 @@ private fun DeviceHeroCard(
                     .padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val pillAlignment = when (islandPosition) {
-                    "LEFT" -> Alignment.CenterStart
-                    "RIGHT" -> Alignment.CenterEnd
-                    else -> Alignment.Center
-                }
                 Box(
                     modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = pillAlignment,
+                    contentAlignment = Alignment.Center,
                 ) {
-                    if (islandPosition == "CENTER") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "09:41",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = IsleColors.PreviewLabel,
-                            )
-                            Text(
-                                text = "${snapshot.batteryPct}%",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = IsleColors.PreviewLabel,
-                            )
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "09:41",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IsleColors.PreviewLabel,
+                        )
+                        Text(
+                            text = "${snapshot.batteryPct}%",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IsleColors.PreviewLabel,
+                        )
                     }
 
                     // Viên thuốc Origin Island 2.0.0
@@ -1544,7 +1472,7 @@ private fun DeviceHeroCard(
                 }
             }
 
-            // Tiêu đề thiết bị + Hệ điều hành + Nút làm mới thông số nhanh
+            // Tiêu đề thiết bị + Hệ điều hành
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1584,78 +1512,9 @@ private fun DeviceHeroCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(IsleColors.SurfaceHigh)
-                        .border(0.8.dp, IsleColors.BorderHairline, CircleShape)
-                        .clickable(
-                            role = Role.Button,
-                            onClick = {
-                                spinDegrees += 360f
-                                onRefresh()
-                            },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        IsleIcons.Refresh,
-                        contentDescription = "Làm mới thông số thiết bị",
-                        tint = IsleColors.Accent,
-                        modifier = Modifier
-                            .size(18.dp)
-                            .rotate(animatedSpin),
-                    )
-                }
             }
 
-            // Lưới thông số phần cứng (Squircle 16dp SurfaceHigh + Hairline 0.8dp)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    HeroSpecTile(
-                        label = "Vi xử lý (SoC)",
-                        value = snapshot.socName,
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeroSpecTile(
-                        label = "RAM khả dụng / Tổng",
-                        value = "${snapshot.availRamGb} / ${snapshot.totalRamGb}",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val tempText = String.format(Locale.US, "%.1f°C", snapshot.batteryTempC)
-                    val batteryText = buildString {
-                        append("${snapshot.batteryPct}% · $tempText")
-                        if (snapshot.isCharging) append(" · Sạc")
-                    }
-                    HeroSpecTile(
-                        label = "Pin & Nhiệt độ",
-                        value = batteryText,
-                        valueColor = when {
-                            snapshot.batteryTempC >= 42f -> IsleColors.Warn
-                            snapshot.isCharging -> IsleColors.GoodText
-                            else -> IsleColors.Text
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeroSpecTile(
-                        label = "Lượt Đảo hôm nay",
-                        value = "${snapshot.todayCastCount} thẻ đã phát",
-                        valueColor = IsleColors.AccentText,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            // Thanh trạng thái SuperX Engine & Phiên bản 2.0.0
+            // Thanh trạng thái SuperX Engine & Phiên bản
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1708,40 +1567,6 @@ private fun DeviceHeroCard(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun HeroSpecTile(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    valueColor: Color = IsleColors.Text,
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(IsleColors.SurfaceHigh)
-            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = IsleColors.TextSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = value,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = valueColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 

@@ -69,6 +69,7 @@ fun PermissionsSheet(
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
+    val a11yOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
     // Neither vivo toggle is readable, so all we can track is whether the user has been sent to that
     // screen — the same ack flag the onboarding row writes.
     var autoStartAck by remember { mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false)) }
@@ -128,6 +129,20 @@ fun PermissionsSheet(
                     if (openAutoStartSettings(context)) {
                         autoStartAck = true
                         prefs.edit().putBoolean("onboarding_autostart_ack", true).apply()
+                    }
+                }
+                GroupDivider()
+                PermissionRow(
+                    IsleIcons.Shield,
+                    IsleColors.TileTeal,
+                    "Hỗ trợ tiếp cận (Nhận diện thoát ứng dụng)",
+                    ok = a11yOk,
+                    status = if (a11yOk) "Đã bật" else "Cần bật để tiến trình tải tự chui vào Đảo khi thoát trình duyệt / Play Store",
+                ) {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
                     }
                 }
             }

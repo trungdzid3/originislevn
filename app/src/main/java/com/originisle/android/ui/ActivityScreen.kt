@@ -1,37 +1,26 @@
 package com.originisle.android.ui
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,23 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.originisle.android.cards.BatteryCanvasRenderer
-import com.originisle.android.cards.CalendarEventCard
-import com.originisle.android.cards.createGreenTickCircleIcon
-import com.originisle.android.cards.EarbudsCard
-import com.originisle.android.cards.TikTokStreakCard
-import com.originisle.android.cards.ZaloCallCard
-import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.NotificationCastListener
@@ -119,12 +97,6 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
 
                 ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
 
-                // Cài đặt chuỗi TikTok
-                TikTokStreakSettingsCard(context = context)
-
-                // Thẻ công cụ gửi thông báo thử nghiệm
-                TestNotificationCard(context = context, connected = connected)
-
                 SegmentedControl(
                     listOf("Tất cả", "Đã hiện", "Bỏ qua"), filter, { filter = it },
                     track = IsleColors.Surface, height = 40.dp,
@@ -137,7 +109,7 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
                 Box(Modifier.clip(RoundedCornerShape(24.dp)).background(IsleColors.Surface)) {
                     EmptyMessage(
                         if (CastLog.entries.isEmpty()) {
-                            "Chưa có hoạt động nào. Hãy thử bấm các nút 'Kiểm tra thông báo thử nghiệm' ở trên để kiểm tra kết nối và hiển thị log ngay lập tức."
+                            "Chưa có hoạt động nào được ghi nhận."
                         } else {
                             "Không có dữ liệu phù hợp với bộ lọc."
                         },
@@ -264,338 +236,6 @@ private fun VivoDiagnosticAlertCard(
             )
         }
     }
-}
-
-/** Thẻ công cụ gửi thông báo thử nghiệm giả lập Cuộc gọi Zalo và biến động số dư */
-@Composable
-private fun TestNotificationCard(context: Context, connected: Boolean) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(IsleColors.Surface)
-            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(24.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                Modifier.size(32.dp).clip(CircleShape).background(IsleColors.Accent.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(IsleIcons.Send, contentDescription = null, tint = IsleColors.Accent, modifier = Modifier.size(16.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Kiểm tra gửi thông báo thử nghiệm", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
-                Text("Gửi giả lập Cuộc gọi Zalo, Số dư & Tải về để kiểm tra đảo và nhật ký", fontSize = 12.sp, color = IsleColors.TextSecondary)
-            }
-        }
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            PillButton(
-                text = "Thử Số dư",
-                onClick = { sendTestBankNotification(context, connected) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.CreditCard,
-                container = IsleColors.SurfaceHigh,
-                content = IsleColors.Text,
-                height = 40.dp,
-            )
-            PillButton(
-                text = "Thử Gọi Zalo",
-                onClick = { sendTestZaloCallNotification(context) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Pulse,
-                container = IsleColors.SurfaceHigh,
-                content = IsleColors.Text,
-                height = 40.dp,
-            )
-            PillButton(
-                text = "Thử Tải về",
-                onClick = { sendTestDownloadNotification(context, connected) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Download,
-                container = IsleColors.SurfaceHigh,
-                content = IsleColors.Text,
-                height = 40.dp,
-            )
-        }
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            PillButton(
-                text = "Thử Chuỗi TikTok",
-                onClick = { sendTestTikTokStreakNotification(context) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Bolt,
-                container = IsleColors.SurfaceHigh,
-                content = Color(0xFFFF5E00),
-                height = 40.dp,
-            )
-            PillButton(
-                text = "Thử Nhắc Lịch",
-                onClick = { sendTestCalendarEventNotification(context) },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Clock,
-                container = IsleColors.SurfaceHigh,
-                content = IsleColors.Accent,
-                height = 40.dp,
-            )
-            PillButton(
-                text = "Thử Tai nghe",
-                onClick = {
-                    runCatching { EarbudsCard.postSample(context) }
-                    Toast.makeText(context, "Đã phát thẻ Pin Tai nghe (Trái / Phải / Hộp sạc) lên Đảo Origin!", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.weight(1f),
-                icon = IsleIcons.Headphones,
-                container = IsleColors.SurfaceHigh,
-                content = IsleColors.Text,
-                height = 40.dp,
-            )
-        }
-    }
-}
-
-/** Thẻ cài đặt tính năng Nhắc nhở chuỗi TikTok và tin nhắn tùy chỉnh */
-@Composable
-private fun TikTokStreakSettingsCard(context: Context) {
-    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
-    var streakOn by remember { mutableStateOf(prefs.getBoolean("cast_tiktok_streak", true)) }
-    var streakMessage by remember {
-        mutableStateOf(prefs.getString("tiktok_streak_custom_message", "🔥") ?: "🔥")
-    }
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(IsleColors.Surface)
-            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(24.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = streakOn,
-                    role = Role.Switch,
-                    onValueChange = {
-                        streakOn = it
-                        prefs.edit().putBoolean("cast_tiktok_streak", it).apply()
-                    },
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFFF5E00).copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(IsleIcons.Bolt, contentDescription = null, tint = Color(0xFFFF5E00), modifier = Modifier.size(16.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Nhắc nhở chuỗi TikTok", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
-                Text(
-                    "Bắt thông báo nhắc chuỗi TikTok, hiện đảo ngọn lửa để gửi tin nhắn duy trì nhanh",
-                    fontSize = 12.sp,
-                    color = IsleColors.TextSecondary,
-                    lineHeight = 16.sp,
-                )
-            }
-            IsleSwitch(checked = streakOn, onCheckedChange = null)
-        }
-
-        if (streakOn) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(IsleColors.SurfaceHigh)
-                    .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text("Nội dung tin nhắn gửi chuỗi:", fontSize = 12.sp, color = IsleColors.TextSecondary)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(IsleColors.Surface)
-                        .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BasicTextField(
-                        value = streakMessage,
-                        onValueChange = {
-                            streakMessage = it
-                            prefs.edit().putString("tiktok_streak_custom_message", it).apply()
-                        },
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 14.sp, color = IsleColors.Text),
-                        cursorBrush = SolidColor(Color(0xFFFF5E00)),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                Text("Tự động sao chép vào bộ nhớ tạm khi nhấn nút ngọn lửa", fontSize = 11.sp, color = IsleColors.TextSecondary)
-            }
-        }
-    }
-}
-
-private const val TEST_CHANNEL_ID = "origin_isle_test_channel"
-
-private fun ensureTestChannel(context: Context): NotificationManager? {
-    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return null
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        if (nm.getNotificationChannel(TEST_CHANNEL_ID) == null) {
-            val channel = NotificationChannel(
-                TEST_CHANNEL_ID,
-                "Origin Isle Thử nghiệm",
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                description = "Kênh thông báo kiểm tra hiển thị đảo và nhật ký hoạt động"
-            }
-            nm.createNotificationChannel(channel)
-        }
-    }
-    return nm
-}
-
-private fun sendTestBankNotification(context: Context, connected: Boolean) {
-    runCatching {
-        com.originisle.android.cards.PaymentCard.post(
-            context = context,
-            id = 9902,
-            appIcon = android.graphics.drawable.Icon.createWithResource(context, com.originisle.android.R.mipmap.ic_launcher_round),
-            amount = "+2.500.000 đ",
-            description = "Chuyen tien thu nghiem Dao Origin",
-            bankName = "Vietcombank",
-            isIncome = true,
-            clickResp = null,
-        )
-    }
-
-    CastLog.add(
-        app = "Vietcombank",
-        title = "Vietcombank: +2.500.000 đ",
-        outcome = "hiển thị — biến động số dư cộng tiền: +2.500.000 đ (Vietcombank)",
-        cast = true,
-        context = context,
-    )
-    Toast.makeText(context, "Đã phát thẻ Biến động số dư Vietcombank lên Đảo Origin!", Toast.LENGTH_SHORT).show()
-}
-
-private fun sendTestZaloCallNotification(context: Context) {
-    runCatching {
-        ZaloCallCard.postSample(context)
-    }
-    Toast.makeText(context, "Đã phát thẻ Cuộc gọi Zalo lên Đảo Origin!", Toast.LENGTH_SHORT).show()
-}
-
-private fun sendTestDownloadNotification(context: Context, connected: Boolean) {
-    val app = context.applicationContext
-    runCatching {
-        val intent = Intent(app, PlaygroundService::class.java).apply {
-            action = PlaygroundService.ACTION_START
-            putExtra("id", 9903)
-            putExtra("oi_scene", "NAVIGATION")
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-            putExtra("oi_card_ring", 75)
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-            putExtra("title", "Edge Canary")
-            putExtra("text", "Đang tải xuống 75% · 2.4 MB/s")
-            putExtra("subtext", "Tốc độ: 2.4 MB/s")
-            putExtra("oi_left_content", "")
-            putExtra("oi_right_content", "75%")
-            putExtra("status_chip_text", "75%")
-            putExtra("show_progress", true)
-            putExtra("progress", 75)
-            putExtra("progress_max", 100)
-            putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
-            putExtra("oi_force_show", true)
-            putExtra("oi_dismiss_when_kill", true)
-            putExtra("is_ongoing", true)
-        }
-        app.startService(intent)
-    }
-
-    // Sau 1500ms tự động phát thông báo hoàn tất 100% với biểu tượng tích xanh viền rỗng
-    Handler(Looper.getMainLooper()).postDelayed({
-        runCatching {
-            val completeIntent = Intent(app, PlaygroundService::class.java).apply {
-                action = PlaygroundService.ACTION_START
-                putExtra("id", 9903)
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_show_right_icon", true)
-                putExtra("oi_right_icon", BatteryCanvasRenderer.createGreenTickCircleIcon(context))
-                putExtra("icon_res", com.originisle.android.R.mipmap.ic_launcher_round)
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "")
-                putExtra("status_chip_text", "")
-                putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS)
-                putExtra("oi_light_color", "#00D084")
-                putExtra("oi_bg_color", "#4C00D084")
-                putExtra("oi_fg_color", "#00D084")
-                putExtra("title", "Edge Canary · Đã tải xong")
-                putExtra("text", "Tập tin cập nhật đã sẵn sàng")
-                putExtra("subtext", "")
-                putExtra("oi_force_show", true)
-                putExtra("oi_dismiss_when_kill", true)
-                putExtra("is_ongoing", false)
-            }
-            app.startService(completeIntent)
-        }
-
-        // Tự động hủy sau 4000ms
-        Handler(Looper.getMainLooper()).postDelayed({
-            runCatching {
-                app.startService(
-                    Intent(app, PlaygroundService::class.java).apply {
-                        action = PlaygroundService.ACTION_CANCEL
-                        putExtra("id", 9903)
-                        putExtra("oi_scene", "NAVIGATION")
-                    }
-                )
-            }
-        }, 4000L)
-    }, 1500L)
-
-    CastLog.add(
-        app = "Edge Canary",
-        title = "Tải tệp tin: 75%",
-        outcome = "hiển thị — tiến độ tải xuống 75% -> hoàn tất (Edge Canary)",
-        cast = true,
-        context = context,
-    )
-    Toast.makeText(context, "Đã phát thẻ Tiến trình tải xuống lên Đảo Origin!", Toast.LENGTH_SHORT).show()
-}
-
-private fun sendTestTikTokStreakNotification(context: Context) {
-    runCatching {
-        TikTokStreakCard.postSample(context)
-    }
-    Toast.makeText(context, "Đã phát thẻ Chuỗi TikTok lên Đảo Origin!", Toast.LENGTH_SHORT).show()
-}
-
-private fun sendTestCalendarEventNotification(context: Context) {
-    runCatching {
-        CalendarEventCard.postSample(context)
-    }
-    Toast.makeText(context, "Đã phát thẻ Nhắc lịch hẹn lên Đảo Origin!", Toast.LENGTH_SHORT).show()
 }
 
 @Composable
