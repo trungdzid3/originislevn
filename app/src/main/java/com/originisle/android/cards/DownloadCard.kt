@@ -31,23 +31,23 @@ fun BatteryCanvasRenderer.createGreenTickCircleIcon(context: Context, size: Int 
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val s = size.toFloat()
-    val cx = s / 2f
-    val cy = s / 2f
-    val r = s * 0.42f
+    val cx = s * 0.44f
+    val cy = s * 0.50f
+    val r = s * 0.35f
     val colorGreen = Color.parseColor("#00D084")
 
-    // 1. Viền tròn rỗng (stroke): strokeWidth = size * 0.075f, bán kính r = size * 0.42f
+    // 1. Viền tròn rỗng (stroke): strokeWidth = size * 0.072f, bán kính r = size * 0.35f
     val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = s * 0.075f
+        strokeWidth = s * 0.072f
         color = colorGreen
     }
     canvas.drawCircle(cx, cy, r, ringPaint)
 
-    // 2. Dấu tích bên trong (stroke): strokeWidth = size * 0.11f, strokeCap = ROUND, strokeJoin = ROUND
+    // 2. Dấu tích bên trong (stroke): strokeWidth = size * 0.10f, strokeCap = ROUND, strokeJoin = ROUND
     val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = s * 0.11f
+        strokeWidth = s * 0.10f
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
         color = colorGreen
@@ -134,7 +134,7 @@ object DownloadCard {
         val isTerminated = isCompleted || isCanceled
         val isIndeterminate = info.isIndeterminate
 
-        if (!isTerminated && (info.progress in 1..99 || info.isIndeterminate)) {
+        if (!isTerminated && (info.progress in 0..99 || info.isIndeterminate)) {
             finishedIds.remove(id)
         }
         if (finishedIds.contains(id)) {
@@ -144,9 +144,10 @@ object DownloadCard {
         activeDownloadIds.add(id)
 
         // Throttle chống spam thông báo từ trình duyệt/chợ ứng dụng:
-        // Đăng ngay nếu hoàn tất hoặc bị hủy, hoặc trôi qua >= 1000ms VÀ tiến độ thay đổi >= 2%
-        val shouldPost = isTerminated ||
-            (now - lastTime >= 1000L && abs(info.progress - lastProg) >= 2)
+        // Đăng ngay ở lần đầu, khi hoàn tất/bị hủy, hoặc trôi qua >= 800ms khi tiến độ đổi >= 1% / indeterminate
+        val isFirstPost = lastTime == 0L || lastProg == -1
+        val shouldPost = isTerminated || isFirstPost ||
+            (now - lastTime >= 800L && (abs(info.progress - lastProg) >= 1 || info.isIndeterminate))
 
         if (!shouldPost) {
             return
@@ -220,8 +221,8 @@ object DownloadCard {
                     putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
                     putExtra("oi_show_right_icon", true)
                     putExtra("oi_left_content", "")
-                    putExtra("oi_right_content", "")
-                    putExtra("status_chip_text", "")
+                    putExtra("oi_right_content", " ")
+                    putExtra("status_chip_text", " ")
                     putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
                     putExtra("oi_light_color", "#00D084")
                     putExtra("oi_bg_color", "#4C00D084")

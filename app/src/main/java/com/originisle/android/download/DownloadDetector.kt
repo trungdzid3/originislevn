@@ -151,7 +151,7 @@ object DownloadDetector {
 
     private val MEDIA_ACTION_KEYWORDS = listOf(
         "play", "pause", "next", "previous", "prev",
-        "phát", "tạm dừng", "tiếp", "trước", "skip"
+        "phát", "tạm dừng", "trước", "skip"
     )
 
     fun isMusicOrMediaApp(pkg: String): Boolean {
@@ -167,6 +167,7 @@ object DownloadDetector {
     }
 
     fun isMediaStyleNotification(n: Notification, extras: android.os.Bundle?): Boolean {
+        if (n.category == Notification.CATEGORY_PROGRESS) return false
         if (n.category == Notification.CATEGORY_TRANSPORT) return true
         if (extras != null) {
             if (extras.containsKey(NotificationCompat.EXTRA_MEDIA_SESSION) ||
@@ -181,8 +182,23 @@ object DownloadDetector {
                 return true
             }
         }
+        val hasProgressBar = (extras?.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0) ?: 0) > 0 ||
+            extras?.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false) == true
+        if (hasProgressBar) {
+            return false
+        }
         val actions = n.actions
         if (!actions.isNullOrEmpty()) {
+            val hasDownloadAction = actions.any { action ->
+                val actionTitle = action?.title?.toString()?.lowercase()?.trim().orEmpty()
+                actionTitle.contains("hủy") ||
+                    actionTitle.contains("huỷ") ||
+                    actionTitle.contains("cancel") ||
+                    actionTitle.contains("tiếp tục") ||
+                    actionTitle.contains("resume")
+            }
+            if (hasDownloadAction) return false
+
             val hasMediaAction = actions.any { action ->
                 val actionTitle = action?.title?.toString()?.lowercase()?.trim().orEmpty()
                 actionTitle.isNotEmpty() && MEDIA_ACTION_KEYWORDS.any { kw ->

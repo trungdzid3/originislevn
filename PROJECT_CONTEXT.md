@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.2.0` (mã bản dựng `versionCode = 20200`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.1.3` (mã bản dựng `versionCode = 20103`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.0 / 20200, minSdk = 34)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.1.3 / 20103, minSdk = 34)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -58,9 +58,15 @@ origin-isle-vn/
 ├── release/OriginIsle-VN-v2.1.1.apk  # File APK xuất bản v2.1.1 (4.51 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.1.2.apk  # File APK xuất bản v2.1.2 (4.50 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.0.apk  # File APK xuất bản v2.2.0 (4.40 MB, thuần Vivo OriginOS 6)
+├── release/OriginIsle-VN-v2.1.3.apk  # File APK xuất bản v2.1.3 (4.40 MB, vá báo % tải Chrome/Edge & chống khuyết icon tích xanh)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.1.3 — Khắc phục báo `%` tải Chrome/Edge & chống khuyết cạnh phải icon tích xanh tải xong**:
+  - `DownloadDetector.kt` (`app/src/main/java/com/originisle/android/download/DownloadDetector.kt`): Xóa `"tiếp"` khỏi `MEDIA_ACTION_KEYWORDS`; trong `isMediaStyleNotification`, trả về `false` ngay khi `CATEGORY_PROGRESS`, khi có thanh progress (`EXTRA_PROGRESS_MAX > 0` / `EXTRA_PROGRESS_INDETERMINATE`) mà không có cờ MediaSession/MediaStyle, hoặc khi `actions` chứa nút tải (`"hủy"`, `"huỷ"`, `"cancel"`, `"tiếp tục"`, `"resume"`).
+  - `NotificationCastListener.kt` (`app/src/main/java/com/originisle/android/service/NotificationCastListener.kt`): Chặn nhận nhầm tải trình duyệt làm Media trong `isActualMediaPlaybackNotification` khi `token == null && DownloadDetector.isDownloadPackage(sbn.packageName)`; đổi `oi_right_content` / `status_chip_text` thành `"\u2009 "` trong `postDownloadFinished`.
+  - `DownloadCard.kt` & `QuickShareCard.kt` (`app/src/main/java/com/originisle/android/cards/`): Trong `createGreenTickCircleIcon` chỉnh `cx = s * 0.44f`, `cy = s * 0.50f`, `r = s * 0.35f`, `ringPaint.strokeWidth = s * 0.072f`, `tickPaint.strokeWidth = s * 0.10f`; cho phép `info.progress in 0..99`, bổ sung `isFirstPost` và ngưỡng `800ms` / `>= 1%` trong `DownloadCard.post`; đặt `oi_right_content = " "` và `status_chip_text = " "` ở trạng thái hoàn tất.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.1.3.apk`: Đặt `versionCode = 20103`, `versionName = "2.1.3"`, xuất bản APK release (4,610,699 bytes / ~4.40 MB).
 - **Origin Isle VN v2.2.0 — Thuần hóa Vivo OriginOS 6 SuperX (Gỡ bỏ hoàn toàn One UI Overlay sang dự án độc lập `oneui-isle-vn`)**:
   - `app/build.gradle.kts` & `AndroidManifest.xml`: Trả về `minSdk = 34`, nâng `versionCode = 20200`, `versionName = "2.2.0"`, gỡ bỏ quyền `SYSTEM_ALERT_WINDOW`.
   - `OneUiOverlayIsland.kt`: Đã xóa hoàn toàn khỏi `origin-isle-vn`.

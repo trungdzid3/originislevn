@@ -659,6 +659,7 @@ class NotificationCastListener : NotificationListenerService() {
     ): Boolean {
         val n = sbn.notification
         if (n.category == Notification.CATEGORY_CALL) return false
+        if (token == null && DownloadDetector.isDownloadPackage(sbn.packageName)) return false
         val extras = n.extras
 
         // Loại bỏ thông báo tải nhạc ngoại tuyến ("Đang tải nhạc 6/13 bài")
@@ -2150,8 +2151,8 @@ class NotificationCastListener : NotificationListenerService() {
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
             putExtra("oi_show_right_icon", true)
             putExtra("oi_left_content", "")
-            putExtra("oi_right_content", "")
-            putExtra("status_chip_text", "")
+            putExtra("oi_right_content", "\u2009 ")
+            putExtra("status_chip_text", "\u2009 ")
             putExtra("oi_card_ring", 100)
             putExtra("oi_icon_status_type", OriginIslandConstants.ICON_STATUS_SUCCESS) // 0
             putExtra("oi_light_color", "#00D084")
