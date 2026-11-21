@@ -3,9 +3,12 @@ package com.originisle.android.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.originisle.android.cards.DownloadCard
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.download.DownloadDetector
@@ -22,6 +25,17 @@ class KeepAliveAccessibilityService : AccessibilityService() {
 
     private var lastScannedLevel = -1
     private var lastScanTime = 0L
+    private val handler = Handler(Looper.getMainLooper())
+    private val delayedForegroundCheck = Runnable {
+        val resolved = resolveLiveForegroundPackage()
+        DownloadCard.onForegroundPackageChanged(applicationContext, resolved)
+    }
+
+    private fun scheduleDelayedForegroundCheck() {
+        handler.removeCallbacks(delayedForegroundCheck)
+        handler.postDelayed(delayedForegroundCheck, 250L)
+        handler.postDelayed(delayedForegroundCheck, 650L)
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -32,15 +46,19 @@ class KeepAliveAccessibilityService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        handler.removeCallbacks(delayedForegroundCheck)
         if (instance === this) {
             instance = null
+            currentForegroundPackage = ""
         }
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(delayedForegroundCheck)
         if (instance === this) {
             instance = null
+            currentForegroundPackage = ""
         }
         super.onDestroy()
     }
@@ -48,14 +66,14 @@ class KeepAliveAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val pkg = event.packageName?.toString().orEmpty()
-        if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
-            if (pkg != currentForegroundPackage || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                val changed = pkg != currentForegroundPackage
-                currentForegroundPackage = pkg
-                if (changed) {
-                    DownloadCard.onForegroundPackageChanged(applicationContext, pkg)
-                }
-            }
+        val eventType = event.eventType
+        val shouldCheckForeground = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
+            (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg) && pkg != currentForegroundPackage)
+        if (shouldCheckForeground) {
+            val resolved = resolveLiveForegroundPackage()
+            DownloadCard.onForegroundPackageChanged(applicationContext, resolved)
+            scheduleDelayedForegroundCheck()
         }
         if (pkg.isBlank()) return
 
@@ -178,21 +196,59 @@ class KeepAliveAccessibilityService : AccessibilityService() {
                 lower.contains("permissioncontroller")
         }
 
-        fun isBrowserCurrentlyOpen(downloadSourcePkg: String): Boolean {
-            val livePkg = instance?.let { svc ->
+        fun resolveLiveForegroundPackage(): String {
+            val svc = instance ?: return currentForegroundPackage
+            var livePkg = ""
+            runCatching {
+                val sortedWindows = svc.windows.orEmpty().sortedWith(
+                    compareByDescending<AccessibilityWindowInfo> { it.isActive }
+                        .thenByDescending { it.isFocused }
+                        .thenByDescending { it.layer }
+                )
+                for (w in sortedWindows) {
+                    if (w.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                    val root = w.root ?: continue
+                    val pkg = try {
+                        root.packageName?.toString().orEmpty()
+                    } finally {
+                        runCatching { root.recycle() }
+                    }
+                    if (pkg.isNotBlank() && pkg != "com.autonavi.minimap" && !isIgnoredWindowPkg(pkg)) {
+                        livePkg = pkg
+                        break
+                    }
+                }
+            }
+            if (livePkg.isBlank()) {
                 runCatching {
                     svc.rootInActiveWindow?.let { root ->
-                        val p = root.packageName?.toString().orEmpty()
-                        runCatching { root.recycle() }
-                        p
+                        val pkg = try {
+                            root.packageName?.toString().orEmpty()
+                        } finally {
+                            runCatching { root.recycle() }
+                        }
+                        if (pkg.isNotBlank() && pkg != "com.autonavi.minimap" && !isIgnoredWindowPkg(pkg)) {
+                            livePkg = pkg
+                        }
                     }
-                }.getOrNull()
-            }.orEmpty()
-            if (livePkg.isNotBlank() && !isIgnoredWindowPkg(livePkg)) {
+                }
+            }
+            if (livePkg.isNotBlank()) {
                 currentForegroundPackage = livePkg
             }
-            val fg = currentForegroundPackage
+            return currentForegroundPackage
+        }
+
+        fun isBrowserCurrentlyOpen(downloadSourcePkg: String): Boolean {
+            val fg = resolveLiveForegroundPackage()
             if (fg.isBlank()) return false
+            if (fg.contains("launcher", ignoreCase = true) ||
+                fg == "com.bbk.launcher2" ||
+                fg == "com.vivo.launcher" ||
+                fg == "com.vivo.hiboard"
+            ) {
+                return false
+            }
             if (DownloadDetector.isBrowserPackage(downloadSourcePkg)) {
                 return fg.equals(downloadSourcePkg, ignoreCase = true) || DownloadDetector.isBrowserPackage(fg)
             }

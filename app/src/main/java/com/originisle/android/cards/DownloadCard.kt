@@ -142,6 +142,10 @@ object DownloadCard {
         )
     }
 
+    fun checkDeferredDownloads(context: Context) {
+        onForegroundPackageChanged(context, KeepAliveAccessibilityService.resolveLiveForegroundPackage())
+    }
+
     fun onForegroundPackageChanged(context: Context, foregroundPkg: String) {
         if (deferredDownloads.isEmpty()) return
         val now = System.currentTimeMillis()

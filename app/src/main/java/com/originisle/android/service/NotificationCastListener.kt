@@ -889,6 +889,7 @@ class NotificationCastListener : NotificationListenerService() {
                     }
                 }
                 SportsCard.refresh(applicationContext)
+                DownloadCard.checkDeferredDownloads(applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "poll error", e)
             }

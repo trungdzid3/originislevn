@@ -2,7 +2,8 @@
 <!-- Keep-alive dịch vụ nền & đọc pin Samsung Fit 3. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/keepalive_accessibility_desc"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:notificationTimeout="500"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
+    android:notificationTimeout="80"
     android:canRetrieveWindowContent="true" />
