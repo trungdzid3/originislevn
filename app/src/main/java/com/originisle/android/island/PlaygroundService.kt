@@ -435,7 +435,7 @@ class PlaygroundService : Service() {
         activeIds.add(id)
         originScenes[id] = scene
         activeCardIds = activeIds.toSet()
-        postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle)
+        postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle, clickResp)
 
         // Auto-dismiss: only for non-live cards (isOngoing is the same live/persistent flag the
         // card posters set — media, sports and any ongoing/call/progress GenericCard all mark
@@ -487,6 +487,7 @@ class PlaygroundService : Service() {
         isOngoing: Boolean,
         scene: String,
         bundle: android.os.Bundle,
+        clickResp: PendingIntent? = null,
     ) {
         OriginIslandBuilder.grantScenes(this)
         createNotificationChannel(ORIGIN_CHANNEL_ID)
@@ -509,6 +510,7 @@ class PlaygroundService : Service() {
             // XML drawable as the small icon, which silently drops the card off the island.
             .setSmallIcon(R.mipmap.ic_launcher_round)
             .setExtras(bundle)
+        if (clickResp != null) builder.setContentIntent(clickResp)
         if (sourceApp.isNotEmpty()) builder.setSubText(sourceApp)
         notificationManager.notify(OriginIslandConstants.SUPERX_TAG, id, builder.build())
     }

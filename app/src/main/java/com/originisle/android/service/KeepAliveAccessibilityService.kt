@@ -40,8 +40,10 @@ class KeepAliveAccessibilityService : AccessibilityService() {
 
     private fun scheduleDelayedForegroundCheck() {
         handler.removeCallbacks(delayedForegroundCheck)
-        handler.postDelayed(delayedForegroundCheck, 250L)
-        handler.postDelayed(delayedForegroundCheck, 650L)
+        handler.postDelayed(delayedForegroundCheck, 50L)
+        handler.postDelayed(delayedForegroundCheck, 150L)
+        handler.postDelayed(delayedForegroundCheck, 300L)
+        handler.postDelayed(delayedForegroundCheck, 600L)
     }
 
     override fun onServiceConnected() {
@@ -75,16 +77,24 @@ class KeepAliveAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString().orEmpty()
         val eventType = event.eventType
         val prevFg = currentForegroundPackage
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
-            lastWindowChangedPkg = pkg
-            lastWindowChangedTimeMs = System.currentTimeMillis()
-            currentForegroundPackage = pkg
-            if (DownloadDetector.isBrowserPackage(pkg)) {
-                lastKnownBrowserPackage = pkg
+        if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
+            val shouldUpdateFg = isLauncherPackage(pkg) ||
+                eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED && pkg != currentForegroundPackage)
+            if (shouldUpdateFg) {
+                lastWindowChangedPkg = pkg
+                lastWindowChangedTimeMs = System.currentTimeMillis()
+                currentForegroundPackage = pkg
+                if (DownloadDetector.isBrowserPackage(pkg)) {
+                    lastKnownBrowserPackage = pkg
+                }
             }
         }
+        val isSystemUiGestureWithDeferred = pkg == "com.android.systemui" && DownloadCard.hasDeferredDownloads()
         val shouldCheckForeground = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
+            isLauncherPackage(pkg) ||
+            isSystemUiGestureWithDeferred ||
             (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg) && pkg != prevFg)
         if (shouldCheckForeground) {
             val resolved = resolveLiveForegroundPackage()
@@ -256,27 +266,66 @@ class KeepAliveAccessibilityService : AccessibilityService() {
             return false
         }
 
+        fun onDownloadStartedInApp(pkg: String) {
+            if (pkg.isBlank() || isIgnoredWindowPkg(pkg)) return
+            if (currentForegroundPackage.isBlank()) {
+                currentForegroundPackage = pkg
+                lastWindowChangedPkg = pkg
+                lastWindowChangedTimeMs = System.currentTimeMillis()
+            }
+            if (DownloadDetector.isBrowserPackage(pkg)) {
+                lastKnownBrowserPackage = pkg
+            }
+        }
+
         fun resolveLiveForegroundPackage(): String {
             val svc = instance ?: return currentForegroundPackage
             var livePkg = ""
-            runCatching {
-                val sortedWindows = svc.windows.orEmpty()
-                    .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused) }
-                    .sortedWith(
-                        compareByDescending<AccessibilityWindowInfo> { it.isActive }
-                            .thenByDescending { it.isFocused }
-                            .thenByDescending { it.layer }
-                    )
-                for (w in sortedWindows) {
-                    val root = w.root ?: continue
-                    val pkg = try {
-                        root.packageName?.toString().orEmpty()
-                    } finally {
-                        runCatching { root.recycle() }
+            if (lastWindowChangedPkg.isNotBlank() &&
+                isLauncherPackage(lastWindowChangedPkg) &&
+                System.currentTimeMillis() - lastWindowChangedTimeMs <= 3_000L
+            ) {
+                var hasActiveNonLauncherApp = false
+                runCatching {
+                    val activeAppWindows = svc.windows.orEmpty()
+                        .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }
+                    for (w in activeAppWindows) {
+                        val root = w.root ?: continue
+                        val pkg = try {
+                            root.packageName?.toString().orEmpty()
+                        } finally {
+                            runCatching { root.recycle() }
+                        }
+                        if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg) && !isLauncherPackage(pkg)) {
+                            hasActiveNonLauncherApp = true
+                            break
+                        }
                     }
-                    if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
-                        livePkg = pkg
-                        break
+                }
+                if (!hasActiveNonLauncherApp) {
+                    livePkg = lastWindowChangedPkg
+                }
+            }
+            if (livePkg.isBlank()) {
+                runCatching {
+                    val sortedWindows = svc.windows.orEmpty()
+                        .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused) }
+                        .sortedWith(
+                            compareByDescending<AccessibilityWindowInfo> { it.isActive }
+                                .thenByDescending { it.isFocused }
+                                .thenByDescending { it.layer }
+                        )
+                    for (w in sortedWindows) {
+                        val root = w.root ?: continue
+                        val pkg = try {
+                            root.packageName?.toString().orEmpty()
+                        } finally {
+                            runCatching { root.recycle() }
+                        }
+                        if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
+                            livePkg = pkg
+                            break
+                        }
                     }
                 }
             }
@@ -314,23 +363,36 @@ class KeepAliveAccessibilityService : AccessibilityService() {
             val svc = instance
             if (svc != null) {
                 val activePkgs = mutableListOf<String>()
+                val inactivePkgs = mutableListOf<String>()
+                var hasNullRootActiveAppWindow = false
                 runCatching {
                     val sortedWindows = svc.windows.orEmpty()
-                        .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused) }
+                        .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
                         .sortedWith(
                             compareByDescending<AccessibilityWindowInfo> { it.isActive }
                                 .thenByDescending { it.isFocused }
                                 .thenByDescending { it.layer }
                         )
                     for (w in sortedWindows) {
-                        val root = w.root ?: continue
+                        val isWindowActive = w.isActive || w.isFocused
+                        val root = w.root
+                        if (root == null) {
+                            if (isWindowActive) {
+                                hasNullRootActiveAppWindow = true
+                            }
+                            continue
+                        }
                         val pkg = try {
                             root.packageName?.toString().orEmpty()
                         } finally {
                             runCatching { root.recycle() }
                         }
                         if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
-                            activePkgs.add(pkg)
+                            if (isWindowActive) {
+                                activePkgs.add(pkg)
+                            } else {
+                                inactivePkgs.add(pkg)
+                            }
                         }
                     }
                 }
@@ -339,6 +401,17 @@ class KeepAliveAccessibilityService : AccessibilityService() {
                         activePkgs.none { matchesDownloadSource(it, downloadSourcePkg) }
                     ) {
                         currentForegroundPackage = activePkgs.first()
+                        return false
+                    }
+                } else {
+                    if (inactivePkgs.any { matchesDownloadSource(it, downloadSourcePkg) }) {
+                        if (isLauncherPackage(lastWindowChangedPkg)) {
+                            currentForegroundPackage = lastWindowChangedPkg
+                        }
+                        return false
+                    }
+                    if (hasNullRootActiveAppWindow && isLauncherPackage(lastWindowChangedPkg)) {
+                        currentForegroundPackage = lastWindowChangedPkg
                         return false
                     }
                 }

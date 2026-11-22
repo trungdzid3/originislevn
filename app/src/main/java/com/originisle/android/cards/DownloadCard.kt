@@ -188,6 +188,11 @@ object DownloadCard {
             return
         }
 
+        val effectivePkg = KeepAliveAccessibilityService.resolveDownloadOwnerPackage(sbn.packageName)
+        if (!isTerminated && !firstSeenTimeMap.containsKey(id) && DownloadDetector.isDownloadPackage(sbn.packageName)) {
+            KeepAliveAccessibilityService.onDownloadStartedInApp(effectivePkg)
+        }
+
         if (isTerminated) {
             deferredDownloads.remove(id)
         } else if (DownloadDetector.isDownloadPackage(sbn.packageName)) {
@@ -228,7 +233,6 @@ object DownloadCard {
         }
 
         val n = sbn.notification
-        val effectivePkg = KeepAliveAccessibilityService.resolveDownloadOwnerPackage(sbn.packageName)
         // Quản lý Icon chuẩn Resource theo GenericCard:
         IconCache.activeSmallIcons.remove(id)
 
@@ -236,8 +240,7 @@ object DownloadCard {
         val leftIcon = IconCache.safeAppIcon(context, effectivePkg)
         IconCache.activeLargeIcons[id] = leftIcon
 
-        val rawPi = info.contentIntent ?: n.contentIntent
-        val clickPi = if (rawPi != null && rawPi.isActivity) rawPi else fallbackClickIntent(context, effectivePkg)
+        val clickPi = info.contentIntent ?: n.contentIntent ?: fallbackClickIntent(context, effectivePkg)
 
         val appLabel = runCatching {
             context.packageManager.getApplicationLabel(
@@ -254,6 +257,8 @@ object DownloadCard {
         val isStarting = !isTerminated && (isIndeterminate || pct <= 5 || (now - firstSeen < 1500L && pct <= 10))
         val downloadArrowIcon = IconCache.safeResourceIcon(context, R.drawable.ic_download)
 
+        val forceShowOnIsland = forceImmediate || isFirstPost || isTerminated
+
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
@@ -265,7 +270,8 @@ object DownloadCard {
             putExtra("click_resp", clickPi)
             putExtra("oi_island_click_expand", true)
             putExtra("oi_ongoing", !isTerminated)
-            putExtra("oi_force_show", true)
+            putExtra("oi_force_show", forceShowOnIsland)
+            if (forceShowOnIsland) putExtra("oi_island_notify", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("icon_res", R.mipmap.ic_launcher_round)

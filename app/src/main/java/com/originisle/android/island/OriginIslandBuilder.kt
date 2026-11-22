@@ -402,7 +402,17 @@ object OriginIslandBuilder {
         island.putInt(C.BUNDLE_KEY_ISLAND_RIGHT_TEMPLATE, rightTemplate)
         if (islandShowTime > 0) island.putInt(C.BUNDLE_KEY_ISLAND_SHOW_TIME, islandShowTime)
         if (forceShow) island.putBoolean(C.BUNDLE_KEY_ISLAND_FORCE_SHOW, true)
-        if (!sourcePkg.isNullOrBlank()) island.putString(C.BUNDLE_KEY_ISLAND_LANDING_PKG, sourcePkg)
+        if (!sourcePkg.isNullOrBlank()) {
+            island.putString(C.BUNDLE_KEY_ISLAND_LANDING_PKG, sourcePkg)
+            island.putBundle(
+                C.BUNDLE_KEY_ISLAND_LANDING_INFO,
+                Bundle().apply {
+                    putString("landingPkg", sourcePkg)
+                    putString("pkg", sourcePkg)
+                    if (clickResp != null) putParcelable("clickResp", clickResp)
+                },
+            )
+        }
         // Explicitly opt out of vivo's own "companion bar" — without this, a NAVIGATION-scene card
         // gets a second, untagged, stripped-down copy of the notification auto-generated as a
         // separate promoted chip ("Notification: Starting navigation… [Exit navigation]") in the

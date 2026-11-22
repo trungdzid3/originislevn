@@ -14,6 +14,7 @@ class DownloadBrowserDetectionTest {
         KeepAliveAccessibilityService.currentForegroundPackage = ""
         KeepAliveAccessibilityService.lastKnownBrowserPackage = ""
         KeepAliveAccessibilityService.lastWindowChangedPkg = ""
+        KeepAliveAccessibilityService.lastWindowChangedTimeMs = 0L
         KeepAliveAccessibilityService.instance = null
     }
 
@@ -83,5 +84,18 @@ class DownloadBrowserDetectionTest {
 
         KeepAliveAccessibilityService.currentForegroundPackage = "com.bbk.launcher2"
         assertFalse(KeepAliveAccessibilityService.isBrowserCurrentlyOpen("com.android.vending"))
+    }
+
+    @Test
+    fun onDownloadStartedInApp_setsForegroundWhenEmptyAndTracksLastKnownBrowser() {
+        KeepAliveAccessibilityService.onDownloadStartedInApp("com.android.chrome")
+        assertEquals("com.android.chrome", KeepAliveAccessibilityService.currentForegroundPackage)
+        assertEquals("com.android.chrome", KeepAliveAccessibilityService.lastWindowChangedPkg)
+        assertEquals("com.android.chrome", KeepAliveAccessibilityService.lastKnownBrowserPackage)
+
+        KeepAliveAccessibilityService.currentForegroundPackage = "com.bbk.launcher2"
+        KeepAliveAccessibilityService.onDownloadStartedInApp("com.microsoft.emmx")
+        assertEquals("com.bbk.launcher2", KeepAliveAccessibilityService.currentForegroundPackage)
+        assertEquals("com.microsoft.emmx", KeepAliveAccessibilityService.lastKnownBrowserPackage)
     }
 }
