@@ -98,4 +98,17 @@ class DownloadBrowserDetectionTest {
         assertEquals("com.bbk.launcher2", KeepAliveAccessibilityService.currentForegroundPackage)
         assertEquals("com.microsoft.emmx", KeepAliveAccessibilityService.lastKnownBrowserPackage)
     }
+
+    @Test
+    fun isIncognitoOrPrivateBrowsing_filtersChromeEdgePrivateTabs() {
+        assertTrue(DownloadDetector.isIncognitoOrPrivateBrowsing("incognito", "Chrome"))
+        assertTrue(DownloadDetector.isIncognitoOrPrivateBrowsing("inprivate", "Microsoft Edge"))
+        assertTrue(DownloadDetector.isIncognitoOrPrivateBrowsing("general", "Đóng tất cả các thẻ ẩn danh"))
+        assertTrue(DownloadDetector.isIncognitoOrPrivateBrowsing("general", "Đóng tất cả các tab InPrivate"))
+        assertTrue(DownloadDetector.isIncognitoOrPrivateBrowsing("general", "Close all Incognito tabs"))
+        assertTrue(DownloadDetector.isIncognitoOrPrivateBrowsing("general", "Duyệt web riêng tư"))
+
+        assertFalse(DownloadDetector.isIncognitoOrPrivateBrowsing("downloads", "Đang tải xuống file.apk 45%"))
+        assertFalse(DownloadDetector.isIncognitoOrPrivateBrowsing("downloads", "Download complete"))
+    }
 }

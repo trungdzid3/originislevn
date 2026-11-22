@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.2.2` (mã bản dựng `versionCode = 20202`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.2.3` (mã bản dựng `versionCode = 20203`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.2 / 20202, minSdk = 34)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.3 / 20203, minSdk = 34)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -54,11 +54,17 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.2.3.apk  # File APK xuất bản v2.2.3 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.2.apk  # File APK xuất bản v2.2.2 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.1.apk  # File APK xuất bản v2.2.1 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.2.3 — Chặn thông báo ẩn danh / InPrivate & dịch vụ nền trình duyệt tạo Đảo Động**:
+  - `DownloadDetector.kt`: Thêm `isIncognitoOrPrivateBrowsing(channelId, combinedText)` nhận diện kênh/nội dung ẩn danh (`incognito`, `inprivate`, `private_browsing`, `secret`, `ẩn danh`, `duyệt web riêng tư`, `chế độ riêng tư`, `đóng tất cả các thẻ/tab`, ...); trong `isDownload(sbn)` trả `false` ngay khi `isBrowserPackage(pkg) && isIncognitoOrPrivateBrowsing(channelId, allText)`.
+  - `NotificationCastListener.kt`: Trong `onNotificationPosted(sbn)`, chặn thông báo ẩn danh ngay sau nhánh tải xuống (`"bỏ qua — chế độ ẩn danh trình duyệt"`) và chặn thông báo `isOngoing && !isCall && !hasProgress` của trình duyệt trước khối `GenericCard` (`"bỏ qua — thông báo nền trình duyệt"`).
+  - `DownloadBrowserDetectionTest.kt`: Bổ sung unit test `isIncognitoOrPrivateBrowsing_filtersChromeEdgePrivateTabs` (69/69 unit tests PASS).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.2.3.apk`: Nâng `versionCode = 20203`, `versionName = "2.2.3"`, xuất bản APK release (4,610,715 bytes).
 - **Origin Isle VN v2.2.2 — Bảo toàn `PendingIntent` gốc (`creatorPackage`) & Bắt chuẩn thoát về Vivo Launcher cho tiến trình tải**:
   - `OriginIslandBuilder.kt` & `PlaygroundService.kt`: Truyền `clickResp: PendingIntent?` vào `postSuperX(...)` (`builder.setContentIntent(clickResp)`) và ghi thêm `BUNDLE_KEY_ISLAND_LANDING_INFO` (`landingPkg`, `pkg`, `clickResp`) để bảo toàn `creatorPackage` của app nguồn.
   - `DownloadCard.kt`: Giữ nguyên `info.contentIntent ?: n.contentIntent ?: fallbackClickIntent(...)`, gọi `KeepAliveAccessibilityService.onDownloadStartedInApp(effectivePkg)` khi lượt tải mới xuất hiện lần đầu, và chỉ bật `oi_force_show` / `oi_island_notify` khi `forceImmediate || isFirstPost || isTerminated`.

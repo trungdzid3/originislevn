@@ -1298,6 +1298,18 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
+            if (DownloadDetector.isBrowserPackage(sbn.packageName)) {
+                val ch = n.channelId.orEmpty()
+                val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+                val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+                val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+                val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+                if (DownloadDetector.isIncognitoOrPrivateBrowsing(ch, "$title $text $bigText $subText")) {
+                    log(sbn, "bỏ qua — chế độ ẩn danh trình duyệt", false)
+                    return
+                }
+            }
+
             // 5) Thiết bị đeo thông minh & phụ kiện Samsung (Galaxy Fit 3, Galaxy Watch, Galaxy Buds)
             if (prefs.getBoolean("cast_earbuds", true) && (sbn.packageName in WEARABLE_SAMSUNG_PKGS ||
                     sbn.packageName.contains("fit3", ignoreCase = true) ||
@@ -1563,6 +1575,11 @@ class NotificationCastListener : NotificationListenerService() {
         if (isNavigation(sbn, isOngoing)) {
             log(sbn, "hiển thị — điều hướng", true)
             NavigationCard.post(applicationContext, sbn)
+            return
+        }
+
+        if (DownloadDetector.isBrowserPackage(sbn.packageName) && isOngoing && !isCall && !hasProgress) {
+            log(sbn, "bỏ qua — thông báo nền trình duyệt", false)
             return
         }
 

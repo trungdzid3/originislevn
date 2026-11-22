@@ -225,6 +225,29 @@ object DownloadDetector {
             pkg.contains("browser")
     }
 
+    fun isIncognitoOrPrivateBrowsing(channelId: String, combinedText: String): Boolean {
+        val ch = channelId.lowercase()
+        if (ch.contains("incognito") || ch.contains("inprivate") || ch.contains("private_browsing") || ch.contains("secret")) {
+            return true
+        }
+        val text = combinedText.lowercase()
+        return text.contains("ẩn danh") ||
+            text.contains("incognito") ||
+            text.contains("inprivate") ||
+            text.contains("private browsing") ||
+            text.contains("private tab") ||
+            text.contains("duyệt web riêng tư") ||
+            text.contains("chế độ riêng tư") ||
+            text.contains("thẻ riêng tư") ||
+            text.contains("tab riêng tư") ||
+            text.contains("secret mode") ||
+            text.contains("đóng tất cả các thẻ") ||
+            text.contains("đóng tất cả các tab") ||
+            text.contains("close all incognito") ||
+            text.contains("close all inprivate") ||
+            text.contains("close private tabs")
+    }
+
     fun isDownloadPackage(pkg: String): Boolean {
         return pkg in DOWNLOAD_PACKAGES ||
             isBrowserPackage(pkg) ||
@@ -278,6 +301,10 @@ object DownloadDetector {
         val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
         val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val allText = "$title $text $bigText $subText".lowercase()
+
+        if (isBrowserPackage(pkg) && isIncognitoOrPrivateBrowsing(channelId, allText)) {
+            return false
+        }
 
         // c) Trong hasDownloadKeywords:
         // Loại bỏ từ khóa quá chung chung "download" đứng một mình, hoặc chỉ áp dụng từ khóa text cho các ứng dụng trình duyệt (isDownloadPkg).
