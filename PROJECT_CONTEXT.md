@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.3.2` (mã bản dựng `versionCode = 20302`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.4.0` (mã bản dựng `versionCode = 20400`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.3.0 / 20300, minSdk = 34, Shizuku 13.1.5)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.4.0 / 20400, minSdk = 34, Shizuku 13.1.5)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -22,6 +22,7 @@ origin-isle-vn/
 │       │   │   └── xml/              # keepalive_accessibility_config.xml, file_paths.xml, network_security_config.xml
 │       │   └── java/com/originisle/android/
 │       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS
+│       │       ├── bluetooth/        # BluetoothPopupStore.kt & BluetoothPopupOverlay.kt (popup kết nối Bluetooth kiểu Fast Pair hỗ trợ ảnh/GIF tùy chỉnh)
 │       │       ├── calendar/         # CalendarEventDetector.kt (nhận diện lịch hẹn, cuộc họp, sự kiện sắp diễn ra & giờ bay/tàu xe)
 │       │       ├── call/             # ZaloCallDetector.kt (bóc tách chuyên sâu cuộc gọi & CallStyle)
 │       │       ├── cards/            # Các loại thẻ giao diện Đảo Origin
@@ -45,8 +46,8 @@ origin-isle-vn/
 │       │       ├── smart/            # Bóc tách thông tin màn hình
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
-│       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo, Tối ưu giữ nền Shizuku)
-│       └── test/                     # Unit Tests (77 tests: VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
+│       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo, Tối ưu giữ nền Shizuku, BluetoothPopupSheet)
+│       └── test/                     # Unit Tests (83 tests: VietnamBankDetectorTest, BluetoothPopupStoreTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -54,6 +55,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.4.0.apk  # File APK xuất bản v2.4.0 (4,742,295 bytes / ~4.52 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.3.0.apk  # File APK xuất bản v2.3.0 (4,693,143 bytes / ~4.48 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.3.apk  # File APK xuất bản v2.2.3 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.2.apk  # File APK xuất bản v2.2.2 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
@@ -61,6 +63,12 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.4.0 — Popup Kết Nối Bluetooth Kiểu Fast Pair (Ảnh Tĩnh / GIF Tùy Chỉnh)**:
+  - `BluetoothPopupStore.kt` (`com.originisle.android.bluetooth`): Quản lý cấu hình theo thiết bị (`BluetoothDevicePreset`: `TWS_EARBUDS`, `OVER_EAR`, `SPEAKER`, `WATCH`), chuẩn hóa key `normalizeKey`, lưu/xóa ảnh tùy chỉnh (`filesDir/bt_popup_images/<key>.png|gif`, hỗ trợ GIF <= 4MB và ảnh tĩnh scale <= 512x512px) và `SharedPreferences("bt_popup_prefs")`.
+  - `BluetoothPopupOverlay.kt` (`com.originisle.android.bluetooth`): Hiển thị thẻ BottomSheet nổi qua `WindowManager` (`TYPE_APPLICATION_OVERLAY`) theo phong cách Google Fast Pair (dark/light M3, bo góc 28dp, animation trượt 260ms), hỗ trợ `ImageDecoder` phát ảnh động GIF (`AnimatedImageDrawable`) hoặc vector/bitmap preset theo loại thiết bị, hiển thị pin đơn / TWS (L/R/Case) và cập nhật live khi đang mở (`updateBatteryIfShowing`, `onDeviceDisconnected`).
+  - `EarbudsCard.kt`, `Prefs.kt` & `app/build.gradle.kts`: Nâng `versionCode = 20400`, `versionName = "2.4.0"`, thêm `PREF_BT_CONNECT_POPUP = "cast_bt_connect_popup"`, nối `EarbudsCard` (`show`, `onBatteryUpdated`, `disconnectTask`, `onDeviceDisconnected`) sang `BluetoothPopupOverlay` độc lập với `cast_earbuds`.
+  - `BluetoothPopupSheet.kt` & `HomeScreen.kt`: Thêm công tắc `"Popup kết nối Bluetooth"` và `"Tùy chỉnh ảnh thiết bị Bluetooth"` trên `HomeScreen`; `BluetoothPopupSheet` liệt kê thiết bị Bluetooth đã ghép đôi, cho phép bật/tắt từng thiết bị, chọn 4 preset, chọn ảnh/GIF (`GetContent`), xóa ảnh và xem thử overlay.
+  - `BluetoothPopupStoreTest.kt` & `release/OriginIsle-VN-v2.4.0.apk`: 83/83 unit tests PASS, APK release 4,742,295 bytes (~4.52 MB).
 - **Origin Isle VN v2.3.0 — IslandTransitions, Trả lời nhanh nổi (QuickReplyOverlay) & Tối ưu giữ nền Shizuku**:
   - `IslandTransitions.kt` & `PlaygroundService.kt`: Quản lý `generation` (`AtomicLong`) và `pendingRemoval` (`ConcurrentHashMap`) cho từng thẻ Đảo, chống race condition khi hủy/đóng và tái đăng thẻ.
   - `QuickReplyOverlay.kt`, `QuickReplyActivity.kt`, `MessageCard.kt`, `NotificationCastListener.kt`: Hỗ trợ trả lời nhanh nổi (`cast_quick_reply_overlay`) qua `RemoteInput` & `WindowManager` tối màu Material 3 với fallback mở app nguồn khi chưa bật hoặc thiếu quyền Overlay.

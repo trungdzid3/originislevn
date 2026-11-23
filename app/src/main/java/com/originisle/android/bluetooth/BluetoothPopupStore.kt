@@ -1,0 +1,288 @@
+package com.originisle.android.bluetooth
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import java.io.File
+import java.io.FileOutputStream
+import java.util.Locale
+import kotlin.math.max
+import kotlin.math.roundToInt
+
+enum class BluetoothDevicePreset(val id: String, val label: String) {
+    TWS_EARBUDS("tws", "Tai nghe TWS"),
+    OVER_EAR("over_ear", "Tai nghe chụp tai"),
+    SPEAKER("speaker", "Loa Bluetooth"),
+    WATCH("watch", "Đồng hồ / Vòng tay");
+
+    companion object {
+        fun fromId(id: String?): BluetoothDevicePreset {
+            return entries.firstOrNull { it.id == id } ?: TWS_EARBUDS
+        }
+
+        fun inferFromName(name: String): BluetoothDevicePreset {
+            val lower = name.trim().lowercase(Locale.ROOT)
+            if (lower.isEmpty()) return TWS_EARBUDS
+
+            if (WATCH_KEYWORDS.any { lower.contains(it) }) {
+                return WATCH
+            }
+            if (SPEAKER_KEYWORDS.any { lower.contains(it) }) {
+                return SPEAKER
+            }
+            if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
+                return OVER_EAR
+            }
+            return TWS_EARBUDS
+        }
+
+        private val WATCH_KEYWORDS = listOf(
+            "watch",
+            "band",
+            "miband",
+            "fitbit",
+            "garmin",
+            "amazfit",
+            "smartwatch",
+            "galaxy fit",
+            "đồng hồ",
+            "vòng tay",
+            "dong ho",
+            "vong tay",
+        )
+
+        private val SPEAKER_KEYWORDS = listOf(
+            "speaker",
+            "soundbar",
+            "boombox",
+            "soundlink",
+            "megaboom",
+            "wonderboom",
+            "emberton",
+            "stanmore",
+            "kilburn",
+            "stockwell",
+            "acton",
+            "woburn",
+            "jbl flip",
+            "jbl charge",
+            "jbl go",
+            "jbl clip",
+            "jbl pulse",
+            "jbl xtreme",
+            "srs-",
+            "homepod",
+            "nest audio",
+            "loa ",
+            "loa bluetooth",
+        )
+
+        private val OVER_EAR_KEYWORDS = listOf(
+            "headphone",
+            "headset",
+            "over-ear",
+            "over ear",
+            "wh-1000",
+            "wh1000",
+            "wh-ch",
+            "airpods max",
+            "quietcomfort",
+            "qc35",
+            "qc45",
+            "beats studio",
+            "beats solo",
+            "momentum",
+            "chụp tai",
+            "chup tai",
+            "arctis",
+            "hyperx",
+        )
+    }
+}
+
+data class BluetoothPopupDeviceConfig(
+    val key: String,
+    val enabled: Boolean = true,
+    val preset: BluetoothDevicePreset = BluetoothDevicePreset.TWS_EARBUDS,
+    val customImagePath: String? = null,
+    val customName: String? = null,
+)
+
+object BluetoothPopupStore {
+
+    private const val EXPERIMENTAL_PREFS = "experimental_prefs"
+    private const val KEY_GLOBAL_ENABLED = "cast_bt_connect_popup"
+
+    private const val POPUP_PREFS = "bt_popup_prefs"
+    private const val IMAGES_DIR_NAME = "bt_popup_images"
+    private const val MAX_GIF_BYTES = 4 * 1024 * 1024
+    private const val MAX_STATIC_DIM_PX = 512
+
+    fun normalizeKey(addressOrName: String): String {
+        val normalized = addressOrName
+            .trim()
+            .lowercase(Locale.ROOT)
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_')
+        return normalized.ifEmpty { "unknown_device" }
+    }
+
+    fun isPopupGloballyEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(EXPERIMENTAL_PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_GLOBAL_ENABLED, false)
+    }
+
+    fun getDeviceConfig(
+        context: Context,
+        addressOrName: String,
+        deviceName: String = "",
+    ): BluetoothPopupDeviceConfig {
+        val key = normalizeKey(addressOrName)
+        val prefs = context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean(enabledKey(key), true)
+        val savedPresetId = prefs.getString(presetKey(key), null)
+        val preset = if (savedPresetId != null) {
+            BluetoothDevicePreset.fromId(savedPresetId)
+        } else {
+            BluetoothDevicePreset.inferFromName(deviceName)
+        }
+        val imagePath = prefs.getString(imagePathKey(key), null)
+            ?.takeIf { File(it).exists() }
+        val customName = prefs.getString(customNameKey(key), null)
+        return BluetoothPopupDeviceConfig(
+            key = key,
+            enabled = enabled,
+            preset = preset,
+            customImagePath = imagePath,
+            customName = customName,
+        )
+    }
+
+    fun setDeviceEnabled(context: Context, addressOrName: String, enabled: Boolean) {
+        val key = normalizeKey(addressOrName)
+        context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(enabledKey(key), enabled)
+            .apply()
+    }
+
+    fun setDevicePreset(
+        context: Context,
+        addressOrName: String,
+        preset: BluetoothDevicePreset,
+    ) {
+        val key = normalizeKey(addressOrName)
+        context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(presetKey(key), preset.id)
+            .apply()
+    }
+
+    fun saveCustomImage(context: Context, addressOrName: String, uri: Uri): String? {
+        val key = normalizeKey(addressOrName)
+        val dir = File(context.filesDir, IMAGES_DIR_NAME).apply {
+            if (!exists()) mkdirs()
+        }
+        val mimeType = context.contentResolver.getType(uri)
+
+        return try {
+            if (mimeType.equals("image/gif", ignoreCase = true)) {
+                saveGifImage(context, dir, key, uri)
+            } else {
+                saveStaticImageAsPng(context, dir, key, uri)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun clearCustomImage(context: Context, addressOrName: String) {
+        val key = normalizeKey(addressOrName)
+        val dir = File(context.filesDir, IMAGES_DIR_NAME)
+        File(dir, "$key.png").delete()
+        File(dir, "$key.gif").delete()
+        context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(imagePathKey(key))
+            .apply()
+    }
+
+    private fun saveGifImage(
+        context: Context,
+        dir: File,
+        key: String,
+        uri: Uri,
+    ): String? {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+            val buffer = ByteArray(8192)
+            val output = java.io.ByteArrayOutputStream()
+            var total = 0
+            while (true) {
+                val read = input.read(buffer)
+                if (read == -1) break
+                total += read
+                if (total > MAX_GIF_BYTES) {
+                    return null
+                }
+                output.write(buffer, 0, read)
+            }
+            output.toByteArray()
+        } ?: return null
+
+        if (bytes.isEmpty()) return null
+
+        val destFile = File(dir, "$key.gif")
+        FileOutputStream(destFile).use { it.write(bytes) }
+        File(dir, "$key.png").delete()
+
+        persistImagePath(context, key, destFile.absolutePath)
+        return destFile.absolutePath
+    }
+
+    private fun saveStaticImageAsPng(
+        context: Context,
+        dir: File,
+        key: String,
+        uri: Uri,
+    ): String? {
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            val maxDim = max(info.size.width, info.size.height)
+            if (maxDim > MAX_STATIC_DIM_PX) {
+                val scale = MAX_STATIC_DIM_PX.toFloat() / maxDim.toFloat()
+                val targetW = (info.size.width * scale).roundToInt().coerceAtLeast(1)
+                val targetH = (info.size.height * scale).roundToInt().coerceAtLeast(1)
+                decoder.setTargetSize(targetW, targetH)
+            }
+        }
+
+        val destFile = File(dir, "$key.png")
+        try {
+            FileOutputStream(destFile).use { out ->
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                    return null
+                }
+            }
+        } finally {
+            bitmap.recycle()
+        }
+
+        File(dir, "$key.gif").delete()
+        persistImagePath(context, key, destFile.absolutePath)
+        return destFile.absolutePath
+    }
+
+    private fun persistImagePath(context: Context, key: String, path: String) {
+        context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(imagePathKey(key), path)
+            .apply()
+    }
+
+    private fun enabledKey(key: String) = "device_${key}_enabled"
+    private fun presetKey(key: String) = "device_${key}_preset"
+    private fun imagePathKey(key: String) = "device_${key}_image_path"
+    private fun customNameKey(key: String) = "device_${key}_custom_name"
+}

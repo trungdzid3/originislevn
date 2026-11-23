@@ -19,3 +19,6 @@ const val PREF_QUICK_REPLY_OVERLAY = "cast_quick_reply_overlay"
 const val PREF_SHIZUKU_AUTO_KEEPALIVE = "shizuku_auto_keepalive"
 const val PREF_SHIZUKU_LAST_SUMMARY = "shizuku_last_summary"
 const val PREF_SHIZUKU_LAST_APPLIED_MS = "shizuku_last_applied_ms"
+
+/** Bluetooth connection popup overlay preference (v2.4.0, default false). */
+const val PREF_BT_CONNECT_POPUP = "cast_bt_connect_popup"

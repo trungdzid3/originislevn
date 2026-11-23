@@ -108,6 +108,7 @@ fun HomeScreen(
     }
     var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
     var quickReplyOverlay by remember { mutableStateOf(prefs.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)) }
+    var btConnectPopup by remember { mutableStateOf(prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)) }
     var shizukuAutoKeepAlive by remember { mutableStateOf(prefs.getBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, false)) }
     var searchQuery by remember { mutableStateOf("") }
     var testerExpanded by remember { mutableStateOf(false) }
@@ -125,6 +126,7 @@ fun HomeScreen(
                 }
                 PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
                 PREF_QUICK_REPLY_OVERLAY -> quickReplyOverlay = sp.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)
+                PREF_BT_CONNECT_POPUP -> btConnectPopup = sp.getBoolean(PREF_BT_CONNECT_POPUP, false)
                 PREF_SHIZUKU_AUTO_KEEPALIVE -> {
                     shizukuAutoKeepAlive = sp.getBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, false)
                 }
@@ -202,6 +204,7 @@ fun HomeScreen(
     var shizukuSummary by remember(tick.intValue) { mutableStateOf(ShizukuKeepAliveHelper.getLastSummary(context)) }
     var shizukuBusy by remember { mutableStateOf(false) }
     var permissionsOpen by remember { mutableStateOf(false) }
+    var btPopupSheetOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
     var updateDialogRelease by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
@@ -267,6 +270,10 @@ fun HomeScreen(
         PermissionsSheet(context, prefs, onDismiss = { permissionsOpen = false }, onRedoSetup = onRedoSetup)
     }
 
+    if (btPopupSheetOpen) {
+        BluetoothPopupSheet(context = context, onDismiss = { btPopupSheetOpen = false })
+    }
+
     updateDialogRelease?.let { release ->
         UpdateDialog(
             release = release,
@@ -290,6 +297,7 @@ fun HomeScreen(
         searchQuery,
         "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze",
         "thời lượng", "mở rộng thẻ", "chạm viên thuốc", "trả lời nhanh", "overlay",
+        "bluetooth", "fast pair", "ảnh thiết bị", "tai nghe",
     )
     val showGroupShizuku = matchesSearchQuery(
         searchQuery,
@@ -665,6 +673,32 @@ fun HomeScreen(
                         if (it && !isOverlayPermissionGranted(context)) {
                             openOverlayPermissionSettings(context)
                         }
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Headphones,
+                        IsleColors.Accent,
+                        title = "Popup kết nối Bluetooth",
+                        checked = btConnectPopup,
+                        subtitle = "Hiện thẻ ảnh & pin kiểu Fast Pair cho mọi tai nghe Bluetooth",
+                    ) {
+                        btConnectPopup = it
+                        prefs.edit().putBoolean(PREF_BT_CONNECT_POPUP, it).apply()
+                        if (it && !isOverlayPermissionGranted(context)) {
+                            openOverlayPermissionSettings(context)
+                        }
+                    }
+
+                    GroupDivider()
+
+                    NavRow(
+                        IsleIcons.Camera,
+                        IsleColors.TileBlue,
+                        title = "Tùy chỉnh ảnh thiết bị Bluetooth",
+                    ) {
+                        btPopupSheetOpen = true
                     }
                 }
             }

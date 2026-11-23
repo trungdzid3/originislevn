@@ -36,10 +36,13 @@ import android.provider.Settings
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.originisle.android.R
+import com.originisle.android.bluetooth.BluetoothPopupBattery
+import com.originisle.android.bluetooth.BluetoothPopupOverlay
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
 import com.originisle.android.ui.PREFS_NAME
+import com.originisle.android.ui.PREF_BT_CONNECT_POPUP
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -844,11 +847,18 @@ object EarbudsCard {
     fun hasPermission(context: Context) =
         context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
-    private fun enabled(context: Context): Boolean {
+    private fun isIslandEarbudsEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
-        return prefs.getBoolean("cast_notifications", true) && prefs.getBoolean("cast_earbuds", true) &&
-            hasPermission(context)
+        return prefs.getBoolean("cast_notifications", true) && prefs.getBoolean("cast_earbuds", true)
     }
+
+    private fun isBtPopupEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
+        return prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)
+    }
+
+    private fun enabled(context: Context): Boolean =
+        (isIslandEarbudsEnabled(context) || isBtPopupEnabled(context)) && hasPermission(context)
 
     fun start(context: Context) {
         val ctx = context.applicationContext
@@ -1186,6 +1196,14 @@ object EarbudsCard {
                     }
                     warnedLow -= address
                     warnedLow -= devName
+                    runCatching {
+                        if (address.isNotBlank() && address != "device_unknown") {
+                            BluetoothPopupOverlay.onDeviceDisconnected(address)
+                        }
+                        if (devName.isNotBlank() && devName != address) {
+                            BluetoothPopupOverlay.onDeviceDisconnected(devName)
+                        }
+                    }
                     showDisconnected(context, devName, isWearable = isWearableDevice)
                 }
                 disconnectDebounce[address] = disconnectTask
@@ -1985,7 +2003,7 @@ object EarbudsCard {
      */
     fun tryParseBatteryFromNotification(context: Context, sbn: StatusBarNotification): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)
-        if (!prefs.getBoolean("cast_earbuds", true)) return false
+        if (!prefs.getBoolean("cast_earbuds", true) && !prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)) return false
 
         val extras = sbn.notification?.extras ?: return false
         val title = cleanBatteryText(extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "")
@@ -2214,14 +2232,30 @@ object EarbudsCard {
         isWearable: Boolean = false,
         refreshDuration: Boolean = true,
     ) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
-        if (!prefs.getBoolean("cast_earbuds", true)) return
-
         val isWearableDevice = isWearable || isWearable(device, customName)
         val name = customName ?: runCatching { device?.alias ?: device?.name }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: if (isWearableDevice) "Galaxy Fit 3" else "Tai nghe"
 
         val targetDev = device ?: findBluetoothDevice(context, name)
+        val deviceAddressOrName = targetDev?.address?.takeIf { it.isNotBlank() } ?: name
+        runCatching {
+            val btBattery = BluetoothPopupBattery(
+                main = telemetry.main,
+                left = telemetry.left,
+                right = telemetry.right,
+                caseBattery = telemetry.case,
+            )
+            BluetoothPopupOverlay.showOrUpdate(
+                context = context,
+                addressOrKey = deviceAddressOrName,
+                deviceName = name,
+                battery = btBattery,
+                forcePreview = false,
+            )
+        }
+
+        val prefs = context.getSharedPreferences(PREFS_NAME, 0)
+        if (!prefs.getBoolean("cast_earbuds", true)) return
         var effectivePct = telemetry.effectiveLevel
 
         if (effectivePct !in 0..100 && targetDev != null) {
@@ -2675,6 +2709,13 @@ object EarbudsCard {
                 clearAllAudioTelemetry(ctx)
             }
             warnedLow -= name
+            val deviceAddressOrName = findBluetoothDevice(ctx, name)?.address?.takeIf { it.isNotBlank() } ?: name
+            runCatching {
+                BluetoothPopupOverlay.onDeviceDisconnected(deviceAddressOrName)
+                if (deviceAddressOrName != name) {
+                    BluetoothPopupOverlay.onDeviceDisconnected(name)
+                }
+            }
             showDisconnected(ctx, name, isWearable)
         }
         disconnectDebounce[name] = task
@@ -2720,6 +2761,19 @@ object EarbudsCard {
         val eff = merged.effectiveLevel
         if (eff in 0..100) {
             saveCachedBattery(ctx, name, eff)
+        }
+        val deviceAddressOrName = findBluetoothDevice(ctx, name)?.address?.takeIf { it.isNotBlank() } ?: name
+        runCatching {
+            val btBattery = BluetoothPopupBattery(
+                main = merged.main,
+                left = merged.left,
+                right = merged.right,
+                caseBattery = merged.case,
+            )
+            BluetoothPopupOverlay.updateBatteryIfShowing(deviceAddressOrName, btBattery)
+            if (deviceAddressOrName != name) {
+                BluetoothPopupOverlay.updateBatteryIfShowing(name, btBattery)
+            }
         }
         val currentlyShowing = isShowing(isWearableDevice, name)
         val newlyDiscoveredDetails = !hadDetailsBefore && merged.hasDetails && isWithinAntiFlapCooldown(name)
