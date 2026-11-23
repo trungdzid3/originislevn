@@ -6,8 +6,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import rikka.shizuku.Shizuku
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 object ShizukuKeepAliveHelper {
     const val STATUS_NOT_INSTALLED = 0
@@ -163,21 +164,62 @@ object ShizukuKeepAliveHelper {
                 val script = buildSafeKeepAliveScript(pkg, uid, userId)
 
                 process = newShizukuProcess(arrayOf("sh", "-c", script))
-                val finished = process.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                if (!finished) {
-                    process.destroyForcibly()
+                try {
+                    process.outputStream.close()
+                } catch (_: Throwable) {
+                }
+
+                val stdoutRef = AtomicReference("")
+                val stderrRef = AtomicReference("")
+                val exitCodeRef = AtomicInteger(Int.MIN_VALUE)
+                val waitErrRef = AtomicReference<Throwable?>(null)
+
+                val outReader = Thread({
+                    try {
+                        stdoutRef.set(process.inputStream.bufferedReader().use { it.readText().trim() })
+                    } catch (_: Throwable) {
+                    }
+                }, "shizuku-stdout").apply { start() }
+
+                val errReader = Thread({
+                    try {
+                        stderrRef.set(process.errorStream.bufferedReader().use { it.readText().trim() })
+                    } catch (_: Throwable) {
+                    }
+                }, "shizuku-stderr").apply { start() }
+
+                val waiter = Thread({
+                    try {
+                        exitCodeRef.set(process.waitFor())
+                    } catch (t: Throwable) {
+                        waitErrRef.set(t)
+                    }
+                }, "shizuku-wait").apply { start() }
+
+                waiter.join(PROCESS_TIMEOUT_SECONDS * 1000L)
+                if (waiter.isAlive) {
+                    try {
+                        process.destroy()
+                    } catch (_: Throwable) {
+                    }
                     val timeoutMsg = "Quá thời gian thực thi Shizuku (${PROCESS_TIMEOUT_SECONDS}s)"
                     saveSummary(appContext, timeoutMsg, updateTimestamp = false)
                     mainHandler.post { onResult(false, timeoutMsg) }
                     return@Thread
                 }
 
-                val stdout = process.inputStream.bufferedReader().use { it.readText().trim() }
-                val stderr = process.errorStream.bufferedReader().use { it.readText().trim() }
-                val exitCode = process.exitValue()
-                val success = exitCode == 0 && stdout.contains("OK|")
+                outReader.join(1500L)
+                errReader.join(1500L)
+
+                waitErrRef.get()?.let { throw it }
+
+                val stdout = stdoutRef.get()
+                val stderr = stderrRef.get()
+                val exitCode = exitCodeRef.get()
+                val okLine = stdout.lineSequence().lastOrNull { it.startsWith("OK|") }
+                val success = exitCode == 0 && okLine != null
                 val summary = when {
-                    success -> stdout.lineSequence().lastOrNull { it.startsWith("OK|") } ?: stdout
+                    success -> formatOkSummary(okLine!!)
                     stderr.isNotEmpty() -> "Lỗi ($exitCode): $stderr"
                     stdout.isNotEmpty() -> "Lỗi ($exitCode): $stdout"
                     else -> "Lỗi thực thi Shizuku (mã $exitCode)"
@@ -214,6 +256,17 @@ object ShizukuKeepAliveHelper {
     fun getLastSummary(context: Context): String {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_LAST_SUMMARY, "") ?: ""
+    }
+
+    private fun formatOkSummary(okLine: String): String {
+        val parts = okLine.split("|")
+        val bucket = parts.firstOrNull { it.startsWith("BUCKET=") }
+            ?.removePrefix("BUCKET=")
+            ?.ifBlank { "active" }
+            ?: "active"
+        val wlRaw = parts.firstOrNull { it.startsWith("WL=") }?.removePrefix("WL=")
+        val wlLabel = if (wlRaw == "1") "Bật" else "Tắt"
+        return "Đã tối ưu giữ nền • Bucket: $bucket • Whitelist Doze: $wlLabel"
     }
 
     private fun saveSummary(context: Context, summary: String, updateTimestamp: Boolean) {
