@@ -193,9 +193,12 @@ object DownloadCard {
             KeepAliveAccessibilityService.onDownloadStartedInApp(effectivePkg)
         }
 
+        val shouldDeferWhenInForeground = DownloadDetector.isBrowserPackage(sbn.packageName) ||
+            sbn.packageName.startsWith("com.android.providers.downloads")
+
         if (isTerminated) {
             deferredDownloads.remove(id)
-        } else if (DownloadDetector.isDownloadPackage(sbn.packageName)) {
+        } else if (shouldDeferWhenInForeground) {
             deferredDownloads[id] = DeferredDownload(sbn, info, now)
             if (KeepAliveAccessibilityService.isBrowserCurrentlyOpen(sbn.packageName)) {
                 if (id in PlaygroundService.activeCardIds || dismissTasks.containsKey(id)) {
@@ -252,10 +255,6 @@ object DownloadCard {
             .ifBlank { info.statusText }
 
         val pct = if (isIndeterminate && info.progress <= 0) 5 else info.progress.coerceIn(1, 99)
-
-        val firstSeen = firstSeenTimeMap[id] ?: now
-        val isStarting = !isTerminated && (isIndeterminate || pct <= 5 || (now - firstSeen < 1500L && pct <= 10))
-        val downloadArrowIcon = IconCache.safeResourceIcon(context, R.drawable.ic_download)
 
         val forceShowOnIsland = forceImmediate || isFirstPost || isTerminated
 
@@ -342,17 +341,10 @@ object DownloadCard {
                     putExtra("status_chip_text", "$pct%")
                     putExtra("oi_right_content", "$pct%")
 
-                    if (isStarting) {
-                        // Giai đoạn ban đầu: hiển thị biểu tượng tải xuống ban đầu
-                        putExtra("oi_left_icon", downloadArrowIcon)
-                        putExtra("oi_large_icon", leftIcon)
-                        putExtra("oi_left_content", if (isIndeterminate && info.progress <= 0) "Tải..." else "$pct%")
-                    } else {
-                        // Giai đoạn có tiến độ: hiển thị logo app nơi đang tải ở bên trái
-                        putExtra("oi_left_icon", leftIcon)
-                        putExtra("oi_large_icon", leftIcon)
-                        putExtra("oi_left_content", "$pct%")
-                    }
+                    // Luôn hiển thị ngay logo app nguồn tải (Edge/Chrome/CH Play) từ 0ms
+                    putExtra("oi_left_icon", leftIcon)
+                    putExtra("oi_large_icon", leftIcon)
+                    putExtra("oi_left_content", if (isIndeterminate && info.progress <= 0) "Tải..." else "$pct%")
 
                     putExtra("title", "${info.title.take(30)} ($pct%)")
                     putExtra("text", if (!info.speedText.isNullOrBlank()) "Tốc độ: ${info.speedText}" else subText.ifBlank { "$appLabel · Đang tải xuống" })

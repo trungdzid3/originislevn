@@ -264,10 +264,16 @@ object DownloadDetector {
         val extras = n.extras
         val pkg = sbn.packageName
 
-        // a) Bỏ qua ngay lập tức nếu là thông báo nhóm (Group Summary)
-        // (Điều này triệt tiêu hoàn toàn lỗi nhân bản 2 thẻ thông báo giống hệt nhau)
+        // a) Bỏ qua thông báo nhóm (Group Summary), trừ trường hợp CH Play (com.android.vending)
+        // gắn progress bar thực tế ngay trên thông báo summary (thường gặp trên Android 14-16).
         if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
-            return false
+            val summaryHasProgress = pkg == "com.android.vending" && (
+                extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0) > 0 ||
+                    extras.getBoolean(NotificationCompat.EXTRA_PROGRESS_INDETERMINATE, false)
+                )
+            if (!summaryHasProgress) {
+                return false
+            }
         }
 
         // b) Nếu sbn.packageName nằm trong NON_DOWNLOAD_APPS:
@@ -291,7 +297,12 @@ object DownloadDetector {
             channelId.contains("tai_xuong") ||
             channelId.contains("tải") ||
             channelId.contains("tệp") ||
-            channelId.contains("transfer")
+            channelId.contains("transfer") ||
+            (pkg == "com.android.vending" && (
+                channelId.contains("install") ||
+                    channelId.contains("update") ||
+                    channelId.contains("finsky")
+                ))
 
         val isDownloadPkg = isDownloadPackage(pkg)
 
@@ -316,7 +327,12 @@ object DownloadDetector {
                 allText.contains("tải về") ||
                 allText.contains("downloading") ||
                 allText.contains("đang cài đặt") ||
+                allText.contains("đang cài") ||
                 allText.contains("installing") ||
+                allText.contains("đang cập nhật") ||
+                allText.contains("updating") ||
+                allText.contains("đang xác minh") ||
+                allText.contains("verifying") ||
                 allText.contains("đang chờ") ||
                 allText.contains("pending") ||
                 allText.contains("đã tải xong") ||
@@ -521,7 +537,12 @@ object DownloadDetector {
         }
 
         // Trạng thái cài đặt / chờ
-        val isInstalling = lower.contains("đang cài đặt") || lower.contains("installing") || lower.contains("cài đặt…")
+        val isInstalling = lower.contains("đang cài đặt") ||
+            lower.contains("đang cài") ||
+            lower.contains("installing") ||
+            lower.contains("cài đặt…") ||
+            lower.contains("đang xác minh") ||
+            lower.contains("verifying")
         val isPending = lower.contains("đang chờ") || lower.contains("pending") || lower.contains("chuẩn bị") || lower.contains("preparing") || lower.contains("waiting")
 
         var progress = 0
