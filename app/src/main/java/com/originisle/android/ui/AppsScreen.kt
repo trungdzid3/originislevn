@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -64,22 +65,39 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
     }
     // Icons are decoded per visible row (hundreds with system apps on), kept here while scrolling.
     val iconCache = remember { HashMap<String, ImageBitmap?>() }
+    val appsCache = remember { HashMap<Boolean, List<AppEntry>>() }
 
     LaunchedEffect(showSystem) {
-        loading = true
-        apps = withContext(Dispatchers.IO) { loadApps(context, showSystem, ignored.toSet()) }
-        loading = false
+        val cached = appsCache[showSystem]
+        if (cached != null) {
+            apps = cached
+            loading = false
+        } else {
+            loading = true
+            val loaded = withContext(Dispatchers.IO) { loadApps(context, showSystem, ignored.toSet()) }
+            appsCache[showSystem] = loaded
+            apps = loaded
+            loading = false
+        }
     }
 
-    val filtered = apps.filter { app ->
-        (query.isBlank() || app.label.contains(query, ignoreCase = true)) &&
-            when (filter) {
-                1 -> app.pkg !in ignored
-                2 -> app.pkg in ignored
-                else -> true
+    val filtered by remember {
+        derivedStateOf {
+            apps.filter { app ->
+                (query.isBlank() || app.label.contains(query, ignoreCase = true)) &&
+                    when (filter) {
+                        1 -> app.pkg !in ignored
+                        2 -> app.pkg in ignored
+                        else -> true
+                    }
             }
+        }
     }
-    val groups = filtered.groupBy { it.label.firstOrNull()?.takeIf(Char::isLetter)?.uppercaseChar() ?: '#' }
+    val groups by remember {
+        derivedStateOf {
+            filtered.groupBy { it.label.firstOrNull()?.takeIf(Char::isLetter)?.uppercaseChar() ?: '#' }
+        }
+    }
     // Acts on whatever's currently shown — with no search or filter that's every app, but it also
     // doubles as "enable/disable all matching X" once you've typed a query.
     val anyOff = filtered.any { it.pkg in ignored }

@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.2.3` (mã bản dựng `versionCode = 20203`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.3.0` (mã bản dựng `versionCode = 20300`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,7 +13,7 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.2.3 / 20203, minSdk = 34)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.3.0 / 20300, minSdk = 34, Shizuku 13.1.5)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
@@ -37,16 +37,16 @@ origin-isle-vn/
 │       │       │   ├── TikTokStreakCard.kt # Cố định ID = 35012, hiển thị thông báo nhắc chuỗi TikTok ngọn lửa rực rỡ & nút 1 chạm duy trì chuỗi
 │       │       │   └── ZaloCallCard.kt   # Cố định ID = 35011, chuẩn phong cách Messenger của OriginOS gốc: icon cuộc gọi trắng, nhãn phải "Zalo", chạm mở cuộc gọi Zalo, bỏ nút nghe (chỉ giữ "Từ chối" / "Kết thúc")
 │       │       ├── download/         # DownloadDetector chặn triệt để 100% Quick Share, Google Play Services & app nhạc
-│       │       ├── island/           # PlaygroundService, OriginIslandBuilder (thuần Vivo OriginOS 6 SuperX)
+│       │       ├── island/           # PlaygroundService, OriginIslandBuilder, IslandTransitions (generation & pendingRemoval)
 │       │       ├── log/              # Nhật ký hoạt động bền vững (CastLog)
 │       │       ├── quickshare/       # Nhận diện Quick Share
 │       │       ├── ride/             # Nhận diện chuyến đi gọi xe & giao đồ ăn VN
-│       │       ├── service/          # NotificationCastListener (ưu tiên Zalo Call -> Ngân hàng -> Quick Share -> Download; bỏ qua hoàn toàn Messenger để OriginOS 6 tự xử lý)
+│       │       ├── service/          # NotificationCastListener, QuickReplyOverlay, QuickReplyActivity, ShizukuKeepAliveHelper, BootKeepAliveReceiver
 │       │       ├── smart/            # Bóc tách thông tin màn hình
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
-│       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo 2.0.0 & Chặn Pop-up)
-│       └── test/                     # Unit Tests (VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest)
+│       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo, Tối ưu giữ nền Shizuku)
+│       └── test/                     # Unit Tests (77 tests: VietnamBankDetectorTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -54,12 +54,25 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.3.0.apk  # File APK xuất bản v2.3.0 (4,693,143 bytes / ~4.48 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.3.apk  # File APK xuất bản v2.2.3 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.2.apk  # File APK xuất bản v2.2.2 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.1.apk  # File APK xuất bản v2.2.1 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.3.0 — IslandTransitions, Trả lời nhanh nổi (QuickReplyOverlay) & Tối ưu giữ nền Shizuku**:
+  - `IslandTransitions.kt` & `PlaygroundService.kt`: Quản lý `generation` (`AtomicLong`) và `pendingRemoval` (`ConcurrentHashMap`) cho từng thẻ Đảo, chống race condition khi hủy/đóng và tái đăng thẻ.
+  - `QuickReplyOverlay.kt`, `QuickReplyActivity.kt`, `MessageCard.kt`, `NotificationCastListener.kt`: Hỗ trợ trả lời nhanh nổi (`cast_quick_reply_overlay`) qua `RemoteInput` & `WindowManager` tối màu Material 3 với fallback mở app nguồn khi chưa bật hoặc thiếu quyền Overlay.
+  - `ShizukuKeepAliveHelper.kt` & `BootKeepAliveReceiver.kt`: Tích hợp Shizuku (`dev.rikka.shizuku:api/provider:13.1.5`) thực thi lệnh giữ nền an toàn (`deviceidle whitelist`, `set-standby-bucket`, `appops`, `allow_listener`), tự áp dụng lại sau khởi động máy (`BOOT_COMPLETED` / `LOCKED_BOOT_COMPLETED` / `MY_PACKAGE_REPLACED`) và giữ ProGuard rules cho R8.
+  - `AndroidManifest.xml`, `OriginIsleApp.kt`, `Prefs.kt`, `StatusHelpers.kt`, `HomeScreen.kt`, `PermissionsSheet.kt`: Khai báo quyền/components mới (`ShizukuProvider`, `QuickReplyActivity`, `BootKeepAliveReceiver`), khởi tạo `ShizukuKeepAliveHelper.init(this)`, bổ sung công tắc "Trả lời nhanh nổi trên Đảo", nhóm "Tối ưu giữ nền (Shizuku)" trên `HomeScreen` và hàng quyền "Hiển thị trên ứng dụng khác" trong `PermissionsSheet`.
+  - `IslandTransitionsTest.kt` & `ShizukuKeepAliveScriptTest.kt`: Kiểm chứng transition generation và danh sách lệnh Shizuku an toàn (77/77 unit tests PASS).
+  - **Tối ưu Pin & Độ mượt UI/RAM (`v2.3.0`)**:
+    + `NotificationCastListener.kt`: Bổ sung `screenReceiver` (`ACTION_SCREEN_OFF` hủy `pollRunnable`, `ACTION_SCREEN_ON` gọi `schedulePollIfNeeded`), chuyển `pollRunnable` sang Adaptive Idle-Zero Polling (`2000L` ms khi `PowerManager.isInteractive` và còn tác vụ active, dừng hẳn khi rảnh).
+    + `KeepAliveAccessibilityService.kt`, `keepalive_accessibility_config.xml`, `DownloadCard.kt`: Bỏ `typeWindowContentChanged`, thêm `DownloadCard.hasDeferredDownloads()` và fast-path `0ms` trong `onAccessibilityEvent` khi không có deferred downloads.
+    + `HomeScreen.kt`, `ActivityScreen.kt`, `AppsScreen.kt`: Dùng `Lifecycle.State.STARTED` (`repeatOnLifecycle`) + `delay(3000L)` chỉ cập nhật state khi thay đổi; `AppsScreen` cache danh sách app theo `showSystem` trên `Dispatchers.IO` kết hợp `derivedStateOf`.
+    + `IconCache.kt`, `PlaygroundService.kt`, `QuickReplyOverlay.kt`: Thêm `LruCache` (`<= 48` app icons, `<= 32` res icons) và giới hạn bitmap `<= 96x96px`; dọn sạch `autoDismissTasks`/`lastPosts`/`originChangeRecord`/`originScenes` khi eviction/destroy; `QuickReplyOverlay.dismiss()` gỡ sạch `removeAllViews()` và null hóa `currentView`/`currentWindowManager`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.3.0.apk`: Nâng `versionCode = 20300`, `versionName = "2.3.0"`, xuất bản APK release (4,693,143 bytes).
 - **Origin Isle VN v2.2.3 — Chặn thông báo ẩn danh / InPrivate & dịch vụ nền trình duyệt tạo Đảo Động**:
   - `DownloadDetector.kt`: Thêm `isIncognitoOrPrivateBrowsing(channelId, combinedText)` nhận diện kênh/nội dung ẩn danh (`incognito`, `inprivate`, `private_browsing`, `secret`, `ẩn danh`, `duyệt web riêng tư`, `chế độ riêng tư`, `đóng tất cả các thẻ/tab`, ...); trong `isDownload(sbn)` trả `false` ngay khi `isBrowserPackage(pkg) && isIncognitoOrPrivateBrowsing(channelId, allText)`.
   - `NotificationCastListener.kt`: Trong `onNotificationPosted(sbn)`, chặn thông báo ẩn danh ngay sau nhánh tải xuống (`"bỏ qua — chế độ ẩn danh trình duyệt"`) và chặn thông báo `isOngoing && !isCall && !hasProgress` của trình duyệt trước khối `GenericCard` (`"bỏ qua — thông báo nền trình duyệt"`).

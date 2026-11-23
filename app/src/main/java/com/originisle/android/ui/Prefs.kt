@@ -13,3 +13,9 @@ const val PREF_CAST_ISLAND_DURATION_SEC = "cast_island_duration_sec"
 const val DEFAULT_ISLAND_DURATION_SEC = 5
 
 const val PREF_CAST_TAP_EXPAND_CARD = "cast_tap_expand_card"
+
+/** Quick Reply floating overlay & Shizuku background keep-alive preferences (v2.3.0). */
+const val PREF_QUICK_REPLY_OVERLAY = "cast_quick_reply_overlay"
+const val PREF_SHIZUKU_AUTO_KEEPALIVE = "shizuku_auto_keepalive"
+const val PREF_SHIZUKU_LAST_SUMMARY = "shizuku_last_summary"
+const val PREF_SHIZUKU_LAST_APPLIED_MS = "shizuku_last_applied_ms"

@@ -70,6 +70,7 @@ fun PermissionsSheet(
     }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
     val a11yOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
+    val overlayOk = remember(tick.intValue) { isOverlayPermissionGranted(context) }
     // Neither vivo toggle is readable, so all we can track is whether the user has been sent to that
     // screen — the same ack flag the onboarding row writes.
     var autoStartAck by remember { mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false)) }
@@ -144,6 +145,17 @@ fun PermissionsSheet(
                             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                         )
                     }
+                }
+                GroupDivider()
+                PermissionRow(
+                    IsleIcons.Buttons,
+                    IsleColors.TileBlue,
+                    "Hiển thị trên ứng dụng khác",
+                    ok = overlayOk,
+                    status = if (overlayOk) "Đã cấp" else "Chỉ cần cho Trả lời nhanh nổi",
+                    note = "Tùy chọn: chỉ cần cấp khi bật tính năng Trả lời nhanh nổi trên Đảo.",
+                ) {
+                    openOverlayPermissionSettings(context)
                 }
             }
             PillButton(

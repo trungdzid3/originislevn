@@ -50,6 +50,25 @@ fun isAccessibilityEnabled(context: Context): Boolean {
     return flat.split(':').any { android.content.ComponentName.unflattenFromString(it) == target }
 }
 
+fun isOverlayPermissionGranted(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+fun openOverlayPermissionSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }.onFailure {
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+}
+
 fun isBatteryUnrestricted(context: Context): Boolean {
     val pm = context.getSystemService(PowerManager::class.java)
     return pm?.isIgnoringBatteryOptimizations(context.packageName) == true

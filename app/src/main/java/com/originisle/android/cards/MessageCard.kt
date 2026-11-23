@@ -1,5 +1,7 @@
 package com.originisle.android.cards
 
+import android.app.Notification
+import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -14,6 +16,8 @@ import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
+import com.originisle.android.service.QuickReplyActivity
+import com.originisle.android.service.QuickReplySession
 
 /**
  * A one-off message (WhatsApp, Instagram, X, Messenger, Snapchat, SMS…, and any other plain
@@ -64,13 +68,20 @@ object MessageCard {
         val top = msg.sender
         val subtext = if (msg.count > 1) "$appLabel · ${msg.count} tin nhắn mới" else appLabel
 
-        val buttons = GenericCard.shownActions(context, n)
+        val baseButtons = GenericCard.shownActions(context, n)
+        val scene = "NAVIGATION"
+        val replyButton = buildQuickReplyAction(context, sbn, id, scene, msg)
+        val buttons = if (replyButton != null) {
+            (listOf(replyButton) + baseButtons).take(3)
+        } else {
+            baseButtons
+        }
 
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", id)
             putExtra("is_ongoing", false)
-            putExtra("oi_scene", "NAVIGATION")
+            putExtra("oi_scene", scene)
             putExtra("oi_template",
                 if (buttons.size >= 2) OriginIslandConstants.TEMPLATE_BUTTONS // 8
                 else OriginIslandConstants.TEMPLATE_BASE, // 4
@@ -155,6 +166,39 @@ object MessageCard {
         val first = full.substringBefore(' ')
         val pick = if (paint.measureText(full) > room && first.length >= 2 && first.first().isLetter()) first else full
         return TextUtils.ellipsize(pick, paint, room, TextUtils.TruncateAt.END).toString()
+    }
+
+    private fun buildQuickReplyAction(
+        context: Context,
+        sbn: StatusBarNotification,
+        cardId: Int,
+        scene: String,
+        msg: Message,
+    ): Notification.Action? {
+        val quickReplyEnabled = context.getSharedPreferences("experimental_prefs", 0)
+            .getBoolean("cast_quick_reply_overlay", false)
+        if (!quickReplyEnabled) return null
+
+        val actions = sbn.notification.actions.orEmpty()
+        val replyAction = actions.firstOrNull { a ->
+            a.actionIntent != null && !a.remoteInputs.isNullOrEmpty()
+        } ?: return null
+        val remoteInput: RemoteInput = replyAction.remoteInputs?.firstOrNull() ?: return null
+
+        val session = QuickReplySession(
+            cardId = cardId,
+            scene = scene,
+            sourcePkg = sbn.packageName,
+            sbnKey = sbn.key,
+            sender = msg.group?.let { "${msg.sender} · $it" } ?: msg.sender,
+            previewText = msg.text,
+            replyAction = replyAction,
+            remoteInput = remoteInput,
+        )
+        val sessionId = QuickReplyActivity.registerSession(session)
+        val pendingIntent = QuickReplyActivity.createPendingIntent(context, sessionId)
+        val icon = replyAction.getIcon() ?: Icon.createWithResource(context, android.R.drawable.ic_menu_send)
+        return Notification.Action.Builder(icon, "Trả lời", pendingIntent).build()
     }
 
     private fun String.clip(max: Int): String =

@@ -64,6 +64,7 @@ class PlaygroundService : Service() {
 
         const val ORIGIN_CHANNEL_ID = "originisle_island_hi"
         const val FGS_ID = 9999
+        const val EXTRA_EXPECTED_GEN = "oi_expected_gen"
 
         /** PendingIntent request code for the [onTaskRemoved] restart alarm. */
         private const val RESTART_REQUEST = 7001
@@ -210,6 +211,7 @@ class PlaygroundService : Service() {
     private fun readAndPost(intent: Intent) {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
+        val postGen = IslandTransitions.onPostStarted(id)
         lastPosts[id] = intent
         if (id == 35004) plainIds.remove(id)
         val plain = id in plainIds
@@ -418,17 +420,23 @@ class PlaygroundService : Service() {
 
         val prevInScene = sceneCurrentId[scene]
         if (prevInScene != null && prevInScene != id) {
+            autoDismissTasks.remove(prevInScene)?.let { mainHandler.removeCallbacks(it) }
             activeIds.remove(prevInScene)
             originChangeRecord.remove(prevInScene)
             originScenes.remove(prevInScene)
             lastPosts.remove(prevInScene)
             plainIds.remove(prevInScene)
+            val prevRemovalToken = IslandTransitions.currentGeneration(prevInScene) ?: postGen
+            IslandTransitions.onCancelRequested(prevInScene)
+            IslandTransitions.markPendingRemoval(prevInScene, prevRemovalToken)
             endOrigin(prevInScene, scene)
             mainHandler.postDelayed({
-                try {
-                    notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, prevInScene)
-                    notificationManager.cancel(prevInScene)
-                } catch (_: Exception) {}
+                if (IslandTransitions.shouldExecutePendingRemoval(prevInScene, prevRemovalToken)) {
+                    try {
+                        notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, prevInScene)
+                        notificationManager.cancel(prevInScene)
+                    } catch (_: Exception) {}
+                }
             }, 200L)
         }
         sceneCurrentId[scene] = id
@@ -466,7 +474,7 @@ class PlaygroundService : Service() {
         if (dismissDelayMs > 0L) {
             val task = Runnable {
                 autoDismissTasks.remove(id)
-                cancelCard(id)
+                cancelCard(id, postGen)
             }
             autoDismissTasks[id] = task
             mainHandler.postDelayed(task, dismissDelayMs)
@@ -534,26 +542,38 @@ class PlaygroundService : Service() {
         }
     }
 
-    private fun cancelCard(id: Int) {
-        cancelNotification(
-            Intent(this, PlaygroundService::class.java)
-                .putExtra("id", id)
-                .putExtra("oi_scene", originScenes[id]),
-        )
+    private fun cancelCard(id: Int, expectedGen: Long? = null) {
+        val cancelIntent = Intent(this, PlaygroundService::class.java)
+            .putExtra("id", id)
+            .putExtra("oi_scene", originScenes[id])
+        if (expectedGen != null) {
+            cancelIntent.putExtra(EXTRA_EXPECTED_GEN, expectedGen)
+        }
+        cancelNotification(cancelIntent)
     }
 
     private fun cancelNotification(intent: Intent) {
         val id = intent.getIntExtra("id", -1)
         if (id == -1) return
+        val expectedGen = if (intent.hasExtra(EXTRA_EXPECTED_GEN)) {
+            intent.getLongExtra(EXTRA_EXPECTED_GEN, -1L)
+        } else {
+            null
+        }
+        val removalToken = expectedGen ?: IslandTransitions.currentGeneration(id) ?: System.nanoTime()
+        if (!IslandTransitions.onCancelRequested(id, expectedGen)) return
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
         val scene = originScenes.remove(id) ?: resolveAllowedScene(intent.getStringExtra("oi_scene"))
         if (sceneCurrentId[scene] == id) {
             sceneCurrentId.remove(scene)
         }
+        IslandTransitions.markPendingRemoval(id, removalToken)
         endOrigin(id, scene)
         mainHandler.postDelayed({
-            notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
-            notificationManager.cancel(id)
+            if (IslandTransitions.shouldExecutePendingRemoval(id, removalToken)) {
+                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, id)
+                notificationManager.cancel(id)
+            }
         }, 350L)
         activeIds.remove(id)
         originChangeRecord.remove(id)
@@ -604,6 +624,8 @@ class PlaygroundService : Service() {
     }
 
     private fun stopEverything() {
+        val shutdownGen = IslandTransitions.nextShutdownGeneration()
+        IslandTransitions.clearAll()
         // An explicit stop must not be undone by an alarm a previous swipe left armed.
         cancelRestartAlarm()
         autoDismissTasks.values.forEach { mainHandler.removeCallbacks(it) }
@@ -619,17 +641,35 @@ class PlaygroundService : Service() {
         activeIds.clear()
         activeCardIds = emptySet()
         val finish = {
-            ids.forEach {
-                notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, it)
-                notificationManager.cancel(it)
+            if (IslandTransitions.isShutdownCurrent(shutdownGen)) {
+                ids.forEach {
+                    notificationManager.cancel(OriginIslandConstants.SUPERX_TAG, it)
+                    notificationManager.cancel(it)
+                }
+                // Clear the flag with the teardown, or a start arriving before we're destroyed sees a
+                // stale "already foreground" and skips ensureForeground(), leaving the process unanchored.
+                isForegroundActive = false
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
-            // Clear the flag with the teardown, or a start arriving before we're destroyed sees a
-            // stale "already foreground" and skips ensureForeground(), leaving the process unanchored.
-            isForegroundActive = false
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
         if (hadScenes) mainHandler.postDelayed({ finish() }, 350L) else finish()
+    }
+
+    override fun onDestroy() {
+        IslandTransitions.nextShutdownGeneration()
+        IslandTransitions.clearAll()
+        autoDismissTasks.values.forEach { mainHandler.removeCallbacks(it) }
+        autoDismissTasks.clear()
+        originScenes.clear()
+        originChangeRecord.clear()
+        sceneCurrentId.clear()
+        lastPosts.clear()
+        plainIds.clear()
+        activeIds.clear()
+        activeCardIds = emptySet()
+        mainHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     private fun createNotificationChannel(channelId: String) {

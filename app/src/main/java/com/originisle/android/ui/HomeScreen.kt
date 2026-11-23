@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -63,6 +64,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.originisle.android.cards.ChargingCard
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
@@ -71,6 +74,7 @@ import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.NotificationCastListener
 import com.originisle.android.service.QuietHours
+import com.originisle.android.service.ShizukuKeepAliveHelper
 import com.originisle.android.ui.samples.IslandSamples
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -103,6 +107,8 @@ fun HomeScreen(
         mutableIntStateOf(prefs.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC))
     }
     var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
+    var quickReplyOverlay by remember { mutableStateOf(prefs.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)) }
+    var shizukuAutoKeepAlive by remember { mutableStateOf(prefs.getBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, false)) }
     var searchQuery by remember { mutableStateOf("") }
     var testerExpanded by remember { mutableStateOf(false) }
 
@@ -118,6 +124,10 @@ fun HomeScreen(
                     islandDurationSec = sp.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC)
                 }
                 PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
+                PREF_QUICK_REPLY_OVERLAY -> quickReplyOverlay = sp.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)
+                PREF_SHIZUKU_AUTO_KEEPALIVE -> {
+                    shizukuAutoKeepAlive = sp.getBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, false)
+                }
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -188,6 +198,9 @@ fun HomeScreen(
     val listenerOk = remember(tick.intValue) { isListenerEnabled(context) }
     val batteryOk = remember(tick.intValue) { isBatteryUnrestricted(context) }
     val a11yOk = remember(tick.intValue) { isAccessibilityEnabled(context) }
+    var shizukuState by remember(tick.intValue) { mutableIntStateOf(ShizukuKeepAliveHelper.getState(context)) }
+    var shizukuSummary by remember(tick.intValue) { mutableStateOf(ShizukuKeepAliveHelper.getLastSummary(context)) }
+    var shizukuBusy by remember { mutableStateOf(false) }
     var permissionsOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
@@ -233,12 +246,20 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    val lifecycle = (context as? ComponentActivity)?.lifecycle
+    LaunchedEffect(lifecycle) {
         CastLog.ensureLoaded(context)
-        while (true) {
-            val nowConnected = NotificationCastListener.instance != null
-            if (nowConnected != connected) connected = nowConnected
-            delay(2500L)
+        val pollLoop: suspend () -> Unit = {
+            while (true) {
+                val nowConnected = NotificationCastListener.instance != null
+                if (nowConnected != connected) connected = nowConnected
+                delay(3000L)
+            }
+        }
+        if (lifecycle != null) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { pollLoop() }
+        } else {
+            pollLoop()
         }
     }
 
@@ -268,7 +289,11 @@ fun HomeScreen(
     val showGroupCustom20 = matchesSearchQuery(
         searchQuery,
         "tùy biến đảo", "chặn pop-up", "popup", "viên thuốc", "heads-up", "snooze",
-        "thời lượng", "mở rộng thẻ", "chạm viên thuốc",
+        "thời lượng", "mở rộng thẻ", "chạm viên thuốc", "trả lời nhanh", "overlay",
+    )
+    val showGroupShizuku = matchesSearchQuery(
+        searchQuery,
+        "tối ưu giữ nền", "shizuku", "giữ nền", "khởi động lại", "tự áp dụng",
     )
     val showGroup2 = matchesSearchQuery(
         searchQuery,
@@ -624,6 +649,22 @@ fun HomeScreen(
                     ) {
                         tapExpandCard = it
                         prefs.edit().putBoolean(PREF_CAST_TAP_EXPAND_CARD, it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Send,
+                        IsleColors.Accent,
+                        title = "Trả lời nhanh nổi trên Đảo",
+                        checked = quickReplyOverlay,
+                        subtitle = "Mở khung trả lời nhanh gọn ngay trên màn hình khi bấm Trả lời trên Đảo",
+                    ) {
+                        quickReplyOverlay = it
+                        prefs.edit().putBoolean(PREF_QUICK_REPLY_OVERLAY, it).apply()
+                        if (it && !isOverlayPermissionGranted(context)) {
+                            openOverlayPermissionSettings(context)
+                        }
                     }
                 }
             }
@@ -1079,6 +1120,65 @@ fun HomeScreen(
             }
         }
 
+        // Nhóm gọn: Tối ưu giữ nền (Shizuku)
+        if (showGroupShizuku) item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel("Tối ưu giữ nền (Shizuku)")
+                GroupCard {
+                    SettingRow(
+                        icon = IsleIcons.Bolt,
+                        tileColor = IsleColors.Accent,
+                        title = ShizukuKeepAliveHelper.getStateLabel(context),
+                        subtitle = if (shizukuSummary.isNotBlank()) shizukuSummary else "Tối ưu whitelist pin và standby bucket không cần root",
+                    ) {
+                        val canTap = !shizukuBusy &&
+                            shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED &&
+                            shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_RUNNING
+                        PillButton(
+                            text = if (shizukuBusy) "Đang chạy..." else "Tối ưu ngay",
+                            onClick = {
+                                if (shizukuState == ShizukuKeepAliveHelper.STATUS_NO_PERMISSION) {
+                                    ShizukuKeepAliveHelper.requestPermission { granted ->
+                                        shizukuState = ShizukuKeepAliveHelper.getState(context)
+                                        if (granted) {
+                                            shizukuBusy = true
+                                            ShizukuKeepAliveHelper.applyKeepAliveAsync(context) { _, msg ->
+                                                shizukuBusy = false
+                                                shizukuSummary = ShizukuKeepAliveHelper.getLastSummary(context)
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                } else if (shizukuState == ShizukuKeepAliveHelper.STATUS_READY) {
+                                    shizukuBusy = true
+                                    ShizukuKeepAliveHelper.applyKeepAliveAsync(context) { _, msg ->
+                                        shizukuBusy = false
+                                        shizukuSummary = ShizukuKeepAliveHelper.getLastSummary(context)
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            enabled = canTap,
+                            height = 36.dp,
+                        )
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        IsleIcons.Power,
+                        IsleColors.Accent,
+                        title = "Tự áp dụng sau khi khởi động lại",
+                        checked = shizukuAutoKeepAlive,
+                        subtitle = "Tự chạy lại tối ưu giữ nền qua Shizuku khi khởi động lại thiết bị",
+                    ) {
+                        shizukuAutoKeepAlive = it
+                        prefs.edit().putBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, it).apply()
+                    }
+                }
+            }
+        }
+
         // Phòng thử nghiệm mẫu Đảo & Nút điều khiển
         if (showTester) item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1127,7 +1227,7 @@ fun HomeScreen(
         if (
             searchQuery.isNotBlank() &&
             !showHero && !showGroup1 && !showGroupCustom20 &&
-            !showGroup2 && !showGroup3 && !showGroup4 && !showGroup5 && !showTester
+            !showGroup2 && !showGroup3 && !showGroup4 && !showGroup5 && !showGroupShizuku && !showTester
         ) {
             item {
                 EmptyMessage("Không tìm thấy cài đặt phù hợp.")

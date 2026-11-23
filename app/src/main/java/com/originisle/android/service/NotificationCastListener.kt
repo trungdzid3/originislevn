@@ -16,6 +16,7 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.NotificationListenerService.Ranking
 import android.service.notification.StatusBarNotification
@@ -175,6 +176,7 @@ class NotificationCastListener : NotificationListenerService() {
         private const val SUPPRESS_DEDUP_TTL_MS = 3_000L
         private const val ISLAND_ONLY_CANCEL_DELAY_MS = 120L
         private const val ISLAND_ONLY_TTL_MS = 15_000L
+        private const val POLL_INTERVAL_MS = 2_000L
 
         @Volatile
         private var lastRebindAt = 0L
@@ -892,7 +894,59 @@ class NotificationCastListener : NotificationListenerService() {
             } catch (e: Exception) {
                 Log.e(TAG, "poll error", e)
             }
-            pollHandler.postDelayed(this, 1000L)
+            if (isScreenInteractive() && hasActivePollWork()) {
+                pollHandler.postDelayed(this, POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun isScreenInteractive(): Boolean {
+        val pm = getSystemService(PowerManager::class.java)
+        return pm?.isInteractive ?: true
+    }
+
+    private fun hasActiveMediaSession(): Boolean {
+        if (IconCache.activeControllers.values.any { controller ->
+                val state = controller.playbackState?.state
+                state == PlaybackState.STATE_PLAYING ||
+                    state == PlaybackState.STATE_BUFFERING ||
+                    state == PlaybackState.STATE_FAST_FORWARDING ||
+                    state == PlaybackState.STATE_REWINDING ||
+                    state == PlaybackState.STATE_SKIPPING_TO_NEXT ||
+                    state == PlaybackState.STATE_SKIPPING_TO_PREVIOUS ||
+                    state == PlaybackState.STATE_CONNECTING
+            }
+        ) {
+            return true
+        }
+        return runCatching {
+            val msm = getSystemService(MediaSessionManager::class.java)
+            val sessions = msm?.getActiveSessions(
+                ComponentName(this@NotificationCastListener, NotificationCastListener::class.java)
+            ).orEmpty()
+            sessions.any { controller ->
+                val state = controller.playbackState?.state
+                state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun hasActivePollWork(): Boolean {
+        return DownloadCard.hasDeferredDownloads() ||
+            activeDownloadIds.isNotEmpty() ||
+            activeQuickShareIds.isNotEmpty() ||
+            hasActiveMediaSession() ||
+            EarbudsCard.hasPendingBatteryChecks()
+    }
+
+    private fun schedulePollIfNeeded(immediate: Boolean = false) {
+        if (!isScreenInteractive()) return
+        if (!hasActivePollWork()) return
+        pollHandler.removeCallbacks(pollRunnable)
+        if (immediate) {
+            pollHandler.post(pollRunnable)
+        } else {
+            pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
         }
     }
 
@@ -929,8 +983,12 @@ class NotificationCastListener : NotificationListenerService() {
             runCatching { PlaygroundService.keepAlive(this) }
         }
         reload()
-        pollHandler.post(pollRunnable)
+        if (isScreenInteractive()) {
+            pollHandler.removeCallbacks(pollRunnable)
+            pollHandler.post(pollRunnable)
+        }
         registerBatteryReceiver()
+        registerScreenReceiver()
         startSystemCards()
     }
 
@@ -974,9 +1032,38 @@ class NotificationCastListener : NotificationListenerService() {
         batteryReceiverRegistered = false
     }
 
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> pollHandler.removeCallbacks(pollRunnable)
+                Intent.ACTION_SCREEN_ON -> schedulePollIfNeeded(immediate = true)
+            }
+        }
+    }
+    private var screenReceiverRegistered = false
+
+    private fun registerScreenReceiver() {
+        if (screenReceiverRegistered) return
+        runCatching {
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+            registerReceiver(screenReceiver, filter, RECEIVER_NOT_EXPORTED)
+            screenReceiverRegistered = true
+        }
+    }
+
+    private fun unregisterScreenReceiver() {
+        if (!screenReceiverRegistered) return
+        runCatching { unregisterReceiver(screenReceiver) }
+        screenReceiverRegistered = false
+    }
+
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         unregisterBatteryReceiver()
+        unregisterScreenReceiver()
         stopSystemCards()
         wearableConnectionState.clear()
         fullyChargedNoticeMap.clear()
@@ -1095,6 +1182,7 @@ class NotificationCastListener : NotificationListenerService() {
             if (prefs.getBoolean("cast_earbuds", true) &&
                 EarbudsCard.tryParseBatteryFromNotification(applicationContext, sbn)
             ) {
+                schedulePollIfNeeded()
                 log(sbn, "hiển thị — thông số pin tai nghe/thiết bị đeo", true)
                 return
             }
@@ -1269,12 +1357,14 @@ class NotificationCastListener : NotificationListenerService() {
                 if (controller != null) {
                     log(sbn, "hiển thị — trình phát nhạc: ${appLabel(sbn.packageName)}", true)
                     MediaCard.post(applicationContext, sbn, controller, forceRefresh = true)
+                    schedulePollIfNeeded()
                 } else {
                     pollHandler.postDelayed({
                         val retryController = findMediaControllerFallback(sbn.packageName)
                         if (retryController != null && prefs.getBoolean("cast_media_sessions", true) && isAppEnabled(prefs, sbn.packageName)) {
                             if (isThirdPartyMusic || !isOriginNativePlayerActive(sbn.packageName)) {
                                 MediaCard.post(applicationContext, sbn, retryController, forceRefresh = true)
+                                schedulePollIfNeeded()
                                 log(sbn, "hiển thị — trình phát nhạc (sau đồng bộ session)", true)
                             }
                         }
@@ -1294,6 +1384,7 @@ class NotificationCastListener : NotificationListenerService() {
                     transferFinishedMap[id] = dlInfo.isFinished
                     log(sbn, "hiển thị — tiến độ tải xuống", true)
                     DownloadCard.post(applicationContext, dlInfo, sbn)
+                    schedulePollIfNeeded()
                     return
                 }
             }
@@ -1501,6 +1592,7 @@ class NotificationCastListener : NotificationListenerService() {
             } catch (_: Exception) { null }
             log(sbn, "hiển thị — trình phát nhạc", true)
             MediaCard.post(applicationContext, sbn, controller, forceRefresh = true)
+            schedulePollIfNeeded()
             return
         }
         if (!castNotifs) { log(sbn, "bỏ qua — chỉ nhạc, thông báo đang tắt", false); return }
@@ -1837,6 +1929,8 @@ class NotificationCastListener : NotificationListenerService() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterBatteryReceiver()
+        unregisterScreenReceiver()
+        pollHandler.removeCallbacks(pollRunnable)
         stopSystemCards()
         if (instance === this) instance = null
         scope.cancel()

@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.drawable.Icon
 import android.media.session.MediaController
 import android.service.notification.StatusBarNotification
+import android.util.LruCache
 import androidx.core.content.ContextCompat
 import com.originisle.android.R
 import com.originisle.android.cards.QuickShareCard
@@ -21,10 +22,20 @@ import java.util.concurrent.ConcurrentHashMap
  * other just to share these maps.
  */
 object IconCache {
+    private const val MAX_ICON_SIZE_PX = 96
+    private const val APP_ICON_CACHE_MAX_ENTRIES = 48
+    private const val RES_ICON_CACHE_MAX_ENTRIES = 32
+
     val activeControllers = ConcurrentHashMap<Int, MediaController>()
     val activeSmallIcons = ConcurrentHashMap<Int, Icon>()
     val activeLargeIcons = ConcurrentHashMap<Int, Icon>()
     val activeLargeBitmaps = ConcurrentHashMap<Int, Bitmap>()
+
+    private val appIconCache = LruCache<String, Icon>(APP_ICON_CACHE_MAX_ENTRIES)
+    private val resIconCache = LruCache<Int, Icon>(RES_ICON_CACHE_MAX_ENTRIES)
+
+    @Volatile
+    private var fallbackLauncherIcon: Icon? = null
 
     /** Deterministic, stable cast id per notification key (band 20000-29999). */
     fun castIdFor(sbn: StatusBarNotification): Int =
@@ -39,22 +50,24 @@ object IconCache {
     }
 
     private fun createFallbackLauncherBitmapIcon(context: Context): Icon {
-        val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        fallbackLauncherIcon?.let { return it }
+        val bitmap = Bitmap.createBitmap(MAX_ICON_SIZE_PX, MAX_ICON_SIZE_PX, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val drawable = runCatching {
             ContextCompat.getDrawable(context, R.mipmap.ic_launcher_round)
         }.getOrNull()
         if (drawable != null) {
-            drawable.setBounds(0, 0, 96, 96)
+            drawable.setBounds(0, 0, MAX_ICON_SIZE_PX, MAX_ICON_SIZE_PX)
             drawable.draw(canvas)
         } else {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#0D111A")
                 style = Paint.Style.FILL
             }
-            canvas.drawCircle(48f, 48f, 48f, paint)
+            val half = MAX_ICON_SIZE_PX / 2f
+            canvas.drawCircle(half, half, half, paint)
         }
-        return Icon.createWithBitmap(bitmap)
+        return Icon.createWithBitmap(bitmap).also { fallbackLauncherIcon = it }
     }
 
     /**
@@ -63,19 +76,22 @@ object IconCache {
      * Resources$NotFoundException or SecurityException when unparceling notifications.
      */
     fun safeAppIcon(context: Context, packageName: String): Icon {
+        appIconCache.get(packageName)?.let { return it }
         if (packageName == "com.google.android.gms" || packageName.startsWith("com.google.android.gms")) {
-            return QuickShareCard.createQuickShareOfficialIcon(context)
+            return QuickShareCard.createQuickShareOfficialIcon(context).also {
+                appIconCache.put(packageName, it)
+            }
         }
         return runCatching {
             val pm = context.packageManager
             val drawable = pm.getApplicationIcon(packageName)
-            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceIn(48, 144) else 96
-            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceIn(48, 144) else 96
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceIn(48, MAX_ICON_SIZE_PX) else MAX_ICON_SIZE_PX
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceIn(48, MAX_ICON_SIZE_PX) else MAX_ICON_SIZE_PX
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             drawable.setBounds(0, 0, canvas.width, canvas.height)
             drawable.draw(canvas)
-            Icon.createWithBitmap(bitmap)
+            Icon.createWithBitmap(bitmap).also { appIconCache.put(packageName, it) }
         }.getOrElse {
             createFallbackLauncherBitmapIcon(context)
         }
@@ -91,14 +107,15 @@ object IconCache {
         if (resId == 0 || resId == R.mipmap.ic_launcher_round) {
             return createFallbackLauncherBitmapIcon(context)
         }
+        resIconCache.get(resId)?.let { return it }
         return runCatching {
             val drawable = ContextCompat.getDrawable(context, resId)
                 ?: return createFallbackLauncherBitmapIcon(context)
-            val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+            val bitmap = Bitmap.createBitmap(MAX_ICON_SIZE_PX, MAX_ICON_SIZE_PX, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            drawable.setBounds(0, 0, 96, 96)
+            drawable.setBounds(0, 0, MAX_ICON_SIZE_PX, MAX_ICON_SIZE_PX)
             drawable.draw(canvas)
-            Icon.createWithBitmap(bitmap)
+            Icon.createWithBitmap(bitmap).also { resIconCache.put(resId, it) }
         }.getOrElse {
             createFallbackLauncherBitmapIcon(context)
         }

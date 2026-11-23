@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.NotificationCastListener
@@ -56,16 +59,37 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
         CastLog.ensureLoaded(context)
     }
 
-    // Tick once a second so "last event / connected N ago" and the live status stay fresh.
+    // Poll every 3s only while the screen is at least STARTED, updating states only on change.
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) { now = System.currentTimeMillis(); delay(1000) }
+    var hasAccess by remember {
+        mutableStateOf(
+            NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName),
+        )
+    }
+    var isBound by remember { mutableStateOf(NotificationCastListener.instance != null) }
+
+    val lifecycle = (context as? ComponentActivity)?.lifecycle
+    LaunchedEffect(lifecycle) {
+        val pollLoop: suspend () -> Unit = {
+            while (true) {
+                val nextNow = System.currentTimeMillis()
+                if (nextNow != now) now = nextNow
+                val nextAccess = NotificationManagerCompat
+                    .getEnabledListenerPackages(context)
+                    .contains(context.packageName)
+                if (nextAccess != hasAccess) hasAccess = nextAccess
+                val nextBound = NotificationCastListener.instance != null
+                if (nextBound != isBound) isBound = nextBound
+                delay(3000L)
+            }
+        }
+        if (lifecycle != null) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { pollLoop() }
+        } else {
+            pollLoop()
+        }
     }
 
-    val hasAccess = remember(now) {
-        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-    }
-    val isBound = NotificationCastListener.instance != null
     val connected = isBound && hasAccess
 
     // 0 = all, 1 = cast only, 2 = skipped only.

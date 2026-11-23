@@ -76,6 +76,22 @@ class KeepAliveAccessibilityService : AccessibilityService() {
         if (event == null) return
         val pkg = event.packageName?.toString().orEmpty()
         val eventType = event.eventType
+
+        if (!DownloadCard.hasDeferredDownloads()) {
+            if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                pkg.isNotBlank() &&
+                !isIgnoredWindowPkg(pkg)
+            ) {
+                lastWindowChangedPkg = pkg
+                lastWindowChangedTimeMs = System.currentTimeMillis()
+                currentForegroundPackage = pkg
+                if (DownloadDetector.isBrowserPackage(pkg)) {
+                    lastKnownBrowserPackage = pkg
+                }
+            }
+            return
+        }
+
         val prevFg = currentForegroundPackage
         if (pkg.isNotBlank() && !isIgnoredWindowPkg(pkg)) {
             val shouldUpdateFg = isLauncherPackage(pkg) ||

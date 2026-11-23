@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.service.NotificationCastListener
+import com.originisle.android.service.ShizukuKeepAliveHelper
 import com.originisle.android.sports.SportsFeed
 import com.originisle.android.ui.PREFS_NAME
 import java.io.File
@@ -55,5 +56,9 @@ class OriginIsleApp : Application() {
         runCatching {
             com.originisle.android.ui.UpdateChecker.cleanupOldApks(this)
         }.onFailure { Log.e("OriginIsleApp", "Loi UpdateChecker.cleanupOldApks", it) }
+
+        runCatching {
+            ShizukuKeepAliveHelper.init(this)
+        }.onFailure { Log.e("OriginIsleApp", "Loi ShizukuKeepAliveHelper.init", it) }
     }
 }

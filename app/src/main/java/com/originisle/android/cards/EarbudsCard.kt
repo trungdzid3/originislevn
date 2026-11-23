@@ -178,6 +178,8 @@ object EarbudsCard {
     fun getShowingAddress(isWearable: Boolean): String? =
         if (isWearable) showingWearableAddress else showingEarbudsAddress
 
+    fun hasPendingBatteryChecks(): Boolean = pending.isNotEmpty()
+
     fun isShowing(isWearable: Boolean, nameOrAddress: String?): Boolean {
         if (nameOrAddress.isNullOrBlank()) return false
         val current = if (isWearable) showingWearableAddress else showingEarbudsAddress
