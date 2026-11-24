@@ -102,7 +102,7 @@ enum class BluetoothPopupTheme(val id: String, val label: String) {
 
     companion object {
         fun fromId(id: String?): BluetoothPopupTheme {
-            return entries.firstOrNull { it.id == id } ?: LIGHT
+            return entries.firstOrNull { it.id == id } ?: SYSTEM
         }
     }
 }

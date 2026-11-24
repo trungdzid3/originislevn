@@ -48,7 +48,10 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.compose.ui.graphics.toArgb
 import com.originisle.android.R
+import com.originisle.android.ui.resolveAppIsDarkTheme
+import com.originisle.android.ui.resolveMaterialColorScheme
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
@@ -274,10 +277,7 @@ object BluetoothPopupOverlay {
         return when (BluetoothPopupStore.getPopupTheme(context)) {
             BluetoothPopupTheme.LIGHT -> false
             BluetoothPopupTheme.DARK -> true
-            BluetoothPopupTheme.SYSTEM -> {
-                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                    Configuration.UI_MODE_NIGHT_YES
-            }
+            BluetoothPopupTheme.SYSTEM -> resolveAppIsDarkTheme(context)
         }
     }
 
@@ -380,6 +380,7 @@ object BluetoothPopupOverlay {
         navBarBottom: Int,
         rootScrim: FrameLayout,
     ): SwipeDismissSheetLayout {
+        val colorScheme = resolveMaterialColorScheme(context, isDark)
         val cornerRadius = dp(context, 32).toFloat()
         val sheetBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
@@ -389,9 +390,9 @@ object BluetoothPopupOverlay {
                 0f, 0f,
                 0f, 0f,
             )
-            setColor(if (isDark) 0xFF1E2026.toInt() else 0xFFFFFFFF.toInt())
+            setColor(colorScheme.surfaceContainerLow.toArgb())
             if (isDark) {
-                setStroke(dp(context, 1), 0x1FFFFFFF)
+                setStroke(dp(context, 1), colorScheme.outlineVariant.copy(alpha = 0.45f).toArgb())
             }
         }
 
@@ -412,7 +413,7 @@ object BluetoothPopupOverlay {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 this.cornerRadius = dp(context, 2).toFloat()
-                setColor(if (isDark) 0xFF3A3F4B.toInt() else 0xFFE0E3E8.toInt())
+                setColor(colorScheme.onSurfaceVariant.copy(alpha = 0.38f).toArgb())
             }
             layoutParams = LinearLayout.LayoutParams(dp(context, 36), dp(context, 4)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
@@ -428,7 +429,7 @@ object BluetoothPopupOverlay {
         val titleView = TextView(context).apply {
             text = resolvedName
             gravity = Gravity.CENTER
-            setTextColor(if (isDark) 0xFFF3F5F8.toInt() else 0xFF191C20.toInt())
+            setTextColor(colorScheme.onSurface.toArgb())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             letterSpacing = -0.01f
@@ -448,7 +449,7 @@ object BluetoothPopupOverlay {
         val subtitleView = TextView(context).apply {
             text = "$resolvedName đã kết nối và sẵn sàng phát âm thanh trên thiết bị này"
             gravity = Gravity.CENTER
-            setTextColor(if (isDark) 0xFF9AA0AA.toInt() else 0xFF6E737B.toInt())
+            setTextColor(colorScheme.onSurfaceVariant.toArgb())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f)
             setLineSpacing(dp(context, 3).toFloat(), 1f)
             setPadding(dp(context, 32), 0, dp(context, 32), 0)
@@ -500,10 +501,10 @@ object BluetoothPopupOverlay {
             )
         }
 
-        val infoStrokeColor = if (isDark) 0xFF9AA0AA.toInt() else 0xFF74777F.toInt()
+        val infoStrokeColor = colorScheme.onSurfaceVariant.toArgb()
         val infoBg = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(if (isDark) 0x14FFFFFF else 0x0A000000)
+            setColor(colorScheme.surfaceContainerHigh.toArgb())
             setStroke(dpFloat(context, 1.3f).toInt().coerceAtLeast(1), infoStrokeColor)
         }
         val infoButton = TextView(context).apply {
@@ -533,12 +534,12 @@ object BluetoothPopupOverlay {
         val doneBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             this.cornerRadius = dp(context, 23).toFloat()
-            setColor(if (isDark) 0xFF2B3E6E.toInt() else 0xFFDCE6FF.toInt())
+            setColor(colorScheme.primaryContainer.toArgb())
         }
         val doneButton = TextView(context).apply {
             text = "Hoàn tất"
             gravity = Gravity.CENTER
-            setTextColor(if (isDark) 0xFFDCE6FF.toInt() else 0xFF1B3A7A.toInt())
+            setTextColor(colorScheme.onPrimaryContainer.toArgb())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             background = doneBg
@@ -894,11 +895,13 @@ object BluetoothPopupOverlay {
         }
 
         container.visibility = View.VISIBLE
-        val pillBgColor = if (isDark) 0xFF2A2E37.toInt() else 0xFFF2F4F8.toInt()
-        val textColor = if (isDark) 0xFFE5E7EB.toInt() else 0xFF1F2937.toInt()
+        val colorScheme = resolveMaterialColorScheme(context, isDark)
+        val pillBgColor = colorScheme.surfaceContainerHigh.toArgb()
+        val pillStrokeColor = colorScheme.outlineVariant.copy(alpha = 0.5f).toArgb()
+        val textColor = colorScheme.onSurface.toArgb()
 
         items.forEach { (label, level) ->
-            val pill = buildBatteryPill(context, label, level, pillBgColor, textColor, isDark)
+            val pill = buildBatteryPill(context, label, level, pillBgColor, pillStrokeColor, textColor, isDark)
             val lp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(context, 28),
@@ -915,6 +918,7 @@ object BluetoothPopupOverlay {
         label: String,
         level: Int,
         pillBgColor: Int,
+        pillStrokeColor: Int,
         textColor: Int,
         isDark: Boolean,
     ): LinearLayout {
@@ -926,6 +930,7 @@ object BluetoothPopupOverlay {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(context, 999).toFloat()
                 setColor(pillBgColor)
+                setStroke(dp(context, 1), pillStrokeColor)
             }
         }
 

@@ -17,8 +17,14 @@ Chuẩn thiết kế: Google Material Design 3 (Material You Dynamic Color + Ton
 
 ## 2. BẢNG MÀU DỰ ÁN (PROJECT PALETTE & SEMANTIC TOKENS)
 
-### A. Dynamic Color & Tonal Fallback
-- **Android 12+ (`SDK_INT >= S`)**: Tự động nạp `dynamicDarkColorScheme(context)` và `dynamicLightColorScheme(context)`.
+### A. Dynamic Color, Preset `AppThemeColor` & Tonal Fallback
+- **Android 12+ (`SDK_INT >= S`)**: Mặc định `AppThemeColor.DYNAMIC` (`Tự động`, `#00BFA5`) tự động nạp `dynamicDarkColorScheme(context)` và `dynamicLightColorScheme(context)`.
+- **Bộ màu chủ đề Preset (`AppThemeColor`, `PREF_APP_THEME_COLOR`)**:
+  - `DYNAMIC` (`Tự động`, `#00BFA5`): Theo màu động Material You của máy (fallback sang bộ Teal chuẩn nếu Android < 12).
+  - `BLUE` (`Xanh dương`, `#2563EB`), `TEAL` (`Xanh ngọc`, `#00897B`), `VIOLET` (`Tím`, `#7C4DFF`), `ROSE` (`Hồng`, `#D84374`), `AMBER` (`Hổ phách`, `#D97706`) — mỗi màu có đủ bộ `darkColorScheme` và `lightColorScheme` chuẩn M3.
+- **Đồng bộ Popup kết nối Bluetooth (`BluetoothPopupOverlay.kt`)**:
+  - Mặc định `BluetoothPopupTheme.SYSTEM` đọc `resolveAppIsDarkTheme(context)` và `resolveMaterialColorScheme(context, isDark)` làm nguồn chân lý màu duy nhất.
+  - Ánh xạ trực tiếp `surfaceContainerLow` (nền sheet), `onSurface` (tiêu đề & mức pin), `onSurfaceVariant` (phụ đề, thanh nắm & nút `(i)`), `surfaceContainerHigh` (viên pin & nền nút `(i)`), `outlineVariant` (viền hairline viên pin & sheet tối), `primaryContainer` / `onPrimaryContainer` (nút `"Hoàn tất"`).
 - **Fallback Tonal Palette**: Cung cấp bộ `FallbackDarkColorScheme` và `FallbackLightColorScheme` sắc nét đầy đủ các vai trò `surface`, `surfaceContainerLowest` -> `surfaceContainerHighest`, `primary`, `onPrimary`, `primaryContainer`, `onPrimaryContainer`, `secondaryContainer`, `onSecondaryContainer`, `tertiaryContainer`, `error`, `errorContainer`, `onErrorContainer`, `outline`, `outlineVariant`.
 
 ### B. Ánh Xạ `IsleColorPalette` từ M3 `ColorScheme`

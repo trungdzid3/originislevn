@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.7.0` (mã bản dựng `versionCode = 20700`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.7.1` (mã bản dựng `versionCode = 20701`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.7.1.apk  # File APK xuất bản v2.7.1 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.0.apk  # File APK xuất bản v2.7.0 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.5.apk  # File APK xuất bản v2.6.5 (5,546,253 bytes / ~5.29 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.4.apk  # File APK xuất bản v2.6.4 (5,546,253 bytes / ~5.29 MB, R8 minify + shrinkResources)
@@ -71,6 +72,14 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.7.1 — Đồng Bộ Popup Bluetooth Theo Material Design 3 & Bộ Chọn Màu Chủ Đề**:
+  - `Prefs.kt` (`com.originisle.android.ui`): Bổ sung `PREF_APP_THEME = "app_theme"` và `PREF_APP_THEME_COLOR = "app_theme_color"`.
+  - `Theme.kt` (`com.originisle.android.ui`): Thêm enum `AppThemeColor` (`DYNAMIC`, `BLUE`, `TEAL`, `VIOLET`, `ROSE`, `AMBER`) kèm đầy đủ `darkColorScheme`/`lightColorScheme` M3, 2 helper dùng chung `resolveAppIsDarkTheme(context)` và `resolveMaterialColorScheme(context, isDark)`, và cập nhật `OriginIsleTheme` lắng nghe cả `PREF_APP_THEME` lẫn `PREF_APP_THEME_COLOR`.
+  - `HomeScreen.kt` (`com.originisle.android.ui`): Bổ sung hàng **Màu chủ đề** (`LazyRow` pill chọn `AppThemeColor.entries` với chấm màu + `IsleIcons.Check`) ngay dưới `SegmentedControl` trong nhóm **Giao diện & Tương tác**.
+  - `BluetoothPopupStore.kt` & `BluetoothPopupStoreTest.kt`: Đổi mặc định `BluetoothPopupTheme.fromId` sang `SYSTEM` và cập nhật unit test.
+  - `BluetoothPopupOverlay.kt` (`com.originisle.android.bluetooth`): Đồng bộ `resolveIsDarkTheme` với `resolveAppIsDarkTheme(context)`; `buildSheetView` và `renderBatterySection` dùng `resolveMaterialColorScheme(context, isDark)` (`surfaceContainerLow`, `onSurface`, `onSurfaceVariant`, `surfaceContainerHigh`, `outlineVariant`, `primaryContainer`/`onPrimaryContainer`), giữ nguyên 100% stage 3D.
+  - `DESIGN.md`, `app/build.gradle.kts` & `release/OriginIsle-VN-v2.7.1.apk`: Cập nhật bảng màu `AppThemeColor` & đồng bộ Popup M3, nâng `versionCode = 20701`, `versionName = "2.7.1"`.
+  - `app/src/main/res/`: Cập nhật trọn bộ icon ứng dụng Concept C — Obsidian Glass phong cách OriginOS 6 (`drawable/ic_launcher_background.xml`, `ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml` + `mipmap-{mdpi..xxxhdpi}/ic_launcher.png`, `ic_launcher_round.png`).
 - **Origin Isle VN v2.7.0 — Đại Tu Giao Diện 3 Tab Chuẩn Material Design 3 (`NavigationBar`)**:
   - `MainActivity.kt` (`com.originisle.android`): Thay điều hướng cũ bằng M3 `NavigationBar` ở đáy `Scaffold` với 3 tab (`Trang chủ` -> `HomeScreen`, `Tính năng` -> `ModulesScreen`, `Cài đặt` -> `SettingsScreen`); tự động ẩn `NavigationBar` khi mở `AppsScreen`/`ActivityScreen` và hỗ trợ `BackHandler` quay lại `lastTab`; giữ nguyên `OnboardingScreen`, `UpdateDialog` (auto check 6 giờ).
   - `HomeScreen.kt` (`com.originisle.android.ui`): Tinh gọn còn ~1.5 màn hình: thay `DeviceHeroCard` bằng `CompactStatusCard`, bỏ ô tìm kiếm, đưa `SampleTester` vào `ModalBottomSheet` mở từ menu 3 chấm (`...`), thu gọn `VivoOriginAttentionBanner` (ẩn hoàn toàn khi đủ quyền), giữ Nhóm 1 (Giao diện & Tương tác), Nhóm 2 (Popup Bluetooth) và 2 `TonalShortcutCard` (`Ứng dụng được phép`, `Nhật ký hoạt động`).

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,7 +88,10 @@ fun HomeScreen(
     onOpenActivity: () -> Unit,
 ) {
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
-    var themePref by remember { mutableStateOf(prefs.getString("app_theme", "SYSTEM") ?: "SYSTEM") }
+    var themePref by remember { mutableStateOf(prefs.getString(PREF_APP_THEME, "SYSTEM") ?: "SYSTEM") }
+    var themeColorPref by remember {
+        mutableStateOf(prefs.getString(PREF_APP_THEME_COLOR, AppThemeColor.DYNAMIC.key) ?: AppThemeColor.DYNAMIC.key)
+    }
     var suppressHeadsUp by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)) }
     var suppressMode by remember {
         mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
@@ -101,7 +105,11 @@ fun HomeScreen(
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             when (key) {
                 "cast_notifications" -> castOn = sp.getBoolean("cast_notifications", true)
-                "app_theme" -> themePref = sp.getString("app_theme", "SYSTEM") ?: "SYSTEM"
+                PREF_APP_THEME -> themePref = sp.getString(PREF_APP_THEME, "SYSTEM") ?: "SYSTEM"
+                PREF_APP_THEME_COLOR -> {
+                    themeColorPref = sp.getString(PREF_APP_THEME_COLOR, AppThemeColor.DYNAMIC.key)
+                        ?: AppThemeColor.DYNAMIC.key
+                }
                 PREF_CAST_SUPPRESS_HEADS_UP -> suppressHeadsUp = sp.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)
                 PREF_CAST_SUPPRESS_MODE -> {
                     suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
@@ -319,9 +327,78 @@ fun HomeScreen(
                                     else -> "SYSTEM"
                                 }
                                 themePref = selectedTheme
-                                prefs.edit().putString("app_theme", selectedTheme).apply()
+                                prefs.edit().putString(PREF_APP_THEME, selectedTheme).apply()
                             },
                         )
+
+                        Text(
+                            text = "Màu chủ đề",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = IsleColors.TextSecondary,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(AppThemeColor.entries) { option ->
+                                val selected = themeColorPref == option.key
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(
+                                            if (selected) {
+                                                MaterialTheme.colorScheme.primaryContainer
+                                            } else {
+                                                IsleColors.SurfaceHigh
+                                            },
+                                        )
+                                        .border(
+                                            width = if (selected) 1.5.dp else 0.5.dp,
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                IsleColors.BorderHairline
+                                            },
+                                            shape = RoundedCornerShape(50),
+                                        )
+                                        .clickable(role = Role.RadioButton) {
+                                            themeColorPref = option.key
+                                            prefs.edit().putString(PREF_APP_THEME_COLOR, option.key).apply()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(option.swatch),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (selected) {
+                                            Icon(
+                                                imageVector = IsleIcons.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(10.dp),
+                                                tint = Color.White,
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = option.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                        color = if (selected) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            IsleColors.Text
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     GroupDivider()

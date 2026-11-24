@@ -22,3 +22,7 @@ const val PREF_SHIZUKU_LAST_APPLIED_MS = "shizuku_last_applied_ms"
 
 /** Bluetooth connection popup overlay preference (v2.4.0, default false). */
 const val PREF_BT_CONNECT_POPUP = "cast_bt_connect_popup"
+
+/** App theme & Material Design 3 color theme preferences (v2.7.1). */
+const val PREF_APP_THEME = "app_theme"
+const val PREF_APP_THEME_COLOR = "app_theme_color"

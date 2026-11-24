@@ -1,97 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 13+ Themed Monochrome Silhouette:
-     Vivo OriginOS 6 G2 Squircle Glass Card with Atomic Island Pill & Audio Waves -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- 1. G2 Squircle Glass Card Outer Rim -->
     <path
-        android:pathData="M 42,28 H 66 C 70.8,28.2 74.8,29.5 77.2,32 C 79.6,34.4 80,38.2 80,42 V 66 C 80,69.8 79.6,73.6 77.2,76 C 74.8,78.5 70.8,79.8 66,80 H 42 C 37.2,79.8 33.2,78.5 30.8,76 C 28.4,73.6 28,69.8 28,66 V 42 C 28,38.2 28.4,34.4 30.8,32 C 33.2,29.5 37.2,28.2 42,28 Z"
-        android:strokeWidth="2.4"
-        android:strokeColor="#000000" />
-
-    <!-- 2. Atomic Island Pill Silhouette -->
-    <path
-        android:pathData="M 44,37 H 64 C 69.2,37.2 73,40.5 73,45 C 73,49.5 69.2,52.8 64,53 H 44 C 38.8,52.8 35,49.5 35,45 C 35,40.5 38.8,37.2 44,37 Z"
-        android:strokeWidth="2.2"
-        android:strokeColor="#000000" />
-
-    <!-- 3. Telemetry Pulse Arc -->
-    <path
-        android:pathData="M 42.5,39.2 A 5.8,5.8 0 0 1 48.3,45 A 5.8,5.8 0 0 1 42.5,50.8"
-        android:strokeWidth="1.2"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <!-- 4. Camera Selfie Center Sensor Dot -->
-    <path
-        android:pathData="M 42.5,45 m -2.2,0 a 2.2,2.2 0 1,0 4.4,0 a 2.2,2.2 0 1,0 -4.4,0"
-        android:fillColor="#000000" />
-
-    <!-- 5. Right Quantum Activity Ring & Dot -->
-    <path
-        android:pathData="M 65.5,45 m -4.2,0 a 4.2,4.2 0 1,0 8.4,0 a 4.2,4.2 0 1,0 -8.4,0"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000" />
-
-    <path
-        android:pathData="M 65.5,45 m -1.6,0 a 1.6,1.6 0 1,0 3.2,0 a 1.6,1.6 0 1,0 -3.2,0"
-        android:fillColor="#000000" />
-
-    <!-- 6. Primary Live Activity Capsule -->
-    <path
-        android:pathData="M 37,59 H 55 A 1.8,1.8 0 0 1 56.8,60.8 A 1.8,1.8 0 0 1 55,62.6 H 37 A 1.8,1.8 0 0 1 35.2,60.8 A 1.8,1.8 0 0 1 37,59 Z"
-        android:fillColor="#000000" />
-
-    <!-- 7. Dynamic Status Chip -->
-    <path
-        android:pathData="M 63,59 H 71 A 1.8,1.8 0 0 1 72.8,60.8 A 1.8,1.8 0 0 1 71,62.6 H 63 A 1.8,1.8 0 0 1 61.2,60.8 A 1.8,1.8 0 0 1 63,59 Z"
-        android:fillColor="#000000" />
-
-    <!-- 8. Audio Waveform Bars -->
-    <path
-        android:pathData="M 36,66 V 69"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <path
-        android:pathData="M 40,64.5 V 70.5"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <path
-        android:pathData="M 44,63 V 72"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <path
-        android:pathData="M 48,65 V 70"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <path
-        android:pathData="M 52,63.5 V 71.5"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <path
-        android:pathData="M 56,65 V 70"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
-    <path
-        android:pathData="M 63,67.5 H 71"
-        android:strokeWidth="1.4"
-        android:strokeColor="#000000"
-        android:strokeLineCap="round" />
-
+        android:fillColor="#000000"
+        android:fillType="evenOdd"
+        android:pathData="M35.5,40.5H72.5A13.5,13.5 0 0,1 86,54A13.5,13.5 0 0,1 72.5,67.5H35.5A13.5,13.5 0 0,1 22,54A13.5,13.5 0 0,1 35.5,40.5ZM36.8,47.3A6.7,6.7 0 1,1 36.79,47.3ZM52.35,51.05H70.45A2.95,2.95 0 0,1 73.4,54A2.95,2.95 0 0,1 70.45,56.95H52.35A2.95,2.95 0 0,1 49.4,54A2.95,2.95 0 0,1 52.35,51.05Z" />
 </vector>

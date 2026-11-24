@@ -97,7 +97,7 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothPopupTheme.LIGHT, BluetoothPopupTheme.fromId("light"))
         assertEquals(BluetoothPopupTheme.SYSTEM, BluetoothPopupTheme.fromId("system"))
         assertEquals(BluetoothPopupTheme.DARK, BluetoothPopupTheme.fromId("dark"))
-        assertEquals(BluetoothPopupTheme.LIGHT, BluetoothPopupTheme.fromId(null))
-        assertEquals(BluetoothPopupTheme.LIGHT, BluetoothPopupTheme.fromId("unknown"))
+        assertEquals(BluetoothPopupTheme.SYSTEM, BluetoothPopupTheme.fromId(null))
+        assertEquals(BluetoothPopupTheme.SYSTEM, BluetoothPopupTheme.fromId("unknown"))
     }
 }
