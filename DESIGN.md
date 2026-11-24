@@ -55,9 +55,17 @@ Chuẩn thiết kế: Google Material Design 3 (Material You Dynamic Color + Ton
 
 ---
 
-## 5. BỐ CỤC PHÂN TẦNG 5 NHÓM (HOMESCREEN ARCHITECTURE)
-1. **Nhóm 1: Trạng thái & Dịch vụ cốt lõi** (Banner quyền thông minh, Công tắc Đảo tổng, Giao diện Sáng/Tối/Hệ thống, Vị trí Đảo).
-2. **Nhóm 2: Dịch vụ Trực tiếp & Tiện ích Việt Nam** (Gọi xe/Giao đồ ăn, Ngân hàng, OTP SMS, Tải xuống/Quick Share, Cuộc gọi).
-3. **Nhóm 3: Tiện ích Hệ thống & Phần cứng** (Trình phát nhạc, Tai nghe/Thiết bị đeo, Pin & Sạc, Âm thanh/DND, Đèn pin, Chỉ báo Camera/Micro).
-4. **Nhóm 4: Quy tắc Hiển thị & Giờ yên tĩnh** (Lọc thông báo, Bỏ qua im lặng, Màn hình khóa, Theo DND, Lịch giờ yên tĩnh, Nút thao tác).
-5. **Nhóm 5: Quản lý & Trải nghiệm Đảo** (Ứng dụng được phép, Quyền hệ thống, Nhật ký hoạt động, Kiểm tra cập nhật, Phòng thử nghiệm mẫu Đảo).
+## 5. KIẾN TRÚC 3 TAB CHUẨN MATERIAL DESIGN 3 (`NavigationBar`)
+- **Điều hướng chính**: `NavigationBar` cố định ở đáy `Scaffold` (`containerColor = IsleColors.Surface`, indicator `secondaryContainer` / `onSecondaryContainer`, hairline trên `0.5dp`) cho 3 đích cấp cao nhất; tự động ẩn khi mở màn hình con `AppsScreen` hoặc `ActivityScreen`.
+1. **Tab 1 — Trang chủ (`HomeScreen.kt`)**:
+   - Thiết kế tối giản vừa gọn ~1.5 màn hình: `MainScreenHeader` (kèm menu 3 chấm mở `ModalBottomSheet` Phòng thử nghiệm mẫu Đảo, Đóng tất cả thẻ, Chạy lại hướng dẫn), Banner cảnh báo quyền (tự ẩn hoàn toàn khi đủ quyền), `CompactStatusCard` (chấm trạng thái + tên thiết bị + công tắc tổng `cast_notifications`).
+   - **Nhóm 1 — Giao diện & Tương tác**: Giao diện (`Sáng / Hệ thống / Tối`), Chặn Pop-up nổi (kèm `NestedSettingContainer` chọn chế độ + nút mở cài đặt thông báo hệ thống), Chạm viên thuốc mở rộng, Trả lời nhanh nổi.
+   - **Nhóm 2 — Popup Bluetooth**: Công tắc Popup kết nối Bluetooth & `NavRow` tùy chỉnh tai nghe Bluetooth.
+   - **Lối tắt nhanh**: 2 `TonalShortcutCard` ngang hàng mở `AppsScreen` và `ActivityScreen`.
+2. **Tab 2 — Tính năng (`ModulesScreen.kt`)**:
+   - **Nhóm 1 — Dịch vụ & Ứng dụng**: Gọi xe & Giao đồ ăn, Biến động số dư Ngân hàng, Cuộc gọi Zalo, Chuỗi TikTok (kèm hộp tin nhắn lồng nhau), Tải xuống & Quick Share, Nhắc lịch & Sự kiện, Cuộc gọi & Đàm thoại.
+   - **Nhóm 2 — Hệ thống & Phần cứng**: Trình phát nhạc, Tai nghe & Thiết bị đeo, Pin & Sạc (kèm chọn thời gian hiển thị lồng nhau), Chế độ Âm thanh, Đèn pin, Chỉ báo Camera & Micro.
+3. **Tab 3 — Cài đặt (`SettingsScreen.kt`)**:
+   - **Nhóm 1 — Quy tắc & Riêng tư**: Mức lọc thông báo (`Quan trọng / Tất cả` + tự ẩn tin nhắn thường), Thời lượng viên thuốc (`3s / 5s / 7s / 10s`), Bỏ qua im lặng, Màn hình khóa, Ẩn số dư & OTP khi khóa, Theo Không làm phiền, Lịch giờ yên tĩnh (kèm 2 nút chọn giờ), Nút thao tác trên thẻ.
+   - **Nhóm 2 — Giữ nền (Shizuku)**: Trạng thái & nút `Áp dụng` (`ShizukuKeepAliveHelper`) + Tự áp dụng sau khi khởi động lại.
+   - **Nhóm 3 — Hệ thống & Cập nhật**: `NavRow` Quyền hệ thống (`PermissionsSheet`) & Kiểm tra cập nhật (`UpdateDialog`).

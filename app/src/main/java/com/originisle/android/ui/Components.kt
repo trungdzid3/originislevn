@@ -69,9 +69,69 @@ import androidx.compose.ui.unit.sp
 /** Shared building blocks for OriginOS 6 UI: grouped squircle cards, settings rows, pills, switches. */
 
 /** Page padding shared by every screen. */
-val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 32.dp)
+val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 28.dp)
 
 private val GroupRadius = 24.dp
+
+/** Top-level tab header with large Material 3 title and optional trailing action. */
+@Composable
+fun MainScreenHeader(title: String, trailing: @Composable () -> Unit = {}) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineLarge,
+            color = IsleColors.Text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        trailing()
+    }
+}
+
+/** Compact Material 3 tonal shortcut card used in 2-column quick action rows. */
+@Composable
+fun TonalShortcutCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tileColor: Color = IsleColors.Accent,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(IsleColors.Surface)
+            .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        IconTile(icon = icon, color = tileColor, size = 36.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IsleColors.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                fontSize = 12.sp,
+                color = IsleColors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
 
 /** Back button + large title + an optional trailing action, for the Apps and Activity screens. */
 @Composable

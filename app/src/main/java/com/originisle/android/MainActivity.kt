@@ -18,9 +18,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,7 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.originisle.android.cards.SportsCard
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.island.PlaygroundService
@@ -38,10 +51,13 @@ import com.originisle.android.ui.ActivityScreen
 import com.originisle.android.ui.AppsScreen
 import com.originisle.android.ui.HomeScreen
 import com.originisle.android.ui.IsleColors
+import com.originisle.android.ui.ModulesScreen
 import com.originisle.android.ui.OnboardingScreen
 import com.originisle.android.ui.OriginIsleTheme
 import com.originisle.android.ui.PREFS_NAME
+import com.originisle.android.ui.SettingsScreen
 import com.originisle.android.ui.UpdateChecker
+import com.originisle.android.ui.UpdateDialog
 import com.originisle.android.ui.samples.IslandSamples
 import java.io.File
 
@@ -185,7 +201,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Page { HOME, APPS, ACTIVITY }
+private enum class Page { HOME, MODULES, SETTINGS, APPS, ACTIVITY }
 
 @Composable
 private fun Screen() {
@@ -194,6 +210,7 @@ private fun Screen() {
     remember { OriginIslandBuilder.grantScenes(context) } // whitelist scenes once on entry
     var onboardingDone by remember { mutableStateOf(prefs.getBoolean("onboarding_done", false)) }
     var page by rememberSaveable { mutableStateOf(Page.HOME) }
+    var lastTab by rememberSaveable { mutableStateOf(Page.HOME) }
     var autoUpdateRelease by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
 
     // Tự động kiểm tra bản cập nhật khi mở ứng dụng với cơ chế Cooldown (6 giờ)
@@ -212,10 +229,65 @@ private fun Screen() {
         }
     }
 
-    // Apps and Activity are pushed on top of Home; system back returns to it.
-    BackHandler(enabled = onboardingDone && page != Page.HOME) { page = Page.HOME }
+    val isSubPage = page == Page.APPS || page == Page.ACTIVITY
+    BackHandler(enabled = onboardingDone && page != Page.HOME) {
+        page = if (isSubPage) lastTab else Page.HOME
+    }
 
-    Scaffold(containerColor = IsleColors.Background) { inner ->
+    if (onboardingDone) {
+        autoUpdateRelease?.let { release ->
+            UpdateDialog(
+                release = release,
+                onDismiss = { autoUpdateRelease = null },
+            )
+        }
+    }
+
+    Scaffold(
+        containerColor = IsleColors.Background,
+        bottomBar = {
+            if (onboardingDone && !isSubPage) {
+                Column {
+                    HorizontalDivider(thickness = 0.5.dp, color = IsleColors.BorderHairline)
+                    NavigationBar(
+                        containerColor = IsleColors.Surface,
+                        tonalElevation = 0.dp,
+                    ) {
+                        val navColors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        val tabs = listOf(
+                            Triple(Page.HOME, "Trang chủ", NavHomeIcon),
+                            Triple(Page.MODULES, "Tính năng", NavModulesIcon),
+                            Triple(Page.SETTINGS, "Cài đặt", NavSettingsIcon),
+                        )
+                        tabs.forEach { (tabPage, label, icon) ->
+                            val selected = page == tabPage
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    page = tabPage
+                                    lastTab = tabPage
+                                },
+                                icon = { Icon(icon, contentDescription = label) },
+                                label = {
+                                    Text(
+                                        text = label,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                    )
+                                },
+                                colors = navColors,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {
             if (!onboardingDone) {
                 OnboardingScreen(context, prefs) { onboardingDone = true }
@@ -223,16 +295,59 @@ private fun Screen() {
             }
             when (page) {
                 Page.HOME -> HomeScreen(
-                    context, prefs,
+                    context = context,
+                    prefs = prefs,
                     onRedoSetup = { onboardingDone = false },
-                    onOpenApps = { page = Page.APPS },
-                    onOpenActivity = { page = Page.ACTIVITY },
-                    autoUpdateRelease = autoUpdateRelease,
-                    onDismissUpdate = { autoUpdateRelease = null },
+                    onOpenApps = {
+                        lastTab = Page.HOME
+                        page = Page.APPS
+                    },
+                    onOpenActivity = {
+                        lastTab = Page.HOME
+                        page = Page.ACTIVITY
+                    },
                 )
-                Page.APPS -> AppsScreen(context, prefs, onBack = { page = Page.HOME })
-                Page.ACTIVITY -> ActivityScreen(context, onBack = { page = Page.HOME })
+                Page.MODULES -> ModulesScreen(
+                    context = context,
+                    prefs = prefs,
+                )
+                Page.SETTINGS -> SettingsScreen(
+                    context = context,
+                    prefs = prefs,
+                    onRedoSetup = { onboardingDone = false },
+                )
+                Page.APPS -> AppsScreen(context, prefs, onBack = { page = lastTab })
+                Page.ACTIVITY -> ActivityScreen(context, onBack = { page = lastTab })
             }
         }
     }
 }
+
+private val NavHomeIcon: ImageVector by lazy {
+    filledNavIcon(
+        "nav_home",
+        "M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z",
+    )
+}
+
+private val NavModulesIcon: ImageVector by lazy {
+    filledNavIcon(
+        "nav_modules",
+        "M4 11h6c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1zm0 10h6c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1zm10 0h6c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-6c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1zm0-18v6c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1h-6c-.55 0-1 .45-1 1z",
+    )
+}
+
+private val NavSettingsIcon: ImageVector by lazy {
+    filledNavIcon(
+        "nav_settings",
+        "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
+    )
+}
+
+private fun filledNavIcon(name: String, pathData: String): ImageVector =
+    ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).apply {
+        addPath(
+            pathData = addPathNodes(pathData),
+            fill = SolidColor(androidx.compose.ui.graphics.Color.Black),
+        )
+    }.build()
