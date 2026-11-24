@@ -760,17 +760,6 @@ object BluetoothPopupOverlay {
             clipToPadding = false
         }
 
-        val fallbackView = ImageView(context).apply {
-            setImageResource(R.drawable.bt_preset_redmi_buds_6_play_3d)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
-            alpha = 1f
-        }
-        stage.addView(fallbackView)
-
         runCatching {
             val webView = WebView(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
@@ -834,8 +823,7 @@ object BluetoothPopupOverlay {
                     fun onReady() {
                         mainHandler.post {
                             if (currentWebView !== webView) return@post
-                            webView.animate().alpha(1f).setDuration(180L).start()
-                            fallbackView.animate().alpha(0f).setDuration(180L).start()
+                            webView.animate().alpha(1f).setDuration(140L).start()
                         }
                     }
                 },
