@@ -128,6 +128,10 @@ fun BluetoothPopupSheet(
             runCatching {
                 val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
                 bm?.adapter?.bondedDevices.orEmpty()
+                    .filter { dev ->
+                        val name = runCatching { dev.name }.getOrNull().orEmpty()
+                        BluetoothPopupStore.isHeadphoneDevice(dev, name)
+                    }
                     .sortedBy { dev ->
                         runCatching { dev.name }.getOrNull().orEmpty().lowercase()
                     }
@@ -171,7 +175,7 @@ fun BluetoothPopupSheet(
                     color = IsleColors.Text,
                 )
                 Text(
-                    "Hỗ trợ model 3D động (Lenovo LE208, Redmi Buds 6 Play), ảnh tĩnh và GIF động cho thẻ popup kết nối nhanh.",
+                    "Chỉ hỗ trợ tai nghe Bluetooth (đã lược bỏ loa, đồng hồ và thiết bị khác). Hỗ trợ model 3D động (Lenovo LE208, Redmi Buds 6 Play), ảnh tĩnh và GIF động cho thẻ popup kết nối nhanh.",
                     fontSize = 13.sp,
                     color = IsleColors.TextSecondary,
                     lineHeight = 18.sp,
@@ -243,13 +247,13 @@ fun BluetoothPopupSheet(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Text(
-                            "Chưa có thiết bị Bluetooth đã ghép đôi",
+                            "Chưa có tai nghe Bluetooth đã ghép đôi",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = IsleColors.Text,
                         )
                         Text(
-                            "Hãy ghép đôi tai nghe, loa hoặc đồng hồ trong Cài đặt Bluetooth rồi quay lại tùy chỉnh.",
+                            "Chỉ hỗ trợ tai nghe Bluetooth (đã lược bỏ loa, đồng hồ và thiết bị khác). Hãy ghép đôi tai nghe trong Cài đặt Bluetooth rồi quay lại tùy chỉnh.",
                             fontSize = 13.sp,
                             color = IsleColors.TextSecondary,
                             lineHeight = 18.sp,
@@ -451,6 +455,4 @@ private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset
     BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
     BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
     BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
-    BluetoothDevicePreset.SPEAKER -> R.drawable.bt_preset_speaker_3d
-    BluetoothDevicePreset.WATCH -> R.drawable.bt_preset_watch_3d
 }

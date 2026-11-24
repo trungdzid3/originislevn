@@ -16,14 +16,15 @@ class BluetoothPopupStoreTest {
     }
 
     @Test
-    fun presetFromId_resolvesKnownAndFallback() {
+    fun presetFromId_resolvesFiveHeadphonePresetsAndFallback() {
+        assertEquals(5, BluetoothDevicePreset.entries.size)
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("tws"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.fromId("tws_white"))
         assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.fromId("lenovo_le208"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.fromId("redmi_buds_6_play"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.fromId("over_ear"))
-        assertEquals(BluetoothDevicePreset.SPEAKER, BluetoothDevicePreset.fromId("speaker"))
-        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.fromId("watch"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("speaker"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("watch"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId(null))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("unknown_id"))
     }
@@ -34,21 +35,6 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.inferFromName("AirPods Max"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.inferFromName("Bose QuietComfort 45"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.inferFromName("Tai nghe chụp tai Baseus"))
-    }
-
-    @Test
-    fun inferFromName_detectsSpeaker() {
-        assertEquals(BluetoothDevicePreset.SPEAKER, BluetoothDevicePreset.inferFromName("JBL Flip 6"))
-        assertEquals(BluetoothDevicePreset.SPEAKER, BluetoothDevicePreset.inferFromName("Marshall Emberton II"))
-        assertEquals(BluetoothDevicePreset.SPEAKER, BluetoothDevicePreset.inferFromName("Loa Bluetooth Mini"))
-    }
-
-    @Test
-    fun inferFromName_detectsWatch() {
-        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Galaxy Watch 6"))
-        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Xiaomi Smart Band 8"))
-        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Garmin Forerunner 265"))
-        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Đồng hồ thông minh"))
     }
 
     @Test
@@ -64,7 +50,6 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo TWS 4 White"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Tai nghe trắng"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Earbuds Pearl Edition"))
-        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Galaxy Watch White"))
     }
 
     @Test
@@ -76,6 +61,35 @@ class BluetoothPopupStoreTest {
         assertTrue(BluetoothDevicePreset.LENOVO_LE208.isInteractive3D)
         assertTrue(BluetoothDevicePreset.REDMI_BUDS_6_PLAY.isInteractive3D)
         assertFalse(BluetoothDevicePreset.TWS_EARBUDS.isInteractive3D)
+    }
+
+    @Test
+    fun isHeadphoneNameAllowed_blocksWatchesSpeakersAndOtherDevices() {
+        // Watches & bands
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Galaxy Watch 6"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Mi Band 8"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Galaxy Fit 3"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Garmin Forerunner 265"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Đồng hồ thông minh"))
+
+        // Speakers
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("JBL Flip 6"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Marshall Emberton"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Loa Bluetooth Mini"))
+
+        // Laptops, cars, TVs, peripherals
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("MacBook Pro"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Laptop Dell XPS"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("CarKit BT"))
+        assertFalse(BluetoothPopupStore.isHeadphoneNameAllowed("Sony Bravia TV"))
+    }
+
+    @Test
+    fun isHeadphoneNameAllowed_allowsHeadphones() {
+        assertTrue(BluetoothPopupStore.isHeadphoneNameAllowed("Lenovo LE208"))
+        assertTrue(BluetoothPopupStore.isHeadphoneNameAllowed("Redmi Buds 6 Play"))
+        assertTrue(BluetoothPopupStore.isHeadphoneNameAllowed("AirPods Pro"))
+        assertTrue(BluetoothPopupStore.isHeadphoneNameAllowed("Sony WH-1000XM5"))
     }
 
     @Test

@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.6.2` (mã bản dựng `versionCode = 20602`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.6.3` (mã bản dựng `versionCode = 20603`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -17,7 +17,7 @@ origin-isle-vn/
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
-│       │   ├── assets/bt3d/          # three.min.js (Three.js r128 offline) & viewer.html (model 3D động Lenovo LE208, Redmi Buds 6 Play)
+│       │   ├── assets/bt3d/          # three.min.js (r147 UMD), GLTFLoader.js, redmi_base_fixed.glb & viewer.html (render 3D offline Redmi Buds 6 Play)
 │       │   ├── res/
 │       │   │   ├── drawable/         # ic_success_tick_green.xml, ic_tiktok_streak_fire.xml, ic_media_heart.xml, ic_quick_share.xml...
 │       │   │   ├── drawable-nodpi/   # bt_preset_lenovo_le208_3d.webp, bt_preset_redmi_buds_6_play_3d.webp, bt_preset_tws_dark_3d.webp, bt_preset_tws_white_3d.webp, bt_preset_over_ear_3d.webp, bt_preset_speaker_3d.webp, bt_preset_watch_3d.webp
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.6.3.apk  # File APK xuất bản v2.6.3 (5,546,217 bytes / ~5.29 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.0.apk  # File APK xuất bản v2.6.0 (5,132,689 bytes / ~4.89 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.5.0.apk  # File APK xuất bản v2.5.0 (4,956,952 bytes / ~4.73 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.4.0.apk  # File APK xuất bản v2.4.0 (4,742,295 bytes / ~4.52 MB, R8 minify + shrinkResources)
@@ -67,6 +68,13 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.6.3 — Lọc Tai Nghe Bluetooth & Tích Hợp Model 3D GLB Redmi Buds 6 Play**:
+  - `app/src/main/assets/bt3d/`: Bổ sung `GLTFLoader.js` + `redmi_base_fixed.glb` (node `RedmiBase`, `RedmiLid`) và cập nhật `viewer.html` render `MeshPhysicalMaterial` + logo `Redmi` + LED trắng + bóng tiếp xúc, mở nắp `-1.66` rad mượt + nổi nhẹ, `ResizeObserver` (`DPR <= 2.0`), tạm dừng RAF khi `document.hidden` và gọi `AndroidBridge.onReady()`.
+  - `BluetoothPopupStore.kt` (`com.originisle.android.bluetooth`): Bỏ `SPEAKER` và `WATCH` khỏi `BluetoothDevicePreset` (chỉ giữ 5 preset tai nghe); bổ sung `isHeadphoneNameAllowed(name)` và `isHeadphoneDevice(device, name)` lọc bỏ đồng hồ, vòng tay, loa, TV, xe hơi, máy tính và thiết bị ngoại vi; cập nhật `inferFromName`.
+  - `BluetoothPopupOverlay.kt` (`com.originisle.android.bluetooth`): Bỏ nhánh `SPEAKER`/`WATCH`, chặn `!isHeadphoneNameAllowed` khi `!forcePreview`, giữ nguyên 100% `buildLenovoLe208PhotorealStage`, và thay nhánh `REDMI_BUDS_6_PLAY` bằng `buildRedmi3dWebViewStage` (`WebView` trong suốt qua `https://bt3d.local/viewer.html` offline + fallback `ImageView` 0ms + fade-in `AndroidBridge.onReady()` + hủy `currentWebView` sạch sẽ trong `cleanupReferences`).
+  - `EarbudsCard.kt` (`com.originisle.android.cards`): Chỉ gọi `BluetoothPopupOverlay.showOrUpdate` khi `!isWearableDevice && BluetoothPopupStore.isHeadphoneDevice(...)`.
+  - `BluetoothPopupSheet.kt` (`com.originisle.android.ui`): Lọc `bondedDevices` qua `BluetoothPopupStore.isHeadphoneDevice(dev, name)`, bỏ nhánh `SPEAKER`/`WATCH` trong `presetDrawableRes`, cập nhật phụ đề và thông báo danh sách rỗng chỉ hỗ trợ tai nghe Bluetooth.
+  - `BluetoothPopupStoreTest.kt`, `app/build.gradle.kts` & `release/OriginIsle-VN-v2.6.3.apk`: Nâng `versionCode = 20603`, `versionName = "2.6.3"`, 86/86 unit tests PASS, APK release 5,546,217 bytes (~5.29 MB).
 - **Origin Isle VN v2.6.0 — Model 3D Động Three.js Offline (Lenovo LE208 & Redmi Buds 6 Play)**:
   - `app/src/main/assets/bt3d/`: Bundle `three.min.js` offline và `viewer.html` render model 3D tương tác trong suốt (`lenovo_le208` mở nắp + nhấc 2 tai nghe; `redmi_buds_6_play` chỉ mở nắp hộp sạc).
   - `app/src/main/res/drawable-nodpi/`: Bổ sung `bt_preset_lenovo_le208_3d.webp` và `bt_preset_redmi_buds_6_play_3d.webp` làm ảnh đại diện & fallback.

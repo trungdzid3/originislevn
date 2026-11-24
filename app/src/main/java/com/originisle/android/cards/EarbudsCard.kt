@@ -38,6 +38,7 @@ import android.util.Log
 import com.originisle.android.R
 import com.originisle.android.bluetooth.BluetoothPopupBattery
 import com.originisle.android.bluetooth.BluetoothPopupOverlay
+import com.originisle.android.bluetooth.BluetoothPopupStore
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.IconCache
@@ -2238,20 +2239,22 @@ object EarbudsCard {
 
         val targetDev = device ?: findBluetoothDevice(context, name)
         val deviceAddressOrName = targetDev?.address?.takeIf { it.isNotBlank() } ?: name
-        runCatching {
-            val btBattery = BluetoothPopupBattery(
-                main = telemetry.main,
-                left = telemetry.left,
-                right = telemetry.right,
-                caseBattery = telemetry.case,
-            )
-            BluetoothPopupOverlay.showOrUpdate(
-                context = context,
-                addressOrKey = deviceAddressOrName,
-                deviceName = name,
-                battery = btBattery,
-                forcePreview = false,
-            )
+        if (!isWearableDevice && BluetoothPopupStore.isHeadphoneDevice(targetDev, name)) {
+            runCatching {
+                val btBattery = BluetoothPopupBattery(
+                    main = telemetry.main,
+                    left = telemetry.left,
+                    right = telemetry.right,
+                    caseBattery = telemetry.case,
+                )
+                BluetoothPopupOverlay.showOrUpdate(
+                    context = context,
+                    addressOrKey = deviceAddressOrName,
+                    deviceName = name,
+                    battery = btBattery,
+                    forcePreview = false,
+                )
+            }
         }
 
         val prefs = context.getSharedPreferences(PREFS_NAME, 0)

@@ -38,6 +38,12 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -78,6 +84,7 @@ object BluetoothPopupOverlay {
     private var currentWindowManager: WindowManager? = null
     private var currentKey: String? = null
     private var currentAnimatedDrawable: AnimatedImageDrawable? = null
+    private var currentWebView: WebView? = null
     private val activeAnimators = mutableListOf<Animator>()
     private var currentBatteryContainer: LinearLayout? = null
     private var currentIsDark: Boolean = false
@@ -97,6 +104,7 @@ object BluetoothPopupOverlay {
         forcePreview: Boolean = false,
     ): Boolean {
         if (!canShow(context)) return false
+        if (!forcePreview && !BluetoothPopupStore.isHeadphoneNameAllowed(deviceName)) return false
         val appContext = context.applicationContext
         val key = BluetoothPopupStore.normalizeKey(addressOrKey)
         val config = BluetoothPopupStore.getDeviceConfig(appContext, addressOrKey, deviceName)
@@ -335,6 +343,15 @@ object BluetoothPopupOverlay {
         activeAnimators.clear()
         currentAnimatedDrawable?.stop()
         currentAnimatedDrawable = null
+        currentWebView?.let { wv ->
+            runCatching { wv.removeJavascriptInterface("AndroidBridge") }
+            runCatching { wv.stopLoading() }
+            runCatching { wv.loadUrl("about:blank") }
+            runCatching { wv.onPause() }
+            runCatching { wv.removeAllViews() }
+            runCatching { wv.destroy() }
+        }
+        currentWebView = null
         currentView = null
         currentRootScrim = null
         currentSheetContainer = null
@@ -547,7 +564,7 @@ object BluetoothPopupOverlay {
         if (config.customImagePath == null) {
             when (config.preset) {
                 BluetoothDevicePreset.LENOVO_LE208 -> return buildLenovoLe208PhotorealStage(context)
-                BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> return buildRedmiBuds6PlayPhotorealStage(context)
+                BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> return buildRedmi3dWebViewStage(context)
                 else -> Unit
             }
         }
@@ -728,14 +745,13 @@ object BluetoothPopupOverlay {
         return stage
     }
 
-    private fun buildRedmiBuds6PlayPhotorealStage(context: Context): FrameLayout {
-        val stageW = dp(context, 224)
-        val stageH = dp(context, 224)
-        val density = context.resources.displayMetrics.density
-        val smoothOut = PathInterpolator(0.22f, 1f, 0.36f, 1f)
-
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun buildRedmi3dWebViewStage(context: Context): FrameLayout {
         val stage = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(stageW, stageH).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(context, 212),
+            ).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = dp(context, 6)
                 bottomMargin = dp(context, 8)
@@ -744,78 +760,91 @@ object BluetoothPopupOverlay {
             clipToPadding = false
         }
 
-        val baseView = ImageView(context).apply {
-            setImageResource(R.drawable.bt_anim_redmi6p_base)
+        val fallbackView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_preset_redmi_buds_6_play_3d)
             scaleType = ImageView.ScaleType.FIT_CENTER
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-            alpha = 0f
+            alpha = 1f
         }
+        stage.addView(fallbackView)
 
-        val lidView = ImageView(context).apply {
-            setImageResource(R.drawable.bt_anim_redmi6p_lid)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
-            cameraDistance = 14000f * density
-            pivotX = stageW / 2f
-            pivotY = stageH * 0.377f
-            rotationX = 88f
-            alpha = 0f
-        }
+        runCatching {
+            val webView = WebView(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                alpha = 0f
+                setBackgroundColor(Color.TRANSPARENT)
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                isClickable = false
+                isFocusable = false
+                isFocusableInTouchMode = false
+                setOnTouchListener { _, _ -> false }
 
-        val closedCaseView = ImageView(context).apply {
-            setImageResource(R.drawable.bt_anim_redmi6p_closed)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
-            cameraDistance = 14000f * density
-            pivotX = stageW / 2f
-            pivotY = stageH * 0.56f
-            translationY = dpFloat(context, 8f)
-            alpha = 0f
-        }
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = false
+                    cacheMode = WebSettings.LOAD_NO_CACHE
+                    setSupportZoom(false)
+                    builtInZoomControls = false
+                    displayZoomControls = false
+                    allowFileAccess = false
+                    allowContentAccess = false
+                }
 
-        stage.addView(lidView)
-        stage.addView(baseView)
-        stage.addView(closedCaseView)
+                webViewClient = object : WebViewClient() {
+                    override fun shouldInterceptRequest(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                    ): WebResourceResponse? {
+                        val url = request?.url ?: return null
+                        if (url.host != "bt3d.local") return super.shouldInterceptRequest(view, request)
+                        val assetName = url.lastPathSegment?.takeIf { it.isNotBlank() } ?: "viewer.html"
+                        val mimeType = when {
+                            assetName.endsWith(".html", ignoreCase = true) -> "text/html"
+                            assetName.endsWith(".js", ignoreCase = true) -> "application/javascript"
+                            assetName.endsWith(".glb", ignoreCase = true) -> "model/gltf-binary"
+                            else -> "application/octet-stream"
+                        }
+                        val stream = runCatching {
+                            context.assets.open("bt3d/$assetName")
+                        }.getOrNull() ?: return null
+                        return WebResourceResponse(
+                            mimeType,
+                            "UTF-8",
+                            200,
+                            "OK",
+                            mapOf("Access-Control-Allow-Origin" to "*"),
+                            stream,
+                        )
+                    }
+                }
+            }
 
-        val closedIntro = AnimatorSet().apply {
-            playTogether(
-                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 0f, 1f).setDuration(240L),
-                ObjectAnimator.ofFloat(closedCaseView, View.TRANSLATION_Y, dpFloat(context, 8f), 0f).apply {
-                    duration = 280L
-                    interpolator = smoothOut
+            webView.addJavascriptInterface(
+                object {
+                    @JavascriptInterface
+                    fun onReady() {
+                        mainHandler.post {
+                            if (currentWebView !== webView) return@post
+                            webView.animate().alpha(1f).setDuration(180L).start()
+                            fallbackView.animate().alpha(0f).setDuration(180L).start()
+                        }
+                    }
                 },
+                "AndroidBridge",
             )
-        }
 
-        val openHingeAnim = AnimatorSet().apply {
-            startDelay = 340L
-            playTogether(
-                ObjectAnimator.ofFloat(closedCaseView, View.ROTATION_X, 0f, -18f).setDuration(180L),
-                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 1f, 0f).apply {
-                    startDelay = 30L
-                    duration = 160L
-                },
-                ObjectAnimator.ofFloat(baseView, View.ALPHA, 0f, 1f).setDuration(150L),
-                ObjectAnimator.ofFloat(lidView, View.ALPHA, 0f, 1f).setDuration(120L),
-                ObjectAnimator.ofFloat(lidView, View.ROTATION_X, 88f, 0f).apply {
-                    duration = 440L
-                    interpolator = smoothOut
-                },
-            )
-        }
-
-        listOf(closedIntro, openHingeAnim).forEach {
-            activeAnimators.add(it)
-            it.start()
+            currentWebView = webView
+            stage.addView(webView)
+            webView.loadUrl("https://bt3d.local/viewer.html")
         }
 
         return stage
@@ -851,8 +880,6 @@ object BluetoothPopupOverlay {
         BluetoothDevicePreset.LENOVO_LE208 -> R.drawable.bt_preset_lenovo_le208_3d
         BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> R.drawable.bt_preset_redmi_buds_6_play_3d
         BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
-        BluetoothDevicePreset.SPEAKER -> R.drawable.bt_preset_speaker_3d
-        BluetoothDevicePreset.WATCH -> R.drawable.bt_preset_watch_3d
     }
 
     private fun renderBatterySection(

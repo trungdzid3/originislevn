@@ -1,5 +1,8 @@
 package com.originisle.android.bluetooth
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothClass
+import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -15,9 +18,7 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
     TWS_WHITE("tws_white", "Tai nghe TWS (Trắng)"),
     LENOVO_LE208("lenovo_le208", "Lenovo LE208 (3D)"),
     REDMI_BUDS_6_PLAY("redmi_buds_6_play", "Redmi Buds 6 Play (3D)"),
-    OVER_EAR("over_ear", "Tai nghe chụp tai"),
-    SPEAKER("speaker", "Loa Bluetooth"),
-    WATCH("watch", "Đồng hồ / Vòng tay");
+    OVER_EAR("over_ear", "Tai nghe chụp tai");
 
     val isInteractive3D: Boolean
         get() = this == LENOVO_LE208 || this == REDMI_BUDS_6_PLAY
@@ -31,20 +32,14 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             val lower = name.trim().lowercase(Locale.ROOT)
             if (lower.isEmpty()) return TWS_EARBUDS
 
-            if (WATCH_KEYWORDS.any { lower.contains(it) }) {
-                return WATCH
-            }
-            if (SPEAKER_KEYWORDS.any { lower.contains(it) }) {
-                return SPEAKER
-            }
-            if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
-                return OVER_EAR
-            }
             if (isLenovoLe208Name(lower)) {
                 return LENOVO_LE208
             }
             if (isRedmiBuds6PlayName(lower)) {
                 return REDMI_BUDS_6_PLAY
+            }
+            if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
+                return OVER_EAR
             }
             if (TWS_WHITE_KEYWORDS.any { lower.contains(it) }) {
                 return TWS_WHITE
@@ -69,47 +64,6 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
                 lower.contains("buds6 play") ||
                 lower.contains("redmi buds 6")
         }
-
-        private val WATCH_KEYWORDS = listOf(
-            "watch",
-            "band",
-            "miband",
-            "fitbit",
-            "garmin",
-            "amazfit",
-            "smartwatch",
-            "galaxy fit",
-            "đồng hồ",
-            "vòng tay",
-            "dong ho",
-            "vong tay",
-        )
-
-        private val SPEAKER_KEYWORDS = listOf(
-            "speaker",
-            "soundbar",
-            "boombox",
-            "soundlink",
-            "megaboom",
-            "wonderboom",
-            "emberton",
-            "stanmore",
-            "kilburn",
-            "stockwell",
-            "acton",
-            "woburn",
-            "jbl flip",
-            "jbl charge",
-            "jbl go",
-            "jbl clip",
-            "jbl pulse",
-            "jbl xtreme",
-            "srs-",
-            "homepod",
-            "nest audio",
-            "loa ",
-            "loa bluetooth",
-        )
 
         private val OVER_EAR_KEYWORDS = listOf(
             "headphone",
@@ -171,6 +125,100 @@ object BluetoothPopupStore {
     private const val IMAGES_DIR_NAME = "bt_popup_images"
     private const val MAX_GIF_BYTES = 4 * 1024 * 1024
     private const val MAX_STATIC_DIM_PX = 512
+
+    private val BLOCKED_WEARABLE_KEYWORDS = listOf(
+        "watch",
+        "band",
+        "miband",
+        "mi band",
+        "fitbit",
+        "garmin",
+        "amazfit",
+        "smartwatch",
+        "galaxy fit",
+        "đồng hồ",
+        "vòng tay",
+        "dong ho",
+        "vong tay",
+    )
+
+    private val BLOCKED_SPEAKER_KEYWORDS = listOf(
+        "speaker",
+        "soundbar",
+        "boombox",
+        "soundlink",
+        "megaboom",
+        "wonderboom",
+        "emberton",
+        "stanmore",
+        "kilburn",
+        "stockwell",
+        "acton",
+        "woburn",
+        "jbl flip",
+        "jbl charge",
+        "jbl go",
+        "jbl clip",
+        "jbl pulse",
+        "jbl xtreme",
+        "srs-",
+        "homepod",
+        "nest audio",
+        "loa ",
+        "loa bluetooth",
+        "marshall",
+    )
+
+    private val BLOCKED_OTHER_KEYWORDS = listOf(
+        "car",
+        "carkit",
+        "ô tô",
+        "xe hơi",
+        "tv",
+        "tivi",
+        "bravia",
+        "laptop",
+        "macbook",
+        "desktop",
+        "keyboard",
+        "mouse",
+        "bàn phím",
+        "chuột",
+    )
+
+    fun isHeadphoneNameAllowed(name: String): Boolean {
+        val lower = name.trim().lowercase(Locale.ROOT)
+        if (lower.isEmpty()) return true
+        if (BLOCKED_WEARABLE_KEYWORDS.any { lower.contains(it) }) return false
+        if (BLOCKED_SPEAKER_KEYWORDS.any { lower.contains(it) }) return false
+        if (BLOCKED_OTHER_KEYWORDS.any { lower.contains(it) }) return false
+        return true
+    }
+
+    @SuppressLint("MissingPermission")
+    fun isHeadphoneDevice(device: BluetoothDevice?, name: String): Boolean {
+        if (!isHeadphoneNameAllowed(name)) return false
+        if (device != null) {
+            val btClass = runCatching { device.bluetoothClass }.getOrNull()
+            if (btClass != null) {
+                when (btClass.majorDeviceClass) {
+                    BluetoothClass.Device.Major.WEARABLE,
+                    BluetoothClass.Device.Major.COMPUTER,
+                    BluetoothClass.Device.Major.PHONE,
+                    BluetoothClass.Device.Major.PERIPHERAL,
+                    BluetoothClass.Device.Major.IMAGING -> return false
+                }
+                when (btClass.deviceClass) {
+                    BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER,
+                    BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO,
+                    BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO,
+                    BluetoothClass.Device.AUDIO_VIDEO_VIDEO_DISPLAY_AND_LOUDSPEAKER,
+                    BluetoothClass.Device.AUDIO_VIDEO_SET_TOP_BOX -> return false
+                }
+            }
+        }
+        return true
+    }
 
     fun normalizeKey(addressOrName: String): String {
         val normalized = addressOrName
