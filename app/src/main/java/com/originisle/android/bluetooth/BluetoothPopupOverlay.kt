@@ -3,16 +3,14 @@ package com.originisle.android.bluetooth
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.ImageDecoder
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
@@ -25,17 +23,22 @@ import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.VelocityTracker
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
-import android.view.animation.DecelerateInterpolator
+import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.originisle.android.R
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 import kotlin.math.min
 
 data class BluetoothPopupBattery(
@@ -48,22 +51,28 @@ data class BluetoothPopupBattery(
 object BluetoothPopupOverlay {
 
     private const val COOLDOWN_MS = 12_000L
-    private const val AUTO_DISMISS_MS = 4_500L
-    private const val ENTER_ANIM_MS = 260L
-    private const val EXIT_ANIM_MS = 180L
+    private const val AUTO_DISMISS_MS = 5_000L
+    private const val ENTER_SHEET_ANIM_MS = 300L
+    private const val ENTER_SCRIM_ANIM_MS = 240L
+    private const val ENTER_IMAGE_ANIM_MS = 320L
+    private const val EXIT_ANIM_MS = 200L
 
-    private const val COLOR_ACCENT_GREEN = 0xFF00D084.toInt()
-    private const val COLOR_LOW_RED = 0xFFFF5247.toInt()
+    private const val COLOR_BATTERY_GREEN = 0xFF00C853.toInt()
+    private const val COLOR_BATTERY_AMBER = 0xFFFF9F2E.toInt()
+    private const val COLOR_BATTERY_RED = 0xFFFF5247.toInt()
 
+    private val originInterpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val lastShownElapsedMs = ConcurrentHashMap<String, Long>()
 
     private var currentView: View? = null
+    private var currentRootScrim: FrameLayout? = null
+    private var currentSheetContainer: SwipeDismissSheetLayout? = null
     private var currentWindowManager: WindowManager? = null
     private var currentKey: String? = null
     private var currentAnimatedDrawable: AnimatedImageDrawable? = null
     private var currentBatteryContainer: LinearLayout? = null
-    private var currentIsDark: Boolean = true
+    private var currentIsDark: Boolean = false
     private var isDismissing: Boolean = false
 
     private val autoDismissRunnable = Runnable {
@@ -158,44 +167,69 @@ object BluetoothPopupOverlay {
         removeImmediate()
 
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
+        val isDark = resolveIsDarkTheme(context)
+        val metrics = wm.currentWindowMetrics
+        val screenWidth = metrics.bounds.width()
+        val navBarBottom = metrics.windowInsets
+            .getInsets(WindowInsets.Type.navigationBars())
+            .bottom
 
-        val screenWidth = wm.currentWindowMetrics.bounds.width()
-        val cardWidth = min(screenWidth - dp(context, 32), dp(context, 380))
+        val rootScrim = FrameLayout(context).apply {
+            setBackgroundColor(0x52000000)
+            alpha = 0f
+            setOnClickListener { dismissOnMainThread() }
+        }
 
-        val card = buildCardView(context, config, deviceName, battery, isDark)
+        val sheetContainer = buildSheetView(
+            context = context,
+            config = config,
+            deviceName = deviceName,
+            battery = battery,
+            isDark = isDark,
+            screenWidth = screenWidth,
+            navBarBottom = navBarBottom,
+            rootScrim = rootScrim,
+        )
+
+        val maxSheetWidth = dp(context, 480)
+        val sheetWidth = if (screenWidth > maxSheetWidth) {
+            min(screenWidth, maxSheetWidth)
+        } else {
+            ViewGroup.LayoutParams.MATCH_PARENT
+        }
+
+        rootScrim.addView(
+            sheetContainer,
+            FrameLayout.LayoutParams(
+                sheetWidth,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+            ),
+        )
 
         val params = WindowManager.LayoutParams(
-            cardWidth,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = dp(context, 24)
-        }
-
-        card.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                dismissOnMainThread()
-                true
-            } else {
-                false
-            }
+            y = 0
         }
 
         try {
-            wm.addView(card, params)
+            wm.addView(rootScrim, params)
         } catch (_: Exception) {
             cleanupReferences()
             return
         }
 
-        currentView = card
+        currentView = rootScrim
+        currentRootScrim = rootScrim
+        currentSheetContainer = sheetContainer
         currentWindowManager = wm
         currentKey = key
         currentIsDark = isDark
@@ -205,16 +239,30 @@ object BluetoothPopupOverlay {
             lastShownElapsedMs[key] = SystemClock.elapsedRealtime()
         }
 
-        card.translationY = dp(context, 80).toFloat()
-        card.alpha = 0f
-        card.animate()
-            .translationY(0f)
+        rootScrim.animate()
             .alpha(1f)
-            .setDuration(ENTER_ANIM_MS)
-            .setInterpolator(DecelerateInterpolator())
+            .setDuration(ENTER_SCRIM_ANIM_MS)
+            .start()
+
+        sheetContainer.translationY = dp(context, 320).toFloat()
+        sheetContainer.animate()
+            .translationY(0f)
+            .setDuration(ENTER_SHEET_ANIM_MS)
+            .setInterpolator(originInterpolator)
             .start()
 
         scheduleAutoDismiss()
+    }
+
+    private fun resolveIsDarkTheme(context: Context): Boolean {
+        return when (BluetoothPopupStore.getPopupTheme(context)) {
+            BluetoothPopupTheme.LIGHT -> false
+            BluetoothPopupTheme.DARK -> true
+            BluetoothPopupTheme.SYSTEM -> {
+                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                    Configuration.UI_MODE_NIGHT_YES
+            }
+        }
     }
 
     private fun updateBatteryOnMainThread(key: String, battery: BluetoothPopupBattery) {
@@ -226,14 +274,21 @@ object BluetoothPopupOverlay {
 
     private fun dismissOnMainThread() {
         mainHandler.removeCallbacks(autoDismissRunnable)
-        val view = currentView ?: return
+        val rootView = currentView ?: return
+        val sheet = currentSheetContainer
         if (isDismissing) return
         isDismissing = true
 
-        view.animate().cancel()
-        view.animate()
-            .translationY(dp(view.context, 80).toFloat())
+        rootView.animate().cancel()
+        rootView.animate()
             .alpha(0f)
+            .setDuration(EXIT_ANIM_MS)
+            .start()
+
+        val targetView = sheet ?: rootView
+        targetView.animate().cancel()
+        targetView.animate()
+            .translationY(dp(rootView.context, 320).toFloat())
             .setDuration(EXIT_ANIM_MS)
             .setInterpolator(AccelerateInterpolator())
             .setListener(object : AnimatorListenerAdapter() {
@@ -251,10 +306,12 @@ object BluetoothPopupOverlay {
     private fun removeImmediate() {
         mainHandler.removeCallbacks(autoDismissRunnable)
         val view = currentView
+        val sheet = currentSheetContainer
         val wm = currentWindowManager
+        sheet?.animate()?.cancel()
         if (view != null) {
             view.animate().cancel()
-            view.setOnTouchListener(null)
+            view.setOnClickListener(null)
             if (wm != null) {
                 try {
                     wm.removeViewImmediate(view)
@@ -269,6 +326,8 @@ object BluetoothPopupOverlay {
         currentAnimatedDrawable?.stop()
         currentAnimatedDrawable = null
         currentView = null
+        currentRootScrim = null
+        currentSheetContainer = null
         currentWindowManager = null
         currentKey = null
         currentBatteryContainer = null
@@ -280,124 +339,206 @@ object BluetoothPopupOverlay {
         mainHandler.postDelayed(autoDismissRunnable, AUTO_DISMISS_MS)
     }
 
-    private fun buildCardView(
+    private fun pauseAutoDismiss() {
+        mainHandler.removeCallbacks(autoDismissRunnable)
+    }
+
+    private fun buildSheetView(
         context: Context,
         config: BluetoothPopupDeviceConfig,
         deviceName: String,
         battery: BluetoothPopupBattery,
         isDark: Boolean,
-    ): LinearLayout {
-        val bgColor = if (isDark) 0xF51B1D22.toInt() else 0xF8FFFFFF.toInt()
-        val strokeColor = if (isDark) 0x29FFFFFF else 0x1A000000
-        val primaryText = if (isDark) 0xFFF4F6FA.toInt() else 0xFF14161A.toInt()
-        val closeBgColor = if (isDark) 0x1FFFFFFF else 0x12000000
-        val closeTextColor = if (isDark) 0xCCFFFFFF.toInt() else 0xCC14161A.toInt()
-
-        val cardBg = GradientDrawable().apply {
+        screenWidth: Int,
+        navBarBottom: Int,
+        rootScrim: FrameLayout,
+    ): SwipeDismissSheetLayout {
+        val cornerRadius = dp(context, 32).toFloat()
+        val sheetBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(context, 28).toFloat()
-            setColor(bgColor)
-            setStroke(dp(context, 1), strokeColor)
-        }
-
-        val root = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            background = cardBg
-            elevation = dp(context, 16).toFloat()
-            setPadding(dp(context, 20), dp(context, 18), dp(context, 20), dp(context, 20))
-        }
-
-        // Header
-        val header = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+            cornerRadii = floatArrayOf(
+                cornerRadius, cornerRadius,
+                cornerRadius, cornerRadius,
+                0f, 0f,
+                0f, 0f,
             )
-        }
-
-        val titleStack = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = dp(context, 12)
+            setColor(if (isDark) 0xFF1E2026.toInt() else 0xFFFFFFFF.toInt())
+            if (isDark) {
+                setStroke(dp(context, 1), 0x1FFFFFFF)
             }
         }
+
+        val sheet = SwipeDismissSheetLayout(context, rootScrim).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = sheetBg
+            elevation = dp(context, 24).toFloat()
+            setPadding(0, 0, 0, navBarBottom + dp(context, 16))
+            isClickable = true
+            isFocusable = false
+            // Keep screenWidth referenced cleanly for tablet/landscape sizing symmetry
+            minimumWidth = min(screenWidth, dp(context, 320))
+        }
+
+        // OriginOS slim drag handle
+        val handleView = View(context).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                this.cornerRadius = dp(context, 2).toFloat()
+                setColor(if (isDark) 0xFF3A3F4B.toInt() else 0xFFE0E3E8.toInt())
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(context, 36), dp(context, 4)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(context, 10)
+            }
+        }
+        sheet.addView(handleView)
 
         val resolvedName = config.customName?.takeIf { it.isNotBlank() }
             ?: deviceName.ifBlank { config.preset.label }
 
+        // Title
         val titleView = TextView(context).apply {
             text = resolvedName
-            setTextColor(primaryText)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(if (isDark) 0xFFF3F5F8.toInt() else 0xFF191C20.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            letterSpacing = -0.01f
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
-        }
-
-        val subtitleView = TextView(context).apply {
-            text = "Đã kết nối"
-            setTextColor(COLOR_ACCENT_GREEN)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            setPadding(0, dp(context, 2), 0, 0)
-        }
-
-        titleStack.addView(titleView)
-        titleStack.addView(subtitleView)
-
-        val closeBtnBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(closeBgColor)
-        }
-        val closeBtn = TextView(context).apply {
-            text = "\u2715"
-            setTextColor(closeTextColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            gravity = Gravity.CENTER
-            background = closeBtnBg
-            contentDescription = "Đóng"
-            layoutParams = LinearLayout.LayoutParams(dp(context, 32), dp(context, 32))
-            setOnClickListener { dismissOnMainThread() }
-        }
-
-        header.addView(titleStack)
-        header.addView(closeBtn)
-        root.addView(header)
-
-        // Center illustration / custom image
-        val imageSize = dp(context, 140)
-        val imageView = ImageView(context).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = LinearLayout.LayoutParams(imageSize, imageSize).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                topMargin = dp(context, 12)
-                bottomMargin = dp(context, 14)
-            }
-        }
-        bindDeviceVisual(imageView, config, isDark)
-        root.addView(imageView)
-
-        // Battery section
-        val batteryContainer = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
+            setPadding(dp(context, 28), 0, dp(context, 28), 0)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            )
+            ).apply {
+                topMargin = dp(context, 18)
+            }
+        }
+        sheet.addView(titleView)
+
+        // Subtitle
+        val subtitleView = TextView(context).apply {
+            text = "$resolvedName đã kết nối và sẵn sàng phát âm thanh trên thiết bị này"
+            gravity = Gravity.CENTER
+            setTextColor(if (isDark) 0xFF9AA0AA.toInt() else 0xFF6E737B.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f)
+            setLineSpacing(dp(context, 3).toFloat(), 1f)
+            setPadding(dp(context, 32), 0, dp(context, 32), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = dp(context, 6)
+            }
+        }
+        sheet.addView(subtitleView)
+
+        // Large 3D device visual
+        val imageView = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(context, 210), dp(context, 192)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(context, 14)
+                bottomMargin = dp(context, 14)
+            }
+        }
+        bindDeviceVisual(imageView, config)
+        imageView.scaleX = 0.92f
+        imageView.scaleY = 0.92f
+        imageView.alpha = 0f
+        imageView.animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .alpha(1f)
+            .setDuration(ENTER_IMAGE_ANIM_MS)
+            .setInterpolator(originInterpolator)
+            .start()
+        sheet.addView(imageView)
+
+        // OriginOS battery pills
+        val batteryContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(context, 20), 0, dp(context, 20), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                bottomMargin = dp(context, 18)
+            }
         }
         currentBatteryContainer = batteryContainer
         renderBatterySection(context, batteryContainer, battery, isDark)
-        root.addView(batteryContainer)
+        sheet.addView(batteryContainer)
 
-        return root
+        // Bottom action row
+        val actionRow = FrameLayout(context).apply {
+            setPadding(dp(context, 24), 0, dp(context, 24), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(context, 52),
+            )
+        }
+
+        val infoStrokeColor = if (isDark) 0xFF9AA0AA.toInt() else 0xFF74777F.toInt()
+        val infoBg = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(if (isDark) 0x14FFFFFF else 0x0A000000)
+            setStroke(dpFloat(context, 1.3f).toInt().coerceAtLeast(1), infoStrokeColor)
+        }
+        val infoButton = TextView(context).apply {
+            text = "i"
+            gravity = Gravity.CENTER
+            setTextColor(infoStrokeColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            background = infoBg
+            contentDescription = "Cài đặt Bluetooth"
+            layoutParams = FrameLayout.LayoutParams(
+                dp(context, 34),
+                dp(context, 34),
+                Gravity.START or Gravity.CENTER_VERTICAL,
+            )
+            setOnClickListener {
+                dismissOnMainThread()
+                runCatching {
+                    val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                }
+            }
+        }
+        actionRow.addView(infoButton)
+
+        val doneBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            this.cornerRadius = dp(context, 23).toFloat()
+            setColor(if (isDark) 0xFF2B3E6E.toInt() else 0xFFDCE6FF.toInt())
+        }
+        val doneButton = TextView(context).apply {
+            text = "Hoàn tất"
+            gravity = Gravity.CENTER
+            setTextColor(if (isDark) 0xFFDCE6FF.toInt() else 0xFF1B3A7A.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            background = doneBg
+            layoutParams = FrameLayout.LayoutParams(
+                dp(context, 204),
+                dp(context, 46),
+                Gravity.CENTER,
+            )
+            setOnClickListener { dismissOnMainThread() }
+        }
+        actionRow.addView(doneButton)
+
+        sheet.addView(actionRow)
+        return sheet
     }
 
     private fun bindDeviceVisual(
         imageView: ImageView,
         config: BluetoothPopupDeviceConfig,
-        isDark: Boolean,
     ) {
         val customPath = config.customImagePath
         if (customPath != null) {
@@ -416,7 +557,15 @@ object BluetoothPopupOverlay {
                 }
             }
         }
-        imageView.setImageDrawable(PresetIllustrationDrawable(config.preset, isDark))
+        imageView.setImageResource(presetDrawableRes(config.preset))
+    }
+
+    private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset) {
+        BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
+        BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
+        BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
+        BluetoothDevicePreset.SPEAKER -> R.drawable.bt_preset_speaker_3d
+        BluetoothDevicePreset.WATCH -> R.drawable.bt_preset_watch_3d
     }
 
     private fun renderBatterySection(
@@ -426,123 +575,80 @@ object BluetoothPopupOverlay {
         isDark: Boolean,
     ) {
         container.removeAllViews()
-        val secondaryText = if (isDark) 0xB3FFFFFF.toInt() else 0x9914161A.toInt()
-        val primaryText = if (isDark) 0xFFF4F6FA.toInt() else 0xFF14161A.toInt()
 
+        val items = mutableListOf<Pair<String, Int>>()
         val hasLeftRight = battery.left in 0..100 || battery.right in 0..100
         if (hasLeftRight) {
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-            }
-            val items = mutableListOf<Pair<String, Int>>()
-            if (battery.left in 0..100) items.add("Trái ${battery.left}%" to battery.left)
+            if (battery.left in 0..100) items.add("L ${battery.left}%" to battery.left)
             if (battery.caseBattery in 0..100) items.add("Hộp ${battery.caseBattery}%" to battery.caseBattery)
-            if (battery.right in 0..100) items.add("Phải ${battery.right}%" to battery.right)
+            if (battery.right in 0..100) items.add("R ${battery.right}%" to battery.right)
+        } else if (battery.main in 0..100) {
+            items.add("Pin ${battery.main}%" to battery.main)
+        }
 
-            items.forEachIndexed { index, (label, level) ->
-                val col = buildBatteryColumn(context, label, level, primaryText, isDark)
-                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    if (index > 0) marginStart = dp(context, 8)
-                }
-                row.addView(col, lp)
-            }
-            container.addView(row)
+        if (items.isEmpty()) {
+            container.visibility = View.GONE
             return
         }
 
-        if (battery.main in 0..100) {
-            val col = buildBatteryColumn(
-                context = context,
-                label = "Pin: ${battery.main}%",
-                level = battery.main,
-                textColor = primaryText,
-                isDark = isDark,
-            )
-            container.addView(col)
-            return
-        }
+        container.visibility = View.VISIBLE
+        val pillBgColor = if (isDark) 0xFF2A2E37.toInt() else 0xFFF2F4F8.toInt()
+        val textColor = if (isDark) 0xFFE5E7EB.toInt() else 0xFF1F2937.toInt()
 
-        val readyLabel = TextView(context).apply {
-            text = "Âm thanh Bluetooth sẵn sàng"
-            setTextColor(secondaryText)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+        items.forEach { (label, level) ->
+            val pill = buildBatteryPill(context, label, level, pillBgColor, textColor, isDark)
+            val lp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            )
+                dp(context, 28),
+            ).apply {
+                marginStart = dp(context, 4)
+                marginEnd = dp(context, 4)
+            }
+            container.addView(pill, lp)
         }
-        container.addView(readyLabel)
     }
 
-    private fun buildBatteryColumn(
+    private fun buildBatteryPill(
         context: Context,
         label: String,
         level: Int,
+        pillBgColor: Int,
         textColor: Int,
         isDark: Boolean,
     ): LinearLayout {
-        val clamped = level.coerceIn(0, 100)
-        val fillColor = if (clamped <= 15) COLOR_LOW_RED else COLOR_ACCENT_GREEN
-        val trackColor = if (isDark) 0x24FFFFFF else 0x18000000
-
-        val col = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+        val pill = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(context, 10), 0, dp(context, 10), 0)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(context, 999).toFloat()
+                setColor(pillBgColor)
+            }
         }
+
+        val batteryIcon = View(context).apply {
+            background = BatteryPillIconDrawable(level.coerceIn(0, 100), isDark)
+            layoutParams = LinearLayout.LayoutParams(dp(context, 20), dp(context, 10))
+        }
+        pill.addView(batteryIcon)
 
         val labelView = TextView(context).apply {
             text = label
             setTextColor(textColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(context, 6))
-        }
-
-        val trackHeight = dp(context, 6)
-        val track = FrameLayout(context).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            maxLines = 1
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                trackHeight,
-            )
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = trackHeight / 2f
-                setColor(trackColor)
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginStart = dp(context, 5)
             }
         }
+        pill.addView(labelView)
 
-        val fillView = View(context).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = trackHeight / 2f
-                setColor(fillColor)
-            }
-        }
-
-        track.addView(
-            fillView,
-            FrameLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT),
-        )
-
-        track.post {
-            val w = track.width
-            if (w > 0) {
-                val fillW = (w * (clamped / 100f)).toInt().coerceAtLeast(trackHeight)
-                val lp = fillView.layoutParams
-                lp.width = fillW
-                fillView.layoutParams = lp
-            }
-        }
-
-        col.addView(labelView)
-        col.addView(track)
-        return col
+        return pill
     }
 
     private fun dp(context: Context, value: Int): Int {
@@ -553,16 +659,134 @@ object BluetoothPopupOverlay {
         ).toInt()
     }
 
-    private class PresetIllustrationDrawable(
-        private val preset: BluetoothDevicePreset,
+    private fun dpFloat(context: Context, value: Float): Float {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            value,
+            context.resources.displayMetrics,
+        )
+    }
+
+    private class SwipeDismissSheetLayout(
+        context: Context,
+        private val rootScrim: FrameLayout,
+    ) : LinearLayout(context) {
+
+        private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+        private val dismissThresholdPx = dp(context, 72).toFloat()
+        private val scrimFadeDistancePx = dp(context, 280).toFloat()
+
+        private var downX = 0f
+        private var downY = 0f
+        private var isDragging = false
+        private var velocityTracker: VelocityTracker? = null
+
+        override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = ev.rawX
+                    downY = ev.rawY
+                    isDragging = false
+                    pauseAutoDismiss()
+                    initVelocityTracker(ev)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    trackVelocity(ev)
+                    val dy = ev.rawY - downY
+                    val dx = abs(ev.rawX - downX)
+                    if (dy > touchSlop && dy > dx) {
+                        isDragging = true
+                        return true
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (!isDragging) {
+                        recycleVelocityTracker()
+                        scheduleAutoDismiss()
+                    }
+                }
+            }
+            return false
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                    isDragging = false
+                    pauseAutoDismiss()
+                    initVelocityTracker(event)
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    trackVelocity(event)
+                    val dy = (event.rawY - downY).coerceAtLeast(0f)
+                    if (dy > touchSlop) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        translationY = dy
+                        val progress = (dy / scrimFadeDistancePx).coerceIn(0f, 1f)
+                        rootScrim.alpha = 1f - progress * 0.85f
+                    }
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    trackVelocity(event)
+                    val dy = (event.rawY - downY).coerceAtLeast(0f)
+                    val yVelocity = velocityTracker?.let { tracker ->
+                        tracker.computeCurrentVelocity(1000)
+                        tracker.yVelocity
+                    } ?: 0f
+                    recycleVelocityTracker()
+
+                    if (isDragging && (dy > dismissThresholdPx || yVelocity > 1200f)) {
+                        dismissOnMainThread()
+                    } else {
+                        animate()
+                            .translationY(0f)
+                            .setDuration(220L)
+                            .setInterpolator(originInterpolator)
+                            .start()
+                        rootScrim.animate()
+                            .alpha(1f)
+                            .setDuration(220L)
+                            .start()
+                        scheduleAutoDismiss()
+                    }
+                    isDragging = false
+                    return true
+                }
+            }
+            return super.onTouchEvent(event)
+        }
+
+        private fun initVelocityTracker(event: MotionEvent) {
+            velocityTracker?.recycle()
+            velocityTracker = VelocityTracker.obtain().apply { addMovement(event) }
+        }
+
+        private fun trackVelocity(event: MotionEvent) {
+            velocityTracker?.addMovement(event)
+        }
+
+        private fun recycleVelocityTracker() {
+            velocityTracker?.recycle()
+            velocityTracker = null
+        }
+    }
+
+    private class BatteryPillIconDrawable(
+        private val level: Int,
         private val isDark: Boolean,
     ) : Drawable() {
 
-        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-        }
         private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
+        }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
         }
 
         override fun draw(canvas: Canvas) {
@@ -571,181 +795,71 @@ object BluetoothPopupOverlay {
             val h = b.height().toFloat()
             if (w <= 0f || h <= 0f) return
 
-            val bodyTop = if (isDark) 0xFF3E4451.toInt() else 0xFFE4E7EE.toInt()
-            val bodyBottom = if (isDark) 0xFF232730.toInt() else 0xFFC5CBD6.toInt()
-            val detailColor = if (isDark) 0xFF14171D.toInt() else 0xFF5A6270.toInt()
-            val highlightStroke = if (isDark) 0x4DFFFFFF else 0x66FFFFFF
+            val strokeWidth = (h * 0.12f).coerceAtLeast(1.5f)
+            val halfStroke = strokeWidth / 2f
+            val nubWidth = w * 0.08f
+            val nubGap = w * 0.05f
+            val bodyRight = w - nubWidth - nubGap
 
-            fillPaint.shader = LinearGradient(
-                0f, b.top.toFloat(), 0f, b.bottom.toFloat(),
-                bodyTop, bodyBottom, Shader.TileMode.CLAMP,
+            val borderColor = if (isDark) 0xFF9AA0AA.toInt() else 0xFF74777F.toInt()
+            strokePaint.color = borderColor
+            strokePaint.strokeWidth = strokeWidth
+
+            val bodyRect = RectF(
+                halfStroke,
+                halfStroke,
+                bodyRight - halfStroke,
+                h - halfStroke,
             )
+            val cornerRadius = h * 0.24f
+            canvas.drawRoundRect(bodyRect, cornerRadius, cornerRadius, strokePaint)
 
-            when (preset) {
-                BluetoothDevicePreset.TWS_EARBUDS -> drawTws(canvas, w, h, detailColor, highlightStroke)
-                BluetoothDevicePreset.OVER_EAR -> drawOverEar(canvas, w, h, detailColor, highlightStroke)
-                BluetoothDevicePreset.SPEAKER -> drawSpeaker(canvas, w, h, detailColor, highlightStroke)
-                BluetoothDevicePreset.WATCH -> drawWatch(canvas, w, h, detailColor, highlightStroke)
+            // Positive terminal nub
+            fillPaint.color = borderColor
+            val nubRect = RectF(
+                bodyRight + nubGap * 0.5f,
+                h * 0.30f,
+                w,
+                h * 0.70f,
+            )
+            canvas.drawRoundRect(nubRect, nubWidth * 0.5f, nubWidth * 0.5f, fillPaint)
+
+            // Inner battery charge bar
+            val inset = strokeWidth + h * 0.10f
+            val innerLeft = inset
+            val innerTop = inset
+            val innerRightMax = bodyRight - inset
+            val innerBottom = h - inset
+            val innerWidthMax = (innerRightMax - innerLeft).coerceAtLeast(0f)
+
+            if (level > 0 && innerWidthMax > 0f) {
+                val fillWidth = (innerWidthMax * (level / 100f))
+                    .coerceAtLeast(h * 0.18f)
+                    .coerceAtMost(innerWidthMax)
+                fillPaint.color = when {
+                    level <= 15 -> COLOR_BATTERY_RED
+                    level <= 20 -> COLOR_BATTERY_AMBER
+                    else -> COLOR_BATTERY_GREEN
+                }
+                val fillRect = RectF(
+                    innerLeft,
+                    innerTop,
+                    innerLeft + fillWidth,
+                    innerBottom,
+                )
+                val innerRadius = ((innerBottom - innerTop) * 0.28f).coerceAtLeast(1f)
+                canvas.drawRoundRect(fillRect, innerRadius, innerRadius, fillPaint)
             }
         }
 
-        private fun drawTws(
-            canvas: Canvas,
-            w: Float,
-            h: Float,
-            detailColor: Int,
-            highlightStroke: Int,
-        ) {
-            // Charging case
-            val caseRect = RectF(w * 0.20f, h * 0.44f, w * 0.80f, h * 0.86f)
-            canvas.drawRoundRect(caseRect, w * 0.14f, w * 0.14f, fillPaint)
-
-            strokePaint.color = highlightStroke
-            strokePaint.strokeWidth = w * 0.015f
-            canvas.drawRoundRect(caseRect, w * 0.14f, w * 0.14f, strokePaint)
-
-            // Lid seam
-            strokePaint.color = detailColor
-            strokePaint.strokeWidth = w * 0.014f
-            canvas.drawLine(w * 0.22f, h * 0.57f, w * 0.78f, h * 0.57f, strokePaint)
-
-            // Status LED
-            fillPaint.shader = null
-            fillPaint.color = COLOR_ACCENT_GREEN
-            canvas.drawCircle(w * 0.50f, h * 0.65f, w * 0.024f, fillPaint)
-
-            // Left & Right earbuds floating above case
-            val bodyTop = if (isDark) 0xFFF0F3F8.toInt() else 0xFFFFFFFF.toInt()
-            val bodyBottom = if (isDark) 0xFFB8C0CE.toInt() else 0xFFD4DAE4.toInt()
-            fillPaint.shader = LinearGradient(0f, h * 0.14f, 0f, h * 0.46f, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
-
-            // Left earbud
-            val leftHead = RectF(w * 0.27f, h * 0.15f, w * 0.44f, h * 0.30f)
-            canvas.drawOval(leftHead, fillPaint)
-            val leftStem = RectF(w * 0.34f, h * 0.26f, w * 0.40f, h * 0.43f)
-            canvas.drawRoundRect(leftStem, w * 0.03f, w * 0.03f, fillPaint)
-
-            // Right earbud
-            val rightHead = RectF(w * 0.56f, h * 0.15f, w * 0.73f, h * 0.30f)
-            canvas.drawOval(rightHead, fillPaint)
-            val rightStem = RectF(w * 0.60f, h * 0.26f, w * 0.66f, h * 0.43f)
-            canvas.drawRoundRect(rightStem, w * 0.03f, w * 0.03f, fillPaint)
-        }
-
-        private fun drawOverEar(
-            canvas: Canvas,
-            w: Float,
-            h: Float,
-            detailColor: Int,
-            highlightStroke: Int,
-        ) {
-            // Headband arc
-            strokePaint.color = if (isDark) 0xFF4A5160.toInt() else 0xFFCBD2DF.toInt()
-            strokePaint.strokeWidth = w * 0.075f
-            strokePaint.strokeCap = Paint.Cap.ROUND
-            val arcRect = RectF(w * 0.20f, h * 0.16f, w * 0.80f, h * 0.72f)
-            canvas.drawArc(arcRect, 185f, 170f, false, strokePaint)
-
-            // Left & Right earcups
-            val leftCup = RectF(w * 0.14f, h * 0.46f, w * 0.33f, h * 0.80f)
-            val rightCup = RectF(w * 0.67f, h * 0.46f, w * 0.86f, h * 0.80f)
-            canvas.drawRoundRect(leftCup, w * 0.09f, w * 0.09f, fillPaint)
-            canvas.drawRoundRect(rightCup, w * 0.09f, w * 0.09f, fillPaint)
-
-            // Inner cushion detail
-            fillPaint.shader = null
-            fillPaint.color = detailColor
-            val leftInner = RectF(w * 0.26f, h * 0.50f, w * 0.33f, h * 0.76f)
-            val rightInner = RectF(w * 0.67f, h * 0.50f, w * 0.74f, h * 0.76f)
-            canvas.drawRoundRect(leftInner, w * 0.04f, w * 0.04f, fillPaint)
-            canvas.drawRoundRect(rightInner, w * 0.04f, w * 0.04f, fillPaint)
-
-            strokePaint.color = highlightStroke
-            strokePaint.strokeWidth = w * 0.012f
-            canvas.drawRoundRect(leftCup, w * 0.09f, w * 0.09f, strokePaint)
-            canvas.drawRoundRect(rightCup, w * 0.09f, w * 0.09f, strokePaint)
-        }
-
-        private fun drawSpeaker(
-            canvas: Canvas,
-            w: Float,
-            h: Float,
-            detailColor: Int,
-            highlightStroke: Int,
-        ) {
-            val bodyRect = RectF(w * 0.26f, h * 0.14f, w * 0.74f, h * 0.86f)
-            canvas.drawRoundRect(bodyRect, w * 0.12f, w * 0.12f, fillPaint)
-
-            strokePaint.color = highlightStroke
-            strokePaint.strokeWidth = w * 0.015f
-            canvas.drawRoundRect(bodyRect, w * 0.12f, w * 0.12f, strokePaint)
-
-            // Woofer circles
-            fillPaint.shader = null
-            fillPaint.color = detailColor
-            canvas.drawCircle(w * 0.50f, h * 0.40f, w * 0.13f, fillPaint)
-            canvas.drawCircle(w * 0.50f, h * 0.68f, w * 0.10f, fillPaint)
-
-            strokePaint.color = highlightStroke
-            strokePaint.strokeWidth = w * 0.015f
-            canvas.drawCircle(w * 0.50f, h * 0.40f, w * 0.08f, strokePaint)
-
-            // Top status LED
-            fillPaint.color = COLOR_ACCENT_GREEN
-            canvas.drawCircle(w * 0.50f, h * 0.21f, w * 0.022f, fillPaint)
-        }
-
-        private fun drawWatch(
-            canvas: Canvas,
-            w: Float,
-            h: Float,
-            detailColor: Int,
-            highlightStroke: Int,
-        ) {
-            // Top & bottom straps
-            fillPaint.shader = null
-            fillPaint.color = if (isDark) 0xFF2B303B.toInt() else 0xFFAEB6C4.toInt()
-            val topStrap = RectF(w * 0.36f, h * 0.12f, w * 0.64f, h * 0.34f)
-            val bottomStrap = RectF(w * 0.36f, h * 0.66f, w * 0.64f, h * 0.88f)
-            canvas.drawRoundRect(topStrap, w * 0.06f, w * 0.06f, fillPaint)
-            canvas.drawRoundRect(bottomStrap, w * 0.06f, w * 0.06f, fillPaint)
-
-            // Watch case
-            val caseRect = RectF(w * 0.27f, h * 0.28f, w * 0.73f, h * 0.72f)
-            val bodyTop = if (isDark) 0xFF4B5262.toInt() else 0xFFE8ECF2.toInt()
-            val bodyBottom = if (isDark) 0xFF242832.toInt() else 0xFFC5CCD8.toInt()
-            fillPaint.shader = LinearGradient(0f, h * 0.28f, 0f, h * 0.72f, bodyTop, bodyBottom, Shader.TileMode.CLAMP)
-            canvas.drawRoundRect(caseRect, w * 0.11f, w * 0.11f, fillPaint)
-
-            // Side crown
-            fillPaint.shader = null
-            fillPaint.color = bodyTop
-            canvas.drawRoundRect(RectF(w * 0.73f, h * 0.43f, w * 0.77f, h * 0.53f), w * 0.02f, w * 0.02f, fillPaint)
-
-            // Screen dial
-            fillPaint.color = detailColor
-            val dialRect = RectF(w * 0.31f, h * 0.32f, w * 0.69f, h * 0.68f)
-            canvas.drawRoundRect(dialRect, w * 0.08f, w * 0.08f, fillPaint)
-
-            // Activity ring
-            strokePaint.color = COLOR_ACCENT_GREEN
-            strokePaint.strokeWidth = w * 0.024f
-            strokePaint.strokeCap = Paint.Cap.ROUND
-            canvas.drawArc(RectF(w * 0.39f, h * 0.39f, w * 0.61f, h * 0.61f), -90f, 270f, false, strokePaint)
-
-            strokePaint.color = highlightStroke
-            strokePaint.strokeWidth = w * 0.012f
-            canvas.drawRoundRect(caseRect, w * 0.11f, w * 0.11f, strokePaint)
-        }
-
         override fun setAlpha(alpha: Int) {
-            fillPaint.alpha = alpha
             strokePaint.alpha = alpha
+            fillPaint.alpha = alpha
         }
 
         override fun setColorFilter(colorFilter: ColorFilter?) {
-            fillPaint.colorFilter = colorFilter
             strokePaint.colorFilter = colorFilter
+            fillPaint.colorFilter = colorFilter
         }
 
         @Deprecated("Deprecated in Java")

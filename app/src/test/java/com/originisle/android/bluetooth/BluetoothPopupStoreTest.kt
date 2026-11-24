@@ -17,6 +17,7 @@ class BluetoothPopupStoreTest {
     @Test
     fun presetFromId_resolvesKnownAndFallback() {
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("tws"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.fromId("tws_white"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.fromId("over_ear"))
         assertEquals(BluetoothDevicePreset.SPEAKER, BluetoothDevicePreset.fromId("speaker"))
         assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.fromId("watch"))
@@ -53,5 +54,22 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Sony WF-1000XM5"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Galaxy Buds2 Pro"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Unknown BT Device"))
+    }
+
+    @Test
+    fun inferFromName_detectsTwsWhite() {
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo TWS 4 White"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Tai nghe trắng"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Earbuds Pearl Edition"))
+        assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Galaxy Watch White"))
+    }
+
+    @Test
+    fun popupThemeFromId_resolvesKnownAndFallback() {
+        assertEquals(BluetoothPopupTheme.LIGHT, BluetoothPopupTheme.fromId("light"))
+        assertEquals(BluetoothPopupTheme.SYSTEM, BluetoothPopupTheme.fromId("system"))
+        assertEquals(BluetoothPopupTheme.DARK, BluetoothPopupTheme.fromId("dark"))
+        assertEquals(BluetoothPopupTheme.LIGHT, BluetoothPopupTheme.fromId(null))
+        assertEquals(BluetoothPopupTheme.LIGHT, BluetoothPopupTheme.fromId("unknown"))
     }
 }

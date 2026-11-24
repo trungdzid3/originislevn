@@ -11,7 +11,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 enum class BluetoothDevicePreset(val id: String, val label: String) {
-    TWS_EARBUDS("tws", "Tai nghe TWS"),
+    TWS_EARBUDS("tws", "Tai nghe TWS (Đen)"),
+    TWS_WHITE("tws_white", "Tai nghe TWS (Trắng)"),
     OVER_EAR("over_ear", "Tai nghe chụp tai"),
     SPEAKER("speaker", "Loa Bluetooth"),
     WATCH("watch", "Đồng hồ / Vòng tay");
@@ -33,6 +34,9 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             }
             if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
                 return OVER_EAR
+            }
+            if (TWS_WHITE_KEYWORDS.any { lower.contains(it) }) {
+                return TWS_WHITE
             }
             return TWS_EARBUDS
         }
@@ -98,6 +102,25 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             "arctis",
             "hyperx",
         )
+
+        private val TWS_WHITE_KEYWORDS = listOf(
+            "white",
+            "trắng",
+            "trang",
+            "pearl",
+        )
+    }
+}
+
+enum class BluetoothPopupTheme(val id: String, val label: String) {
+    LIGHT("light", "Sáng (Chuẩn mẫu)"),
+    SYSTEM("system", "Theo hệ thống"),
+    DARK("dark", "Tối");
+
+    companion object {
+        fun fromId(id: String?): BluetoothPopupTheme {
+            return entries.firstOrNull { it.id == id } ?: LIGHT
+        }
     }
 }
 
@@ -115,6 +138,7 @@ object BluetoothPopupStore {
     private const val KEY_GLOBAL_ENABLED = "cast_bt_connect_popup"
 
     private const val POPUP_PREFS = "bt_popup_prefs"
+    private const val KEY_POPUP_THEME = "popup_theme"
     private const val IMAGES_DIR_NAME = "bt_popup_images"
     private const val MAX_GIF_BYTES = 4 * 1024 * 1024
     private const val MAX_STATIC_DIM_PX = 512
@@ -131,6 +155,19 @@ object BluetoothPopupStore {
     fun isPopupGloballyEnabled(context: Context): Boolean {
         return context.getSharedPreferences(EXPERIMENTAL_PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_GLOBAL_ENABLED, false)
+    }
+
+    fun getPopupTheme(context: Context): BluetoothPopupTheme {
+        val id = context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_POPUP_THEME, null)
+        return BluetoothPopupTheme.fromId(id)
+    }
+
+    fun setPopupTheme(context: Context, theme: BluetoothPopupTheme) {
+        context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_POPUP_THEME, theme.id)
+            .apply()
     }
 
     fun getDeviceConfig(

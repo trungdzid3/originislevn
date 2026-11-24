@@ -6,19 +6,26 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -43,22 +50,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.originisle.android.R
 import com.originisle.android.bluetooth.BluetoothDevicePreset
 import com.originisle.android.bluetooth.BluetoothPopupBattery
 import com.originisle.android.bluetooth.BluetoothPopupOverlay
 import com.originisle.android.bluetooth.BluetoothPopupStore
+import com.originisle.android.bluetooth.BluetoothPopupTheme
 
 /**
- * Bottom sheet Material 3 cho phép tùy chỉnh ảnh / GIF và preset hiển thị
+ * Bottom sheet Material 3 cho phép tùy chỉnh giao diện thẻ popup, ảnh / GIF và preset hiển thị
  * cho từng thiết bị Bluetooth đã ghép đôi.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BluetoothPopupSheet(
     context: Context,
@@ -67,6 +79,9 @@ fun BluetoothPopupSheet(
     val tick = rememberResumeTick()
     var refreshVersion by remember { mutableIntStateOf(0) }
     var pickingForKey by remember { mutableStateOf<String?>(null) }
+    var popupTheme by remember(refreshVersion) {
+        mutableStateOf(BluetoothPopupStore.getPopupTheme(context))
+    }
 
     val btPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -163,6 +178,40 @@ fun BluetoothPopupSheet(
                 )
             }
 
+            GroupCard {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "Giao diện thẻ Popup",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = IsleColors.Text,
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        BluetoothPopupTheme.entries.forEach { theme ->
+                            ChoiceChip(
+                                label = theme.label,
+                                selected = popupTheme == theme,
+                                onClick = {
+                                    popupTheme = theme
+                                    BluetoothPopupStore.setPopupTheme(context, theme)
+                                },
+                                height = 38.dp,
+                                horizontalPadding = 12.dp,
+                            )
+                        }
+                    }
+                }
+            }
+
             if (!hasBtPermission) {
                 GroupCard {
                     Column(
@@ -231,7 +280,37 @@ fun BluetoothPopupSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                IconTile(IsleIcons.Headphones, color = IsleColors.Accent)
+                                val customBitmap = remember(config.customImagePath) {
+                                    config.customImagePath?.let { path ->
+                                        runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                        .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(14.dp)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (customBitmap != null) {
+                                        Image(
+                                            bitmap = customBitmap,
+                                            contentDescription = deviceName,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else {
+                                        Image(
+                                            painter = painterResource(presetDrawableRes(config.preset)),
+                                            contentDescription = config.preset.label,
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(4.dp),
+                                        )
+                                    }
+                                }
                                 Column(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -309,6 +388,9 @@ fun BluetoothPopupSheet(
                                                 horizontalPadding = 8.dp,
                                             )
                                         }
+                                        if (rowItems.size == 1) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }
@@ -360,4 +442,13 @@ fun BluetoothPopupSheet(
             Spacer(Modifier.height(4.dp))
         }
     }
+}
+
+@DrawableRes
+private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset) {
+    BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
+    BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
+    BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
+    BluetoothDevicePreset.SPEAKER -> R.drawable.bt_preset_speaker_3d
+    BluetoothDevicePreset.WATCH -> R.drawable.bt_preset_watch_3d
 }

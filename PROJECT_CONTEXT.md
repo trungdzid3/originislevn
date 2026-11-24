@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.4.0` (mã bản dựng `versionCode = 20400`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.5.0` (mã bản dựng `versionCode = 20500`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,12 +13,13 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.4.0 / 20400, minSdk = 34, Shizuku 13.1.5)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.5.0 / 20500, minSdk = 34, Shizuku 13.1.5)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
 │       │   ├── res/
 │       │   │   ├── drawable/         # ic_success_tick_green.xml, ic_tiktok_streak_fire.xml, ic_media_heart.xml, ic_quick_share.xml...
+│       │   │   ├── drawable-nodpi/   # bt_preset_tws_dark_3d.webp, bt_preset_tws_white_3d.webp, bt_preset_over_ear_3d.webp, bt_preset_speaker_3d.webp, bt_preset_watch_3d.webp
 │       │   │   └── xml/              # keepalive_accessibility_config.xml, file_paths.xml, network_security_config.xml
 │       │   └── java/com/originisle/android/
 │       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS
@@ -47,7 +48,7 @@ origin-isle-vn/
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
 │       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo, Tối ưu giữ nền Shizuku, BluetoothPopupSheet)
-│       └── test/                     # Unit Tests (83 tests: VietnamBankDetectorTest, BluetoothPopupStoreTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
+│       └── test/                     # Unit Tests (85 tests: VietnamBankDetectorTest, BluetoothPopupStoreTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -55,6 +56,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.5.0.apk  # File APK xuất bản v2.5.0 (4,956,952 bytes / ~4.73 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.4.0.apk  # File APK xuất bản v2.4.0 (4,742,295 bytes / ~4.52 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.3.0.apk  # File APK xuất bản v2.3.0 (4,693,143 bytes / ~4.48 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.2.3.apk  # File APK xuất bản v2.2.3 (4,610,715 bytes / ~4.40 MB, R8 minify + shrinkResources)
@@ -63,6 +65,12 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.5.0 — Nâng Cấp Thẻ Popup Bluetooth Chuẩn OriginOS Bottom Sheet & Ảnh 3D**:
+  - `app/src/main/res/drawable-nodpi/`: Bổ sung 5 ảnh 3D nền trong suốt (`bt_preset_tws_dark_3d.webp`, `bt_preset_tws_white_3d.webp`, `bt_preset_over_ear_3d.webp`, `bt_preset_speaker_3d.webp`, `bt_preset_watch_3d.webp`).
+  - `BluetoothPopupStore.kt` (`com.originisle.android.bluetooth`): Mở rộng `BluetoothDevicePreset` thêm `TWS_WHITE` (`"tws_white"`, `"Tai nghe TWS (Trắng)"`), `inferFromName` ưu tiên `WATCH` -> `SPEAKER` -> `OVER_EAR` -> `TWS_WHITE` -> `TWS_EARBUDS`; thêm `BluetoothPopupTheme` (`LIGHT`, `SYSTEM`, `DARK`) cùng `getPopupTheme` / `setPopupTheme`.
+  - `BluetoothPopupOverlay.kt` (`com.originisle.android.bluetooth`): Thiết kế lại theo chuẩn OriginOS half-screen bottom sheet (scrim `#52000000`, bo góc `32dp`, kéo xuống đóng, thanh nắm `36x4dp`, ảnh 3D `210x192dp` hoặc `ImageDecoder` GIF, cụm pin viên nang ngang `28dp` tự ẩn khi không có pin, nút `(i)` mở cài đặt Bluetooth, nút pill `"Hoàn tất"` và hỗ trợ theme `LIGHT`/`SYSTEM`/`DARK`).
+  - `BluetoothPopupSheet.kt` (`com.originisle.android.ui`): Thêm thẻ `GroupCard` chọn `"Giao diện thẻ Popup"` (`ChoiceChip` cho 3 theme), thay `IconTile` bằng khung ảnh thu nhỏ `52dp x 52dp` bo góc `14dp` hiển thị ảnh 3D preset hoặc ảnh tùy chỉnh (`remember(customPath)`), hỗ trợ đủ 5 preset trên lưới 2 cột.
+  - `BluetoothPopupStoreTest.kt`, `app/build.gradle.kts` & `release/OriginIsle-VN-v2.5.0.apk`: Nâng `versionCode = 20500`, `versionName = "2.5.0"`, 85/85 unit tests PASS, APK release 4,956,952 bytes (~4.73 MB).
 - **Origin Isle VN v2.4.0 — Popup Kết Nối Bluetooth Kiểu Fast Pair (Ảnh Tĩnh / GIF Tùy Chỉnh)**:
   - `BluetoothPopupStore.kt` (`com.originisle.android.bluetooth`): Quản lý cấu hình theo thiết bị (`BluetoothDevicePreset`: `TWS_EARBUDS`, `OVER_EAR`, `SPEAKER`, `WATCH`), chuẩn hóa key `normalizeKey`, lưu/xóa ảnh tùy chỉnh (`filesDir/bt_popup_images/<key>.png|gif`, hỗ trợ GIF <= 4MB và ảnh tĩnh scale <= 512x512px) và `SharedPreferences("bt_popup_prefs")`.
   - `BluetoothPopupOverlay.kt` (`com.originisle.android.bluetooth`): Hiển thị thẻ BottomSheet nổi qua `WindowManager` (`TYPE_APPLICATION_OVERLAY`) theo phong cách Google Fast Pair (dark/light M3, bo góc 28dp, animation trượt 260ms), hỗ trợ `ImageDecoder` phát ảnh động GIF (`AnimatedImageDrawable`) hoặc vector/bitmap preset theo loại thiết bị, hiển thị pin đơn / TWS (L/R/Case) và cập nhật live khi đang mở (`updateBatteryIfShowing`, `onDeviceDisconnected`).
