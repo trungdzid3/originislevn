@@ -42,25 +42,26 @@ Quy chuẩn Kỹ thuật và Quy trình Vận hành bắt buộc cho mọi phiê
 
 ## PHẦN II: KIẾN TRÚC CHIẾN LƯỢC & ĐIỀU PHỐI ĐA ĐẠI LÝ
 
-### 5. Quy chế Vibe Coding Studio & Phân Cấp Tranh Luận (Argon Strategy Loop)
-* **Tầng 1 - Định hướng Chiến lược (Gemini 4 Argon)**:
-  * Khi lập kế hoạch, kiến trúc hệ thống, schema, API contracts và GDD/Product Spec cho sản phẩm Vibe Coding (Game, Web, SaaS, Extension, Tool), BẮT BUỘC dùng skill `ask-argon` làm Tổng Công Trình Sư.
-  * **Giới hạn**: **Tuyệt đối KHÔNG để Argon viết code** và không lãng phí token vào tiểu tiết. Argon chỉ vạch hướng chiến lược và kế hoạch tổng quát.
-* **Tầng 2 - Chuyên viên Thực thi & Phản biện (Antigravity Specialists - argon-vibe-studio)**:
-  * *Lead Architect*: Chuyển định hướng từ Argon thành giải thuật, cấu trúc file/dữ liệu vào `task.md`.
-  * *Senior Coder*: Viết mã nguồn triển khai thực tế, module hóa sạch sẽ.
-  * *Code Reviewer*: Kiểm soát 4 chốt chặn: 60 FPS / Core Web Vitals, memory leak, responsive đa thiết bị, phản hồi Coder sửa lỗi.
-  * *Autonomous QA Bot*: Headless browser bắt 100% console.error, HTTP 404, screenshot, test cuộn ngang, chaos fuzzing và simulation logic.
-* **Tầng 3 - Thực thi Khép kín & Cầu chì An toàn (Zero Interruption Policy with Circuit Breaker)**:
+### 5. Quy chế Vibe Coding Studio & Phân Cấp Tranh Luận (Carbon-Argon Strategy Loop)
+* **Tầng 1 - Định hướng Chiến lược, Thuật toán & Kế hoạch Tổng quát (Gemini 4 Carbon)**:
+  * Khi lập kế hoạch tổng quát, thiết kế thuật toán, kiến trúc hệ thống, schema, API contracts và GDD/Product Spec cho sản phẩm Vibe Coding (Game, Web, SaaS, Extension, Tool), BẮT BUỘC dùng **Gemini 4 Carbon** làm Tổng Công Trình Sư.
+  * **Giới hạn**: **Tuyệt đối KHÔNG để Carbon viết code** và không lãng phí token vào tiểu tiết. Carbon chỉ vạch hướng chiến lược, thuật toán cốt lõi và kế hoạch tổng quát.
+* **Tầng 2 - Kế hoạch Chi tiết & Kiến trúc Cụ thể (Gemini 4 Argon)**:
+  * Khi cần phân rã kế hoạch tổng quát từ Carbon thành **kế hoạch chi tiết hơn** (cấu trúc file/dữ liệu, luồng xử lý cụ thể, ma trận task vào `implementation_plan.md` / `task.md`), dùng **Gemini 4 Argon** (`ask-argon` / `gemini-4-argon-medium`). Argon cũng không viết code triển khai tiểu tiết.
+* **Tầng 3 - Điều phối & Thực thi Khép kín (Neon Orchestrator & Hydrogen Specialists)**:
+  * *Điều phối (Coordinator / Lead Orchestrator)*: **Gemini 4 Neon** (`gemini-4-neon-medium`) chịu trách nhiệm điều phối phân rã task, khóa phạm vi, giám sát và tích hợp.
+  * *Thực thi (Senior Coder, Code Reviewer, Autonomous QA Bot)*: **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`) viết mã nguồn triển khai thực tế, kiểm soát 4 chốt chặn (60 FPS / Core Web Vitals, memory leak, responsive đa thiết bị) và chạy headless browser QA.
   * Không dừng giữa chừng để bắt người dùng test thủ công. Tự sửa lỗi khép kín (`Coder` -> `Reviewer` -> `QA Bot` -> đọc traceback từ `test_results.json` sửa đến khi PASS).
   * **Cầu chì Ngắt Vòng lặp (Circuit Breaker - Tối đa 3 lần)**: Một Subagent chỉ được phép tự động debug và thử lại tối đa **3 lần** cho cùng một lỗi cụ thể. Nếu sau 3 lần vẫn thất bại, Subagent BẮT BUỘC dừng lại, giữ nguyên hiện trạng, ghi chép chi tiết nguyên nhân vào `task.md` và bàn giao lại cho Lead Orchestrator để xin chỉ thị từ người dùng, tránh cạn kiệt context hoặc lặp vô tận.
 
 ### 6. Giao thức Điều phối Đa Đại lý Thống nhất (Unified Subagent & Swarm Protocol)
 * **Định danh Vai trò (Role Lock)**: Agent chính giữ vai trò **Lead Orchestrator (Tổng Điều Phối)**. Lead Orchestrator **BỊ CẤM** trực tiếp viết code triển khai khi nhiệm vụ thuộc diện phải chia Subagent/Swarm.
 * **Phân tầng Chế độ Thực thi & Định tuyến Model (Tiered Routing)**:
+  * **Lập kế hoạch tổng quát & Thuật toán**: **Gemini 4 Carbon** (`gemini-4-carbon-medium`).
+  * **Lập kế hoạch chi tiết**: **Gemini 4 Argon** (`gemini-4-argon-medium`).
   * **Mức 1 — `Mode: DIRECT`**: Chỉ sửa nhanh 1 file duy nhất hoặc hotfix nhỏ dưới 30 dòng code -> Lead Orchestrator trực tiếp thực thi.
   * **Mức 2 — Subagent thường (`invoke_subagent`)**: Việc nhỏ/trung bình (2–3 file độc lập, không cần build/verify chéo hoặc chỉ đọc/tra cứu) -> dùng Subagent thường với **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`) để tối ưu tốc độ và tiết kiệm quota.
-  * **Mức 3 — `/swarm` Mode**: Tác vụ lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi người dùng kích hoạt `/swarm` -> **Coordinator** BẮT BUỘC chạy **Gemini 4 Argon** (`gemini-4-argon-medium`, tự chuyển bằng `swarm{action:"model", model:"gemini-4-argon-medium"}` nếu đang ở model khác; trong trường hợp **Argon hết quota** thì chuyển sang dùng **Gemini 4 Neon** `gemini-4-neon-medium`), toàn bộ **Workers** BẮT BUỘC chạy **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`), thay thế hoàn toàn `gemini-3.8-flash`.
+  * **Mức 3 — `/swarm` Mode**: Tác vụ lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi người dùng kích hoạt `/swarm` -> **Coordinator (Điều phối)** BẮT BUỘC chạy **Gemini 4 Neon** (`gemini-4-neon-medium`, tự chuyển bằng `swarm{action:"model", model:"gemini-4-neon-medium"}` nếu đang ở model khác; trong trường hợp **Neon hết quota** thì chuyển sang dùng **Gemini 4 Argon** `gemini-4-argon-medium`), toàn bộ **Workers (Thực thi)** BẮT BUỘC chạy **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`), thay thế hoàn toàn `gemini-3.8-flash`.
 * **Quy chuẩn Dùng chung (Áp dụng cho cả Subagent & `/swarm`)**:
   * **Contract Freeze Gate**: Trước khi chạy song song các tác nhân phụ thuộc lẫn nhau, BẮT BUỘC chốt trước Contract/Schema dùng chung; các worker chỉ lập trình theo Contract đã khóa.
   * **Decoupled Scope & File Lock**: Tuyệt đối không để 2 worker cùng sửa chung 1 file tại cùng thời điểm; phân định rõ `[Agent: ...] | [Skill: ...] | [Locked Files: ...]` trong `task.md`. Khuyến khích nhân bản đa worker cùng chuyên môn (`FE-1`, `FE-2`...) trên các phạm vi tách rời.
