@@ -57,11 +57,11 @@ Quy chuẩn Kỹ thuật và Quy trình Vận hành bắt buộc cho mọi phiê
 ### 6. Giao thức Điều phối Đa Đại lý Thống nhất (Unified Subagent & Swarm Protocol)
 * **Định danh Vai trò (Role Lock)**: Agent chính giữ vai trò **Lead Orchestrator (Tổng Điều Phối)**. Lead Orchestrator **BỊ CẤM** trực tiếp viết code triển khai khi nhiệm vụ thuộc diện phải chia Subagent/Swarm.
 * **Phân tầng Chế độ Thực thi & Định tuyến Model (Tiered Routing)**:
-  * **Lập kế hoạch tổng quát & Thuật toán**: **Gemini 4 Carbon** (`gemini-4-carbon-medium`).
-  * **Lập kế hoạch chi tiết**: **Gemini 4 Argon** (`gemini-4-argon-medium`).
+  * **Lập kế hoạch tổng quát & Thuật toán**: **Gemini 4 Carbon** (`gemini-4-carbon-medium`; nếu hết quota thì fallback sang **Gemini 4 Neon** `gemini-4-neon-medium`).
+  * **Lập kế hoạch chi tiết**: **Gemini 4 Argon** (`gemini-4-argon-medium`; nếu hết quota thì fallback sang **Gemini 4 Neon** `gemini-4-neon-medium`).
   * **Mức 1 — `Mode: DIRECT`**: Chỉ sửa nhanh 1 file duy nhất hoặc hotfix nhỏ dưới 30 dòng code -> Lead Orchestrator trực tiếp thực thi.
   * **Mức 2 — Subagent thường (`invoke_subagent`)**: Việc nhỏ/trung bình (2–3 file độc lập, không cần build/verify chéo hoặc chỉ đọc/tra cứu) -> dùng Subagent thường với **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`) để tối ưu tốc độ và tiết kiệm quota.
-  * **Mức 3 — `/swarm` Mode**: Tác vụ lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi người dùng kích hoạt `/swarm` -> **Coordinator (Điều phối)** BẮT BUỘC chạy **Gemini 4 Neon** (`gemini-4-neon-medium`, tự chuyển bằng `swarm{action:"model", model:"gemini-4-neon-medium"}` nếu đang ở model khác; trong trường hợp **Neon hết quota** thì chuyển sang dùng **Gemini 4 Argon** `gemini-4-argon-medium`), toàn bộ **Workers (Thực thi)** BẮT BUỘC chạy **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`), thay thế hoàn toàn `gemini-3.8-flash`.
+  * **Mức 3 — `/swarm` Mode**: Tác vụ lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi người dùng kích hoạt `/swarm` -> **Coordinator (Điều phối)** BẮT BUỘC chạy **Gemini 4 Neon** (`gemini-4-neon-medium`, tự chuyển bằng `swarm{action:"model", model:"gemini-4-neon-medium"}` nếu đang ở model khác; không fallback ngược về Carbon/Argon), toàn bộ **Workers (Thực thi)** BẮT BUỘC chạy **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`), thay thế hoàn toàn `gemini-3.8-flash`.
 * **Quy chuẩn Dùng chung (Áp dụng cho cả Subagent & `/swarm`)**:
   * **Contract Freeze Gate**: Trước khi chạy song song các tác nhân phụ thuộc lẫn nhau, BẮT BUỘC chốt trước Contract/Schema dùng chung; các worker chỉ lập trình theo Contract đã khóa.
   * **Decoupled Scope & File Lock**: Tuyệt đối không để 2 worker cùng sửa chung 1 file tại cùng thời điểm; phân định rõ `[Agent: ...] | [Skill: ...] | [Locked Files: ...]` trong `task.md`. Khuyến khích nhân bản đa worker cùng chuyên môn (`FE-1`, `FE-2`...) trên các phạm vi tách rời.
