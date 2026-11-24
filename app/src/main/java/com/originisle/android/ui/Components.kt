@@ -105,9 +105,9 @@ fun TonalShortcutCard(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(MaterialTheme.shapes.large)
             .background(IsleColors.Surface)
-            .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(20.dp))
+            .border(0.5.dp, IsleColors.BorderHairline, MaterialTheme.shapes.large)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -254,7 +254,7 @@ fun groupItemShape(index: Int, count: Int): Shape {
 /** Hairline between rows in OriginOS 6, inset to line up with row titles. */
 @Composable
 fun GroupDivider(inset: Dp = 56.dp) {
-    Box(Modifier.padding(start = inset).fillMaxWidth().height(0.8.dp).background(IsleColors.Divider))
+    Box(Modifier.padding(start = inset).fillMaxWidth().height(0.5.dp).background(IsleColors.Divider))
 }
 
 /** Material 3 tonal container icon badge. */

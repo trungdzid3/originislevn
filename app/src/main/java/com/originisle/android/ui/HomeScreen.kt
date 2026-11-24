@@ -237,7 +237,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         // Header + menu 3 chấm
         item {
@@ -248,7 +248,7 @@ fun HomeScreen(
                         expanded = menuOpen,
                         onDismissRequest = { menuOpen = false },
                         offset = DpOffset(0.dp, 8.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = MaterialTheme.shapes.medium,
                         containerColor = IsleColors.Menu,
                     ) {
                         MenuItem("Thử nghiệm mẫu Đảo") {
@@ -415,7 +415,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 6.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(MaterialTheme.shapes.medium)
                                 .background(IsleColors.SurfaceHigh)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -427,12 +427,12 @@ fun HomeScreen(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .clip(RoundedCornerShape(10.dp)),
+                                    .clip(MaterialTheme.shapes.small),
                             )
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(MaterialTheme.shapes.small)
                                     .background(MaterialTheme.colorScheme.primaryContainer),
                                 contentAlignment = Alignment.Center,
                             ) {

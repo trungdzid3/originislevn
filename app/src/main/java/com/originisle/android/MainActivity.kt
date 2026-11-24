@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -288,36 +290,41 @@ private fun Screen() {
             }
         },
     ) { inner ->
-        Box(Modifier.fillMaxSize().padding(inner)) {
-            if (!onboardingDone) {
-                OnboardingScreen(context, prefs) { onboardingDone = true }
-                return@Box
-            }
-            when (page) {
-                Page.HOME -> HomeScreen(
-                    context = context,
-                    prefs = prefs,
-                    onRedoSetup = { onboardingDone = false },
-                    onOpenApps = {
-                        lastTab = Page.HOME
-                        page = Page.APPS
-                    },
-                    onOpenActivity = {
-                        lastTab = Page.HOME
-                        page = Page.ACTIVITY
-                    },
-                )
-                Page.MODULES -> ModulesScreen(
-                    context = context,
-                    prefs = prefs,
-                )
-                Page.SETTINGS -> SettingsScreen(
-                    context = context,
-                    prefs = prefs,
-                    onRedoSetup = { onboardingDone = false },
-                )
-                Page.APPS -> AppsScreen(context, prefs, onBack = { page = lastTab })
-                Page.ACTIVITY -> ActivityScreen(context, onBack = { page = lastTab })
+        Box(
+            modifier = Modifier.fillMaxSize().padding(inner),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(Modifier.fillMaxSize().widthIn(max = 640.dp)) {
+                if (!onboardingDone) {
+                    OnboardingScreen(context, prefs) { onboardingDone = true }
+                    return@Box
+                }
+                when (page) {
+                    Page.HOME -> HomeScreen(
+                        context = context,
+                        prefs = prefs,
+                        onRedoSetup = { onboardingDone = false },
+                        onOpenApps = {
+                            lastTab = Page.HOME
+                            page = Page.APPS
+                        },
+                        onOpenActivity = {
+                            lastTab = Page.HOME
+                            page = Page.ACTIVITY
+                        },
+                    )
+                    Page.MODULES -> ModulesScreen(
+                        context = context,
+                        prefs = prefs,
+                    )
+                    Page.SETTINGS -> SettingsScreen(
+                        context = context,
+                        prefs = prefs,
+                        onRedoSetup = { onboardingDone = false },
+                    )
+                    Page.APPS -> AppsScreen(context, prefs, onBack = { page = lastTab })
+                    Page.ACTIVITY -> ActivityScreen(context, onBack = { page = lastTab })
+                }
             }
         }
     }

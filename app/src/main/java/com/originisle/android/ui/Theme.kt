@@ -6,8 +6,10 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.originisle.android.R
@@ -741,6 +744,14 @@ private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = 
     tileGray = onSurfaceVariant,
 )
 
+val IsleShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(28.dp),
+)
+
 @Composable
 fun OriginIsleTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
@@ -790,6 +801,7 @@ fun OriginIsleTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalIsleColors provides palette) {
         MaterialTheme(
             colorScheme = colorScheme,
+            shapes = IsleShapes,
             typography = IsleTypography,
             content = content,
         )
