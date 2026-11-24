@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.5.0` (mã bản dựng `versionCode = 20500`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.6.0` (mã bản dựng `versionCode = 20600`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -13,13 +13,14 @@ origin-isle-vn/
 │   ├── GEMINI.md                     # Quy tắc toàn cục Antigravity (UTF-8 chuẩn)
 │   └── rules.md                      # Rule cục bộ (auto_github_sync: true)
 ├── app/
-│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.5.0 / 20500, minSdk = 34, Shizuku 13.1.5)
+│   ├── build.gradle.kts              # Cấu hình bản dựng Android & dependencies (v2.6.0 / 20600, minSdk = 34, Shizuku 13.1.5)
 │   ├── proguard-rules.pro
 │   └── src/
 │       ├── main/
+│       │   ├── assets/bt3d/          # three.min.js (Three.js r128 offline) & viewer.html (model 3D động Lenovo LE208, Redmi Buds 6 Play)
 │       │   ├── res/
 │       │   │   ├── drawable/         # ic_success_tick_green.xml, ic_tiktok_streak_fire.xml, ic_media_heart.xml, ic_quick_share.xml...
-│       │   │   ├── drawable-nodpi/   # bt_preset_tws_dark_3d.webp, bt_preset_tws_white_3d.webp, bt_preset_over_ear_3d.webp, bt_preset_speaker_3d.webp, bt_preset_watch_3d.webp
+│       │   │   ├── drawable-nodpi/   # bt_preset_lenovo_le208_3d.webp, bt_preset_redmi_buds_6_play_3d.webp, bt_preset_tws_dark_3d.webp, bt_preset_tws_white_3d.webp, bt_preset_over_ear_3d.webp, bt_preset_speaker_3d.webp, bt_preset_watch_3d.webp
 │       │   │   └── xml/              # keepalive_accessibility_config.xml, file_paths.xml, network_security_config.xml
 │       │   └── java/com/originisle/android/
 │       │       ├── bank/             # Bóc tách biến động số dư Ngân hàng VN & SMS
@@ -48,7 +49,7 @@ origin-isle-vn/
 │       │       ├── sports/           # Tỷ số thể thao trực tiếp
 │       │       ├── tiktok/           # TikTokStreakDetector.kt & TikTokStreakActionReceiver.kt
 │       │       └── ui/               # Giao diện Compose (DeviceInfoHelper, Device Hero Dashboard, Tùy biến Đảo, Tối ưu giữ nền Shizuku, BluetoothPopupSheet)
-│       └── test/                     # Unit Tests (85 tests: VietnamBankDetectorTest, BluetoothPopupStoreTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
+│       └── test/                     # Unit Tests (86 tests: VietnamBankDetectorTest, BluetoothPopupStoreTest, QuietHoursTest, EarbudsBatteryParserTest, OtpDetectorTest, DownloadBrowserDetectionTest, TikTokStreakDetectorTest, IslandTransitionsTest, ShizukuKeepAliveScriptTest)
 ├── backups/                          # Thư mục sao lưu an toàn khi đại tu
 ├── docs/
 ├── gradle/                           # Gradle wrapper & version catalogs
@@ -56,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.6.0.apk  # File APK xuất bản v2.6.0 (5,132,689 bytes / ~4.89 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.5.0.apk  # File APK xuất bản v2.5.0 (4,956,952 bytes / ~4.73 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.4.0.apk  # File APK xuất bản v2.4.0 (4,742,295 bytes / ~4.52 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.3.0.apk  # File APK xuất bản v2.3.0 (4,693,143 bytes / ~4.48 MB, R8 minify + shrinkResources)
@@ -65,6 +67,13 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.6.0 — Model 3D Động Three.js Offline (Lenovo LE208 & Redmi Buds 6 Play)**:
+  - `app/src/main/assets/bt3d/`: Bundle `three.min.js` offline và `viewer.html` render model 3D tương tác trong suốt (`lenovo_le208` mở nắp + nhấc 2 tai nghe; `redmi_buds_6_play` chỉ mở nắp hộp sạc).
+  - `app/src/main/res/drawable-nodpi/`: Bổ sung `bt_preset_lenovo_le208_3d.webp` và `bt_preset_redmi_buds_6_play_3d.webp` làm ảnh đại diện & fallback.
+  - `BluetoothPopupStore.kt` (`com.originisle.android.bluetooth`): Mở rộng `BluetoothDevicePreset` thêm `LENOVO_LE208` và `REDMI_BUDS_6_PLAY` (`isInteractive3D = true`, cập nhật `inferFromName`).
+  - `BluetoothPopupOverlay.kt` (`com.originisle.android.bluetooth`): Tích hợp `WebView` Three.js trong suốt (`224dp x 204dp`, không chặn cử chỉ vuốt đóng, có fallback `ImageView` khi lỗi, giải phóng `WebView` sạch sẽ khi đóng) và đặt `AUTO_DISMISS_MS = 6_000L`.
+  - `BluetoothPopupSheet.kt` (`com.originisle.android.ui`): Cập nhật phụ đề hỗ trợ model 3D động (Lenovo LE208, Redmi Buds 6 Play), ảnh tĩnh và GIF động; bổ sung 2 nhánh `presetDrawableRes` và hiển thị cân đối 7 preset trên lưới `chunked(2)`.
+  - `BluetoothPopupStoreTest.kt`, `app/build.gradle.kts` & `release/OriginIsle-VN-v2.6.0.apk`: Nâng `versionCode = 20600`, `versionName = "2.6.0"`, 86/86 unit tests PASS, APK release 5,132,689 bytes (~4.89 MB).
 - **Origin Isle VN v2.5.0 — Nâng Cấp Thẻ Popup Bluetooth Chuẩn OriginOS Bottom Sheet & Ảnh 3D**:
   - `app/src/main/res/drawable-nodpi/`: Bổ sung 5 ảnh 3D nền trong suốt (`bt_preset_tws_dark_3d.webp`, `bt_preset_tws_white_3d.webp`, `bt_preset_over_ear_3d.webp`, `bt_preset_speaker_3d.webp`, `bt_preset_watch_3d.webp`).
   - `BluetoothPopupStore.kt` (`com.originisle.android.bluetooth`): Mở rộng `BluetoothDevicePreset` thêm `TWS_WHITE` (`"tws_white"`, `"Tai nghe TWS (Trắng)"`), `inferFromName` ưu tiên `WATCH` -> `SPEAKER` -> `OVER_EAR` -> `TWS_WHITE` -> `TWS_EARBUDS`; thêm `BluetoothPopupTheme` (`LIGHT`, `SYSTEM`, `DARK`) cùng `getPopupTheme` / `setPopupTheme`.

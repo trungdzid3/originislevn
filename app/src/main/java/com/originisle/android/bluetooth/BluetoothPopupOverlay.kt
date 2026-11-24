@@ -2,10 +2,12 @@ package com.originisle.android.bluetooth
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.ImageDecoder
 import android.graphics.Paint
@@ -31,6 +33,8 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.PathInterpolator
+import android.webkit.WebSettings
+import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -51,7 +55,7 @@ data class BluetoothPopupBattery(
 object BluetoothPopupOverlay {
 
     private const val COOLDOWN_MS = 12_000L
-    private const val AUTO_DISMISS_MS = 5_000L
+    private const val AUTO_DISMISS_MS = 6_000L
     private const val ENTER_SHEET_ANIM_MS = 300L
     private const val ENTER_SCRIM_ANIM_MS = 240L
     private const val ENTER_IMAGE_ANIM_MS = 320L
@@ -71,6 +75,7 @@ object BluetoothPopupOverlay {
     private var currentWindowManager: WindowManager? = null
     private var currentKey: String? = null
     private var currentAnimatedDrawable: AnimatedImageDrawable? = null
+    private var currentWebView: WebView? = null
     private var currentBatteryContainer: LinearLayout? = null
     private var currentIsDark: Boolean = false
     private var isDismissing: Boolean = false
@@ -325,6 +330,14 @@ object BluetoothPopupOverlay {
     private fun cleanupReferences() {
         currentAnimatedDrawable?.stop()
         currentAnimatedDrawable = null
+        currentWebView?.apply {
+            onPause()
+            stopLoading()
+            loadUrl("about:blank")
+            (parent as? ViewGroup)?.removeView(this)
+            destroy()
+        }
+        currentWebView = null
         currentView = null
         currentRootScrim = null
         currentSheetContainer = null
@@ -435,26 +448,18 @@ object BluetoothPopupOverlay {
         sheet.addView(subtitleView)
 
         // Large 3D device visual
-        val imageView = ImageView(context).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = LinearLayout.LayoutParams(dp(context, 210), dp(context, 192)).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                topMargin = dp(context, 14)
-                bottomMargin = dp(context, 14)
-            }
-        }
-        bindDeviceVisual(imageView, config)
-        imageView.scaleX = 0.92f
-        imageView.scaleY = 0.92f
-        imageView.alpha = 0f
-        imageView.animate()
+        val visualView = buildDeviceVisualView(context, config, isDark)
+        visualView.scaleX = 0.92f
+        visualView.scaleY = 0.92f
+        visualView.alpha = 0f
+        visualView.animate()
             .scaleX(1f)
             .scaleY(1f)
             .alpha(1f)
             .setDuration(ENTER_IMAGE_ANIM_MS)
             .setInterpolator(originInterpolator)
             .start()
-        sheet.addView(imageView)
+        sheet.addView(visualView)
 
         // OriginOS battery pills
         val batteryContainer = LinearLayout(context).apply {
@@ -536,6 +541,59 @@ object BluetoothPopupOverlay {
         return sheet
     }
 
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun buildDeviceVisualView(
+        context: Context,
+        config: BluetoothPopupDeviceConfig,
+        isDark: Boolean,
+    ): View {
+        if (config.customImagePath == null && config.preset.isInteractive3D) {
+            try {
+                val themeParam = if (isDark) "dark" else "light"
+                val webView = WebView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        dp(context, 224),
+                        dp(context, 204),
+                    ).apply {
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        topMargin = dp(context, 10)
+                        bottomMargin = dp(context, 10)
+                    }
+                    setBackgroundColor(Color.TRANSPARENT)
+                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                    isVerticalScrollBarEnabled = false
+                    isHorizontalScrollBarEnabled = false
+                    overScrollMode = View.OVER_SCROLL_NEVER
+                    isClickable = false
+                    isFocusable = false
+                    setOnTouchListener { _, _ -> false }
+                    settings.javaScriptEnabled = true
+                    settings.allowFileAccess = true
+                    settings.domStorageEnabled = false
+                    settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                    settings.setSupportZoom(false)
+                    loadUrl(
+                        "file:///android_asset/bt3d/viewer.html?model=${config.preset.id}&theme=$themeParam",
+                    )
+                }
+                currentWebView = webView
+                return webView
+            } catch (_: Throwable) {
+                currentWebView = null
+            }
+        }
+
+        return ImageView(context).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(context, 210), dp(context, 192)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(context, 14)
+                bottomMargin = dp(context, 14)
+            }
+            bindDeviceVisual(this, config)
+        }
+    }
+
     private fun bindDeviceVisual(
         imageView: ImageView,
         config: BluetoothPopupDeviceConfig,
@@ -563,6 +621,8 @@ object BluetoothPopupOverlay {
     private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset) {
         BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
         BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
+        BluetoothDevicePreset.LENOVO_LE208 -> R.drawable.bt_preset_lenovo_le208_3d
+        BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> R.drawable.bt_preset_redmi_buds_6_play_3d
         BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
         BluetoothDevicePreset.SPEAKER -> R.drawable.bt_preset_speaker_3d
         BluetoothDevicePreset.WATCH -> R.drawable.bt_preset_watch_3d

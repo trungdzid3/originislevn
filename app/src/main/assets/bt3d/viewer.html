@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bluetooth 3D Viewer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+    }
+  </style>
+</head>
+<body>
+  <script src="./three.min.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      if (typeof THREE === 'undefined') {
+        return;
+      }
+
+      var params = new URLSearchParams(window.location.search || '');
+      var modelName = (params.get('model') || 'lenovo_le208').toLowerCase();
+      var theme = (params.get('theme') || 'light').toLowerCase();
+      var isDark = theme === 'dark';
+
+      var renderer, scene, camera, envRT;
+      var rootGroup = new THREE.Group();
+      var shadowPlane = null;
+      var animState = null;
+      var clock = new THREE.Clock();
+      var rafId = 0;
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function signPow(val, p) {
+        if (val === 0) return 0;
+        return (val < 0 ? -1 : 1) * Math.pow(Math.abs(val), p);
+      }
+
+      function easeOutCubic(t) {
+        t = clamp(t, 0, 1);
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function easeOutBack(t) {
+        t = clamp(t, 0, 1);
+        var c1 = 1.70158;
+        var c3 = c1 + 1;
+        return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+      }
+
+      function createStudioEnvironment(targetRenderer) {
+        var pmrem = new THREE.PMREMGenerator(targetRenderer);
+        if (pmrem.compileEquirectangularShader) {
+          pmrem.compileEquirectangularShader();
+        }
+
+        var envScene = new THREE.Scene();
+        envScene.background = new THREE.Color(0x0b0f17);
+
+        var softboxes = [
+          { pos: [0, 7, 2], rot: [Math.PI / 2, 0, 0], size: [10, 6], color: 0xffffff },
+          { pos: [-7, 3, 4], rot: [0, Math.PI / 3, 0], size: [6, 7], color: 0xe6f2ff },
+          { pos: [7, 2.5, 4], rot: [0, -Math.PI / 3, 0], size: [6, 7], color: 0xf4f8ff },
+          { pos: [0, 3, -7], rot: [0, 0, 0], size: [12, 5], color: 0xdbeafe },
+          { pos: [0, -6, 2], rot: [-Math.PI / 2, 0, 0], size: [12, 10], color: 0x1e2533 },
+          { pos: [0, 1.2, 8], rot: [0, Math.PI, 0], size: [7, 3.2], color: 0xffffff }
+        ];
+
+        for (var i = 0; i < softboxes.length; i++) {
+          var sb = softboxes[i];
+          var geo = new THREE.PlaneGeometry(sb.size[0], sb.size[1]);
+          var mat = new THREE.MeshBasicMaterial({ color: sb.color, side: THREE.DoubleSide });
+          var mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(sb.pos[0], sb.pos[1], sb.pos[2]);
+          mesh.rotation.set(sb.rot[0], sb.rot[1], sb.rot[2]);
+          envScene.add(mesh);
+        }
+
+        var rt = pmrem.fromScene(envScene, 0.04);
+        pmrem.dispose();
+        return rt;
+      }
+
+      function createShadowPlane(darkMode) {
+        var canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        var ctx = canvas.getContext('2d');
+        var grad = ctx.createRadialGradient(128, 128, 12, 128, 128, 122);
+        var centerAlpha = darkMode ? 0.48 : 0.28;
+        var midAlpha = darkMode ? 0.22 : 0.12;
+        grad.addColorStop(0.0, 'rgba(6, 10, 18, ' + centerAlpha + ')');
+        grad.addColorStop(0.45, 'rgba(6, 10, 18, ' + midAlpha + ')');
+        grad.addColorStop(1.0, 'rgba(6, 10, 18, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 256);
+
+        var tex = new THREE.CanvasTexture(canvas);
+        var mat = new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          depthWrite: false
+        });
+        var geo = new THREE.PlaneGeometry(3.2, 2.4);
+        var mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = -Math.PI / 2;
+        return mesh;
+      }
+
+      function buildSuperellipsoidSection(opts) {
+        var rx = opts.rx;
+        var ry = opts.ry;
+        var rz = opts.rz;
+        var pXZ = opts.pXZ;
+        var pY = opts.pY;
+        var phiStart = opts.phiStart;
+        var phiEnd = opts.phiEnd;
+        var segU = opts.segU || 64;
+        var segV = opts.segV || 24;
+        var invert = !!opts.invert;
+
+        var positions = [];
+        var uvs = [];
+        var indices = [];
+        var cols = segU + 1;
+
+        for (var i = 0; i <= segV; i++) {
+          var vFrac = i / segV;
+          var phi = phiStart + (phiEnd - phiStart) * vFrac;
+          var sinPhi = Math.sin(phi);
+          var cosPhi = Math.cos(phi);
+          var y = ry * signPow(cosPhi, pY);
+
+          for (var j = 0; j <= segU; j++) {
+            var uFrac = j / segU;
+            var theta = uFrac * Math.PI * 2;
+            var x = rx * signPow(sinPhi * Math.cos(theta), pXZ);
+            var z = rz * signPow(sinPhi * Math.sin(theta), pXZ);
+            positions.push(x, y, z);
+            uvs.push(uFrac, 1 - phi / Math.PI);
+          }
+        }
+
+        for (var r = 0; r < segV; r++) {
+          for (var c = 0; c < segU; c++) {
+            var a = r * cols + c;
+            var b = (r + 1) * cols + c;
+            var cIdx = (r + 1) * cols + (c + 1);
+            var d = r * cols + (c + 1);
+            if (invert) {
+              indices.push(a, b, d);
+              indices.push(d, b, cIdx);
+            } else {
+              indices.push(a, d, b);
+              indices.push(d, cIdx, b);
+            }
+          }
+        }
+
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        return geo;
+      }
+
+      function computePhiAtY(y, ry, pY) {
+        var norm = clamp(y / ry, -1, 1);
+        var cosPhi = signPow(norm, 1 / pY);
+        return Math.acos(clamp(cosPhi, -1, 1));
+      }
+
+      function buildRimPlateGeometry(rx, ry, rz, pXZ, pY, ySplit, innerScale, segU, flipNormal) {
+        var phiSplit = computePhiAtY(ySplit, ry, pY);
+        var sinPhi = Math.sin(phiSplit);
+        var positions = [];
+        var uvs = [];
+        var indices = [];
+
+        for (var j = 0; j <= segU; j++) {
+          var u = j / segU;
+          var theta = u * Math.PI * 2;
+          var ox = rx * signPow(sinPhi * Math.cos(theta), pXZ);
+          var oz = rz * signPow(sinPhi * Math.sin(theta), pXZ);
+          positions.push(ox, ySplit, oz);
+          uvs.push(u, 1);
+
+          positions.push(ox * innerScale, ySplit, oz * innerScale);
+          uvs.push(u, 0);
+        }
+
+        for (var k = 0; k < segU; k++) {
+          var o1 = k * 2;
+          var i1 = k * 2 + 1;
+          var o2 = (k + 1) * 2;
+          var i2 = (k + 1) * 2 + 1;
+          if (flipNormal) {
+            indices.push(o1, o2, i1);
+            indices.push(i1, o2, i2);
+          } else {
+            indices.push(o1, i1, o2);
+            indices.push(i1, i2, o2);
+          }
+        }
+
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        return geo;
+      }
+
+      function buildRimBandGeometry(rx, ry, rz, pXZ, pY, ySplit, thickness, radialOut, segU) {
+        var phiSplit = computePhiAtY(ySplit, ry, pY);
+        var sinPhi = Math.sin(phiSplit);
+        var positions = [];
+        var indices = [];
+        var halfT = thickness * 0.5;
+        var profile = [
+          [-halfT, 0.996],
+          [-halfT * 0.65, 1 + radialOut],
+          [halfT * 0.65, 1 + radialOut],
+          [halfT, 0.996]
+        ];
+        var rings = profile.length;
+
+        for (var r = 0; r < rings; r++) {
+          var dy = profile[r][0];
+          var sc = profile[r][1];
+          for (var j = 0; j <= segU; j++) {
+            var theta = (j / segU) * Math.PI * 2;
+            var x = rx * signPow(sinPhi * Math.cos(theta), pXZ) * sc;
+            var z = rz * signPow(sinPhi * Math.sin(theta), pXZ) * sc;
+            positions.push(x, ySplit + dy, z);
+          }
+        }
+
+        var cols = segU + 1;
+        for (var rIdx = 0; rIdx < rings - 1; rIdx++) {
+          for (var c = 0; c < segU; c++) {
+            var a = rIdx * cols + c;
+            var b = (rIdx + 1) * cols + c;
+            var cIdx = (rIdx + 1) * cols + (c + 1);
+            var d = rIdx * cols + (c + 1);
+            indices.push(a, b, d);
+            indices.push(d, b, cIdx);
+          }
+        }
+
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        return geo;
+      }
+
+      function createPebbledLeatherTextures() {
+        var size = 256;
+        var bumpCanvas = document.createElement('canvas');
+        bumpCanvas.width = size;
+        bumpCanvas.height = size;
+        var bCtx = bumpCanvas.getContext('2d');
+
+        var roughCanvas = document.createElement('canvas');
+        roughCanvas.width = size;
+        roughCanvas.height = size;
+        var rCtx = roughCanvas.getContext('2d');
+
+        bCtx.fillStyle = '#404040';
+        bCtx.fillRect(0, 0, size, size);
+
+        rCtx.fillStyle = '#c8c8c8';
+        rCtx.fillRect(0, 0, size, size);
+
+        var seed = 1337;
+        function rand() {
+          seed = (seed * 16807) % 2147483647;
+          return (seed - 1) / 2147483646;
+        }
+
+        var count = 2600;
+        for (var i = 0; i < count; i++) {
+          var cx = rand() * size;
+          var cy = rand() * size;
+          var rx = 1.6 + rand() * 2.4;
+          var ry = 1.4 + rand() * 2.1;
+          var rot = rand() * Math.PI;
+          var shade = Math.floor(155 + rand() * 95);
+          var rVal = Math.floor(145 + rand() * 65);
+
+          for (var ox = -1; ox <= 1; ox++) {
+            for (var oy = -1; oy <= 1; oy++) {
+              var px = cx + ox * size;
+              var py = cy + oy * size;
+              if (px < -6 || px > size + 6 || py < -6 || py > size + 6) continue;
+
+              bCtx.save();
+              bCtx.translate(px, py);
+              bCtx.rotate(rot);
+              var g = bCtx.createRadialGradient(0, 0, 0.2, 0, 0, Math.max(rx, ry));
+              g.addColorStop(0, 'rgb(' + shade + ',' + shade + ',' + shade + ')');
+              g.addColorStop(0.72, 'rgb(' + Math.floor(shade * 0.72) + ',' + Math.floor(shade * 0.72) + ',' + Math.floor(shade * 0.72) + ')');
+              g.addColorStop(1, 'rgba(50,50,50,0)');
+              bCtx.fillStyle = g;
+              bCtx.beginPath();
+              bCtx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+              bCtx.fill();
+              bCtx.restore();
+
+              rCtx.save();
+              rCtx.translate(px, py);
+              rCtx.rotate(rot);
+              rCtx.fillStyle = 'rgba(' + rVal + ',' + rVal + ',' + rVal + ',0.65)';
+              rCtx.beginPath();
+              rCtx.ellipse(0, 0, rx * 0.85, ry * 0.85, 0, 0, Math.PI * 2);
+              rCtx.fill();
+              rCtx.restore();
+            }
+          }
+        }
+
+        var bumpTex = new THREE.CanvasTexture(bumpCanvas);
+        bumpTex.wrapS = THREE.RepeatWrapping;
+        bumpTex.wrapT = THREE.RepeatWrapping;
+        bumpTex.repeat.set(3.2, 2.2);
+
+        var roughTex = new THREE.CanvasTexture(roughCanvas);
+        roughTex.wrapS = THREE.RepeatWrapping;
+        roughTex.wrapT = THREE.RepeatWrapping;
+        roughTex.repeat.set(3.2, 2.2);
+
+        return { bumpMap: bumpTex, roughnessMap: roughTex };
+      }
+
+      function createBrandDecalTexture(text, colorHex, fontSpec) {
+        var canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 64;
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, 256, 64);
+        ctx.fillStyle = colorHex;
+        ctx.font = fontSpec;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 128, 33);
+        var tex = new THREE.CanvasTexture(canvas);
+        return tex;
+      }
+
+      function buildLenovoEarbud(sideSign, mats) {
+        var bud = new THREE.Group();
+
+        var headGroup = new THREE.Group();
+        var headGeo = new THREE.SphereGeometry(0.145, 28, 22);
+        headGeo.scale(1.12, 0.92, 0.96);
+        var headMesh = new THREE.Mesh(headGeo, mats.glossBlack);
+        headGroup.add(headMesh);
+
+        var nozzleGroup = new THREE.Group();
+        nozzleGroup.position.set(-sideSign * 0.11, -0.02, 0.03);
+        nozzleGroup.rotation.z = sideSign * 0.55;
+        nozzleGroup.rotation.y = sideSign * 0.25;
+
+        var nozzle = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.055, 0.068, 0.09, 20),
+          mats.glossBlack
+        );
+        nozzle.rotation.z = Math.PI / 2;
+        nozzleGroup.add(nozzle);
+
+        var tipGeo = new THREE.SphereGeometry(0.092, 24, 18);
+        tipGeo.scale(0.88, 1.05, 0.96);
+        var tip = new THREE.Mesh(tipGeo, mats.silicone);
+        tip.position.set(-sideSign * 0.055, 0, 0);
+        nozzleGroup.add(tip);
+
+        headGroup.add(nozzleGroup);
+        headGroup.position.set(0, 0.14, 0.02);
+        bud.add(headGroup);
+
+        var stemGeo = new THREE.CylinderGeometry(0.052, 0.042, 0.42, 24);
+        var stem = new THREE.Mesh(stemGeo, mats.glossBlack);
+        stem.position.set(sideSign * 0.04, -0.08, -0.02);
+        stem.rotation.z = sideSign * 0.06;
+        bud.add(stem);
+
+        var chromePlateGeo = new THREE.CylinderGeometry(0.048, 0.039, 0.37, 20, 1, false, -Math.PI * 0.35, Math.PI * 0.7);
+        var chromePlate = new THREE.Mesh(chromePlateGeo, mats.chrome);
+        chromePlate.position.set(sideSign * 0.048, -0.08, -0.014);
+        chromePlate.rotation.z = sideSign * 0.06;
+        chromePlate.rotation.y = sideSign > 0 ? Math.PI * 0.45 : -Math.PI * 0.45;
+        bud.add(chromePlate);
+
+        var sensorDot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.016, 12, 12),
+          mats.sensorDark
+        );
+        sensorDot.position.set(sideSign * 0.088, 0.05, 0.012);
+        bud.add(sensorDot);
+
+        return bud;
+      }
+
+      function buildLenovoLE208() {
+        var group = new THREE.Group();
+        var rx = 0.84;
+        var ry = 0.59;
+        var rz = 0.385;
+        var pXZ = 0.74;
+        var pY = 0.78;
+        var ySplit = ry * 0.28;
+        var phiSplit = computePhiAtY(ySplit, ry, pY);
+
+        var leatherTex = createPebbledLeatherTextures();
+
+        var leatherMat = new THREE.MeshStandardMaterial({
+          color: 0x1b1d21,
+          roughness: 0.72,
+          metalness: 0.08,
+          bumpMap: leatherTex.bumpMap,
+          bumpScale: 0.018,
+          roughnessMap: leatherTex.roughnessMap
+        });
+
+        var chromeMat = new THREE.MeshStandardMaterial({
+          color: 0xe8edf5,
+          metalness: 0.95,
+          roughness: 0.12
+        });
+
+        var stemChromeMat = new THREE.MeshStandardMaterial({
+          color: 0xf0f4fa,
+          metalness: 0.96,
+          roughness: 0.08
+        });
+
+        var innerGlossMat = new THREE.MeshStandardMaterial({
+          color: 0x0c0d10,
+          roughness: 0.15,
+          metalness: 0.25,
+          side: THREE.DoubleSide
+        });
+
+        var budGlossMat = new THREE.MeshStandardMaterial({
+          color: 0x15171c,
+          roughness: 0.14,
+          metalness: 0.35
+        });
+
+        var siliconeMat = new THREE.MeshStandardMaterial({
+          color: 0x181a1f,
+          roughness: 0.85,
+          metalness: 0.02
+        });
+
+        var sensorMat = new THREE.MeshStandardMaterial({
+          color: 0x08090b,
+          roughness: 0.25,
+          metalness: 0.1
+        });
+
+        var ledMat = new THREE.MeshStandardMaterial({
+          color: 0x00d8ff,
+          emissive: 0x00d8ff,
+          emissiveIntensity: 0.05,
+          roughness: 0.2,
+          metalness: 0.1
+        });
+
+        var bodyGroup = new THREE.Group();
+
+        var bodyOuter = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx, ry: ry, rz: rz, pXZ: pXZ, pY: pY,
+            phiStart: phiSplit, phiEnd: Math.PI, segU: 72, segV: 28
+          }),
+          leatherMat
+        );
+        bodyGroup.add(bodyOuter);
+
+        var rimPlate = new THREE.Mesh(
+          buildRimPlateGeometry(rx, ry, rz, pXZ, pY, ySplit, 0.86, 72, false),
+          innerGlossMat
+        );
+        bodyGroup.add(rimPlate);
+
+        var cavityGeo = buildSuperellipsoidSection({
+          rx: rx * 0.86, ry: ry * 0.72, rz: rz * 0.84, pXZ: pXZ, pY: pY,
+          phiStart: Math.PI * 0.5, phiEnd: Math.PI, segU: 56, segV: 18, invert: true
+        });
+        var cavity = new THREE.Mesh(cavityGeo, innerGlossMat);
+        cavity.position.y = ySplit;
+        bodyGroup.add(cavity);
+
+        for (var w = -1; w <= 1; w += 2) {
+          var well = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.115, 0.085, 0.22, 24),
+            innerGlossMat
+          );
+          well.position.set(w * 0.31, ySplit - 0.11, 0.0);
+          bodyGroup.add(well);
+
+          var pogoMat = new THREE.MeshStandardMaterial({
+            color: 0xf5d06f,
+            metalness: 0.92,
+            roughness: 0.2
+          });
+          var pogo = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.02, 12), pogoMat);
+          pogo.position.set(w * 0.31, ySplit - 0.21, 0.0);
+          bodyGroup.add(pogo);
+        }
+
+        var chromeRing = new THREE.Mesh(
+          buildRimBandGeometry(rx, ry, rz, pXZ, pY, ySplit - 0.005, 0.028, 0.012, 72),
+          chromeMat
+        );
+        bodyGroup.add(chromeRing);
+
+        var logoTex = createBrandDecalTexture('Lenovo', 'rgba(220, 228, 240, 0.62)', '600 32px sans-serif');
+        var logoMat = new THREE.MeshBasicMaterial({
+          map: logoTex,
+          transparent: true,
+          depthWrite: false
+        });
+        var logoPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.09), logoMat);
+        logoPlane.position.set(0, -0.02, rz * 0.985);
+        bodyGroup.add(logoPlane);
+
+        var ledBar = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.024, 0.018), ledMat);
+        ledBar.position.set(0, -0.145, rz * 0.968);
+        bodyGroup.add(ledBar);
+
+        group.add(bodyGroup);
+
+        var hingeZ = -rz * 0.86;
+        var lidPivot = new THREE.Group();
+        lidPivot.position.set(0, ySplit, hingeZ);
+
+        var lidHolder = new THREE.Group();
+        lidHolder.position.set(0, -ySplit, -hingeZ);
+
+        var lidOuter = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx, ry: ry, rz: rz, pXZ: pXZ, pY: pY,
+            phiStart: 0, phiEnd: phiSplit, segU: 72, segV: 24
+          }),
+          leatherMat
+        );
+        lidHolder.add(lidOuter);
+
+        var lidInner = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx * 0.89, ry: ry * 0.86, rz: rz * 0.88, pXZ: pXZ, pY: pY,
+            phiStart: 0, phiEnd: phiSplit, segU: 56, segV: 18, invert: true
+          }),
+          innerGlossMat
+        );
+        lidHolder.add(lidInner);
+
+        var lidRim = new THREE.Mesh(
+          buildRimPlateGeometry(rx, ry, rz, pXZ, pY, ySplit, 0.89, 72, true),
+          innerGlossMat
+        );
+        lidHolder.add(lidRim);
+
+        lidPivot.add(lidHolder);
+        group.add(lidPivot);
+
+        var budMats = {
+          glossBlack: budGlossMat,
+          silicone: siliconeMat,
+          chrome: stemChromeMat,
+          sensorDark: sensorMat
+        };
+
+        var leftBud = buildLenovoEarbud(-1, budMats);
+        var rightBud = buildLenovoEarbud(1, budMats);
+
+        var leftBase = { x: -0.31, y: ySplit + 0.04, z: 0.01, rx: 0.12, ry: 0.35, rz: 0.08 };
+        var rightBase = { x: 0.31, y: ySplit + 0.04, z: 0.01, rx: 0.12, ry: -0.35, rz: -0.08 };
+
+        leftBud.position.set(leftBase.x, leftBase.y, leftBase.z);
+        leftBud.rotation.set(leftBase.rx, leftBase.ry, leftBase.rz);
+        rightBud.position.set(rightBase.x, rightBase.y, rightBase.z);
+        rightBud.rotation.set(rightBase.rx, rightBase.ry, rightBase.rz);
+
+        group.add(leftBud);
+        group.add(rightBud);
+
+        group.position.y = -0.06;
+
+        return {
+          root: group,
+          lidPivot: lidPivot,
+          ledMat: ledMat,
+          leftBud: leftBud,
+          rightBud: rightBud,
+          leftBase: leftBase,
+          rightBase: rightBase,
+          update: function (t) {
+            var rotEnter = easeOutCubic(t / 0.35);
+            var baseRotY = -0.36 + 0.24 * rotEnter;
+            var baseRotX = 0.22 - 0.04 * rotEnter;
+
+            ledMat.emissiveIntensity = 0.05 + 2.4 * easeOutCubic(t / 0.4);
+
+            var lidT = easeOutCubic((t - 0.28) / (1.05 - 0.28));
+            lidPivot.rotation.x = -1.62 * lidT;
+
+            var liftT = easeOutCubic((t - 0.62) / (1.55 - 0.62));
+            var floatY = t > 1.55 ? Math.sin((t - 1.55) * 2.1) * 0.032 : 0;
+            var floatYRight = t > 1.55 ? Math.sin((t - 1.55) * 2.1 + 0.7) * 0.032 : 0;
+
+            leftBud.position.set(
+              leftBase.x - 0.05 * liftT,
+              leftBase.y + 0.44 * liftT + floatY,
+              leftBase.z + 0.06 * liftT
+            );
+            leftBud.rotation.set(
+              leftBase.rx - 0.20 * liftT,
+              leftBase.ry + 0.45 * liftT,
+              leftBase.rz + 0.05 * liftT
+            );
+
+            rightBud.position.set(
+              rightBase.x + 0.05 * liftT,
+              rightBase.y + 0.62 * liftT + floatYRight,
+              rightBase.z + 0.08 * liftT
+            );
+            rightBud.rotation.set(
+              rightBase.rx - 0.16 * liftT,
+              rightBase.ry - 0.48 * liftT,
+              rightBase.rz - 0.06 * liftT
+            );
+
+            if (t > 1.55) {
+              var sway = Math.sin((t - 1.55) * 1.15) * 0.10;
+              group.rotation.y = baseRotY + sway;
+              group.rotation.x = baseRotX + Math.cos((t - 1.55) * 0.95) * 0.03;
+            } else {
+              group.rotation.y = baseRotY;
+              group.rotation.x = baseRotX;
+            }
+          }
+        };
+      }
+
+      function buildRedmiBeanBud(sideSign, mats) {
+        var bud = new THREE.Group();
+
+        var beanGeo = new THREE.SphereGeometry(0.165, 28, 22);
+        beanGeo.scale(0.86, 0.74, 1.18);
+        var bean = new THREE.Mesh(beanGeo, mats.budShell);
+        bud.add(bean);
+
+        var innerAccentGeo = new THREE.SphereGeometry(0.115, 20, 16);
+        innerAccentGeo.scale(0.82, 0.55, 1.05);
+        var innerAccent = new THREE.Mesh(innerAccentGeo, mats.budInner);
+        innerAccent.position.set(0, 0.035, 0);
+        bud.add(innerAccent);
+
+        var nozzleGroup = new THREE.Group();
+        nozzleGroup.position.set(sideSign * 0.10, -0.02, 0.05);
+        nozzleGroup.rotation.z = -sideSign * 0.35;
+        nozzleGroup.rotation.y = -sideSign * 0.2;
+
+        var tipGeo = new THREE.SphereGeometry(0.088, 22, 18);
+        tipGeo.scale(0.85, 0.92, 0.92);
+        var tip = new THREE.Mesh(tipGeo, mats.silicone);
+        tip.position.set(sideSign * 0.04, 0, 0);
+        nozzleGroup.add(tip);
+
+        bud.add(nozzleGroup);
+
+        var micDot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.014, 10, 10),
+          mats.micDark
+        );
+        micDot.position.set(-sideSign * 0.04, 0.115, 0.075);
+        bud.add(micDot);
+
+        return bud;
+      }
+
+      function buildRedmiBuds6Play() {
+        var group = new THREE.Group();
+        var rx = 0.72;
+        var ry = 0.62;
+        var rz = 0.44;
+        var pXZ = 0.42;
+        var pY = 0.46;
+        var ySplit = ry * 0.24;
+        var phiSplit = computePhiAtY(ySplit, ry, pY);
+
+        var caseMat = new THREE.MeshStandardMaterial({
+          color: 0xdce8f4,
+          roughness: 0.44,
+          metalness: 0.02
+        });
+
+        var innerMat = new THREE.MeshStandardMaterial({
+          color: 0xcfdde9,
+          roughness: 0.48,
+          metalness: 0.02,
+          side: THREE.DoubleSide
+        });
+
+        var notchMat = new THREE.MeshStandardMaterial({
+          color: 0xbacbd9,
+          roughness: 0.55,
+          metalness: 0.02
+        });
+
+        var budShellMat = new THREE.MeshStandardMaterial({
+          color: 0xe6eff7,
+          roughness: 0.24,
+          metalness: 0.04
+        });
+
+        var budInnerMat = new THREE.MeshStandardMaterial({
+          color: 0xd8e6f2,
+          roughness: 0.32,
+          metalness: 0.03
+        });
+
+        var siliconeMat = new THREE.MeshStandardMaterial({
+          color: 0xd3e1ee,
+          roughness: 0.82,
+          metalness: 0.01
+        });
+
+        var micMat = new THREE.MeshStandardMaterial({
+          color: 0x627080,
+          roughness: 0.4,
+          metalness: 0.1
+        });
+
+        var ledMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.1,
+          roughness: 0.15,
+          metalness: 0.0
+        });
+
+        var bodyGroup = new THREE.Group();
+
+        var bodyOuter = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx, ry: ry, rz: rz, pXZ: pXZ, pY: pY,
+            phiStart: phiSplit, phiEnd: Math.PI, segU: 72, segV: 28
+          }),
+          caseMat
+        );
+        bodyGroup.add(bodyOuter);
+
+        var rimPlate = new THREE.Mesh(
+          buildRimPlateGeometry(rx, ry, rz, pXZ, pY, ySplit, 0.87, 72, false),
+          innerMat
+        );
+        bodyGroup.add(rimPlate);
+
+        var cavity = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx * 0.87, ry: ry * 0.62, rz: rz * 0.85, pXZ: pXZ, pY: pY,
+            phiStart: Math.PI * 0.5, phiEnd: Math.PI, segU: 56, segV: 18, invert: true
+          }),
+          innerMat
+        );
+        cavity.position.y = ySplit;
+        bodyGroup.add(cavity);
+
+        for (var w = -1; w <= 1; w += 2) {
+          var well = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.14, 0.16, 24),
+            innerMat
+          );
+          well.scale.set(0.95, 1, 1.2);
+          well.position.set(w * 0.27, ySplit - 0.09, 0.01);
+          bodyGroup.add(well);
+        }
+
+        var notch = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.032, 0.025), notchMat);
+        notch.position.set(0, ySplit - 0.015, rz * 0.992);
+        bodyGroup.add(notch);
+
+        var ledDot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 16), ledMat);
+        ledDot.scale.set(1, 1, 0.45);
+        ledDot.position.set(0, ySplit - 0.13, rz * 0.994);
+        bodyGroup.add(ledDot);
+
+        group.add(bodyGroup);
+
+        var hingeZ = -rz * 0.88;
+        var hingeBar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.026, 0.026, 0.34, 16),
+          notchMat
+        );
+        hingeBar.rotation.z = Math.PI / 2;
+        hingeBar.position.set(0, ySplit, hingeZ * 1.06);
+        group.add(hingeBar);
+
+        var lidPivot = new THREE.Group();
+        lidPivot.position.set(0, ySplit, hingeZ);
+
+        var lidHolder = new THREE.Group();
+        lidHolder.position.set(0, -ySplit, -hingeZ);
+
+        var lidOuter = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx, ry: ry, rz: rz, pXZ: pXZ, pY: pY,
+            phiStart: 0, phiEnd: phiSplit, segU: 72, segV: 24
+          }),
+          caseMat
+        );
+        lidHolder.add(lidOuter);
+
+        var lidInner = new THREE.Mesh(
+          buildSuperellipsoidSection({
+            rx: rx * 0.88, ry: ry * 0.84, rz: rz * 0.87, pXZ: pXZ, pY: pY,
+            phiStart: 0, phiEnd: phiSplit, segU: 56, segV: 18, invert: true
+          }),
+          innerMat
+        );
+        lidHolder.add(lidInner);
+
+        var lidRim = new THREE.Mesh(
+          buildRimPlateGeometry(rx, ry, rz, pXZ, pY, ySplit, 0.88, 72, true),
+          innerMat
+        );
+        lidHolder.add(lidRim);
+
+        var redmiTex = createBrandDecalTexture('Redmi', 'rgba(115, 134, 155, 0.58)', '600 34px sans-serif');
+        var redmiMat = new THREE.MeshBasicMaterial({
+          map: redmiTex,
+          transparent: true,
+          depthWrite: false
+        });
+        var redmiPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.095), redmiMat);
+        redmiPlane.rotation.x = -Math.PI / 2;
+        redmiPlane.position.set(0, ry * 1.003, 0.04);
+        lidHolder.add(redmiPlane);
+
+        lidPivot.add(lidHolder);
+        group.add(lidPivot);
+
+        var budMats = {
+          budShell: budShellMat,
+          budInner: budInnerMat,
+          silicone: siliconeMat,
+          micDark: micMat
+        };
+
+        var leftBud = buildRedmiBeanBud(-1, budMats);
+        leftBud.position.set(-0.27, ySplit + 0.015, 0.01);
+        leftBud.rotation.set(0.18, 0.08, -0.10);
+        group.add(leftBud);
+
+        var rightBud = buildRedmiBeanBud(1, budMats);
+        rightBud.position.set(0.27, ySplit + 0.015, 0.01);
+        rightBud.rotation.set(0.18, -0.08, 0.10);
+        group.add(rightBud);
+
+        group.position.y = -0.10;
+
+        return {
+          root: group,
+          lidPivot: lidPivot,
+          ledMat: ledMat,
+          update: function (t) {
+            var enterT = easeOutCubic(t / 0.35);
+            var baseRotY = -0.30 + 0.24 * enterT;
+            var baseRotX = 0.26 - 0.04 * enterT;
+            var baseScale = 0.90 + 0.10 * enterT;
+            group.scale.setScalar(baseScale);
+
+            ledMat.emissiveIntensity = 0.1 + 2.2 * easeOutCubic(t / 0.35);
+
+            var lidT = easeOutBack((t - 0.28) / (1.15 - 0.28));
+            lidPivot.rotation.x = -1.78 * lidT;
+
+            if (t > 1.15) {
+              var sway = Math.sin((t - 1.15) * 1.1) * 0.12;
+              group.rotation.y = baseRotY + sway;
+              group.rotation.x = baseRotX + Math.cos((t - 1.15) * 0.9) * 0.035;
+            } else {
+              group.rotation.y = baseRotY;
+              group.rotation.x = baseRotX;
+            }
+          }
+        };
+      }
+
+      function init() {
+        var width = window.innerWidth || 224;
+        var height = window.innerHeight || 204;
+
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: true,
+          powerPreference: 'high-performance'
+        });
+        renderer.setClearColor(0x000000, 0);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.2));
+        renderer.setSize(width, height);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        if (THREE.sRGBEncoding) {
+          renderer.outputEncoding = THREE.sRGBEncoding;
+        }
+        document.body.appendChild(renderer.domElement);
+
+        scene = new THREE.Scene();
+        envRT = createStudioEnvironment(renderer);
+        scene.environment = envRT.texture;
+
+        var aspect = width / Math.max(1, height);
+        camera = new THREE.PerspectiveCamera(34, aspect, 0.1, 50);
+
+        var keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
+        keyLight.position.set(2.8, 4.5, 3.8);
+        scene.add(keyLight);
+
+        var fillLight = new THREE.DirectionalLight(0xdbeafe, 0.72);
+        fillLight.position.set(-3.2, 2.2, 2.4);
+        scene.add(fillLight);
+
+        var rimLight = new THREE.DirectionalLight(0xe0f2fe, 0.88);
+        rimLight.position.set(0.2, 2.6, -4.0);
+        scene.add(rimLight);
+
+        var hemi = new THREE.HemisphereLight(0xf8fafc, 0x1e293b, 0.55);
+        scene.add(hemi);
+
+        shadowPlane = createShadowPlane(isDark);
+        scene.add(shadowPlane);
+
+        if (modelName === 'redmi_buds_6_play') {
+          camera.position.set(0, 1.75, 3.15);
+          camera.lookAt(0, 0.05, 0);
+          shadowPlane.position.set(0, -0.74, 0);
+          animState = buildRedmiBuds6Play();
+        } else {
+          camera.position.set(0, 1.18, 3.55);
+          camera.lookAt(0, 0.16, 0);
+          shadowPlane.position.set(0, -0.68, 0);
+          animState = buildLenovoLE208();
+        }
+
+        rootGroup.add(animState.root);
+        scene.add(rootGroup);
+
+        clock.start();
+      }
+
+      function onResize() {
+        if (!renderer || !camera) return;
+        var w = window.innerWidth || 224;
+        var h = window.innerHeight || 204;
+        camera.aspect = w / Math.max(1, h);
+        camera.updateProjectionMatrix();
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.2));
+        renderer.setSize(w, h);
+      }
+
+      function animate() {
+        rafId = window.requestAnimationFrame(animate);
+        try {
+          var elapsed = clock.getElapsedTime();
+          if (animState && animState.update) {
+            animState.update(elapsed);
+          }
+          renderer.render(scene, camera);
+        } catch (err) {
+          if (rafId) {
+            window.cancelAnimationFrame(rafId);
+            rafId = 0;
+          }
+        }
+      }
+
+      try {
+        init();
+        window.addEventListener('resize', onResize, false);
+        animate();
+      } catch (e) {
+        // Silent fallback when WebGL is unavailable in overlay host
+      }
+    })();
+  </script>
+</body>
+</html>

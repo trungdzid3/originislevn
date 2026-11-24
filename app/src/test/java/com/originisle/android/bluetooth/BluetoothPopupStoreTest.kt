@@ -1,6 +1,7 @@
 package com.originisle.android.bluetooth
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,6 +19,8 @@ class BluetoothPopupStoreTest {
     fun presetFromId_resolvesKnownAndFallback() {
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("tws"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.fromId("tws_white"))
+        assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.fromId("lenovo_le208"))
+        assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.fromId("redmi_buds_6_play"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.fromId("over_ear"))
         assertEquals(BluetoothDevicePreset.SPEAKER, BluetoothDevicePreset.fromId("speaker"))
         assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.fromId("watch"))
@@ -62,6 +65,17 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Tai nghe trắng"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Earbuds Pearl Edition"))
         assertEquals(BluetoothDevicePreset.WATCH, BluetoothDevicePreset.inferFromName("Galaxy Watch White"))
+    }
+
+    @Test
+    fun inferFromName_detectsInteractive3DModels() {
+        assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.inferFromName("Lenovo LE208"))
+        assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.inferFromName("Lenovo LivePods TWS"))
+        assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds 6 Play"))
+        assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds6 Play"))
+        assertTrue(BluetoothDevicePreset.LENOVO_LE208.isInteractive3D)
+        assertTrue(BluetoothDevicePreset.REDMI_BUDS_6_PLAY.isInteractive3D)
+        assertFalse(BluetoothDevicePreset.TWS_EARBUDS.isInteractive3D)
     }
 
     @Test

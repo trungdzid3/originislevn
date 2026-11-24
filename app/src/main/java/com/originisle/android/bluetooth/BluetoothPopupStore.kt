@@ -13,9 +13,14 @@ import kotlin.math.roundToInt
 enum class BluetoothDevicePreset(val id: String, val label: String) {
     TWS_EARBUDS("tws", "Tai nghe TWS (Đen)"),
     TWS_WHITE("tws_white", "Tai nghe TWS (Trắng)"),
+    LENOVO_LE208("lenovo_le208", "Lenovo LE208 (3D)"),
+    REDMI_BUDS_6_PLAY("redmi_buds_6_play", "Redmi Buds 6 Play (3D)"),
     OVER_EAR("over_ear", "Tai nghe chụp tai"),
     SPEAKER("speaker", "Loa Bluetooth"),
     WATCH("watch", "Đồng hồ / Vòng tay");
+
+    val isInteractive3D: Boolean
+        get() = this == LENOVO_LE208 || this == REDMI_BUDS_6_PLAY
 
     companion object {
         fun fromId(id: String?): BluetoothDevicePreset {
@@ -35,10 +40,34 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
                 return OVER_EAR
             }
+            if (isLenovoLe208Name(lower)) {
+                return LENOVO_LE208
+            }
+            if (isRedmiBuds6PlayName(lower)) {
+                return REDMI_BUDS_6_PLAY
+            }
             if (TWS_WHITE_KEYWORDS.any { lower.contains(it) }) {
                 return TWS_WHITE
             }
             return TWS_EARBUDS
+        }
+
+        private fun isLenovoLe208Name(lower: String): Boolean {
+            return lower.contains("le208") || (
+                lower.contains("lenovo") && (
+                    lower.contains("earbud") ||
+                        lower.contains("bud") ||
+                        lower.contains("pod") ||
+                        lower.contains("tws") ||
+                        lower.contains("le")
+                    )
+                )
+        }
+
+        private fun isRedmiBuds6PlayName(lower: String): Boolean {
+            return lower.contains("buds 6 play") ||
+                lower.contains("buds6 play") ||
+                lower.contains("redmi buds 6")
         }
 
         private val WATCH_KEYWORDS = listOf(

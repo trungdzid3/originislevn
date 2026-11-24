@@ -171,7 +171,7 @@ fun BluetoothPopupSheet(
                     color = IsleColors.Text,
                 )
                 Text(
-                    "Chọn ảnh tĩnh, ảnh GIF hoặc mẫu thiết bị cho thẻ popup kết nối nhanh.",
+                    "Hỗ trợ model 3D động (Lenovo LE208, Redmi Buds 6 Play), ảnh tĩnh và GIF động cho thẻ popup kết nối nhanh.",
                     fontSize = 13.sp,
                     color = IsleColors.TextSecondary,
                     lineHeight = 18.sp,
@@ -446,6 +446,8 @@ fun BluetoothPopupSheet(
 
 @DrawableRes
 private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset) {
+    BluetoothDevicePreset.LENOVO_LE208 -> R.drawable.bt_preset_lenovo_le208_3d
+    BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> R.drawable.bt_preset_redmi_buds_6_play_3d
     BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
     BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
     BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
