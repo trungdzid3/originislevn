@@ -2,6 +2,9 @@ package com.originisle.android.bluetooth
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -31,10 +34,10 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
-import android.webkit.WebSettings
-import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -75,7 +78,7 @@ object BluetoothPopupOverlay {
     private var currentWindowManager: WindowManager? = null
     private var currentKey: String? = null
     private var currentAnimatedDrawable: AnimatedImageDrawable? = null
-    private var currentWebView: WebView? = null
+    private val activeAnimators = mutableListOf<Animator>()
     private var currentBatteryContainer: LinearLayout? = null
     private var currentIsDark: Boolean = false
     private var isDismissing: Boolean = false
@@ -328,16 +331,10 @@ object BluetoothPopupOverlay {
     }
 
     private fun cleanupReferences() {
+        activeAnimators.forEach { runCatching { it.cancel() } }
+        activeAnimators.clear()
         currentAnimatedDrawable?.stop()
         currentAnimatedDrawable = null
-        currentWebView?.apply {
-            onPause()
-            stopLoading()
-            loadUrl("about:blank")
-            (parent as? ViewGroup)?.removeView(this)
-            destroy()
-        }
-        currentWebView = null
         currentView = null
         currentRootScrim = null
         currentSheetContainer = null
@@ -541,45 +538,17 @@ object BluetoothPopupOverlay {
         return sheet
     }
 
-    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    @SuppressLint("ClickableViewAccessibility")
     private fun buildDeviceVisualView(
         context: Context,
         config: BluetoothPopupDeviceConfig,
-        isDark: Boolean,
+        @Suppress("UNUSED_PARAMETER") isDark: Boolean,
     ): View {
-        if (config.customImagePath == null && config.preset.isInteractive3D) {
-            try {
-                val themeParam = if (isDark) "dark" else "light"
-                val webView = WebView(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(
-                        dp(context, 224),
-                        dp(context, 204),
-                    ).apply {
-                        gravity = Gravity.CENTER_HORIZONTAL
-                        topMargin = dp(context, 10)
-                        bottomMargin = dp(context, 10)
-                    }
-                    setBackgroundColor(Color.TRANSPARENT)
-                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    overScrollMode = View.OVER_SCROLL_NEVER
-                    isClickable = false
-                    isFocusable = false
-                    setOnTouchListener { _, _ -> false }
-                    settings.javaScriptEnabled = true
-                    settings.allowFileAccess = true
-                    settings.domStorageEnabled = false
-                    settings.cacheMode = WebSettings.LOAD_NO_CACHE
-                    settings.setSupportZoom(false)
-                    loadUrl(
-                        "file:///android_asset/bt3d/viewer.html?model=${config.preset.id}&theme=$themeParam",
-                    )
-                }
-                currentWebView = webView
-                return webView
-            } catch (_: Throwable) {
-                currentWebView = null
+        if (config.customImagePath == null) {
+            when (config.preset) {
+                BluetoothDevicePreset.LENOVO_LE208 -> return buildLenovoLe208PhotorealStage(context)
+                BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> return buildRedmiBuds6PlayPhotorealStage(context)
+                else -> Unit
             }
         }
 
@@ -592,6 +561,266 @@ object BluetoothPopupOverlay {
             }
             bindDeviceVisual(this, config)
         }
+    }
+
+    private fun buildLenovoLe208PhotorealStage(context: Context): FrameLayout {
+        val stageW = dp(context, 226)
+        val stageH = dp(context, 218)
+        val density = context.resources.displayMetrics.density
+
+        val stage = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(stageW, stageH).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(context, 8)
+                bottomMargin = dp(context, 10)
+            }
+            clipChildren = false
+            clipToPadding = false
+            cameraDistance = 16000f * density
+            rotationY = -10f
+        }
+
+        val openCaseView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_le208_open)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            alpha = 0f
+            scaleY = 0.86f
+            pivotX = stageW / 2f
+            pivotY = stageH * 0.92f
+        }
+
+        val closedCaseView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_le208_closed)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            alpha = 1f
+        }
+
+        val budW = dp(context, 82)
+        val budH = dp(context, 98)
+        val startBudY = dpFloat(context, 68f)
+        val leftEndY = dpFloat(context, 22f)
+        val rightEndY = dpFloat(context, 10f)
+
+        val leftBudView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_le208_bud_left)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(budW, budH).apply {
+                gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+            }
+            translationX = -dpFloat(context, 31f)
+            translationY = startBudY
+            scaleX = 0.68f
+            scaleY = 0.68f
+            rotation = -6f
+            alpha = 0f
+        }
+
+        val rightBudView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_le208_bud_right)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(budW, budH).apply {
+                gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+            }
+            translationX = dpFloat(context, 31f)
+            translationY = startBudY
+            scaleX = 0.68f
+            scaleY = 0.68f
+            rotation = 6f
+            alpha = 0f
+        }
+
+        stage.addView(openCaseView)
+        stage.addView(closedCaseView)
+        stage.addView(leftBudView)
+        stage.addView(rightBudView)
+
+        val introTilt = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -10f, 0f).apply {
+            duration = 380L
+            interpolator = originInterpolator
+        }
+
+        val openLidAnim = AnimatorSet().apply {
+            startDelay = 360L
+            playTogether(
+                ObjectAnimator.ofFloat(openCaseView, View.ALPHA, 0f, 1f).setDuration(260L),
+                ObjectAnimator.ofFloat(openCaseView, View.SCALE_Y, 0.86f, 1f).apply {
+                    duration = 380L
+                    interpolator = OvershootInterpolator(0.85f)
+                },
+                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 1f, 0f).apply {
+                    startDelay = 60L
+                    duration = 220L
+                },
+            )
+        }
+
+        val liftLeftAnim = AnimatorSet().apply {
+            startDelay = 620L
+            playTogether(
+                ObjectAnimator.ofFloat(leftBudView, View.ALPHA, 0f, 1f).setDuration(220L),
+                ObjectAnimator.ofFloat(leftBudView, View.TRANSLATION_Y, startBudY, leftEndY).apply {
+                    duration = 620L
+                    interpolator = OvershootInterpolator(1.05f)
+                },
+                ObjectAnimator.ofFloat(leftBudView, View.SCALE_X, 0.68f, 1f).apply {
+                    duration = 540L
+                    interpolator = originInterpolator
+                },
+                ObjectAnimator.ofFloat(leftBudView, View.SCALE_Y, 0.68f, 1f).apply {
+                    duration = 540L
+                    interpolator = originInterpolator
+                },
+                ObjectAnimator.ofFloat(leftBudView, View.ROTATION, -6f, -2f).setDuration(560L),
+            )
+        }
+
+        val liftRightAnim = AnimatorSet().apply {
+            startDelay = 690L
+            playTogether(
+                ObjectAnimator.ofFloat(rightBudView, View.ALPHA, 0f, 1f).setDuration(220L),
+                ObjectAnimator.ofFloat(rightBudView, View.TRANSLATION_Y, startBudY, rightEndY).apply {
+                    duration = 640L
+                    interpolator = OvershootInterpolator(1.1f)
+                },
+                ObjectAnimator.ofFloat(rightBudView, View.SCALE_X, 0.68f, 1f).apply {
+                    duration = 540L
+                    interpolator = originInterpolator
+                },
+                ObjectAnimator.ofFloat(rightBudView, View.SCALE_Y, 0.68f, 1f).apply {
+                    duration = 540L
+                    interpolator = originInterpolator
+                },
+                ObjectAnimator.ofFloat(rightBudView, View.ROTATION, 6f, 2f).setDuration(560L),
+            )
+        }
+
+        val floatLeft = ObjectAnimator.ofFloat(
+            leftBudView,
+            View.TRANSLATION_Y,
+            leftEndY,
+            leftEndY - dpFloat(context, 4f),
+        ).apply {
+            startDelay = 1320L
+            duration = 1750L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+        }
+
+        val floatRight = ObjectAnimator.ofFloat(
+            rightBudView,
+            View.TRANSLATION_Y,
+            rightEndY,
+            rightEndY - dpFloat(context, 4.5f),
+        ).apply {
+            startDelay = 1480L
+            duration = 1950L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+        }
+
+        val idleStageSway = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -4.5f, 4.5f).apply {
+            startDelay = 1300L
+            duration = 3200L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+        }
+
+        listOf(introTilt, openLidAnim, liftLeftAnim, liftRightAnim, floatLeft, floatRight, idleStageSway).forEach {
+            activeAnimators.add(it)
+            it.start()
+        }
+
+        return stage
+    }
+
+    private fun buildRedmiBuds6PlayPhotorealStage(context: Context): FrameLayout {
+        val stageW = dp(context, 224)
+        val stageH = dp(context, 214)
+        val density = context.resources.displayMetrics.density
+
+        val stage = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(stageW, stageH).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(context, 8)
+                bottomMargin = dp(context, 10)
+            }
+            clipChildren = false
+            clipToPadding = false
+            cameraDistance = 16000f * density
+            rotationY = -10f
+        }
+
+        val openCaseView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_redmi6p_open)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            alpha = 0f
+            scaleY = 0.84f
+            pivotX = stageW / 2f
+            pivotY = stageH * 0.92f
+        }
+
+        val closedCaseView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_redmi6p_closed)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            alpha = 1f
+        }
+
+        stage.addView(openCaseView)
+        stage.addView(closedCaseView)
+
+        val introTilt = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -10f, 0f).apply {
+            duration = 380L
+            interpolator = originInterpolator
+        }
+
+        val openLidAnim = AnimatorSet().apply {
+            startDelay = 400L
+            playTogether(
+                ObjectAnimator.ofFloat(openCaseView, View.ALPHA, 0f, 1f).setDuration(260L),
+                ObjectAnimator.ofFloat(openCaseView, View.SCALE_Y, 0.84f, 1f).apply {
+                    duration = 420L
+                    interpolator = OvershootInterpolator(0.95f)
+                },
+                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 1f, 0f).apply {
+                    startDelay = 60L
+                    duration = 220L
+                },
+            )
+        }
+
+        val idleStageSway = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -5.5f, 5.5f).apply {
+            startDelay = 920L
+            duration = 3000L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+        }
+
+        listOf(introTilt, openLidAnim, idleStageSway).forEach {
+            activeAnimators.add(it)
+            it.start()
+        }
+
+        return stage
     }
 
     private fun bindDeviceVisual(
