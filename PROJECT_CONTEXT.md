@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.6.4` (mã bản dựng `versionCode = 20604`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.6.5` (mã bản dựng `versionCode = 20605`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.6.5.apk  # File APK xuất bản v2.6.5 (5,546,253 bytes / ~5.29 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.4.apk  # File APK xuất bản v2.6.4 (5,546,253 bytes / ~5.29 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.3.apk  # File APK xuất bản v2.6.3 (5,546,217 bytes / ~5.29 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.0.apk  # File APK xuất bản v2.6.0 (5,132,689 bytes / ~4.89 MB, R8 minify + shrinkResources)
@@ -69,6 +70,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.6.5 — Chặn Thanh Tiến Độ Cập Nhật CH Play & Không Can Thiệp Cuộc Gọi Messenger**:
+  - `DownloadDetector.kt` (`com.originisle.android.download`): Thêm `isPlayStoreAppUpdate(pkg, channelId, combinedText)` lọc thông báo cập nhật ứng dụng của `com.android.vending` (kênh chứa `"update"` hoặc nội dung chứa cụm từ cập nhật như `"đang cập nhật"`, `"cập nhật"`, `"updating"`, `"updated"`, ...), trả `false` sớm ngay đầu `isDownload(sbn)` và xóa điều kiện `update`/`đang cập nhật`/`updating` khỏi nhánh nhận diện tải của Play Store (vẫn giữ tải/cài mới ứng dụng và trình duyệt).
+  - `NotificationCastListener.kt` (`com.originisle.android.service`): Chặn `DownloadDetector.isPlayStoreAppUpdate(...)` ngay sau nhánh trình duyệt để không lọt xuống `GenericCard`; đồng thời bổ sung helper `isMessengerCallNotification(sbn)` kiểm tra cả `CATEGORY_CALL`, `Notification$CallStyle`, channel `call`/`rtc`/`voip` và ongoing + từ khóa cuộc gọi cho `com.facebook.orca` tại cả `reload()` và `onNotificationPosted()` để không đè Đảo gốc OriginOS 6.
+  - `DownloadBrowserDetectionTest.kt`, `app/build.gradle.kts` & `release/OriginIsle-VN-v2.6.5.apk`: Bổ sung `isPlayStoreAppUpdate_filtersPlayStoreUpdatesOnly`, nâng `versionCode = 20605`, `versionName = "2.6.5"`, 87/87 unit tests PASS, APK release 5,546,253 bytes (~5.29 MB).
 - **Origin Isle VN v2.6.4 — Tinh Chỉnh Popup 3D Redmi Buds 6 Play (Xóa Ảnh Tĩnh Đầu, Phóng To & Mở Nắp Chậm Dừng Hẳn)**:
   - `BluetoothPopupOverlay.kt` (`buildRedmi3dWebViewStage`): Xóa hoàn toàn `ImageView` ảnh tĩnh fallback ban đầu (`R.drawable.bt_preset_redmi_buds_6_play_3d`), hiển thị trực tiếp `WebView` trong suốt (`alpha = 0f` -> fade-in `140ms` khi `AndroidBridge.onReady()`); giữ nguyên 100% `buildLenovoLe208PhotorealStage`.
   - `app/src/main/assets/bt3d/viewer.html`: Phóng to mô hình ~25% (`DIST = 4.12`, `CAM_Y = 1.64`, `lookAt(0, 0.16, 0)`), giữ trạng thái đóng kín `400ms`, kéo dài mở nắp `1450ms` với `easeInOutCubic` (`0 -> -1.66 rad`, đồng bộ góc camera `0.22 -> 0.06`), bỏ hoàn toàn hiệu ứng bay nổi `Math.sin` và dừng `requestAnimationFrame` (`stopLoop()`) ngay khi mở nắp xong để đứng yên tuyệt đối và tiết kiệm GPU/pin.

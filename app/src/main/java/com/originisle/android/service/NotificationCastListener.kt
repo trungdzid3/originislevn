@@ -746,9 +746,7 @@ class NotificationCastListener : NotificationListenerService() {
                         }
                         return@forEach
                     }
-                    if (sbn.packageName == "com.facebook.orca" &&
-                        sbn.notification.category == NotificationCompat.CATEGORY_CALL
-                    ) {
+                    if (isMessengerCallNotification(sbn)) {
                         return@forEach
                     }
                     val extras = sbn.notification.extras
@@ -1206,10 +1204,7 @@ class NotificationCastListener : NotificationListenerService() {
                 }
             }
 
-            if (sbn.packageName == "com.facebook.orca" &&
-                (sbn.notification.category == NotificationCompat.CATEGORY_CALL ||
-                 sbn.notification.category == Notification.CATEGORY_CALL)
-            ) {
+            if (isMessengerCallNotification(sbn)) {
                 log(sbn, "bỏ qua — cuộc gọi Messenger do Đảo gốc OriginOS 6 tự xử lý", false)
                 return
             }
@@ -1397,6 +1392,18 @@ class NotificationCastListener : NotificationListenerService() {
                 val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
                 if (DownloadDetector.isIncognitoOrPrivateBrowsing(ch, "$title $text $bigText $subText")) {
                     log(sbn, "bỏ qua — chế độ ẩn danh trình duyệt", false)
+                    return
+                }
+            }
+
+            if (sbn.packageName == "com.android.vending") {
+                val ch = n.channelId.orEmpty()
+                val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+                val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+                val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+                val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+                if (DownloadDetector.isPlayStoreAppUpdate(sbn.packageName, ch, "$title $text $bigText $subText")) {
+                    log(sbn, "bỏ qua — cập nhật ứng dụng CH Play", false)
                     return
                 }
             }
@@ -2358,5 +2365,41 @@ class NotificationCastListener : NotificationListenerService() {
                     .putExtra("oi_scene", "NAVIGATION"),
             )
         }, 2500L)
+    }
+
+    private fun isMessengerCallNotification(sbn: StatusBarNotification): Boolean {
+        if (sbn.packageName != "com.facebook.orca") return false
+        val n = sbn.notification
+        if (n.category == NotificationCompat.CATEGORY_CALL || n.category == Notification.CATEGORY_CALL) {
+            return true
+        }
+        val extras = n.extras
+        val template = extras?.getString(NotificationCompat.EXTRA_TEMPLATE).orEmpty()
+        if (template == "android.app.Notification\$CallStyle") {
+            return true
+        }
+        val ch = n.channelId?.lowercase().orEmpty()
+        if (ch.contains("call") || ch.contains("rtc") || ch.contains("voip")) {
+            return true
+        }
+        val isOngoingCall = sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
+        if (!isOngoingCall) return false
+        val title = extras?.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+        val text = extras?.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+        val bigText = extras?.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val subText = extras?.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+        val combined = "$title $text $bigText $subText".lowercase()
+        return combined.contains("cuộc gọi") ||
+            combined.contains("đang gọi") ||
+            combined.contains("quay lại cuộc gọi") ||
+            combined.contains("return to call") ||
+            combined.contains("ongoing call") ||
+            combined.contains("incoming call") ||
+            combined.contains("calling") ||
+            combined.contains("video call") ||
+            combined.contains("audio call") ||
+            combined.contains("call in progress") ||
+            combined.contains("trả lời") ||
+            combined.contains("từ chối")
     }
 }

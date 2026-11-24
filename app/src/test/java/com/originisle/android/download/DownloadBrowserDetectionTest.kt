@@ -111,4 +111,19 @@ class DownloadBrowserDetectionTest {
         assertFalse(DownloadDetector.isIncognitoOrPrivateBrowsing("downloads", "Đang tải xuống file.apk 45%"))
         assertFalse(DownloadDetector.isIncognitoOrPrivateBrowsing("downloads", "Download complete"))
     }
+
+    @Test
+    fun isPlayStoreAppUpdate_filtersPlayStoreUpdatesOnly() {
+        assertTrue(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "downloads", "Đang cập nhật Zalo (45%)"))
+        assertTrue(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "downloads", "Updating 3 apps"))
+        assertTrue(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "downloads", "Đã cập nhật 5 ứng dụng"))
+        assertTrue(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "app_updates", "Zalo"))
+
+        assertFalse(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "downloads", "Đang tải xuống Liên Quân Mobile (30%)"))
+        assertFalse(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "downloads", "Downloading..."))
+        assertFalse(DownloadDetector.isPlayStoreAppUpdate("com.android.vending", "downloads", "Đang cài đặt..."))
+
+        assertFalse(DownloadDetector.isPlayStoreAppUpdate("com.android.chrome", "app_updates", "Đang tải app-update.apk"))
+        assertFalse(DownloadDetector.isPlayStoreAppUpdate("com.microsoft.emmx", "downloads", "Đang tải app-update.apk"))
+    }
 }

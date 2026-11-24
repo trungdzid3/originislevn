@@ -248,6 +248,29 @@ object DownloadDetector {
             text.contains("close private tabs")
     }
 
+    fun isPlayStoreAppUpdate(pkg: String, channelId: String, combinedText: String): Boolean {
+        if (pkg != "com.android.vending") return false
+        val ch = channelId.lowercase()
+        if (ch.contains("update")) {
+            return true
+        }
+        val text = combinedText.lowercase()
+        return text.contains("đang cập nhật") ||
+            text.contains("cập nhật") ||
+            text.contains("đã cập nhật") ||
+            text.contains("bản cập nhật") ||
+            text.contains("tự động cập nhật") ||
+            text.contains("updating") ||
+            text.contains("updated") ||
+            text.contains("update available") ||
+            text.contains("updates available") ||
+            text.contains("auto-update") ||
+            text.contains("auto updating") ||
+            text.contains("app update") ||
+            text.contains("apps updated") ||
+            text.contains("pending update")
+    }
+
     fun isDownloadPackage(pkg: String): Boolean {
         return pkg in DOWNLOAD_PACKAGES ||
             isBrowserPackage(pkg) ||
@@ -263,6 +286,16 @@ object DownloadDetector {
         val n = sbn.notification
         val extras = n.extras
         val pkg = sbn.packageName
+        val channelId = n.channelId?.lowercase().orEmpty()
+        val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
+        val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
+        val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+        val allText = "$title $text $bigText $subText".lowercase()
+
+        if (isPlayStoreAppUpdate(pkg, channelId, allText)) {
+            return false
+        }
 
         // a) Bỏ qua thông báo nhóm (Group Summary), trừ trường hợp CH Play (com.android.vending)
         // gắn progress bar thực tế ngay trên thông báo summary (thường gặp trên Android 14-16).
@@ -292,7 +325,6 @@ object DownloadDetector {
             return false
         }
 
-        val channelId = n.channelId?.lowercase().orEmpty()
         val isExplicitDownloadChannel = channelId.contains("download") ||
             channelId.contains("tai_xuong") ||
             channelId.contains("tải") ||
@@ -300,18 +332,10 @@ object DownloadDetector {
             channelId.contains("transfer") ||
             (pkg == "com.android.vending" && (
                 channelId.contains("install") ||
-                    channelId.contains("update") ||
                     channelId.contains("finsky")
                 ))
 
         val isDownloadPkg = isDownloadPackage(pkg)
-
-        // Kiểm tra nội dung text
-        val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
-        val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
-        val bigText = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
-        val subText = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
-        val allText = "$title $text $bigText $subText".lowercase()
 
         if (isBrowserPackage(pkg) && isIncognitoOrPrivateBrowsing(channelId, allText)) {
             return false
@@ -329,8 +353,6 @@ object DownloadDetector {
                 allText.contains("đang cài đặt") ||
                 allText.contains("đang cài") ||
                 allText.contains("installing") ||
-                allText.contains("đang cập nhật") ||
-                allText.contains("updating") ||
                 allText.contains("đang xác minh") ||
                 allText.contains("verifying") ||
                 allText.contains("đang chờ") ||
