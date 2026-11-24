@@ -565,32 +565,42 @@ object BluetoothPopupOverlay {
 
     private fun buildLenovoLe208PhotorealStage(context: Context): FrameLayout {
         val stageW = dp(context, 226)
-        val stageH = dp(context, 218)
+        val stageH = dp(context, 226)
         val density = context.resources.displayMetrics.density
+        val smoothOut = PathInterpolator(0.22f, 1f, 0.36f, 1f)
 
         val stage = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(stageW, stageH).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
-                topMargin = dp(context, 8)
-                bottomMargin = dp(context, 10)
+                topMargin = dp(context, 6)
+                bottomMargin = dp(context, 8)
             }
             clipChildren = false
             clipToPadding = false
-            cameraDistance = 16000f * density
-            rotationY = -10f
         }
 
-        val openCaseView = ImageView(context).apply {
-            setImageResource(R.drawable.bt_anim_le208_open)
+        val baseView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_le208_base)
             scaleType = ImageView.ScaleType.FIT_CENTER
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
             alpha = 0f
-            scaleY = 0.86f
+        }
+
+        val lidView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_le208_lid)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            cameraDistance = 14000f * density
             pivotX = stageW / 2f
-            pivotY = stageH * 0.92f
+            pivotY = stageH * 0.534f
+            rotationX = 86f
+            alpha = 0f
         }
 
         val closedCaseView = ImageView(context).apply {
@@ -600,12 +610,16 @@ object BluetoothPopupOverlay {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-            alpha = 1f
+            cameraDistance = 14000f * density
+            pivotX = stageW / 2f
+            pivotY = stageH * 0.60f
+            translationY = dpFloat(context, 8f)
+            alpha = 0f
         }
 
         val budW = dp(context, 82)
         val budH = dp(context, 98)
-        val startBudY = dpFloat(context, 68f)
+        val startBudY = dpFloat(context, 64f)
         val leftEndY = dpFloat(context, 22f)
         val rightEndY = dpFloat(context, 10f)
 
@@ -617,9 +631,8 @@ object BluetoothPopupOverlay {
             }
             translationX = -dpFloat(context, 31f)
             translationY = startBudY
-            scaleX = 0.68f
-            scaleY = 0.68f
-            rotation = -6f
+            scaleX = 0.80f
+            scaleY = 0.80f
             alpha = 0f
         }
 
@@ -631,112 +644,83 @@ object BluetoothPopupOverlay {
             }
             translationX = dpFloat(context, 31f)
             translationY = startBudY
-            scaleX = 0.68f
-            scaleY = 0.68f
-            rotation = 6f
+            scaleX = 0.80f
+            scaleY = 0.80f
             alpha = 0f
         }
 
-        stage.addView(openCaseView)
+        stage.addView(lidView)
+        stage.addView(baseView)
         stage.addView(closedCaseView)
         stage.addView(leftBudView)
         stage.addView(rightBudView)
 
-        val introTilt = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -10f, 0f).apply {
-            duration = 380L
-            interpolator = originInterpolator
+        val closedIntro = AnimatorSet().apply {
+            playTogether(
+                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 0f, 1f).setDuration(240L),
+                ObjectAnimator.ofFloat(closedCaseView, View.TRANSLATION_Y, dpFloat(context, 8f), 0f).apply {
+                    duration = 280L
+                    interpolator = smoothOut
+                },
+            )
         }
 
-        val openLidAnim = AnimatorSet().apply {
-            startDelay = 360L
+        val openHingeAnim = AnimatorSet().apply {
+            startDelay = 300L
             playTogether(
-                ObjectAnimator.ofFloat(openCaseView, View.ALPHA, 0f, 1f).setDuration(260L),
-                ObjectAnimator.ofFloat(openCaseView, View.SCALE_Y, 0.86f, 1f).apply {
-                    duration = 380L
-                    interpolator = OvershootInterpolator(0.85f)
-                },
+                ObjectAnimator.ofFloat(closedCaseView, View.ROTATION_X, 0f, -16f).setDuration(180L),
                 ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 1f, 0f).apply {
-                    startDelay = 60L
-                    duration = 220L
+                    startDelay = 30L
+                    duration = 160L
+                },
+                ObjectAnimator.ofFloat(baseView, View.ALPHA, 0f, 1f).setDuration(150L),
+                ObjectAnimator.ofFloat(lidView, View.ALPHA, 0f, 1f).setDuration(120L),
+                ObjectAnimator.ofFloat(lidView, View.ROTATION_X, 86f, 0f).apply {
+                    duration = 420L
+                    interpolator = smoothOut
                 },
             )
         }
 
         val liftLeftAnim = AnimatorSet().apply {
-            startDelay = 620L
+            startDelay = 540L
             playTogether(
                 ObjectAnimator.ofFloat(leftBudView, View.ALPHA, 0f, 1f).setDuration(220L),
                 ObjectAnimator.ofFloat(leftBudView, View.TRANSLATION_Y, startBudY, leftEndY).apply {
-                    duration = 620L
-                    interpolator = OvershootInterpolator(1.05f)
+                    duration = 520L
+                    interpolator = smoothOut
                 },
-                ObjectAnimator.ofFloat(leftBudView, View.SCALE_X, 0.68f, 1f).apply {
-                    duration = 540L
-                    interpolator = originInterpolator
+                ObjectAnimator.ofFloat(leftBudView, View.SCALE_X, 0.80f, 1f).apply {
+                    duration = 480L
+                    interpolator = smoothOut
                 },
-                ObjectAnimator.ofFloat(leftBudView, View.SCALE_Y, 0.68f, 1f).apply {
-                    duration = 540L
-                    interpolator = originInterpolator
+                ObjectAnimator.ofFloat(leftBudView, View.SCALE_Y, 0.80f, 1f).apply {
+                    duration = 480L
+                    interpolator = smoothOut
                 },
-                ObjectAnimator.ofFloat(leftBudView, View.ROTATION, -6f, -2f).setDuration(560L),
             )
         }
 
         val liftRightAnim = AnimatorSet().apply {
-            startDelay = 690L
+            startDelay = 600L
             playTogether(
                 ObjectAnimator.ofFloat(rightBudView, View.ALPHA, 0f, 1f).setDuration(220L),
                 ObjectAnimator.ofFloat(rightBudView, View.TRANSLATION_Y, startBudY, rightEndY).apply {
-                    duration = 640L
-                    interpolator = OvershootInterpolator(1.1f)
-                },
-                ObjectAnimator.ofFloat(rightBudView, View.SCALE_X, 0.68f, 1f).apply {
                     duration = 540L
-                    interpolator = originInterpolator
+                    interpolator = smoothOut
                 },
-                ObjectAnimator.ofFloat(rightBudView, View.SCALE_Y, 0.68f, 1f).apply {
-                    duration = 540L
-                    interpolator = originInterpolator
+                ObjectAnimator.ofFloat(rightBudView, View.SCALE_X, 0.80f, 1f).apply {
+                    duration = 480L
+                    interpolator = smoothOut
                 },
-                ObjectAnimator.ofFloat(rightBudView, View.ROTATION, 6f, 2f).setDuration(560L),
+                ObjectAnimator.ofFloat(rightBudView, View.SCALE_Y, 0.80f, 1f).apply {
+                    duration = 480L
+                    interpolator = smoothOut
+                },
             )
         }
 
-        val floatLeft = ObjectAnimator.ofFloat(
-            leftBudView,
-            View.TRANSLATION_Y,
-            leftEndY,
-            leftEndY - dpFloat(context, 4f),
-        ).apply {
-            startDelay = 1320L
-            duration = 1750L
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-
-        val floatRight = ObjectAnimator.ofFloat(
-            rightBudView,
-            View.TRANSLATION_Y,
-            rightEndY,
-            rightEndY - dpFloat(context, 4.5f),
-        ).apply {
-            startDelay = 1480L
-            duration = 1950L
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-
-        val idleStageSway = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -4.5f, 4.5f).apply {
-            startDelay = 1300L
-            duration = 3200L
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-
-        listOf(introTilt, openLidAnim, liftLeftAnim, liftRightAnim, floatLeft, floatRight, idleStageSway).forEach {
+        listOf(closedIntro, openHingeAnim, liftLeftAnim, liftRightAnim).forEach {
             activeAnimators.add(it)
             it.start()
         }
@@ -746,32 +730,42 @@ object BluetoothPopupOverlay {
 
     private fun buildRedmiBuds6PlayPhotorealStage(context: Context): FrameLayout {
         val stageW = dp(context, 224)
-        val stageH = dp(context, 214)
+        val stageH = dp(context, 224)
         val density = context.resources.displayMetrics.density
+        val smoothOut = PathInterpolator(0.22f, 1f, 0.36f, 1f)
 
         val stage = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(stageW, stageH).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
-                topMargin = dp(context, 8)
-                bottomMargin = dp(context, 10)
+                topMargin = dp(context, 6)
+                bottomMargin = dp(context, 8)
             }
             clipChildren = false
             clipToPadding = false
-            cameraDistance = 16000f * density
-            rotationY = -10f
         }
 
-        val openCaseView = ImageView(context).apply {
-            setImageResource(R.drawable.bt_anim_redmi6p_open)
+        val baseView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_redmi6p_base)
             scaleType = ImageView.ScaleType.FIT_CENTER
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
             alpha = 0f
-            scaleY = 0.84f
+        }
+
+        val lidView = ImageView(context).apply {
+            setImageResource(R.drawable.bt_anim_redmi6p_lid)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            cameraDistance = 14000f * density
             pivotX = stageW / 2f
-            pivotY = stageH * 0.92f
+            pivotY = stageH * 0.377f
+            rotationX = 88f
+            alpha = 0f
         }
 
         val closedCaseView = ImageView(context).apply {
@@ -781,41 +775,45 @@ object BluetoothPopupOverlay {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
-            alpha = 1f
+            cameraDistance = 14000f * density
+            pivotX = stageW / 2f
+            pivotY = stageH * 0.56f
+            translationY = dpFloat(context, 8f)
+            alpha = 0f
         }
 
-        stage.addView(openCaseView)
+        stage.addView(lidView)
+        stage.addView(baseView)
         stage.addView(closedCaseView)
 
-        val introTilt = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -10f, 0f).apply {
-            duration = 380L
-            interpolator = originInterpolator
-        }
-
-        val openLidAnim = AnimatorSet().apply {
-            startDelay = 400L
+        val closedIntro = AnimatorSet().apply {
             playTogether(
-                ObjectAnimator.ofFloat(openCaseView, View.ALPHA, 0f, 1f).setDuration(260L),
-                ObjectAnimator.ofFloat(openCaseView, View.SCALE_Y, 0.84f, 1f).apply {
-                    duration = 420L
-                    interpolator = OvershootInterpolator(0.95f)
-                },
-                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 1f, 0f).apply {
-                    startDelay = 60L
-                    duration = 220L
+                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 0f, 1f).setDuration(240L),
+                ObjectAnimator.ofFloat(closedCaseView, View.TRANSLATION_Y, dpFloat(context, 8f), 0f).apply {
+                    duration = 280L
+                    interpolator = smoothOut
                 },
             )
         }
 
-        val idleStageSway = ObjectAnimator.ofFloat(stage, View.ROTATION_Y, -5.5f, 5.5f).apply {
-            startDelay = 920L
-            duration = 3000L
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
+        val openHingeAnim = AnimatorSet().apply {
+            startDelay = 340L
+            playTogether(
+                ObjectAnimator.ofFloat(closedCaseView, View.ROTATION_X, 0f, -18f).setDuration(180L),
+                ObjectAnimator.ofFloat(closedCaseView, View.ALPHA, 1f, 0f).apply {
+                    startDelay = 30L
+                    duration = 160L
+                },
+                ObjectAnimator.ofFloat(baseView, View.ALPHA, 0f, 1f).setDuration(150L),
+                ObjectAnimator.ofFloat(lidView, View.ALPHA, 0f, 1f).setDuration(120L),
+                ObjectAnimator.ofFloat(lidView, View.ROTATION_X, 88f, 0f).apply {
+                    duration = 440L
+                    interpolator = smoothOut
+                },
+            )
         }
 
-        listOf(introTilt, openLidAnim, idleStageSway).forEach {
+        listOf(closedIntro, openHingeAnim).forEach {
             activeAnimators.add(it)
             it.start()
         }
