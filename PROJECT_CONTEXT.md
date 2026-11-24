@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.7.1` (mã bản dựng `versionCode = 20701`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.7.2` (mã bản dựng `versionCode = 20702`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.7.2.apk  # File APK xuất bản v2.7.2 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.1.apk  # File APK xuất bản v2.7.1 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.0.apk  # File APK xuất bản v2.7.0 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.6.5.apk  # File APK xuất bản v2.6.5 (5,546,253 bytes / ~5.29 MB, R8 minify + shrinkResources)
@@ -72,6 +73,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.7.2 — Logo Kính OriginOS 6, Biểu Tượng Động Material You & Tinh Chỉnh M3**:
+  - `app/src/main/res/`: Cập nhật logo kính OriginOS 6 (`drawable-nodpi/ic_launcher_art.png`, `drawable/ic_launcher_background.xml`, `ic_launcher_foreground.xml`, `mipmap-{mdpi..xxxhdpi}/ic_launcher*.png`) và phiên bản đơn sắc `drawable/ic_launcher_monochrome.xml` tự đổi màu theo Material You Themed Icons.
+  - `HomeScreen.kt`: Nâng vùng chạm chip **Màu chủ đề** lên `heightIn(min = 40.dp)` với `Modifier.selectable(...)` chuẩn Accessibility, đồng thời hiển thị thẻ xem trước **Biểu tượng động Material You** (so sánh bản chuẩn OriginOS 6 và bản động tự đổi màu theo `primaryContainer` / `onPrimaryContainer`).
+  - `ModulesScreen.kt`: Thay màu hardcode `Color(0xFFFF5E00)` ở mục Chuỗi TikTok sang token hệ thống `IsleColors.TileAmber`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.7.2.apk`: Nâng `versionCode = 20702`, `versionName = "2.7.2"`.
 - **Origin Isle VN v2.7.1 — Đồng Bộ Popup Bluetooth Theo Material Design 3 & Bộ Chọn Màu Chủ Đề**:
   - `Prefs.kt` (`com.originisle.android.ui`): Bổ sung `PREF_APP_THEME = "app_theme"` và `PREF_APP_THEME_COLOR = "app_theme_color"`.
   - `Theme.kt` (`com.originisle.android.ui`): Thêm enum `AppThemeColor` (`DYNAMIC`, `BLUE`, `TEAL`, `VIOLET`, `ROSE`, `AMBER`) kèm đầy đủ `darkColorScheme`/`lightColorScheme` M3, 2 helper dùng chung `resolveAppIsDarkTheme(context)` và `resolveMaterialColorScheme(context, isDark)`, và cập nhật `OriginIsleTheme` lắng nghe cả `PREF_APP_THEME` lẫn `PREF_APP_THEME_COLOR`.

@@ -4,8 +4,30 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Upper frosted glass dome arc (breaks cleanly before the launch arrow) -->
     <path
-        android:fillColor="#000000"
+        android:pathData="M32.5,53.5 A21,21 0 0,1 55.8,34.8"
+        android:strokeWidth="3.6"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round" />
+
+    <!-- Top-right launch arrow -->
+    <path
+        android:pathData="M60.5,31.5 L74.5,31.5 L74.5,45.5"
+        android:strokeWidth="6.4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M59.5,46.5 L73.5,32.5"
+        android:strokeWidth="6.4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round" />
+
+    <!-- Twisted Mobius / horizon ribbon with evenOdd inner wave cutout -->
+    <path
+        android:fillColor="#FF000000"
         android:fillType="evenOdd"
-        android:pathData="M35.5,40.5H72.5A13.5,13.5 0 0,1 86,54A13.5,13.5 0 0,1 72.5,67.5H35.5A13.5,13.5 0 0,1 22,54A13.5,13.5 0 0,1 35.5,40.5ZM36.8,47.3A6.7,6.7 0 1,1 36.79,47.3ZM52.35,51.05H70.45A2.95,2.95 0 0,1 73.4,54A2.95,2.95 0 0,1 70.45,56.95H52.35A2.95,2.95 0 0,1 49.4,54A2.95,2.95 0 0,1 52.35,51.05Z" />
+        android:pathData="M25.5,60.5 C25.5,53.0 38.5,48.2 54.0,48.2 C69.5,48.2 82.5,53.0 82.5,60.5 C82.5,68.2 69.5,74.5 54.0,74.5 C38.5,74.5 25.5,68.2 25.5,60.5 Z M30.8,59.2 C34.0,54.8 45.2,52.8 56.5,54.4 C62.0,55.2 66.8,56.6 69.6,58.2 C63.0,59.8 53.5,62.4 44.5,64.2 C36.5,65.8 30.8,63.0 30.8,59.2 Z" />
 </vector>

@@ -32,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -189,7 +188,7 @@ fun ModulesScreen(
 
                     ToggleRow(
                         icon = IsleIcons.Bolt,
-                        tileColor = Color(0xFFFF5E00),
+                        tileColor = IsleColors.TileAmber,
                         title = "Chuỗi TikTok",
                         checked = tiktokStreakOn,
                         subtitle = "Nhắc duy trì chuỗi ngọn lửa",
@@ -222,7 +221,7 @@ fun ModulesScreen(
                                 },
                                 singleLine = true,
                                 textStyle = TextStyle(fontSize = 14.sp, color = IsleColors.Text),
-                                cursorBrush = SolidColor(Color(0xFFFF5E00)),
+                                cursorBrush = SolidColor(IsleColors.TileAmber),
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
