@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -32,9 +36,9 @@ import kotlinx.coroutines.launch
 /**
  * Tab 3 — Cài đặt:
  * 1. Quy tắc & Riêng tư
- * 2. Giữ nền (Shizuku)
- * 3. Hệ thống & Cập nhật
+ * 2. Hệ thống & Cập nhật
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     context: Context,
@@ -90,12 +94,90 @@ fun SettingsScreen(
     var shizukuBusy by remember { mutableStateOf(false) }
 
     var permissionsOpen by remember { mutableStateOf(false) }
+    var shizukuSheetOpen by remember { mutableStateOf(false) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
     var updateDialogRelease by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     if (permissionsOpen) {
         PermissionsSheet(context, prefs, onDismiss = { permissionsOpen = false }, onRedoSetup = onRedoSetup)
+    }
+
+    if (shizukuSheetOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { shizukuSheetOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = IsleColors.Menu,
+            contentColor = IsleColors.Text,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    text = "Giữ nền (Shizuku)",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IsleColors.Text,
+                )
+                GroupCard {
+                    SettingRow(
+                        icon = IsleIcons.Bolt,
+                        tileColor = IsleColors.Accent,
+                        title = ShizukuKeepAliveHelper.getStateLabel(context),
+                        subtitle = shizukuSummary.takeIf { it.isNotBlank() },
+                    ) {
+                        val canTap = !shizukuBusy &&
+                            shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED &&
+                            shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_RUNNING
+                        PillButton(
+                            text = if (shizukuBusy) "Đang chạy..." else "Áp dụng",
+                            onClick = {
+                                if (shizukuState == ShizukuKeepAliveHelper.STATUS_NO_PERMISSION) {
+                                    ShizukuKeepAliveHelper.requestPermission { granted ->
+                                        shizukuState = ShizukuKeepAliveHelper.getState(context)
+                                        if (granted) {
+                                            shizukuBusy = true
+                                            ShizukuKeepAliveHelper.applyKeepAliveAsync(context) { _, msg ->
+                                                shizukuBusy = false
+                                                shizukuSummary = ShizukuKeepAliveHelper.getLastSummary(context)
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                } else if (shizukuState == ShizukuKeepAliveHelper.STATUS_READY) {
+                                    shizukuBusy = true
+                                    ShizukuKeepAliveHelper.applyKeepAliveAsync(context) { _, msg ->
+                                        shizukuBusy = false
+                                        shizukuSummary = ShizukuKeepAliveHelper.getLastSummary(context)
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            enabled = canTap,
+                            height = 36.dp,
+                        )
+                    }
+
+                    if (shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED) {
+                        GroupDivider()
+
+                        ToggleRow(
+                            icon = IsleIcons.Power,
+                            tileColor = IsleColors.Accent,
+                            title = "Tự áp dụng sau khi khởi động lại",
+                            checked = shizukuAutoKeepAlive,
+                        ) {
+                            shizukuAutoKeepAlive = it
+                            prefs.edit().putBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, it).apply()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     updateDialogRelease?.let { release ->
@@ -323,67 +405,7 @@ fun SettingsScreen(
             }
         }
 
-        // Nhóm 2 — Giữ nền (Shizuku)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionLabel("Giữ nền (Shizuku)")
-                GroupCard {
-                    SettingRow(
-                        icon = IsleIcons.Bolt,
-                        tileColor = IsleColors.Accent,
-                        title = ShizukuKeepAliveHelper.getStateLabel(context),
-                        subtitle = shizukuSummary.takeIf { it.isNotBlank() },
-                    ) {
-                        val canTap = !shizukuBusy &&
-                            shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED &&
-                            shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_RUNNING
-                        PillButton(
-                            text = if (shizukuBusy) "Đang chạy..." else "Áp dụng",
-                            onClick = {
-                                if (shizukuState == ShizukuKeepAliveHelper.STATUS_NO_PERMISSION) {
-                                    ShizukuKeepAliveHelper.requestPermission { granted ->
-                                        shizukuState = ShizukuKeepAliveHelper.getState(context)
-                                        if (granted) {
-                                            shizukuBusy = true
-                                            ShizukuKeepAliveHelper.applyKeepAliveAsync(context) { _, msg ->
-                                                shizukuBusy = false
-                                                shizukuSummary = ShizukuKeepAliveHelper.getLastSummary(context)
-                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
-                                } else if (shizukuState == ShizukuKeepAliveHelper.STATUS_READY) {
-                                    shizukuBusy = true
-                                    ShizukuKeepAliveHelper.applyKeepAliveAsync(context) { _, msg ->
-                                        shizukuBusy = false
-                                        shizukuSummary = ShizukuKeepAliveHelper.getLastSummary(context)
-                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            enabled = canTap,
-                            height = 36.dp,
-                        )
-                    }
-
-                    if (shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED) {
-                        GroupDivider()
-
-                        ToggleRow(
-                            icon = IsleIcons.Power,
-                            tileColor = IsleColors.Accent,
-                            title = "Tự áp dụng sau khi khởi động lại",
-                            checked = shizukuAutoKeepAlive,
-                        ) {
-                            shizukuAutoKeepAlive = it
-                            prefs.edit().putBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, it).apply()
-                        }
-                    }
-                }
-            }
-        }
-
-        // Nhóm 3 — Hệ thống & Cập nhật
+        // Nhóm 2 — Hệ thống & Cập nhật
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel("Hệ thống & Cập nhật")
@@ -395,6 +417,16 @@ fun SettingsScreen(
                         title = "Quyền hệ thống",
                         value = if (allPermsOk) "Đủ" else "Thiếu",
                         onClick = { permissionsOpen = true },
+                    )
+
+                    GroupDivider()
+
+                    NavRow(
+                        icon = IsleIcons.Bolt,
+                        tileColor = IsleColors.Accent,
+                        title = "Giữ nền (Shizuku)",
+                        value = if (shizukuSummary.isNotBlank()) "Đã tối ưu" else ShizukuKeepAliveHelper.getStateLabel(context),
+                        onClick = { shizukuSheetOpen = true },
                     )
 
                     GroupDivider()

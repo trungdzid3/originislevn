@@ -168,6 +168,7 @@ object EarbudsCard {
     private val wearableRegistry = mutableSetOf<String>()
     private val lastConnectionState = ConcurrentHashMap<String, Boolean>()
     private val lastConnectedTimestamp = ConcurrentHashMap<String, Long>()
+    private val lastConnectShownAt = ConcurrentHashMap<String, Long>()
     private var showingEarbudsAddress: String? = null
     private var showingWearableAddress: String? = null
     private var lastConnectedAudioDeviceName: String? = null
@@ -363,6 +364,9 @@ object EarbudsCard {
         lastConnectionState[nameOrAddress] = connected
         if (connected) {
             markDeviceConnectedTime(nameOrAddress)
+        } else {
+            lastConnectShownAt.remove(key)
+            lastConnectShownAt.remove(nameOrAddress)
         }
         app?.let { ctx ->
             val prefs = ctx.getSharedPreferences(PREFS_BATTERY_CACHE, Context.MODE_PRIVATE)
@@ -1112,7 +1116,12 @@ object EarbudsCard {
                 }
                 if (initial.effectiveLevel in 0..100 || initial.hasDetails) {
                     initial = storeTelemetry(context, address, devName, initial)
-                    show(context, device, devName, initial, low = (initial.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
+                    val isLowNew = initial.effectiveLevel in 0..LOW_LEVEL && devName !in warnedLow
+                    val alreadyShowing = isShowing(isWearableDevice, devName) ||
+                        (address.isNotBlank() && isShowing(isWearableDevice, address))
+                    if (!wasAlreadyConnectedBefore || alreadyShowing || isLowNew) {
+                        show(context, device, devName, initial, low = (initial.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
+                    }
                 } else {
                     val task = Runnable {
                         pending.remove(address)
@@ -1143,7 +1152,12 @@ object EarbudsCard {
                             readGattBatteryAsync(context, device, devName, isWearableDevice)
                         }
                         telemetry = storeTelemetry(context, address, devName, telemetry)
-                        show(context, device, devName, telemetry, low = (telemetry.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
+                        val isLowNew = telemetry.effectiveLevel in 0..LOW_LEVEL && devName !in warnedLow
+                        val alreadyShowing = isShowing(isWearableDevice, devName) ||
+                            (address.isNotBlank() && isShowing(isWearableDevice, address))
+                        if (!wasAlreadyConnectedBefore || alreadyShowing || isLowNew) {
+                            show(context, device, devName, telemetry, low = (telemetry.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
+                        }
                     }
                     pending[address] = task
                     handler.postDelayed(task, BATTERY_WAIT_MS)
@@ -2239,6 +2253,21 @@ object EarbudsCard {
 
         val targetDev = device ?: findBluetoothDevice(context, name)
         val deviceAddressOrName = targetDev?.address?.takeIf { it.isNotBlank() } ?: name
+        val connectKey = deviceAddressOrName.trim().lowercase()
+        val nameKey = name.trim().lowercase()
+        val nowMs = System.currentTimeMillis()
+        val currentlyShowing = isShowing(isWearableDevice, name) ||
+            (targetDev?.address?.let { isShowing(isWearableDevice, it) } == true)
+        val isNewLowWarning = low && name !in warnedLow
+        if (!currentlyShowing && !isNewLowWarning) {
+            val lastShown = lastConnectShownAt[connectKey] ?: lastConnectShownAt[nameKey] ?: 0L
+            if (lastShown > 0L && nowMs - lastShown < 15_000L) {
+                return
+            }
+        }
+        lastConnectShownAt[connectKey] = nowMs
+        lastConnectShownAt[nameKey] = nowMs
+
         if (!isWearableDevice && BluetoothPopupStore.isHeadphoneDevice(targetDev, name)) {
             runCatching {
                 val btBattery = BluetoothPopupBattery(

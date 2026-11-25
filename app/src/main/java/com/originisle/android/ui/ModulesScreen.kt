@@ -73,6 +73,8 @@ fun ModulesScreen(
     var earbudsOn by remember {
         mutableStateOf(prefs.getBoolean("cast_earbuds", true) && EarbudsCard.hasPermission(context))
     }
+    var btConnectPopup by remember { mutableStateOf(prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)) }
+    var btPopupSheetOpen by remember { mutableStateOf(false) }
     var chargingOn by remember { mutableStateOf(prefs.getBoolean("cast_charging", true)) }
     var chargingKeep by remember { mutableStateOf(prefs.getBoolean("cast_charging_keep", false)) }
     var ringerModeOn by remember { mutableStateOf(prefs.getBoolean("cast_ringer_mode", true)) }
@@ -96,6 +98,7 @@ fun ModulesScreen(
                 "cast_calendar_events" -> castCalendarEvents = sp.getBoolean("cast_calendar_events", true)
                 "cast_calls" -> callsOn = sp.getBoolean("cast_calls", true)
                 "cast_media_sessions" -> mediaOn = sp.getBoolean("cast_media_sessions", true)
+                PREF_BT_CONNECT_POPUP -> btConnectPopup = sp.getBoolean(PREF_BT_CONNECT_POPUP, false)
                 "cast_charging" -> chargingOn = sp.getBoolean("cast_charging", true)
                 "cast_charging_keep" -> chargingKeep = sp.getBoolean("cast_charging_keep", false)
                 "cast_ringer_mode" -> ringerModeOn = sp.getBoolean("cast_ringer_mode", true)
@@ -128,6 +131,10 @@ fun ModulesScreen(
                 )
             }
         }
+    }
+
+    if (btPopupSheetOpen) {
+        BluetoothPopupSheet(context = context, onDismiss = { btPopupSheetOpen = false })
     }
 
     LazyColumn(
@@ -297,6 +304,30 @@ fun ModulesScreen(
                             EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
                         }
                     }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        icon = IsleIcons.Headphones,
+                        tileColor = IsleColors.Accent,
+                        title = "Popup kết nối Bluetooth",
+                        checked = btConnectPopup,
+                    ) {
+                        btConnectPopup = it
+                        prefs.edit().putBoolean(PREF_BT_CONNECT_POPUP, it).apply()
+                        if (it && !isOverlayPermissionGranted(context)) {
+                            openOverlayPermissionSettings(context)
+                        }
+                    }
+
+                    GroupDivider()
+
+                    NavRow(
+                        icon = IsleIcons.Camera,
+                        tileColor = IsleColors.TileBlue,
+                        title = "Tùy chỉnh tai nghe Bluetooth",
+                        onClick = { btPopupSheetOpen = true },
+                    )
 
                     GroupDivider()
 

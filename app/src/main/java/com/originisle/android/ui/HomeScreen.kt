@@ -76,7 +76,6 @@ import kotlinx.coroutines.delay
  * - CompactStatusCard (trạng thái + tên máy + công tắc tổng)
  * - Banner cảnh báo quyền (tự ẩn khi đủ quyền)
  * - Nhóm 1: Giao diện & Tương tác
- * - Nhóm 2: Popup Bluetooth
  * - Lối tắt nhanh: Ứng dụng được phép & Nhật ký hoạt động
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,7 +98,6 @@ fun HomeScreen(
     }
     var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
     var quickReplyOverlay by remember { mutableStateOf(prefs.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)) }
-    var btConnectPopup by remember { mutableStateOf(prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)) }
     var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
 
     DisposableEffect(prefs) {
@@ -117,7 +115,6 @@ fun HomeScreen(
                 }
                 PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
                 PREF_QUICK_REPLY_OVERLAY -> quickReplyOverlay = sp.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)
-                PREF_BT_CONNECT_POPUP -> btConnectPopup = sp.getBoolean(PREF_BT_CONNECT_POPUP, false)
                 "cast_media_sessions" -> mediaOn = sp.getBoolean("cast_media_sessions", true)
             }
         }
@@ -137,7 +134,6 @@ fun HomeScreen(
     var connected by remember { mutableStateOf(NotificationCastListener.instance != null) }
     var deviceSnapshot by remember { mutableStateOf(DeviceInfoHelper.collect(context)) }
     var permissionsOpen by remember { mutableStateOf(false) }
-    var btPopupSheetOpen by remember { mutableStateOf(false) }
     var testerSheetOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -166,10 +162,6 @@ fun HomeScreen(
 
     if (permissionsOpen) {
         PermissionsSheet(context, prefs, onDismiss = { permissionsOpen = false }, onRedoSetup = onRedoSetup)
-    }
-
-    if (btPopupSheetOpen) {
-        BluetoothPopupSheet(context = context, onDismiss = { btPopupSheetOpen = false })
     }
 
     if (testerSheetOpen) {
@@ -437,22 +429,6 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                            PillButton(
-                                text = "Mở cài đặt thông báo hệ thống",
-                                onClick = {
-                                    runCatching {
-                                        context.startActivity(
-                                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                        )
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                container = IsleColors.SurfaceHigher,
-                                content = IsleColors.Text,
-                                height = 38.dp,
-                            )
                         }
 
                         GroupDivider()
@@ -482,39 +458,6 @@ fun HomeScreen(
                             }
                         }
                     }
-                }
-            }
-        }
-
-        // Nhóm 2 — Popup Bluetooth
-        item {
-            Column(
-                modifier = Modifier.alpha(if (castOn) 1f else 0.45f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SectionLabel("Popup Bluetooth")
-                GroupCard {
-                    ToggleRow(
-                        icon = IsleIcons.Headphones,
-                        tileColor = IsleColors.Accent,
-                        title = "Popup kết nối Bluetooth",
-                        checked = btConnectPopup,
-                    ) {
-                        btConnectPopup = it
-                        prefs.edit().putBoolean(PREF_BT_CONNECT_POPUP, it).apply()
-                        if (it && !isOverlayPermissionGranted(context)) {
-                            openOverlayPermissionSettings(context)
-                        }
-                    }
-
-                    GroupDivider()
-
-                    NavRow(
-                        icon = IsleIcons.Camera,
-                        tileColor = IsleColors.TileBlue,
-                        title = "Tùy chỉnh tai nghe Bluetooth",
-                        onClick = { btPopupSheetOpen = true },
-                    )
                 }
             }
         }
