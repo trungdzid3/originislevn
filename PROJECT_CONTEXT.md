@@ -2,8 +2,8 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.7.3` (mã bản dựng `versionCode = 20703`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
-- **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ hoàn toàn lên `v2.2.3` / commit `73abb82`).
+- **Phiên bản hiện tại**: `2.8.0` (mã bản dựng `versionCode = 20800`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
 ## 2. Cây Cấu Trúc Thư Mục Chuẩn
@@ -74,6 +74,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.8.0 — Đồng Bộ Chọn Lọc Upstream `fvhde/origin-isle` v3.0.1**:
+  - `ScoreCard.kt`, `ShareToIslandActivity.kt` & `sports/{FlashscoreImages,FlashscoreParser,FlashscoreShare,LiveMatch,MosaicSplit}.kt`: Thay hệ thống tỷ số bóng đá cũ (`SportsCard`/`SportsFeed`/`SportsParser`/`club_crests.json`) bằng tỷ số trực tiếp đa môn **Flashscore** (bóng đá, bóng rổ, tennis, bóng chuyền, cricket...) kèm nút chia sẻ thẳng lên Đảo (`ShareToIslandActivity`).
+  - `PlaygroundService.kt` & `OriginIslandBuilder.kt` & `OriginIslandConstants.kt`: Bổ sung `ACTION_GONE` / `onGone`, `scheduleUngroup()` tách keep-alive sau 2s, `setTimeoutAfter(timeoutMs)` tự ẩn thẻ khi máy ngủ, và các trường bảng tỷ số `midTopMsg`, `rightMainExtra`, `midMainText`, `midSubText`, `TEMPLATE_RIGHT_ISLAND_DOUBLE_LINE`.
+  - `NotificationCastListener.kt`: Chặn thông báo nền im lặng (`isOngoing && !isCall && !hasProgress && isSilent`), gửi `ACTION_GONE` khi thẻ bị hệ thống gỡ, và gọi `ScoreCard.onNotification`/`tick`/`refreshPicture`/`restoreShared`/`onRemoved` (giữ nguyên toàn bộ bộ lọc CH Play, Messenger call, Zalo, TikTok, ngân hàng VN).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.8.0.apk`: Nâng `versionCode = 20800`, `versionName = "2.8.0"`.
 - **Origin Isle VN v2.7.3 — Chuẩn Hóa Shape Scale, Spacing & Adaptive Width Material Design 3**:
   - `Theme.kt`: Khai báo `IsleShapes` 4 bậc chuẩn M3 (`small = 12.dp`, `medium = 16.dp`, `large = 24.dp`, `extraLarge = 28.dp`) gắn vào `MaterialTheme(shapes = IsleShapes)`.
   - `MainActivity.kt`: Giới hạn độ rộng nội dung `widthIn(max = 640.dp)` căn giữa trong `Scaffold` để tối ưu bố cục cho màn hình gập / máy tính bảng.

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Origin Isle</string>
+    <string name="share_to_island">Hiện lên Đảo</string>
     <string name="channel_name">Origin Island</string>
     <string name="channel_desc">Kênh thông báo trực tiếp của Origin Isle</string>
     <string name="keepalive_accessibility_desc">Giúp Origin Isle duy trì chạy ngầm để chuyển tiếp thông báo lên đảo linh hoạt — hoàn toàn không hiển thị biểu tượng trên thanh trạng thái. Ứng dụng không đọc nội dung màn hình, không lưu văn bản hay theo dõi bất kỳ thao tác nào của bạn.</string>

@@ -8,9 +8,10 @@ import com.originisle.android.MainActivity
 import com.originisle.android.R
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.PaymentCard
-import com.originisle.android.cards.SportsCard
+import com.originisle.android.cards.ScoreCard
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
+import com.originisle.android.sports.FlashscoreImages
 
 /**
  * Danh mục thẻ mẫu thử nghiệm trên Đảo Origin.
@@ -255,15 +256,9 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Tỷ số thể thao", "Bảng tỷ số bóng đá trực tiếp · 65'",
-            IslandPreview(R.drawable.ic_soccer, "", IslandPreview.Right.Score(1, 1)),
-        ) { ctx ->
-            val ball = Icon.createWithResource(ctx, R.drawable.ic_soccer)
-            SportsCard.post(
-                ctx, home = "VN", homeScore = 1, away = "TL", awayScore = 1, clock = "65'",
-                homeLogo = ball, awayLogo = ball,
-            )
-        },
+            "Tỷ số thể thao", "Bảng tỷ số bóng đá trực tiếp · 63'",
+            IslandPreview(R.drawable.ic_soccer, "", IslandPreview.Right.Score(1, 0)),
+        ) { ctx -> footballDemo(ctx) },
         OriginSample(
             "Vé máy bay", "Chuyến bay VN 152 · HAN ✈ SGN · Cửa 12",
             IslandPreview(R.drawable.ic_flight, "Vé bay", IslandPreview.Right.Capsule("VN 152")),
@@ -331,6 +326,18 @@ object IslandSamples {
             }
         },
     )
+
+    fun footballDemo(context: Context) {
+        val ball = Icon.createWithResource(context, R.drawable.ic_soccer)
+        ScoreCard.demo(
+            context,
+            "demo-football",
+            40020,
+            "Arsenal - Chelsea",
+            listOf("Match started.", "Goal! 1 - 0", "Goal! 1 - 1", "Goal! 2 - 1"),
+            FlashscoreImages.Images(ball, ball, ball),
+        )
+    }
 
     private fun start(context: Context, id: Int, configure: Intent.() -> Unit) {
         val intent = Intent(context, PlaygroundService::class.java).apply {

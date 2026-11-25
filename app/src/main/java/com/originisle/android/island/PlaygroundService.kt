@@ -38,6 +38,7 @@ class PlaygroundService : Service() {
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_CANCEL = "ACTION_CANCEL"
         const val ACTION_REJECTED = "ACTION_REJECTED"
+        const val ACTION_GONE = "ACTION_GONE"
         // Just brings the foreground service up (no card) so the process — and the notification
         // listener living in it — stays alive for background casts.
         const val ACTION_KEEPALIVE = "ACTION_KEEPALIVE"
@@ -68,6 +69,8 @@ class PlaygroundService : Service() {
 
         /** PendingIntent request code for the [onTaskRemoved] restart alarm. */
         private const val RESTART_REQUEST = 7001
+        private const val UNGROUP_DELAY_MS = 2_000L
+        private const val TIMEOUT_SLACK_MS = 2_000L
     }
 
     private lateinit var notificationManager: NotificationManager
@@ -111,6 +114,7 @@ class PlaygroundService : Service() {
                 ACTION_START -> readAndPost(intent)
                 ACTION_CANCEL -> cancelNotification(intent)
                 ACTION_REJECTED -> onRejected(intent.getIntExtra("id", -1))
+                ACTION_GONE -> onGone(intent.getIntExtra("id", -1))
                 ACTION_STOP -> stopEverything()
                 ACTION_KEEPALIVE -> Unit // ensureForeground() above is all that's needed
             }
@@ -393,6 +397,11 @@ class PlaygroundService : Service() {
             progressColor = progressColor,
             cardBgColor = cardBgColor,
             cardRing = intent.getIntExtra("oi_card_ring", -1),
+            midTopMsg = intent.getStringExtra("oi_mid_top"),
+            newNode = intent.getIntExtra("oi_new_node", 0),
+            rightMainExtra = intent.getStringExtra("oi_right_main_extra"),
+            midMainText = intent.getStringExtra("oi_mid_main_text"),
+            midSubText = intent.getStringExtra("oi_mid_sub"),
             keepScreenOn = keepScreenOn,
             disableInvertColor = disableInvert,
             lightColor = 0,
@@ -443,7 +452,6 @@ class PlaygroundService : Service() {
         activeIds.add(id)
         originScenes[id] = scene
         activeCardIds = activeIds.toSet()
-        postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle, clickResp)
 
         // Auto-dismiss: only for non-live cards (isOngoing is the same live/persistent flag the
         // card posters set — media, sports and any ongoing/call/progress GenericCard all mark
@@ -470,6 +478,9 @@ class PlaygroundService : Service() {
             }
             else -> 0L
         }
+        val timeoutMs = if (dismissDelayMs > 0L) dismissDelayMs + TIMEOUT_SLACK_MS else 0L
+        postSuperX(id, iconRes, title, text, sourceApp, isOngoing, scene, bundle, clickResp, timeoutMs)
+
         autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
         if (dismissDelayMs > 0L) {
             val task = Runnable {
@@ -496,6 +507,7 @@ class PlaygroundService : Service() {
         scene: String,
         bundle: android.os.Bundle,
         clickResp: PendingIntent? = null,
+        timeoutMs: Long = 0L,
     ) {
         OriginIslandBuilder.grantScenes(this)
         createNotificationChannel(ORIGIN_CHANNEL_ID)
@@ -520,6 +532,7 @@ class PlaygroundService : Service() {
             .setExtras(bundle)
         if (clickResp != null) builder.setContentIntent(clickResp)
         if (sourceApp.isNotEmpty()) builder.setSubText(sourceApp)
+        if (timeoutMs > 0L) builder.setTimeoutAfter(timeoutMs)
         notificationManager.notify(OriginIslandConstants.SUPERX_TAG, id, builder.build())
     }
 
@@ -540,6 +553,37 @@ class PlaygroundService : Service() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun onGone(id: Int) {
+        val stillUp = runCatching {
+            notificationManager.activeNotifications.any { it.id == id && it.tag == OriginIslandConstants.SUPERX_TAG }
+        }.getOrDefault(false)
+        if (stillUp || !activeIds.remove(id)) return
+        autoDismissTasks.remove(id)?.let { mainHandler.removeCallbacks(it) }
+        activeCardIds = activeIds.toSet()
+        scheduleUngroup()
+    }
+
+    private fun scheduleUngroup() {
+        mainHandler.removeCallbacks(ungroupTask)
+        mainHandler.postDelayed(ungroupTask, UNGROUP_DELAY_MS)
+    }
+
+    private val ungroupTask = Runnable {
+        if (!isForegroundActive) return@Runnable
+        val active = runCatching { notificationManager.activeNotifications }.getOrNull() ?: return@Runnable
+        val keepAlive = active.firstOrNull { it.id == FGS_ID && it.tag == null } ?: return@Runnable
+        if (!keepAlive.isGroup) return@Runnable
+        val cardsLeft = active.any {
+            it !== keepAlive && it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY == 0
+        }
+        if (cardsLeft) return@Runnable
+        val power = getSystemService(android.os.PowerManager::class.java)
+        if (power?.isIgnoringBatteryOptimizations(packageName) != true) return@Runnable
+        isForegroundActive = false
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        ensureForeground()
     }
 
     private fun cancelCard(id: Int, expectedGen: Long? = null) {
@@ -580,6 +624,7 @@ class PlaygroundService : Service() {
         lastPosts.remove(id)
         plainIds.remove(id)
         activeCardIds = activeIds.toSet()
+        scheduleUngroup()
 
         val nonResumableIds = setOf(35001, 35004, 35008, 35009, 35011, 35012, 35014, 35015)
         val resumeId = activeIds.lastOrNull { otherId ->

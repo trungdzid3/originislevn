@@ -144,6 +144,10 @@ object OriginIslandBuilder {
         // Base card (4): a small ring with "N%" beside the text, like vivo's own AirPods card.
         // -1 = none. Coloured with fgColor / bgColor.
         cardRing: Int = -1,
+        midTopMsg: String? = null,
+        rightMainExtra: String? = null,
+        midMainText: String? = null,
+        midSubText: String? = null,
         keepScreenOn: Boolean = false,
         disableInvertColor: Boolean = true,
         lightColor: Int = 0,
@@ -319,12 +323,19 @@ object OriginIslandBuilder {
             3 -> {
                 infos.putString(C.BUNDLE_KEY_INFO_LEFT_MAIN, extra1)
                 infos.putString(C.BUNDLE_KEY_INFO_LEFT_SUB, extra2)
-                infos.putInt(C.BUNDLE_KEY_INFO_MID_MAIN_TYPE, 1)
-                infos.putParcelable(C.BUNDLE_KEY_INFO_MID_MAIN_ICON, largeIcon ?: defaultIcon)
+                if (midMainText != null) {
+                    infos.putInt(C.BUNDLE_KEY_INFO_MID_MAIN_TYPE, 2)
+                    infos.putString(C.BUNDLE_KEY_INFO_MID_MAIN_MSG, midMainText)
+                } else {
+                    infos.putInt(C.BUNDLE_KEY_INFO_MID_MAIN_TYPE, 1)
+                    infos.putParcelable(C.BUNDLE_KEY_INFO_MID_MAIN_ICON, largeIcon ?: defaultIcon)
+                }
                 infos.putInt(C.BUNDLE_KEY_INFO_MID_SUB_TYPE, 2)
-                infos.putString(C.BUNDLE_KEY_INFO_MID_SUB_MSG, midSubMsg ?: content)
+                infos.putString(C.BUNDLE_KEY_INFO_MID_SUB_MSG, midSubMsg ?: midSubText ?: content)
                 infos.putString(C.BUNDLE_KEY_INFO_RIGHT_MAIN, extra3)
                 infos.putString(C.BUNDLE_KEY_INFO_RIGHT_SUB, extra4)
+                midTopMsg?.takeIf { it.isNotBlank() }?.let { infos.putString(C.BUNDLE_KEY_INFO_MID_TOP_MSG, it) }
+                rightMainExtra?.takeIf { it.isNotBlank() }?.let { infos.putString(C.BUNDLE_KEY_INFO_RIGHT_MAIN_EXTRA, it) }
             }
             5 -> {
                 infos.putParcelable(C.BUNDLE_KEY_INFO_NAV_ICON, largeIcon ?: defaultIcon)

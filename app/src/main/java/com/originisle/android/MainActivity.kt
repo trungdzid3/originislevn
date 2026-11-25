@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.originisle.android.cards.SportsCard
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.NotificationCastListener
@@ -168,7 +167,7 @@ class MainActivity : ComponentActivity() {
     private fun initComposeUI() {
         runCatching {
             when (intent?.getStringExtra("autofire")) {
-                "football" -> SportsCard.post(this, "ARS", 1, "MAN", 1, "65'")
+                "football" -> IslandSamples.footballDemo(this)
             }
             intent?.getIntExtra("autofire_sample", -1)?.takeIf { it >= 0 }?.let {
                 IslandSamples.all.getOrNull(it)?.post(this)

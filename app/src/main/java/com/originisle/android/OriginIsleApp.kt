@@ -6,7 +6,6 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.service.NotificationCastListener
 import com.originisle.android.service.ShizukuKeepAliveHelper
-import com.originisle.android.sports.SportsFeed
 import com.originisle.android.ui.PREFS_NAME
 import java.io.File
 
@@ -34,10 +33,6 @@ class OriginIsleApp : Application() {
             }
             AppCompatDelegate.setDefaultNightMode(nightMode)
         }.onFailure { Log.e("OriginIsleApp", "Loi setDefaultNightMode", it) }
-
-        runCatching {
-            SportsFeed.init(this)
-        }.onFailure { Log.e("OriginIsleApp", "Loi SportsFeed.init", it) }
 
         runCatching {
             OriginIslandBuilder.grantScenes(this)

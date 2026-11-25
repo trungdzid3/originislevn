@@ -203,6 +203,7 @@ object OriginIslandConstants {
     const val TEMPLATE_RIGHT_ISLAND_TEXT_ICON = 4
     const val TEMPLATE_RIGHT_ISLAND_ICON_TEXT = 5
     const val TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT = 6
+    const val TEMPLATE_RIGHT_ISLAND_DOUBLE_LINE = 7
 
     // --- base sub-info kinds ---
     const val BASE_SUB_INFO_NONE = 0

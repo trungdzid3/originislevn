@@ -51,17 +51,10 @@ import com.originisle.android.bank.VietnamBankDetector
 import com.originisle.android.calendar.CalendarEventDetector
 import com.originisle.android.cards.CalendarEventCard
 import com.originisle.android.ride.VietnamRideDetector
-import com.originisle.android.cards.SportsCard
+import com.originisle.android.cards.ScoreCard
 import com.originisle.android.cards.fallbackClickIntent
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
-import com.originisle.android.sports.SportsFeed
-import com.originisle.android.sports.SportsParser
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -243,16 +236,8 @@ class NotificationCastListener : NotificationListenerService() {
             "com.samsung.accessory.atticmgr",
         )
 
-        /** Score apps whose live-match notifications get parsed into a football card with crests. */
-        private val SCORE_APPS = setOf(
-            "com.google.android.googlequicksearchbox", // Google (favourite-team live scores)
-            "com.sofascore.results",       // SofaScore
-            "com.mobilefootie.fotmobpro",  // FotMob
-            "com.mobilefootie.wc2010",     // FotMob (free)
-            "de.motain.iliga",             // OneFootball
-            "com.scores365",               // 365Scores
-            "com.livescore",               // LiveScore
-        )
+        /** Live scores come from Flashscore and the rest of the Livesport family. See [ScoreCard]. */
+        private const val SCORE_PKG_PREFIX = "eu.livesport."
 
         /**
          * Turn-by-turn navigation apps. Most set [Notification.CATEGORY_NAVIGATION] and are matched
@@ -369,19 +354,9 @@ class NotificationCastListener : NotificationListenerService() {
     }
 
     private val pollHandler = Handler(Looper.getMainLooper())
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     /** Last-logged outcome per notification key, so repeated updates don't flood the log. */
     private val lastOutcome = ConcurrentHashMap<String, String>()
-
-    /**
-     * Last successfully-resolved crest icons per match id. A goal update's notification text can
-     * name a team slightly differently than the kickoff notification did (or a lookup can just fail
-     * transiently) — refetching fresh every time then means a badge that WAS showing can vanish the
-     * moment its team scores. Keep the last good icon per side and only replace it when a fresh fetch
-     * actually finds one, instead of overwriting a known-good badge with a failed lookup's null.
-     */
-    private val lastMatchIcons = ConcurrentHashMap<Int, SportsFeed.MatchIcons>()
 
     /**
      * Last-seen [StatusBarNotification.getPostTime] per score-app notification key. onNotificationPosted
@@ -749,6 +724,9 @@ class NotificationCastListener : NotificationListenerService() {
                     if (isMessengerCallNotification(sbn)) {
                         return@forEach
                     }
+                    if (castNotifs && sbn.packageName.startsWith(SCORE_PKG_PREFIX)) {
+                        ScoreCard.refreshPicture(applicationContext, sbn)
+                    }
                     val extras = sbn.notification.extras
                     val token = extractMediaSessionToken(extras)
                     val isMusicApp = DownloadDetector.isMusicOrMediaApp(sbn.packageName) || isKnownMusicApp(sbn.packageName)
@@ -807,7 +785,7 @@ class NotificationCastListener : NotificationListenerService() {
                         extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false)
                     ) {
                         onNotificationPosted(sbn) // refresh ticking chronometer
-                    } else if (castNotifs && sbn.packageName in SCORE_APPS &&
+                    } else if (castNotifs && sbn.packageName.startsWith(SCORE_PKG_PREFIX) &&
                         isAppEnabled(prefs, sbn.packageName) &&
                         lastScorePostTime.put(sbn.key, sbn.postTime) != sbn.postTime
                     ) {
@@ -887,7 +865,7 @@ class NotificationCastListener : NotificationListenerService() {
                         }
                     }
                 }
-                SportsCard.refresh(applicationContext)
+                ScoreCard.tick(applicationContext)
                 DownloadCard.checkDeferredDownloads(applicationContext)
             } catch (e: Exception) {
                 Log.e(TAG, "poll error", e)
@@ -981,6 +959,7 @@ class NotificationCastListener : NotificationListenerService() {
             runCatching { PlaygroundService.keepAlive(this) }
         }
         reload()
+        runCatching { ScoreCard.restoreShared(applicationContext) }
         if (isScreenInteractive()) {
             pollHandler.removeCallbacks(pollRunnable)
             pollHandler.post(pollRunnable)
@@ -1613,17 +1592,21 @@ class NotificationCastListener : NotificationListenerService() {
             log(sbn, "bỏ qua — giờ yên tĩnh", false); return
         }
 
-        // Score apps: if the notification parses as a match, post a football card with crests.
-        // If it doesn't (Google also posts news/weather/etc.), fall through to the normal path.
-        if (sbn.packageName in SCORE_APPS) {
-            // A post-match "recap"/"highlights" notification isn't a live update - it's often sent
-            // well after full time, sometimes repeatedly, and re-parsing its "<team> <score> -
-            // <score> <team>" line as a match just pops the card back up for a game that's already
-            // over. Drop it before handleScore ever sees it, unconditionally (not just when the
-            // generic message-cast setting is off), so it displays nothing rather than falling
-            // through to a plain-message card.
-            if (isRecapOrHighlights(sbn)) { log(sbn, "skipped — recap/highlights, not live", false); return }
-            if (handleScore(sbn)) { log(sbn, "hiển thị — tỷ số thể thao", true); return }
+        // Flashscore & Livesport family: tỷ số trực tiếp đa môn (bóng đá, bóng rổ, tennis, bóng chuyền, cricket...)
+        if (sbn.packageName.startsWith(SCORE_PKG_PREFIX)) {
+            when (ScoreCard.onNotification(applicationContext, sbn)) {
+                ScoreCard.Result.CAST -> {
+                    val what = n.extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+                    log(sbn, "hiển thị — tỷ số trực tiếp · $what".trimEnd(' ', '·'), true)
+                    return
+                }
+                ScoreCard.Result.OLD -> return
+                ScoreCard.Result.NOT_STARTED -> {
+                    log(sbn, "bỏ qua — trận đấu chưa bắt đầu", false)
+                    return
+                }
+                ScoreCard.Result.NOT_A_MATCH -> Unit
+            }
         }
 
         // Vietnam Ride & Delivery (Grab, Be, Xanh SM, ShopeeFood)
@@ -1688,6 +1671,23 @@ class NotificationCastListener : NotificationListenerService() {
         // message", or the card is stuck showing its last progress forever with nothing to ever tell
         // it otherwise. Only apply the message/silent filters to notifications we haven't already cast.
         val wasLive = IconCache.castIdFor(sbn) in PlaygroundService.activeCardIds
+
+        // Bỏ qua thông báo nền im lặng (vd: Đang kiểm tra tin nhắn mới, sao lưu, VPN) không có đồng hồ đếm giờ
+        if (isOngoing && !isCall && !hasProgress && isSilent(sbn) &&
+            !extras.getBoolean(NotificationCompat.EXTRA_SHOW_CHRONOMETER, false) &&
+            prefs.getBoolean("cast_ignore_silent", true)
+        ) {
+            if (wasLive) {
+                startService(
+                    Intent(this, PlaygroundService::class.java)
+                        .setAction(PlaygroundService.ACTION_CANCEL)
+                        .putExtra("id", IconCache.castIdFor(sbn)),
+                )
+            }
+            log(sbn, "bỏ qua — thông báo nền im lặng", false)
+            return
+        }
+
         if (!isLive && !wasLive) {
             val includeMessages = prefs.getBoolean("cast_include_messages", false)
             if (!includeMessages) { log(sbn, "bỏ qua — tin nhắn thông thường", false); return }
@@ -1940,7 +1940,6 @@ class NotificationCastListener : NotificationListenerService() {
         pollHandler.removeCallbacks(pollRunnable)
         stopSystemCards()
         if (instance === this) instance = null
-        scope.cancel()
     }
 
     /** Whether [sbn] (from a [SCORE_APPS] package) is a post-match recap/highlights notification. */
@@ -1969,64 +1968,6 @@ class NotificationCastListener : NotificationListenerService() {
             )
         }
     }
-
-    private fun isRecapOrHighlights(sbn: StatusBarNotification): Boolean {
-        val extras = sbn.notification.extras
-        val hay = listOf(
-            NotificationCompat.EXTRA_TITLE, NotificationCompat.EXTRA_TEXT,
-            NotificationCompat.EXTRA_BIG_TEXT, NotificationCompat.EXTRA_SUB_TEXT,
-        ).joinToString(" ") { extras.getCharSequence(it)?.toString().orEmpty() }.lowercase()
-        return hay.contains("recap") || hay.contains("highlight") || hay.contains("position")
-    }
-
-    /**
-     * A score app's live-match notification -> parse it, fetch both club crests, and post/refresh
-     * the football card. The same cast id is reused so score updates refresh one card, and the card
-     * is cancelled when the notification is dismissed. Falls back to a generic cast if unparseable.
-     */
-    private fun handleScore(sbn: StatusBarNotification): Boolean {
-        val extras = sbn.notification.extras
-        val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
-        val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
-        val big = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
-        val sub = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
-
-        val match = SportsParser.parse(title, text, big, sub) ?: return false
-        // Identity-based on the teams, NOT IconCache.castIdFor(sbn) — a post-match "recap" notification
-        // (sent after the user dismisses the live one, or just later) is a genuinely different
-        // notification object with a different key, so a notification-identity id would treat it as a
-        // brand new match and pop the pill back up. Keying off the teams instead means it always lands
-        // on the same card, so an already-cleared match's recap just re-triggers that card's own
-        // (short) auto-clear instead of resurrecting it as new.
-        val id = matchCastId(match.home, match.away)
-        val competition = sub.ifBlank { "Live" }
-        val clickResp = sbn.notification.contentIntent ?: fallbackClickIntent(applicationContext, sbn.packageName)
-        scope.launch {
-            val fresh = SportsFeed.iconsFor(match.home, match.away, competition)
-            val prev = lastMatchIcons[id]
-            val icons = SportsFeed.MatchIcons(
-                home = fresh.home ?: prev?.home,
-                away = fresh.away ?: prev?.away,
-                center = fresh.center ?: prev?.center,
-            )
-            lastMatchIcons[id] = icons
-            SportsCard.post(
-                context = applicationContext,
-                home = match.home, homeScore = match.homeScore,
-                away = match.away, awayScore = match.awayScore,
-                clock = match.minute,
-                competition = competition,
-                id = id,
-                homeLogo = icons.home, awayLogo = icons.away, centerLogo = icons.center,
-                clickResp = clickResp,
-            )
-        }
-        return true
-    }
-
-    /** Stable per-match cast id (band 30000-34999), independent of which notification reported it. */
-    private fun matchCastId(home: String, away: String): Int =
-        ("$home|$away".lowercase().hashCode() and Int.MAX_VALUE) % 5000 + 30000
 
     // --- payments -----------------------------------------------------------------
 
@@ -2076,6 +2017,18 @@ class NotificationCastListener : NotificationListenerService() {
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        if (sbn.packageName == packageName) {
+            if (sbn.tag == OriginIslandConstants.SUPERX_TAG) {
+                runCatching {
+                    startService(
+                        Intent(this, PlaygroundService::class.java)
+                            .setAction(PlaygroundService.ACTION_GONE)
+                            .putExtra("id", sbn.id),
+                    )
+                }
+            }
+            return
+        }
         val now = System.currentTimeMillis()
         lastEventAt = now
         pruneSuppressCaches(now)
@@ -2128,24 +2081,8 @@ class NotificationCastListener : NotificationListenerService() {
             }
         }
 
-        // Score cards are keyed by team names (matchCastId), not by this notification's own identity
-        // (see handleScore) — cancelling by IconCache.castIdFor(sbn) here would target the wrong id and
-        // leave the actual card stuck up. Route through SportsCard.clear() too, so its own auto-clear
-        // timer/state gets torn down, not just the island post.
-        if (sbn.packageName in SCORE_APPS) {
-            val extras = sbn.notification.extras
-            val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString().orEmpty()
-            val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString().orEmpty()
-            val big = extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString().orEmpty()
-            val sub = extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
-            val match = SportsParser.parse(title, text, big, sub)
-            if (match != null) {
-                val id = matchCastId(match.home, match.away)
-                lastMatchIcons.remove(id)
-                SportsCard.clear(applicationContext, id)
-                return
-            }
-        }
+        // Score cards are keyed by the match (the notification's tag), not by IconCache.castIdFor.
+        if (sbn.packageName.startsWith(SCORE_PKG_PREFIX)) ScoreCard.onRemoved(applicationContext, sbn)
 
         val id = IconCache.castIdFor(sbn)
 
@@ -2180,8 +2117,6 @@ class NotificationCastListener : NotificationListenerService() {
 
             IconCache.clear(id)
             IconCache.clear(QuickShareCard.ID)
-            lastMatchIcons.remove(id)
-            lastMatchIcons.remove(QuickShareCard.ID)
 
             if (isQs) {
                 if (QuickShareDetector.isIdleVisibilityNotification(sbn)) {
@@ -2263,7 +2198,6 @@ class NotificationCastListener : NotificationListenerService() {
             QuickShareCard.clear(id)
         }
         IconCache.clear(id)
-        lastMatchIcons.remove(id)
         startService(
             Intent(this, PlaygroundService::class.java)
                 .setAction(PlaygroundService.ACTION_CANCEL)
