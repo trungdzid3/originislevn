@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,9 +51,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -65,7 +61,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.originisle.android.BuildConfig
-import com.originisle.android.R
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
 import com.originisle.android.cards.PrivacyCard
@@ -410,59 +405,6 @@ fun HomeScreen(
                                 }
                             }
                         }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp)
-                                .clip(MaterialTheme.shapes.medium)
-                                .background(IsleColors.SurfaceHigh)
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_launcher_art),
-                                contentDescription = "Biểu tượng chuẩn OriginOS 6",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(MaterialTheme.shapes.small),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(MaterialTheme.shapes.small)
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_launcher_monochrome),
-                                    contentDescription = "Biểu tượng động Material You",
-                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer),
-                                    modifier = Modifier.size(44.dp),
-                                )
-                            }
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(1.dp),
-                            ) {
-                                Text(
-                                    text = "Biểu tượng động Material You",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = IsleColors.Text,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    text = "Bật Biểu tượng theo chủ đề trên màn hình chính để đổi màu theo máy",
-                                    fontSize = 11.5.sp,
-                                    color = IsleColors.TextSecondary,
-                                    lineHeight = 15.sp,
-                                )
-                            }
-                        }
                     }
 
                     GroupDivider()
@@ -473,7 +415,6 @@ fun HomeScreen(
                             tileColor = IsleColors.Accent,
                             title = "Chặn Pop-up nổi",
                             checked = suppressHeadsUp,
-                            subtitle = "Chỉ hiện trên viên thuốc, ẩn biểu ngữ thả xuống",
                         ) {
                             suppressHeadsUp = it
                             prefs.edit().putBoolean(PREF_CAST_SUPPRESS_HEADS_UP, it).apply()
@@ -521,7 +462,6 @@ fun HomeScreen(
                             tileColor = IsleColors.Accent,
                             title = "Chạm viên thuốc mở rộng",
                             checked = tapExpandCard,
-                            subtitle = "Nhấn viên thuốc để mở thẻ chi tiết",
                         ) {
                             tapExpandCard = it
                             prefs.edit().putBoolean(PREF_CAST_TAP_EXPAND_CARD, it).apply()
@@ -534,7 +474,6 @@ fun HomeScreen(
                             tileColor = IsleColors.Accent,
                             title = "Trả lời nhanh nổi",
                             checked = quickReplyOverlay,
-                            subtitle = "Mở khung trả lời nhanh ngay trên màn hình",
                         ) {
                             quickReplyOverlay = it
                             prefs.edit().putBoolean(PREF_QUICK_REPLY_OVERLAY, it).apply()
@@ -560,7 +499,6 @@ fun HomeScreen(
                         tileColor = IsleColors.Accent,
                         title = "Popup kết nối Bluetooth",
                         checked = btConnectPopup,
-                        subtitle = "Hiện thẻ ảnh & pin kiểu Fast Pair",
                     ) {
                         btConnectPopup = it
                         prefs.edit().putBoolean(PREF_BT_CONNECT_POPUP, it).apply()
@@ -589,15 +527,15 @@ fun HomeScreen(
             ) {
                 TonalShortcutCard(
                     icon = IsleIcons.Grid,
-                    title = "Ứng dụng được phép",
-                    subtitle = if (appsOff == 0) "Đang bật tất cả" else "Đã tắt $appsOff ứng dụng",
+                    title = "Ứng dụng",
+                    subtitle = if (appsOff == 0) "Tất cả" else "Tắt $appsOff",
                     onClick = onOpenApps,
                     modifier = Modifier.weight(1f),
                 )
                 TonalShortcutCard(
                     icon = IsleIcons.Pulse,
-                    title = "Nhật ký hoạt động",
-                    subtitle = "Lịch sử thẻ Đảo",
+                    title = "Nhật ký",
+                    subtitle = "Hoạt động Đảo",
                     onClick = onOpenActivity,
                     modifier = Modifier.weight(1f),
                 )
@@ -619,9 +557,9 @@ private fun CompactStatusCard(
         else -> IsleColors.Warn
     }
     val statusTitle = when {
-        !castOn -> "Đảo Origin đã tắt"
-        connected -> "Đảo Origin đang hoạt động"
-        else -> "Đảo Origin chờ kết nối"
+        !castOn -> "Đã tắt"
+        connected -> "Đang hoạt động"
+        else -> "Chờ kết nối"
     }
 
     GroupCard {

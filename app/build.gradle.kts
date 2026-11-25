@@ -31,8 +31,8 @@ android {
         applicationId = "com.autonavi.minimap"
         minSdk = 34
         targetSdk = 36
-        versionCode = 20800
-        versionName = "2.8.0"
+        versionCode = 20801
+        versionName = "2.8.1"
     }
 
     signingConfigs {

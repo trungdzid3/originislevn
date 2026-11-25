@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.8.0` (mã bản dựng `versionCode = 20800`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.8.1` (mã bản dựng `versionCode = 20801`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -74,6 +74,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.8.1 — Tinh Gọn Giao Diện 3 Tab M3**:
+  - `HomeScreen.kt`: Xóa khối preview `"Biểu tượng động Material You"`, bỏ `subtitle` trên 4 `ToggleRow`, rút gọn `TonalShortcutCard` (`"Ứng dụng"`, `"Nhật ký"`) và `CompactStatusCard` (`"Đang hoạt động"` / `"Đã tắt"` / `"Chờ kết nối"`).
+  - `ModulesScreen.kt`: Bỏ `subtitle` lặp ý trên các `ToggleRow` (chỉ giữ `"Grab, Be, Xanh SM, ShopeeFood"` ở mục Gọi xe & Giao đồ ăn), rút gọn nhãn TikTok (`"Tin nhắn gửi:"`) và 2 chip Pin & Sạc (`"5 giây"`, `"Khi đang sạc"`).
+  - `SettingsScreen.kt`: Bỏ `subtitle` lặp ý trên các `ToggleRow`, rút gọn `"Tự ẩn sau:"`, chỉ hiện giờ yên tĩnh khi bật `quietSchedule`, ẩn dòng mô tả mặc định và ẩn công tắc tự áp dụng Shizuku khi chưa cài đặt Shizuku.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.8.1.apk`: Nâng `versionCode = 20801`, `versionName = "2.8.1"`.
 - **Origin Isle VN v2.8.0 — Đồng Bộ Chọn Lọc Upstream `fvhde/origin-isle` v3.0.1**:
   - `ScoreCard.kt`, `ShareToIslandActivity.kt` & `sports/{FlashscoreImages,FlashscoreParser,FlashscoreShare,LiveMatch,MosaicSplit}.kt`: Thay hệ thống tỷ số bóng đá cũ (`SportsCard`/`SportsFeed`/`SportsParser`/`club_crests.json`) bằng tỷ số trực tiếp đa môn **Flashscore** (bóng đá, bóng rổ, tennis, bóng chuyền, cricket...) kèm nút chia sẻ thẳng lên Đảo (`ShareToIslandActivity`).
   - `PlaygroundService.kt` & `OriginIslandBuilder.kt` & `OriginIslandConstants.kt`: Bổ sung `ACTION_GONE` / `onGone`, `scheduleUngroup()` tách keep-alive sau 2s, `setTimeoutAfter(timeoutMs)` tự ẩn thẻ khi máy ngủ, và các trường bảng tỷ số `midTopMsg`, `rightMainExtra`, `midMainText`, `midSubText`, `TEMPLATE_RIGHT_ISLAND_DOUBLE_LINE`.

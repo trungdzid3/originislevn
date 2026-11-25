@@ -165,7 +165,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Biến động số dư Ngân hàng",
                         checked = paymentOn,
-                        subtitle = "Báo tiền vào (+), tiền ra (-)",
                     ) {
                         paymentOn = it
                         prefs.edit().putBoolean("cast_payment", it).putBoolean("cast_vietnam_banks", it).apply()
@@ -178,7 +177,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Cuộc gọi Zalo",
                         checked = zaloCallOn,
-                        subtitle = "Người gọi & nút từ chối nhanh",
                     ) {
                         zaloCallOn = it
                         prefs.edit().putBoolean("cast_zalo_call", it).apply()
@@ -191,7 +189,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.TileAmber,
                         title = "Chuỗi TikTok",
                         checked = tiktokStreakOn,
-                        subtitle = "Nhắc duy trì chuỗi ngọn lửa",
                     ) {
                         tiktokStreakOn = it
                         prefs.edit().putBoolean("cast_tiktok_streak", it).apply()
@@ -199,7 +196,7 @@ fun ModulesScreen(
 
                     NestedSettingContainer(visible = tiktokStreakOn) {
                         Text(
-                            "Tin nhắn sao chép khi chạm nút duy trì:",
+                            "Tin nhắn gửi:",
                             fontSize = 13.sp,
                             color = IsleColors.TextSecondary,
                         )
@@ -234,7 +231,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Tải xuống & Quick Share",
                         checked = downloadOn,
-                        subtitle = "Tiến độ tải trình duyệt & chia sẻ",
                     ) {
                         downloadOn = it
                         prefs.edit().putBoolean("cast_downloads", it).apply()
@@ -247,7 +243,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Nhắc lịch & Sự kiện",
                         checked = castCalendarEvents,
-                        subtitle = "Google Calendar, Lịch Vivo, Outlook",
                     ) {
                         castCalendarEvents = it
                         prefs.edit().putBoolean("cast_calendar_events", it).apply()
@@ -260,7 +255,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Cuộc gọi & Đàm thoại",
                         checked = callsOn,
-                        subtitle = "Trạng thái & thời gian cuộc gọi",
                     ) {
                         callsOn = it
                         prefs.edit().putBoolean("cast_calls", it).apply()
@@ -282,7 +276,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Trình phát nhạc",
                         checked = mediaOn,
-                        subtitle = "Sóng nhạc & điều khiển OriginOS",
                     ) {
                         mediaOn = it
                         prefs.edit().putBoolean("cast_media_sessions", it).apply()
@@ -295,7 +288,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Tai nghe & Thiết bị đeo",
                         checked = earbudsOn,
-                        subtitle = "Pin tai nghe, Galaxy Fit/Watch",
                     ) {
                         prefs.edit().putBoolean("cast_earbuds", it).apply()
                         if (it && !EarbudsCard.hasPermission(context)) {
@@ -313,7 +305,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Pin & Sạc",
                         checked = chargingOn,
-                        subtitle = "Hiển thị thẻ sạc pin trên Đảo",
                     ) {
                         chargingOn = it
                         prefs.edit().putBoolean("cast_charging", it).apply()
@@ -321,13 +312,8 @@ fun ModulesScreen(
                     }
 
                     NestedSettingContainer(visible = chargingOn) {
-                        Text(
-                            "Thời gian hiển thị thẻ sạc:",
-                            fontSize = 13.sp,
-                            color = IsleColors.TextSecondary,
-                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(false to "Thoáng qua (5s)", true to "Suốt thời gian sạc").forEach { (keep, label) ->
+                            listOf(false to "5 giây", true to "Khi đang sạc").forEach { (keep, label) ->
                                 ChoiceChip(
                                     label = label,
                                     selected = chargingKeep == keep,
@@ -349,7 +335,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Chế độ Âm thanh",
                         checked = ringerModeOn,
-                        subtitle = "Chuông, Rung, Im lặng",
                     ) {
                         ringerModeOn = it
                         prefs.edit().putBoolean("cast_ringer_mode", it).apply()
@@ -362,7 +347,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Đèn pin",
                         checked = flashlightOn,
-                        subtitle = "Tắt nhanh đèn pin từ Đảo",
                     ) {
                         flashlightOn = it
                         prefs.edit().putBoolean("cast_flashlight", it).apply()
@@ -376,7 +360,6 @@ fun ModulesScreen(
                         tileColor = IsleColors.Accent,
                         title = "Chỉ báo Camera & Micro",
                         checked = privacyDotOn,
-                        subtitle = "Chấm bảo mật khi đang dùng",
                     ) {
                         privacyDotOn = it
                         prefs.edit().putBoolean("cast_privacy_dot", it).apply()

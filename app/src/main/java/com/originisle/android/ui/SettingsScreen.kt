@@ -170,7 +170,7 @@ fun SettingsScreen(
 
                     NestedSettingContainer(visible = includeMessages) {
                         Text(
-                            "Tự ẩn thẻ tin nhắn thường sau:",
+                            "Tự ẩn sau:",
                             fontSize = 13.sp,
                             color = IsleColors.TextSecondary,
                         )
@@ -223,7 +223,6 @@ fun SettingsScreen(
                         tileColor = IsleColors.Accent,
                         title = "Bỏ qua thông báo im lặng",
                         checked = ignoreSilent,
-                        subtitle = "Không hiện thông báo không chuông/rung",
                     ) {
                         ignoreSilent = it
                         prefs.edit().putBoolean("cast_ignore_silent", it).apply()
@@ -236,7 +235,6 @@ fun SettingsScreen(
                         tileColor = IsleColors.Accent,
                         title = "Hiển thị trên màn hình khóa",
                         checked = lockscreenLiveCard,
-                        subtitle = "Giữ thẻ Đảo khi thiết bị đang khóa",
                     ) {
                         lockscreenLiveCard = it
                         prefs.edit().putBoolean("cast_lockscreen_live_card", it).apply()
@@ -249,7 +247,6 @@ fun SettingsScreen(
                         tileColor = IsleColors.Accent,
                         title = "Ẩn số dư & OTP khi khóa máy",
                         checked = lockscreenRedactSensitive,
-                        subtitle = "Che tiền chuyển khoản & mã OTP trên khóa",
                     ) {
                         lockscreenRedactSensitive = it
                         prefs.edit().putBoolean("cast_lockscreen_redact_sensitive", it).apply()
@@ -262,7 +259,6 @@ fun SettingsScreen(
                         tileColor = IsleColors.Accent,
                         title = "Theo Không làm phiền",
                         checked = quietDnd,
-                        subtitle = "Tự tắt Đảo khi bật chế độ DND",
                     ) {
                         quietDnd = it
                         prefs.edit().putBoolean("cast_quiet_dnd", it).apply()
@@ -275,7 +271,11 @@ fun SettingsScreen(
                         tileColor = IsleColors.Accent,
                         title = "Lịch giờ yên tĩnh",
                         checked = quietSchedule,
-                        subtitle = "${QuietHours.format(quietStart)} – ${QuietHours.format(quietEnd)} hàng ngày",
+                        subtitle = if (quietSchedule) {
+                            "${QuietHours.format(quietStart)} – ${QuietHours.format(quietEnd)}"
+                        } else {
+                            null
+                        },
                     ) {
                         quietSchedule = it
                         prefs.edit().putBoolean("cast_quiet_schedule", it).apply()
@@ -315,7 +315,6 @@ fun SettingsScreen(
                         tileColor = IsleColors.Accent,
                         title = "Nút thao tác trên thẻ",
                         checked = actionsOn,
-                        subtitle = "Hiện nút trả lời nhanh, sao chép, hủy",
                     ) {
                         actionsOn = it
                         prefs.edit().putBoolean("cast_show_actions", it).apply()
@@ -333,11 +332,7 @@ fun SettingsScreen(
                         icon = IsleIcons.Bolt,
                         tileColor = IsleColors.Accent,
                         title = ShizukuKeepAliveHelper.getStateLabel(context),
-                        subtitle = if (shizukuSummary.isNotBlank()) {
-                            shizukuSummary
-                        } else {
-                            "Tối ưu whitelist pin không cần root"
-                        },
+                        subtitle = shizukuSummary.takeIf { it.isNotBlank() },
                     ) {
                         val canTap = !shizukuBusy &&
                             shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED &&
@@ -371,17 +366,18 @@ fun SettingsScreen(
                         )
                     }
 
-                    GroupDivider()
+                    if (shizukuState != ShizukuKeepAliveHelper.STATUS_NOT_INSTALLED) {
+                        GroupDivider()
 
-                    ToggleRow(
-                        icon = IsleIcons.Power,
-                        tileColor = IsleColors.Accent,
-                        title = "Tự áp dụng sau khi khởi động lại",
-                        checked = shizukuAutoKeepAlive,
-                        subtitle = "Tự chạy lại giữ nền Shizuku khi bật máy",
-                    ) {
-                        shizukuAutoKeepAlive = it
-                        prefs.edit().putBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, it).apply()
+                        ToggleRow(
+                            icon = IsleIcons.Power,
+                            tileColor = IsleColors.Accent,
+                            title = "Tự áp dụng sau khi khởi động lại",
+                            checked = shizukuAutoKeepAlive,
+                        ) {
+                            shizukuAutoKeepAlive = it
+                            prefs.edit().putBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, it).apply()
+                        }
                     }
                 }
             }
