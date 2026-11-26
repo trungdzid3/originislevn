@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.17` (mã bản dựng `versionCode = 21017`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.18` (mã bản dựng `versionCode = 21018`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.18 — 3 Nút Kính Mờ OriginOS 6–7 & Sóng Nhạc 5 Cột Trên Nền Upstream `v2.10.17`**:
+  - `MediaCard.kt`: Bật `oi_btn_transparent = true` (3 nút kính mờ bán trong suốt `#26FFFFFF` + icon trắng `#FFFFFF` chuẩn `originos-design`) và thêm lại sóng nhạc 5 cột `createMusicWaveIcon(waveColors)` trên `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (`status_chip_text = " "`, `oi_right_content = ""`) khi đang phát, `ic_media_pause` khi tạm dừng; giữ nguyên 100% logic trạng thái `upstream/main` (`v2.10.17`), 26 gói whitelist OriginOS, vá pin TWS (`EarbudsCard.kt`, `NotificationCastListener.kt`) và popup tai nghe OriginOS 6–7 (`BluetoothPopupOverlay.kt`).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.18.apk`: Nâng `versionCode = 21018`, `versionName = "2.10.18"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.17 — Khôi Phục Đảo Nhạc Y Hệt Upstream `fvhde/origin-isle` (Trước Khi Thêm Sóng & Sửa Nút)**:
   - `MediaCard.kt` & `MediaControlReceiver.kt`: Khôi phục y hệt logic `upstream/main` trước khi thêm sóng 5 cột và nút trong suốt (`TEMPLATE_RIGHT_ISLAND_WAVE` với `oi_wave_state = 1`, `oi_show_right_icon = false` khi đang phát; `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` + `ic_media_pause` khi tạm dừng; `is_ongoing = true`, `status_chip_text = chip`, `oi_right_content = chip`, bỏ `oi_btn_transparent = true`, chỉ thêm Prev/Next khi `hasPrev`/`hasNext`, `null -> sbn.isOngoing`, và `if (state?.state == PlaybackState.STATE_PLAYING) controls.pause() else controls.play()`). Giữ nguyên 26 gói whitelist OriginOS, phần vá pin TWS (`EarbudsCard.kt`, `NotificationCastListener.kt`) và popup tai nghe OriginOS 6–7 (`BluetoothPopupOverlay.kt`).
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.17.apk`: Nâng `versionCode = 21017`, `versionName = "2.10.17"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).

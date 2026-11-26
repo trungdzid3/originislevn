@@ -450,7 +450,7 @@ object MediaCard {
             putExtra("text", artist)
             putExtra("source_pkg", pkg)
             putExtra("oi_left_content", if (rawAlbumArt != null) "" else track)
-            putExtra("status_chip_text", chip)
+            putExtra("status_chip_text", " ")
 
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
@@ -460,20 +460,20 @@ object MediaCard {
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", true)
+            putExtra("oi_btn_transparent", true)
 
-            if (playing) {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
-                putExtra("oi_wave_state", 1)
-                if (waveColors.isNotEmpty()) {
-                    putStringArrayListExtra("oi_wave_color_list", waveColors)
-                }
-                putExtra("oi_show_right_icon", false)
-            } else {
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
-                putExtra("oi_show_right_icon", true)
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+            putExtra("oi_wave_state", if (playing) 1 else 0)
+            if (waveColors.isNotEmpty()) {
+                putStringArrayListExtra("oi_wave_color_list", waveColors)
             }
-            putExtra("oi_right_content", chip)
+            putExtra(
+                "oi_right_icon",
+                if (playing) createMusicWaveIcon(waveColors)
+                else Icon.createWithResource(context, R.drawable.ic_media_pause),
+            )
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_right_content", "")
 
             putParcelableArrayListExtra("actions", actions)
             putExtra("source_content_intent", contentClickIntent)
