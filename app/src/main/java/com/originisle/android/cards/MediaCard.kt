@@ -28,12 +28,9 @@ import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
 import com.originisle.android.service.MediaControlReceiver
-import com.originisle.android.service.MediaIslandLaunchActivity
 import com.originisle.android.service.MediaIslandOverlay
 import com.originisle.android.service.MediaSnapshot
 import com.originisle.android.service.NotificationCastListener
-import com.originisle.android.ui.PREFS_NAME
-import com.originisle.android.ui.PREF_MEDIA_OVERLAY_EXPAND
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -439,20 +436,6 @@ object MediaCard {
 
         pendingDismissTasks.remove(ID)?.let { handler.removeCallbacks(it) }
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val useHybridOverlay = MediaIslandOverlay.canShow(context) &&
-            prefs.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true)
-        val overlayActivityPi = PendingIntent.getActivity(
-            context,
-            ID + 99,
-            Intent(context, MediaIslandLaunchActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                putExtra(MediaIslandLaunchActivity.EXTRA_FALLBACK_INTENT, contentClickIntent)
-                putExtra(MediaIslandLaunchActivity.EXTRA_SOURCE_PKG, pkg)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
         val chip = if (playing) "Playing" else " "
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -498,7 +481,7 @@ object MediaCard {
             putParcelableArrayListExtra("actions", actions)
             putExtra(
                 "source_content_intent",
-                if (useHybridOverlay) overlayActivityPi else contentClickIntent,
+                contentClickIntent,
             )
         }
         context.startService(intent)

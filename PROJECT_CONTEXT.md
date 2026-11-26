@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.14` (mã bản dựng `versionCode = 21014`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.15` (mã bản dựng `versionCode = 21015`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.15 — Ngắt `MediaIslandLaunchActivity` Khỏi `MediaCard.kt` (Tạm Gác, Không Xóa Mã Nguồn)**:
+  - `MediaCard.kt`: Đưa `source_content_intent` về lại `contentClickIntent` (ngắt `overlayActivityPi` tạm gác tính năng đảo mở rộng kính mờ; vẫn giữ nguyên `MediaIslandLaunchActivity.kt`, `MediaIslandOverlay.kt` và `AndroidManifest.xml`), khớp 100% logic Đảo nhạc `v2.10.5` + 26 gói whitelist OriginOS + giao diện popup tai nghe OriginOS 6–7 từ `v2.10.14`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.15.apk`: Nâng `versionCode = 21015`, `versionName = "2.10.15"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.14 — Popup Tai Nghe Chuẩn OriginOS 6–7 (Bottom Sheet) & Khôi Phục `STATE_NONE` Đảo Nhạc (`v2.10.5`)**:
   - `BluetoothPopupOverlay.kt` & `DESIGN.md`: Thiết kế lại nội dung popup tai nghe chuẩn OriginOS 6–7 (giữ nguyên dáng bottom sheet bám đáy bo 2 góc trên `32dp` và `WindowManager.LayoutParams` ổn định không dùng `FLAG_BLUR_BEHIND`), bổ sung `LiquidGlassSheetDrawable` (`#F4141824`/`#F8FFFFFF`, Edge Light `1.2dp`, Top Specular `0.9dp`, Ambient Light `RadialGradient` theo `colorScheme.primary`), huy hiệu `"Đã kết nối"` `#00D084`, Huarong Atomic Battery Pods `18dp` 2 dòng dùng `tnum`, hàng nút đáy `46dp` + Pill `"Hoàn tất"` `48dp` kèm `Touch Light`, và kéo thả `First-frame Interruptible` (sức căng `0.16f`).
   - `MediaCard.kt`: Khôi phục nhánh `null, PlaybackState.STATE_NONE -> sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0` của `v2.10.5` để Zing MP3 hiển thị đúng sóng nhạc 5 cột và nút `||` khi đang phát.
