@@ -448,7 +448,7 @@ object MediaCard {
             )
             putExtra("oi_show_right_icon", true)
             putExtra("oi_right_content", "")
-            putExtra("status_chip_text", chip)
+            putExtra("status_chip_text", " ")
 
             putParcelableArrayListExtra("actions", actions)
             putExtra(
