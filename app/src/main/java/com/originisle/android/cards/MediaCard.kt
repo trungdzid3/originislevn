@@ -95,7 +95,6 @@ object MediaCard {
         for (active in activeNotifs) {
             val pkg = active.packageName.lowercase()
             if (pkg == context.packageName.lowercase()) continue
-            if (pkg in THIRD_PARTY_MUSIC_PACKAGES || NotificationCastListener.isKnownMusicApp(pkg)) continue
 
             val isOngoing = active.isOngoing || (active.notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
             if (!isOngoing) continue
@@ -104,6 +103,7 @@ object MediaCard {
             if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
                 return true
             }
+            if (pkg in THIRD_PARTY_MUSIC_PACKAGES || NotificationCastListener.isKnownMusicApp(pkg)) continue
             // 2. Thông báo SuperX gốc từ hệ thống với scene MUSIC / AUDIO từ gói khác VÀ đang ongoing
             val extras = active.notification.extras
             if (active.tag == OriginIslandConstants.SUPERX_TAG ||
@@ -423,18 +423,18 @@ object MediaCard {
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
-            putExtra("template", OriginIslandConstants.TEMPLATE_BUTTONS)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-            putExtra("scene", "NAVIGATION")
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", track)
-            putExtra("content", artist)
             putExtra("text", artist)
             putExtra("subtext", subtext)
-            putExtra("critical", true)
-            putExtra("oi_ongoing", playing)
+            putExtra("source_app", appLabel(context, pkg))
+            putExtra("source_pkg", pkg)
             putExtra("is_ongoing", playing)
-            putExtra("oi_auto_Disappear", false)
+            putExtra("oi_island_show_time", 0)
+            putExtra("oi_auto_dismiss_ms", 0L)
+            putExtra("oi_bg_color", "#FF262626")
+            putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", !useHybridOverlay)
             if (useHybridOverlay) {
                 putExtra("oi_capsule_click_resp", openOverlayPi)
@@ -442,9 +442,7 @@ object MediaCard {
             }
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", false)
-            putExtra("oi_Suppress_Toast", true)
 
-            putExtra("source_pkg", pkg)
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
@@ -454,9 +452,12 @@ object MediaCard {
             putParcelableArrayListExtra("oi_button_actions", buttonActions)
             putParcelableArrayListExtra("oi_button_icons", buttonIcons)
 
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
+            putExtra(
+                "oi_right_template",
+                if (playing) OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE
+                else OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON,
+            )
             putExtra("oi_wave_state", if (playing) 1 else 0)
-            putStringArrayListExtra("oi_wave_colors", waveColors)
             putStringArrayListExtra("oi_wave_color_list", waveColors)
             putExtra("oi_show_right_icon", false)
             putExtra("status_chip_text", "")

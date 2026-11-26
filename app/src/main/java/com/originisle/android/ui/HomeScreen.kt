@@ -6,9 +6,15 @@ import android.content.SharedPreferences
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,7 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -273,12 +282,13 @@ fun HomeScreen(
             }
         }
 
-        // Thẻ trạng thái siêu gọn CompactStatusCard
+        // Thẻ trạng thái nguyên tử Lưới Hoa Dung (Huarong Grid Atomic Status Widget)
         item {
             CompactStatusCard(
                 castOn = castOn,
                 connected = connected,
                 deviceName = displayModel,
+                islandCount = CastLog.entries.size,
                 onToggle = { enabled ->
                     castOn = enabled
                     prefs.edit().putBoolean("cast_notifications", enabled).apply()
@@ -464,23 +474,23 @@ fun HomeScreen(
             }
         }
 
-        // Lối tắt nhanh: 2 ô Tonal Card cạnh nhau
+        // Lối tắt nhanh: 2 ô lưới Atomic Grid 1x2 cân đối
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TonalShortcutCard(
+                AtomicShortcutTile(
                     icon = IsleIcons.Grid,
                     title = "Ứng dụng",
-                    subtitle = if (appsOff == 0) "Tất cả" else "Tắt $appsOff",
+                    subtitle = if (appsOff == 0) "Tất cả đang bật" else "Đang tắt $appsOff",
                     onClick = onOpenApps,
                     modifier = Modifier.weight(1f),
                 )
-                TonalShortcutCard(
+                AtomicShortcutTile(
                     icon = IsleIcons.Pulse,
                     title = "Nhật ký",
-                    subtitle = "Hoạt động Đảo",
+                    subtitle = "${CastLog.entries.size} hoạt động Đảo",
                     onClick = onOpenActivity,
                     modifier = Modifier.weight(1f),
                 )
@@ -502,9 +512,10 @@ private fun CompactStatusCard(
     castOn: Boolean,
     connected: Boolean,
     deviceName: String,
+    islandCount: Int,
     onToggle: (Boolean) -> Unit,
 ) {
-    val dotColor = when {
+    val statusColor = when {
         !castOn -> IsleColors.TextTertiary
         connected -> IsleColors.Good
         else -> IsleColors.Warn
@@ -514,55 +525,219 @@ private fun CompactStatusCard(
         connected -> "Đang hoạt động"
         else -> "Chờ kết nối"
     }
+    val connectionSummary = when {
+        !castOn -> "Chế độ tạm nghỉ"
+        connected -> "Dịch vụ đã liên kết"
+        else -> "Đang chờ liên kết"
+    }
 
     GroupCard {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(dotColor.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(dotColor),
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    // Connection status pill (OriginOS Atomic zero-tier badge)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(statusColor.copy(alpha = 0.14f))
+                            .border(0.6.dp, statusColor.copy(alpha = 0.28f), RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(statusColor),
+                        )
+                        Text(
+                            text = statusTitle,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = statusColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    Text(
+                        text = "$deviceName · v${BuildConfig.VERSION_NAME}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IsleColors.Text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                IsleSwitch(
+                    checked = castOn,
+                    onCheckedChange = onToggle,
                 )
             }
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+            // Huarong Grid zero-tier metric strip
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(IsleColors.SurfaceHigh.copy(alpha = 0.65f))
+                    .border(
+                        width = 0.6.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom),
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = "Thẻ Đảo hôm nay",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = IsleColors.TextSecondary,
+                    )
+                    Text(
+                        text = "$islandCount lượt",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IsleColors.Text,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFeatureSettings = "tnum",
+                        ),
+                    )
+                }
+
                 Text(
-                    text = statusTitle,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = IsleColors.Text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "$deviceName · v${BuildConfig.VERSION_NAME}",
-                    fontSize = 13.sp,
+                    text = connectionSummary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     color = IsleColors.TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+    }
+}
 
-            IsleSwitch(
-                checked = castOn,
-                onCheckedChange = onToggle,
+/**
+ * OriginOS Huarong Grid 1x2 Atomic Shortcut Tile with concentric squircle radii
+ * (26.dp outer card, 14.dp inner icon tile) and Touch Light spring feedback.
+ */
+@Composable
+private fun AtomicShortcutTile(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tileColor: Color = IsleColors.Accent,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "atomicTileScale",
+    )
+    val touchLightAlpha by animateFloatAsState(
+        targetValue = if (pressed) 0.08f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "atomicTouchLight",
+    )
+    val outerShape = RoundedCornerShape(26.dp)
+    val innerIconShape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .heightIn(min = 114.dp)
+            .clip(outerShape)
+            .background(IsleColors.Surface)
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = outerShape,
             )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+    ) {
+        if (touchLightAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.White.copy(alpha = touchLightAlpha)),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(innerIconShape)
+                    .background(tileColor.copy(alpha = 0.14f))
+                    .border(
+                        width = 0.6.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(tileColor.copy(alpha = 0.28f), tileColor.copy(alpha = 0.06f)),
+                        ),
+                        shape = innerIconShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = tileColor,
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = IsleColors.Text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = IsleColors.TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

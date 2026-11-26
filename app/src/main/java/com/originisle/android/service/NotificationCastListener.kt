@@ -301,6 +301,8 @@ class NotificationCastListener : NotificationListenerService() {
         /** Danh sách các ứng dụng âm nhạc phổ biến (Spotify, YouTube Music, Soundcloud, ...). */
         val KNOWN_MUSIC_APPS = setOf(
             "com.spotify.music",
+            "com.spotify.music.lite",
+            "com.spotify.lite",
             "com.spotify.music.canary",
             "com.google.android.apps.youtube.music",
             "com.soundcloud.android",
@@ -320,6 +322,7 @@ class NotificationCastListener : NotificationListenerService() {
         fun isKnownMusicApp(pkg: String?): Boolean {
             if (pkg.isNullOrBlank()) return false
             val lower = pkg.lowercase()
+            if (lower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) return false
             return lower in KNOWN_MUSIC_APPS ||
                 DownloadDetector.isMusicOrMediaApp(lower)
         }
@@ -971,7 +974,134 @@ class NotificationCastListener : NotificationListenerService() {
         }
         registerBatteryReceiver()
         registerScreenReceiver()
+        registerMediaSessionListener()
         startSystemCards()
+    }
+
+    private val trackedMediaCallbacks = ConcurrentHashMap<MediaSession.Token, Pair<MediaController, MediaController.Callback>>()
+    private var mediaSessionListenerRegistered = false
+
+    private val activeSessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
+        syncMediaSessions(controllers.orEmpty())
+    }
+
+    private fun registerMediaSessionListener() {
+        if (mediaSessionListenerRegistered) return
+        runCatching {
+            val msm = getSystemService(MediaSessionManager::class.java) ?: return
+            val component = ComponentName(this, NotificationCastListener::class.java)
+            msm.addOnActiveSessionsChangedListener(activeSessionsListener, component, pollHandler)
+            mediaSessionListenerRegistered = true
+            syncMediaSessions(msm.getActiveSessions(component))
+        }.onFailure {
+            Log.w(TAG, "registerMediaSessionListener failed", it)
+        }
+    }
+
+    private fun unregisterMediaSessionListener() {
+        if (mediaSessionListenerRegistered) {
+            runCatching {
+                getSystemService(MediaSessionManager::class.java)
+                    ?.removeOnActiveSessionsChangedListener(activeSessionsListener)
+            }
+            mediaSessionListenerRegistered = false
+        }
+        trackedMediaCallbacks.values.forEach { (controller, callback) ->
+            runCatching { controller.unregisterCallback(callback) }
+        }
+        trackedMediaCallbacks.clear()
+    }
+
+    private fun syncMediaSessions(sessions: List<MediaController>) {
+        val currentTokens = sessions.map { it.sessionToken }.toSet()
+        val staleTokens = trackedMediaCallbacks.keys.filter { it !in currentTokens }
+        staleTokens.forEach { token ->
+            trackedMediaCallbacks.remove(token)?.let { (controller, cb) ->
+                runCatching { controller.unregisterCallback(cb) }
+            }
+        }
+
+        for (controller in sessions) {
+            val pkgLower = controller.packageName.lowercase()
+            if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) continue
+            val token = controller.sessionToken
+            if (!trackedMediaCallbacks.containsKey(token)) {
+                val cb = object : MediaController.Callback() {
+                    override fun onPlaybackStateChanged(state: PlaybackState?) {
+                        dispatchControllerSession(controller)
+                    }
+
+                    override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
+                        dispatchControllerSession(controller)
+                    }
+
+                    override fun onSessionDestroyed() {
+                        trackedMediaCallbacks.remove(token)
+                    }
+                }
+                runCatching {
+                    controller.registerCallback(cb, pollHandler)
+                    trackedMediaCallbacks[token] = controller to cb
+                }
+            }
+        }
+
+        val primary = sessions.firstOrNull { isEligibleMediaController(it) }
+        if (primary != null) {
+            dispatchControllerSession(primary)
+        }
+    }
+
+    private fun isEligibleMediaController(controller: MediaController): Boolean {
+        val pkg = controller.packageName
+        val pkgLower = pkg.lowercase()
+        if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) return false
+        val prefs = getSharedPreferences(PREFS, 0)
+        if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, pkg)) return false
+        val state = controller.playbackState?.state
+        val isPlaying = state == PlaybackState.STATE_PLAYING ||
+            state == PlaybackState.STATE_BUFFERING ||
+            state == PlaybackState.STATE_FAST_FORWARDING ||
+            state == PlaybackState.STATE_REWINDING ||
+            state == PlaybackState.STATE_SKIPPING_TO_NEXT ||
+            state == PlaybackState.STATE_SKIPPING_TO_PREVIOUS ||
+            state == PlaybackState.STATE_CONNECTING
+        val hasMeta = controller.metadata != null
+        return isPlaying || (state == PlaybackState.STATE_PAUSED && hasMeta)
+    }
+
+    private fun dispatchControllerSession(controller: MediaController) {
+        val pkg = controller.packageName
+        val pkgLower = pkg.lowercase()
+        if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) return
+        val prefs = getSharedPreferences(PREFS, 0)
+        if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, pkg)) return
+
+        val isThirdPartyMusic = isKnownMusicApp(pkg) || pkgLower in MediaCard.THIRD_PARTY_MUSIC_PACKAGES
+        if (!isThirdPartyMusic && isOriginNativePlayerActive(pkg)) return
+
+        val state = controller.playbackState?.state
+        val isPlaying = state == PlaybackState.STATE_PLAYING ||
+            state == PlaybackState.STATE_BUFFERING ||
+            state == PlaybackState.STATE_FAST_FORWARDING ||
+            state == PlaybackState.STATE_REWINDING ||
+            state == PlaybackState.STATE_SKIPPING_TO_NEXT ||
+            state == PlaybackState.STATE_SKIPPING_TO_PREVIOUS ||
+            state == PlaybackState.STATE_CONNECTING
+        val isPausedWithMeta = state == PlaybackState.STATE_PAUSED && controller.metadata != null
+        if (!isPlaying && !isPausedWithMeta) return
+
+        val matchingSbn = runCatching { activeNotifications }.getOrNull()?.firstOrNull { sbn ->
+            sbn.packageName.equals(pkg, ignoreCase = true) &&
+                !isAuxiliaryMusicDownloadNotif(sbn, extractMediaSessionToken(sbn.notification.extras))
+        }
+        if (matchingSbn != null) {
+            MediaCard.post(applicationContext, matchingSbn, controller, forceRefresh = false)
+            schedulePollIfNeeded(immediate = isPlaying)
+        } else if (isPlaying || isThirdPartyMusic) {
+            MediaCard.postFromController(applicationContext, pkg, controller, forceRefresh = false)
+            schedulePollIfNeeded(immediate = isPlaying)
+        }
     }
 
 
@@ -1044,6 +1174,7 @@ class NotificationCastListener : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        unregisterMediaSessionListener()
         unregisterBatteryReceiver()
         unregisterScreenReceiver()
         stopSystemCards()
@@ -1111,10 +1242,11 @@ class NotificationCastListener : NotificationListenerService() {
     private fun reload() {
         val prefs = getSharedPreferences(PREFS, 0)
         val enabled = prefs.getBoolean("cast_notifications", true)
+        val castMedia = prefs.getBoolean("cast_media_sessions", true)
         val apps = prefs.getStringSet("cast_enabled_apps", null)
         activeNotifications?.forEach { sbn ->
             val eligible = apps == null || sbn.packageName in apps
-            if (enabled && sbn.packageName != packageName && eligible) onNotificationPosted(sbn)
+            if ((enabled || castMedia) && sbn.packageName != packageName && eligible) onNotificationPosted(sbn)
         }
     }
 
@@ -1338,6 +1470,13 @@ class NotificationCastListener : NotificationListenerService() {
                     MediaCard.post(applicationContext, sbn, controller, forceRefresh = true)
                     schedulePollIfNeeded()
                 } else {
+                    if (isThirdPartyMusic || isMediaStyleOrTransport(sbn.notification)) {
+                        MediaCard.post(applicationContext, sbn, null, forceRefresh = true)
+                        schedulePollIfNeeded()
+                        log(sbn, "hiển thị — trình phát nhạc (đang đồng bộ session)", true)
+                    } else {
+                        log(sbn, "chờ đồng bộ phiên phát nhạc — ${appLabel(sbn.packageName)}", false)
+                    }
                     pollHandler.postDelayed({
                         if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, sbn.packageName)) {
                             return@postDelayed
@@ -1353,14 +1492,12 @@ class NotificationCastListener : NotificationListenerService() {
                             if (retryToken != null) MediaController(this@NotificationCastListener, retryToken)
                             else findMediaControllerFallback(activeSbn.packageName)
                         }.getOrNull()
-                        if (retryController != null || isThirdPartyMusic || isMediaStyleOrTransport(activeSbn.notification)) {
+                        if (retryController != null) {
                             MediaCard.post(applicationContext, activeSbn, retryController, forceRefresh = true)
                             schedulePollIfNeeded()
-                            val suffix = if (retryController != null) "(sau đồng bộ session)" else "(không có MediaSession)"
-                            log(activeSbn, "hiển thị — trình phát nhạc $suffix", true)
+                            log(activeSbn, "hiển thị — trình phát nhạc (sau đồng bộ session)", true)
                         }
                     }, 300L)
-                    log(sbn, "chờ đồng bộ phiên phát nhạc — ${appLabel(sbn.packageName)}", false)
                 }
                 return
             }
@@ -1952,6 +2089,7 @@ class NotificationCastListener : NotificationListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterMediaSessionListener()
         unregisterBatteryReceiver()
         unregisterScreenReceiver()
         pollHandler.removeCallbacks(pollRunnable)
@@ -2115,9 +2253,18 @@ class NotificationCastListener : NotificationListenerService() {
         if (isActualMedia || IconCache.activeControllers.containsKey(id)) {
             runCatching {
                 IconCache.activeControllers.remove(id)
-                IconCache.activeControllers.remove(MediaCard.ID)
-                MediaCard.clear(applicationContext, MediaCard.ID)
-                MediaCard.clear(applicationContext, id)
+                val fallbackActive = runCatching {
+                    val msm = getSystemService(MediaSessionManager::class.java)
+                    msm?.getActiveSessions(ComponentName(this, NotificationCastListener::class.java))
+                        ?.firstOrNull { isEligibleMediaController(it) }
+                }.getOrNull()
+                if (fallbackActive != null) {
+                    dispatchControllerSession(fallbackActive)
+                } else {
+                    IconCache.activeControllers.remove(MediaCard.ID)
+                    MediaCard.clear(applicationContext, MediaCard.ID)
+                    MediaCard.clear(applicationContext, id)
+                }
             }.onFailure { Log.e(TAG, "Lỗi giải phóng thẻ nhạc khi thông báo bị xóa", it) }
             return
         }

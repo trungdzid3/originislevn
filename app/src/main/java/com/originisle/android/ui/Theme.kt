@@ -225,22 +225,25 @@ private val IsleTypography = Typography(
         fontFamily = VivoSans,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
+        lineHeight = 20.sp,
     ),
     bodySmall = TextStyle(
         fontFamily = VivoSans,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
-        lineHeight = 18.sp,
+        lineHeight = 19.sp,
     ),
     labelLarge = TextStyle(
         fontFamily = VivoSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
+        lineHeight = 20.sp,
     ),
     labelMedium = TextStyle(
         fontFamily = VivoSans,
         fontWeight = FontWeight.Medium,
         fontSize = 13.sp,
+        lineHeight = 19.sp,
     ),
     labelSmall = TextStyle(
         fontFamily = VivoSans,

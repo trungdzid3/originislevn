@@ -151,7 +151,7 @@ class PlaygroundService : Service() {
 
     /** Matches the listener's own gate — either card source keeps the service worth running. */
     private fun isCastingEnabled(): Boolean = getSharedPreferences(PREFS_NAME, 0).let {
-        it.getBoolean("cast_notifications", true) || it.getBoolean("cast_media_sessions", false)
+        it.getBoolean("cast_notifications", true) || it.getBoolean("cast_media_sessions", true)
     }
 
     /** [flags] picks between arming (FLAG_UPDATE_CURRENT) and looking one up (FLAG_NO_CREATE). */
@@ -265,10 +265,12 @@ class PlaygroundService : Service() {
         val showNotify = intent.getBooleanExtra("oi_show_notify", false)
         val islandNotify = intent.getBooleanExtra("oi_island_notify", false)
         val isOngoing = intent.getBooleanExtra("is_ongoing", false)
+        val hasExplicitShowTime = intent.hasExtra("oi_island_show_time")
         val rawIslandShowTime = intent.getIntExtra("oi_island_show_time", 0)
         val customDurationSec = prefs.getInt("cast_island_duration_sec", 5).coerceAtLeast(0)
         val islandShowTime = when {
             rawIslandShowTime > 0 -> rawIslandShowTime
+            hasExplicitShowTime && rawIslandShowTime == 0 -> 0
             isOngoing -> 0
             customDurationSec > 0 -> customDurationSec
             else -> 0
@@ -345,7 +347,7 @@ class PlaygroundService : Service() {
         val btnType = intent.getIntExtra("oi_btn_type", 1)
         val rawIslandClickExpand = intent.getBooleanExtra("oi_island_click_expand", false)
         val tapExpandCard = prefs.getBoolean("cast_tap_expand_card", true)
-        val isMandatoryCallOrBattery = id in setOf(35001, 35004, 35011, 35012, 35014) ||
+        val isMandatoryCallOrBattery = id in setOf(35001, 35004, 35010, 35011, 35012, 35014) ||
             scene in setOf("INCALLING", "VOIPCALL")
         val islandClickExpand = when {
             isMandatoryCallOrBattery -> rawIslandClickExpand
@@ -430,11 +432,17 @@ class PlaygroundService : Service() {
         val prevInScene = sceneCurrentId[scene]
         if (prevInScene != null && prevInScene != id) {
             autoDismissTasks.remove(prevInScene)?.let { mainHandler.removeCallbacks(it) }
-            activeIds.remove(prevInScene)
-            originChangeRecord.remove(prevInScene)
-            originScenes.remove(prevInScene)
-            lastPosts.remove(prevInScene)
-            plainIds.remove(prevInScene)
+            val keepForResume = prevInScene < 40000 &&
+                prevInScene !in setOf(35001, 35004, 35008, 35009, 35011, 35012, 35014, 35015) &&
+                lastPosts[prevInScene]?.getBooleanExtra("is_ongoing", false) == true &&
+                (lastPosts[prevInScene]?.getLongExtra("oi_auto_dismiss_ms", 0L) ?: 0L) <= 0L
+            if (!keepForResume) {
+                activeIds.remove(prevInScene)
+                originChangeRecord.remove(prevInScene)
+                originScenes.remove(prevInScene)
+                lastPosts.remove(prevInScene)
+                plainIds.remove(prevInScene)
+            }
             val prevRemovalToken = IslandTransitions.currentGeneration(prevInScene) ?: postGen
             IslandTransitions.onCancelRequested(prevInScene)
             IslandTransitions.markPendingRemoval(prevInScene, prevRemovalToken)
@@ -456,12 +464,14 @@ class PlaygroundService : Service() {
         // Auto-dismiss: only for non-live cards (isOngoing is the same live/persistent flag the
         // card posters set — media, sports and any ongoing/call/progress GenericCard all mark
         // themselves live), and only when the user opted into a duration in Cast settings.
+        val hasExplicitAutoDismiss = intent.hasExtra("oi_auto_dismiss_ms")
         val explicitAutoDismissMs = intent.getLongExtra("oi_auto_dismiss_ms", 0L)
         val hasAutoDismissPref = prefs.contains("cast_auto_dismiss_seconds")
         val autoDismissSec = prefs.getInt("cast_auto_dismiss_seconds", 5).coerceAtLeast(0)
         val isTransientCardId = id in setOf(35004, 35008, 35009, 35011, 35012, 35014, 35015) || id >= 40000 || id in 9900..9999
         val dismissDelayMs: Long = when {
             explicitAutoDismissMs > 0L -> explicitAutoDismissMs
+            hasExplicitAutoDismiss && explicitAutoDismissMs <= 0L -> 0L
             !isOngoing -> {
                 val resolvedSec = when {
                     hasAutoDismissPref && autoDismissSec == 0 -> 0
@@ -524,7 +534,7 @@ class PlaygroundService : Service() {
             .setContentText(text)
             .setOnlyAlertOnce(true)
             .setOngoing(isOngoing)
-            .setAutoCancel(isOngoing)
+            .setAutoCancel(!isOngoing)
             .setDeleteIntent(deletePi)
             // Always the launcher mipmap. Vivo OriginOS rejects SuperX posts that carry a vector
             // XML drawable as the small icon, which silently drops the card off the island.

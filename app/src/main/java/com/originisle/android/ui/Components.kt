@@ -851,7 +851,7 @@ fun EmptyMessage(text: String) {
 }
 
 /**
- * Nền Space System 2.0 với quầng sáng Ambient Glow dịu ở đỉnh màn hình,
+ * Nền Space System 2.0 với quầng sáng Ambient Light đa điểm dừng ở đỉnh màn hình,
  * hòa sắc liền mạch lên Status Bar (超无界状态栏).
  */
 @Composable
@@ -861,6 +861,7 @@ fun OriginSpaceBackground(
 ) {
     val bgColor = IsleColors.Background
     val glowColor = IsleColors.AmbientGlow
+    val isDark = IsleColors.isDark
 
     Box(
         modifier = modifier
@@ -868,11 +869,28 @@ fun OriginSpaceBackground(
             .background(bgColor),
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
+            val topWashAlpha = if (isDark) 0.06f else 0.04f
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to glowColor.copy(alpha = (glowColor.alpha + topWashAlpha).coerceAtMost(0.24f)),
+                        0.18f to glowColor.copy(alpha = glowColor.alpha * 0.45f),
+                        0.36f to Color.Transparent,
+                    ),
+                    startY = 0f,
+                    endY = (size.height * 0.36f).coerceAtLeast(1f),
+                ),
+            )
             drawRect(
                 brush = Brush.radialGradient(
-                    colors = listOf(glowColor, Color.Transparent),
+                    colorStops = arrayOf(
+                        0.0f to glowColor.copy(alpha = (glowColor.alpha * 1.35f).coerceAtMost(0.26f)),
+                        0.32f to glowColor.copy(alpha = glowColor.alpha * 0.80f),
+                        0.68f to glowColor.copy(alpha = glowColor.alpha * 0.25f),
+                        1.0f to Color.Transparent,
+                    ),
                     center = Offset(size.width * 0.5f, 0f),
-                    radius = (size.width * 0.95f).coerceAtLeast(1f),
+                    radius = (size.width * 1.05f).coerceAtLeast(1f),
                 ),
             )
         }
@@ -887,8 +905,9 @@ data class OriginNavTab(
 )
 
 /**
- * Thanh điều hướng kính lỏng nổi (Liquid Glass Floating Capsule Navigation Bar)
- * với chỉ báo trượt spring (Liquid Motion) và viền sáng Edge Light.
+ * Thanh điều hướng kính lỏng nổi OriginOS 7 (Liquid Glass Dock + Liquid Lens)
+ * với viền sáng Edge Light 2 lớp, inner specular top highlight (0.5.dp),
+ * viên thuốc Liquid Lens trượt spring (0.72f) và phản hồi Touch Light (0.96f).
  */
 @Composable
 fun OriginFloatingNavBar(
@@ -899,6 +918,9 @@ fun OriginFloatingNavBar(
 ) {
     if (tabs.isEmpty()) return
     val safeSelected = selectedIndex.coerceIn(0, tabs.lastIndex)
+    val isDark = IsleColors.isDark
+    val specularTop = if (isDark) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.92f)
+    val lensSpecularTop = if (isDark) Color.White.copy(alpha = 0.24f) else Color.White.copy(alpha = 0.78f)
 
     Box(
         modifier = modifier
@@ -907,7 +929,7 @@ fun OriginFloatingNavBar(
             .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 460.dp)
@@ -924,92 +946,146 @@ fun OriginFloatingNavBar(
                     width = 0.9.dp,
                     brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
                     shape = CircleShape,
-                )
-                .padding(5.dp)
-                .selectableGroup(),
-        ) {
-            val tabWidth = maxWidth / tabs.size
-            val indicatorOffset by animateDpAsState(
-                targetValue = tabWidth * safeSelected,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
                 ),
-                label = "originNavIndicator",
-            )
-
+        ) {
+            // Inner specular top highlight (0.5.dp) for two-layer Edge Light refraction
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
-                    .width(tabWidth)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(IsleColors.Accent.copy(alpha = 0.16f))
+                    .matchParentSize()
+                    .padding(0.9.dp)
                     .border(
-                        width = 0.7.dp,
+                        width = 0.5.dp,
                         brush = Brush.verticalGradient(
-                            listOf(
-                                IsleColors.Accent.copy(alpha = 0.34f),
-                                IsleColors.Accent.copy(alpha = 0.08f),
+                            colorStops = arrayOf(
+                                0.0f to specularTop,
+                                0.42f to Color.Transparent,
+                                1.0f to Color.Transparent,
                             ),
                         ),
                         shape = CircleShape,
                     ),
             )
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                tabs.forEachIndexed { index, tab ->
-                    val selected = index == safeSelected
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val pressed by interactionSource.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (pressed) 0.96f else 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium,
-                        ),
-                        label = "navTabScale_$index",
-                    )
-                    val contentColor by animateColorAsState(
-                        targetValue = if (selected) IsleColors.Accent else IsleColors.TextSecondary,
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        label = "navTabColor_$index",
-                    )
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(5.dp)
+                    .selectableGroup(),
+            ) {
+                val tabWidth = maxWidth / tabs.size
+                val indicatorOffset by animateDpAsState(
+                    targetValue = tabWidth * safeSelected,
+                    animationSpec = spring(
+                        dampingRatio = 0.72f,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                    label = "originNavIndicator",
+                )
 
-                    Column(
+                // Liquid Lens sliding pill indicator
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
+                        .width(tabWidth)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    IsleColors.Accent.copy(alpha = 0.22f),
+                                    IsleColors.Accent.copy(alpha = 0.12f),
+                                ),
+                            ),
+                        )
+                        .border(
+                            width = 0.7.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    IsleColors.Accent.copy(alpha = 0.36f),
+                                    IsleColors.Accent.copy(alpha = 0.08f),
+                                ),
+                            ),
+                            shape = CircleShape,
+                        ),
+                ) {
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .scale(scale)
-                            .clip(CircleShape)
-                            .selectable(
-                                selected = selected,
-                                interactionSource = interactionSource,
-                                indication = null,
-                                role = Role.Tab,
-                                onClick = { onSelect(index) },
+                            .matchParentSize()
+                            .padding(0.7.dp)
+                            .border(
+                                width = 0.5.dp,
+                                brush = Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to lensSpecularTop,
+                                        0.48f to Color.Transparent,
+                                        1.0f to Color.Transparent,
+                                    ),
+                                ),
+                                shape = CircleShape,
+                            ),
+                    )
+                }
+
+                Row(modifier = Modifier.fillMaxSize()) {
+                    tabs.forEachIndexed { index, tab ->
+                        val selected = index == safeSelected
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val pressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (pressed) 0.96f else 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium,
+                            ),
+                            label = "navTabScale_$index",
+                        )
+                        val touchLightAlpha by animateFloatAsState(
+                            targetValue = if (pressed) 0.10f else 0f,
+                            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                            label = "navTabTouchLight_$index",
+                        )
+                        val contentColor by animateColorAsState(
+                            targetValue = if (selected) IsleColors.Accent else IsleColors.TextSecondary,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "navTabColor_$index",
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .scale(scale)
+                                .clip(CircleShape)
+                                .background(IsleColors.Accent.copy(alpha = touchLightAlpha))
+                                .selectable(
+                                    selected = selected,
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    role = Role.Tab,
+                                    onClick = { onSelect(index) },
+                                )
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label,
+                                tint = contentColor,
+                                modifier = Modifier.size(21.dp),
                             )
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = contentColor,
-                            modifier = Modifier.size(21.dp),
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = tab.label,
-                            fontSize = 11.sp,
-                            lineHeight = 14.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = contentColor,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = tab.label,
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = contentColor,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }

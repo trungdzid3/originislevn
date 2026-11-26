@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.RippleDrawable
 import android.media.session.MediaController
 import android.media.session.PlaybackState
@@ -32,6 +33,7 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -67,7 +69,8 @@ object MediaIslandOverlay {
     private const val ANIM_DURATION_MS = 200L
 
     private const val CARD_BG_COLOR = 0xF0101014.toInt()
-    private const val CARD_STROKE_COLOR = 0x24FFFFFF
+    private const val CARD_EDGE_LIGHT_TOP = 0x42FFFFFF
+    private const val CARD_EDGE_LIGHT_BOTTOM = 0x0FFFFFFF
     private const val OUTPUT_BTN_BG_COLOR = 0x1FFFFFFF
     private const val TEXT_PRIMARY = Color.WHITE
     private const val TEXT_SECONDARY = 0xB3FFFFFF.toInt()
@@ -223,11 +226,23 @@ object MediaIslandOverlay {
         }.apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16f), dp(14f), dp(16f), dp(12f))
-            background = GradientDrawable().apply {
+            val strokePx = (1f * density).roundToInt().coerceAtLeast(1)
+            val outerCorner = dp(30f).toFloat()
+            val innerCorner = (outerCorner - strokePx).coerceAtLeast(0f)
+            val edgeLightBorder = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(CARD_EDGE_LIGHT_TOP, CARD_EDGE_LIGHT_BOTTOM),
+            ).apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(30f).toFloat()
+                cornerRadius = outerCorner
+            }
+            val innerSurface = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = innerCorner
                 setColor(CARD_BG_COLOR)
-                setStroke((0.8f * density).roundToInt().coerceAtLeast(1), CARD_STROKE_COLOR)
+            }
+            background = LayerDrawable(arrayOf(edgeLightBorder, innerSurface)).apply {
+                setLayerInset(1, strokePx, strokePx, strokePx, strokePx)
             }
             outlineProvider = ViewOutlineProvider.BACKGROUND
             clipToOutline = true
@@ -467,6 +482,32 @@ object MediaIslandOverlay {
                 layoutParams = LinearLayout.LayoutParams(size, size).apply {
                     marginStart = dp(18f)
                     marginEnd = dp(18f)
+                }
+                setOnTouchListener { v, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            resetAutoHideTimer()
+                            v.animate().cancel()
+                            v.animate()
+                                .scaleX(0.90f)
+                                .scaleY(0.90f)
+                                .alpha(0.85f)
+                                .setDuration(90L)
+                                .setInterpolator(DecelerateInterpolator())
+                                .start()
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            v.animate().cancel()
+                            v.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .alpha(1f)
+                                .setDuration(180L)
+                                .setInterpolator(OvershootInterpolator(1.6f))
+                                .start()
+                        }
+                    }
+                    false
                 }
                 setOnClickListener {
                     resetAutoHideTimer()

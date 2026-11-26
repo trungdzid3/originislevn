@@ -72,7 +72,10 @@ Chuẩn thiết kế: **vivo OriginOS 6 (Space System 2.0)** & **OriginOS 7 (Liq
 ## 6. LINH KIỆN CHUẨN ORIGINOS (`Components.kt`)
 
 - **`OriginSpaceBackground`**: Khung nền Space System 2.0 với quầng `AmbientGlow` ở đỉnh màn hình tràn liền mạch lên Status Bar.
-- **`OriginFloatingNavBar`**: Thanh điều hướng kính lỏng nổi lơ lửng ở đáy màn hình (`FloatingGlassBg` + viền `Edge Light` + chừa `navigationBarsPadding()`), viên thuốc chỉ báo trượt mượt theo `spring` (*Liquid Motion*).
+- **`OriginFloatingNavBar` (Liquid Glass Dock + Liquid Lens)**: Thanh điều hướng kính lỏng nổi lơ lửng ở đáy màn hình (`FloatingGlassBg` + `navigationBarsPadding()`), sử dụng **viền Edge Light 2 lớp kèm đường specular highlight `0.5.dp` ở cạnh trên**. Viên thuốc chỉ báo **Liquid Lens** trượt mượt giữa các tab theo `spring(dampingRatio = Spring.DampingRatioLowBouncy / 0.72f, stiffness = Spring.StiffnessMediumLow)` (*First-frame Interruptible*) kết hợp phản hồi co đàn hồi *Touch Light* (`0.96f`).
+- **`CompactStatusCard` (Huarong Grid Atomic Status Widget)**: Thẻ trạng thái nguyên tử không tầng (*zero-tier*) chuẩn Lưới Hoa Dung trong khung squircle `26.dp` có viền `Edge Light`, gom gọn: huy hiệu trạng thái kết nối dạng pill, tên thiết bị + phiên bản, dải thông số lượt thẻ Đảo trong ngày (`CastLog.entries.size` với chữ số `tnum`), và công tắc tổng `IsleSwitch` thao tác trực tiếp tại chỗ.
+- **`AtomicShortcutTile` (Lưới Atomic 1x2)**: Cặp ô lối tắt nhanh (`Ứng dụng` & `Nhật ký`) cân đối theo lưới `1x2`, tuân thủ **Squircle đồng tâm** (`26.dp` khung ngoài, `14.dp` ô icon bên trong) kèm viền `Edge Light` và phản hồi chạm *Touch Light* (`0.96f` spring + ánh sáng chạm nhẹ).
+- **`MediaIslandOverlay` (Liquid Glass Media Overlay)**: Thẻ phát nhạc nổi (`WindowManager`) bo góc `30.dp` sử dụng **viền Edge Light chuyển sắc từ trên xuống dưới** (`LayerDrawable` `TOP_BOTTOM`) và phản hồi *Touch Light* co nảy (`0.90f` -> `1f` với `OvershootInterpolator`) trên 3 nút điều khiển `Prev` / `Play-Pause` / `Next`.
 - **`GroupCard`**: Thẻ nhóm bo góc squircle `26.dp`, nền kính phân tầng kèm viền sáng `Edge Light` (`EdgeLightTop` -> `EdgeLightBottom`).
 - **`IsleSwitch`**: Pill Switch đặc trưng OriginOS (`50.dp x 28.dp`), núm tròn trắng chuyển động `spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)`, *First-frame Interruptible*.
 - **`IconTile`**: Huy hiệu squircle `38.dp`, bo góc `12.dp`–`14.dp`, nền `color.copy(alpha = 0.14f)`, icon `20.dp` đồng bộ nét.
@@ -86,7 +89,7 @@ Chuẩn thiết kế: **vivo OriginOS 6 (Space System 2.0)** & **OriginOS 7 (Liq
 
 - **Điều hướng chính**: `OriginFloatingNavBar` nổi ở `Alignment.BottomCenter` khi `onboardingDone && !isSubPage`; tự động ẩn khi mở `AppsScreen` hoặc `ActivityScreen`. Các màn hình cuộn (`HomeScreen`, `ModulesScreen`, `SettingsScreen`) luôn chừa `contentPadding` đáy tối thiểu `112.dp` để nội dung cuối không bị thanh nổi che khuất.
 - **3 Đích cấp cao nhất**:
-  1. **Tab 1 — Trang chủ (`HomeScreen.kt`)**: `MainScreenHeader`, Banner cảnh báo quyền (tự ẩn khi đủ quyền), `CompactStatusCard`, Nhóm Giao diện & Tương tác, Nhóm Popup Bluetooth, 2 `TonalShortcutCard` mở `AppsScreen` và `ActivityScreen`.
+  1. **Tab 1 — Trang chủ (`HomeScreen.kt`)**: `MainScreenHeader`, Banner cảnh báo quyền (tự ẩn khi đủ quyền), `CompactStatusCard` (Huarong Grid Atomic Status Widget), Nhóm Giao diện & Tương tác, cặp `AtomicShortcutTile` 1x2 mở `AppsScreen` và `ActivityScreen`.
   2. **Tab 2 — Tính năng (`ModulesScreen.kt`)**: Nhóm Dịch vụ & Ứng dụng và Nhóm Hệ thống & Phần cứng.
   3. **Tab 3 — Cài đặt (`SettingsScreen.kt`)**: Nhóm Quy tắc & Riêng tư, Nhóm Giữ nền (`ShizukuKeepAliveHelper`), Nhóm Hệ thống & Cập nhật (`PermissionsSheet`, `UpdateDialog`).
 - **Thích ứng Màn hình Gập & Tỷ lệ `4:3`**:
