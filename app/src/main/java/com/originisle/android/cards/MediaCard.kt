@@ -49,6 +49,8 @@ object MediaCard {
     @Volatile private var lastArtSignature: String = ""
     @Volatile private var lastDispatchTimeMs: Long = 0L
 
+    fun isCurrentlyPlaying(): Boolean = lastPlaying == true
+
     /** Các gói dịch vụ điều khiển đảo nhạc gốc trên OriginOS 6 (Vivo / iQOO) */
     val ORIGIN_NATIVE_MUSIC_PACKAGES = setOf(
         "com.vivo.musicwidgetmix",

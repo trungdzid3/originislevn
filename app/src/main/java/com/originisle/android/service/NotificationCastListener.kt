@@ -713,8 +713,9 @@ class NotificationCastListener : NotificationListenerService() {
                                 "tai nghe", "hộp sạc", "bên trái", "bên phải",
                                 "left", "right", "case", "earbud",
                             ).any { combinedLower.contains(it) }
-                            if (combinedLower.contains("%") && hasEarbudsKeyword) {
-                                val sig = "${ex?.getCharSequence(Notification.EXTRA_TITLE)}|${ex?.getCharSequence(Notification.EXTRA_TEXT)}|${ex?.getCharSequence(Notification.EXTRA_BIG_TEXT)}"
+                            val sig = "${sbn.postTime}|$titleStr|$textStr|$bigTextStr"
+                            val hasCustomRemoteViews = sbn.notification.contentView != null || sbn.notification.bigContentView != null
+                            if ((combinedLower.contains("%") && hasEarbudsKeyword) || hasCustomRemoteViews) {
                                 if (lastEarbudsNotifText.put(sbn.key, sig) != sig) {
                                     EarbudsCard.tryParseBatteryFromNotification(applicationContext, sbn)
                                 }
@@ -859,7 +860,8 @@ class NotificationCastListener : NotificationListenerService() {
                             if (!isMusic || !isAppEnabled(prefs, pkg)) continue
                             val state = controller.playbackState?.state
                             val isPlaying = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
-                            val isPausedWithValidMeta = state == PlaybackState.STATE_PAUSED && controller.metadata != null
+                            val isPausedWithValidMeta = state == PlaybackState.STATE_PAUSED &&
+                                (controller.metadata != null || isMusic)
                             if (isPlaying || isPausedWithValidMeta) {
                                 val matchingSbn = active.firstOrNull { sbn ->
                                     sbn.packageName.equals(pkg, ignoreCase = true) &&
@@ -1099,7 +1101,8 @@ class NotificationCastListener : NotificationListenerService() {
             state == PlaybackState.STATE_SKIPPING_TO_NEXT ||
             state == PlaybackState.STATE_SKIPPING_TO_PREVIOUS ||
             state == PlaybackState.STATE_CONNECTING
-        val isPausedWithMeta = state == PlaybackState.STATE_PAUSED && controller.metadata != null
+        val isPausedWithMeta = state == PlaybackState.STATE_PAUSED &&
+            (controller.metadata != null || isThirdPartyMusic)
         if (!isPlaying && !isPausedWithMeta) return
 
         val matchingSbn = runCatching { activeNotifications }.getOrNull()?.firstOrNull { sbn ->

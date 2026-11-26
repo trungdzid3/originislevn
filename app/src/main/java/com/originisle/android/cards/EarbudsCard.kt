@@ -1778,7 +1778,7 @@ object EarbudsCard {
             RegexOption.IGNORE_CASE,
         )
         val leftRevRegex = Regex(
-            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:L|Trái|Left)\s*\)|(?:Tai\s*nghe\s*bên\s*trái|Tai\s*trái|\bLeft\b|\bTrái\b))""",
+            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:L|Trái|Left)\s*\)|(?:Tai\s*nghe\s*bên\s*trái|Tai\s*nghe\s*trái|Tai\s*trái|Bên\s*trái|\bLeft\b|\bTrái\b|\bL\b))""",
             RegexOption.IGNORE_CASE,
         )
 
@@ -1787,7 +1787,7 @@ object EarbudsCard {
             RegexOption.IGNORE_CASE,
         )
         val rightRevRegex = Regex(
-            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:R|Phải|Right)\s*\)|(?:Tai\s*nghe\s*bên\s*phải|Tai\s*phải|\bRight\b|\bPhải\b))""",
+            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:R|Phải|Right)\s*\)|(?:Tai\s*nghe\s*bên\s*phải|Tai\s*nghe\s*phải|Tai\s*phải|Bên\s*phải|\bRight\b|\bPhải\b|\bR\b))""",
             RegexOption.IGNORE_CASE,
         )
 
@@ -1796,7 +1796,7 @@ object EarbudsCard {
             RegexOption.IGNORE_CASE,
         )
         val caseRevRegex = Regex(
-            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:Case|Hộp|Hộp\s*sạc)\s*\)|(?:Hộp\s*sạc|Charging\s*case|\bCase\b))""",
+            """(\d{1,3})\s*%\s*(?:⚡\s*)?(?:\(\s*(?:Case|Hộp|Hộp\s*sạc|Dock|C)\s*\)|(?:Hộp\s*sạc|Hộp\s*đựng|Dock\s*sạc|Kén\s*sạc|\bHộp\b|Charging\s*case|\bCase\b|\bDock\b|\bC\b))""",
             RegexOption.IGNORE_CASE,
         )
 
@@ -1805,25 +1805,32 @@ object EarbudsCard {
             RegexOption.IGNORE_CASE,
         )
 
-        val left = (leftRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+        var left = (leftRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
             ?: (leftRevRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
             ?: -1
 
-        val right = (rightRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+        var right = (rightRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
             ?: (rightRevRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
             ?: -1
 
-        val case = (caseRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
+        var case = (caseRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
             ?: (caseRevRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 })
             ?: -1
 
         var main = mainRegex.find(fullText)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 0..100 } ?: -1
 
-        if (left !in 0..100 && right !in 0..100 && case !in 0..100 && main !in 0..100) {
-            val anyPct = Regex("""(\d{1,3})\s*%""").find(fullText)?.groupValues?.get(1)?.toIntOrNull()
-            if (anyPct != null && anyPct in 0..100) {
-                main = anyPct
-            } else {
+        if (left !in 0..100 && right !in 0..100 && case !in 0..100) {
+            val allPcts = Regex("""(\d{1,3})\s*%""")
+                .findAll(fullText)
+                .mapNotNull { it.groupValues[1].toIntOrNull()?.takeIf { v -> v in 0..100 } }
+                .toList()
+            if (allPcts.size == 3) {
+                left = allPcts[0]
+                right = allPcts[1]
+                case = allPcts[2]
+            } else if (main !in 0..100 && allPcts.isNotEmpty()) {
+                main = allPcts.first()
+            } else if (main !in 0..100) {
                 return null
             }
         }
@@ -2097,8 +2104,26 @@ object EarbudsCard {
             listOf("fit", "watch", "band", "vòng đeo tay", "đồng hồ").any { fullText.contains(it, ignoreCase = true) }
         )
 
-        val devName = extractDeviceNameFromNotificationText(title, text, isWearableDevice)
-        val matchedBtDevice = findBluetoothDevice(context, devName)
+        var devName = extractDeviceNameFromNotificationText(title, text, isWearableDevice)
+        var matchedBtDevice = findBluetoothDevice(context, devName)
+        if (!isWearableDevice && matchedBtDevice == null) {
+            val fallbackAudioDev = runCatching {
+                val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                (bm?.getConnectedDevices(BluetoothProfile.A2DP).orEmpty() +
+                    bm?.getConnectedDevices(BluetoothProfile.HEADSET).orEmpty())
+                    .firstOrNull { !isWearable(it) }
+            }.getOrNull()
+            if (fallbackAudioDev != null) {
+                matchedBtDevice = fallbackAudioDev
+                val btAlias = runCatching { fallbackAudioDev.alias ?: fallbackAudioDev.name }.getOrNull()
+                if (!btAlias.isNullOrBlank()) {
+                    devName = btAlias
+                }
+            } else if (!lastConnectedAudioDeviceName.isNullOrBlank()) {
+                devName = lastConnectedAudioDeviceName!!
+                matchedBtDevice = findBluetoothDevice(context, devName)
+            }
+        }
         val btAddress = matchedBtDevice?.address
 
         if (isWearableDevice) {

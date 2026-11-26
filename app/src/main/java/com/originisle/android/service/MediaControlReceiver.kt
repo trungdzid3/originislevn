@@ -7,6 +7,7 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.util.Log
+import com.originisle.android.cards.MediaCard
 
 /**
  * Routes media-button taps from a cast media card back to the real source app's
@@ -50,8 +51,20 @@ class MediaControlReceiver : BroadcastReceiver() {
         Log.d("MediaControlReceiver", "onReceive action=$action castId=$castId state=${state?.state}")
 
         when (action) {
-            ACTION_PLAY_PAUSE ->
-                if (state?.state == PlaybackState.STATE_PLAYING) controls.pause() else controls.play()
+            ACTION_PLAY_PAUSE -> {
+                val isPlaying = when (state?.state) {
+                    PlaybackState.STATE_PLAYING,
+                    PlaybackState.STATE_BUFFERING,
+                    PlaybackState.STATE_FAST_FORWARDING,
+                    PlaybackState.STATE_REWINDING,
+                    PlaybackState.STATE_SKIPPING_TO_NEXT,
+                    PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
+                    PlaybackState.STATE_CONNECTING -> true
+                    null, PlaybackState.STATE_NONE -> MediaCard.isCurrentlyPlaying()
+                    else -> false
+                }
+                if (isPlaying) controls.pause() else controls.play()
+            }
             ACTION_NEXT -> controls.skipToNext()
             ACTION_PREV -> controls.skipToPrevious()
             ACTION_CUSTOM ->
