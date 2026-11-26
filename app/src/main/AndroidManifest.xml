@@ -168,6 +168,14 @@
             android:noHistory="true"
             android:taskAffinity="" />
 
+        <activity
+            android:name=".service.MediaIslandLaunchActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="" />
+
         <receiver
             android:name=".service.BootKeepAliveReceiver"
             android:exported="true">
