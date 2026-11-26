@@ -10,7 +10,7 @@ Chuẩn thiết kế: **vivo OriginOS 6 (Space System 2.0)** & **OriginOS 7 (Liq
 - **Phân tầng Bề mặt 3 lớp (`--os-surface-tier`)**:
   1. **Tầng Nền (Base Space)**: `surface` kết hợp quầng `AmbientGlow` dịu ở đỉnh màn hình.
   2. **Tầng Thẻ Giữa (Mid-tier Liquid Glass Cards)**: `surfaceContainerLow` cho `GroupCard` và `surfaceContainer` cho `NestedSettingContainer`.
-  3. **Tầng Nổi Đỉnh (Floating Overlay / Bar)**: `FloatingGlassBg` (`#E6141822` ở Dark / `#EBFFFFFF` ở Light) cho `OriginFloatingNavBar`, và `#F2121620` (Dark) / `#F7FFFFFF` (Light) cho `BluetoothPopupOverlay`.
+  3. **Tầng Nổi Đỉnh (Floating Overlay / Bar)**: `FloatingGlassBg` (`#E6141822` ở Dark / `#EBFFFFFF` ở Light) cho `OriginFloatingNavBar`, và `#EB141926` (Dark) / `#F2FFFFFF` (Light) kèm real-time blur phần cứng (`FLAG_BLUR_BEHIND`) cho `BluetoothPopupOverlay`.
 
 ---
 
@@ -51,8 +51,10 @@ Chuẩn thiết kế: **vivo OriginOS 6 (Space System 2.0)** & **OriginOS 7 (Liq
   - Cảnh báo (`warn*`): `#FF9F2E` (Dark) / `#F57C00` (Light).
   - Lỗi (`bad*` / `danger`): Ánh xạ trực tiếp `error`, `errorContainer`, `onErrorContainer`.
 - **Popup Bluetooth (`BluetoothPopupOverlay.kt`)**:
-  - Đọc `resolveAppIsDarkTheme(context)` và `resolveMaterialColorScheme(context, isDark)`.
-  - Nền kính `#F2121620` (Dark) / `#F7FFFFFF` (Light), viền `Edge Light` mảnh bao quanh sheet bo góc `32.dp`, giữ nguyên 3D `WebView`, animation kéo đóng và pin TWS.
+  - **Floating Liquid Glass Card**: Thẻ nổi tách khỏi viền đáy (`left/right = 12.dp`, `bottom = navBarBottom + 12.dp`), bo tròn 4 góc đồng tâm `32.dp`; trên màn hình gập / ngang (`width > height * 4 / 3` hoặc `screenWidth > 480.dp`), giới hạn rộng tối đa `420.dp` căn giữa thoáng đãng.
+  - **Real-time Blur & Hardware Fallback**: Kích hoạt `FLAG_BLUR_BEHIND` với `blurBehindRadius = 36` trên Android 12+ (`SDK_INT >= S`), kết hợp lớp nền kính cân bằng `#EB141926` (Dark) / `#F2FFFFFF` (Light) làm Hardware Fallback mạch lạc khi máy tắt/giảm blur.
+  - **4 Ánh sáng Vật lý**: Viền `Edge Light` chuyển sắc trên-xuống bao quanh 4 góc `32.dp` kèm đường specular highlight sáng dịu dọc cạnh trên; quầng `Ambient Light` (`RadialGradient`) tỏa mềm phía đỉnh thẻ theo `colorScheme.primary` (`0.16f` Dark / `0.10f` Light); phản hồi chạm `Touch Light` co nảy (`0.95f` + `alpha 0.88f` -> `OvershootInterpolator(1.1f)`) trên nút `"Hoàn tất"` và `"i"`; huy hiệu trạng thái kính mỏng (`#00D084` + `"Đã kết nối"` `11.5sp`) và tiêu đề `22sp` `includeFontPadding = true` bảo toàn dấu kép tiếng Việt.
+  - **Huarong Atomic Battery Pods & Atomic Motion 7.0**: Thẻ pin TWS dạng Squircle đồng tâm bo góc `16.dp` có viền `Edge Light` và chữ số `tnum`; ngắt animation ngay khung hình đầu tiên (`ACTION_DOWN` -> `animate().cancel()`), kéo nhẹ lên trên có sức căng bề mặt (`dy * 0.18f`) rồi bật hồi êm ái, giữ nguyên 3D `WebView`, hoạt ảnh Lenovo LE208 và nút `"i"` mở Bluetooth Settings.
   - Nút `"Hoàn tất"` dạng viên thuốc OriginOS tương phản cao (`#FFFFFF` chữ `#121620` trên Dark; `primary` / `onPrimary` trên Light).
 
 ---

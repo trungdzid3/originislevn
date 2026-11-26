@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.9` (mã bản dựng `versionCode = 21009`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.10` (mã bản dựng `versionCode = 21010`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.10.10.apk # File APK xuất bản v2.10.10 (5,832,096 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.9.apk # File APK xuất bản v2.10.9 (5,832,096 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.8.apk # File APK xuất bản v2.10.8 (5,832,096 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.7.apk # File APK xuất bản v2.10.7 (5,832,096 bytes / ~5.56 MB, R8 minify + shrinkResources)
@@ -86,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.10 — Sửa Lag & Nút Tạm Dừng Đảo Nhạc + Nâng Cấp Popup Tai Nghe Chuẩn OriginOS 6–7**:
+  - `MediaCard.kt` & `MediaControlReceiver.kt`: Cache bìa album/bảng màu sóng nhạc theo khóa `"$pkg|$artSignature"`, giảm spam `startService` trên main thread bằng throttle 5000ms cho tick trùng trạng thái (vẫn cập nhật `MediaIslandOverlay` snapshot/positionMs); bổ sung Optimistic Toggle (`isCurrentlyPlaying()`, `applyOptimisticPlaying()`, cửa sổ 900ms) và nhận diện đủ trạng thái phát trong `MediaControlReceiver` để ấn tạm dừng chuyển sang biểu tượng tam giác (`ic_media_play`) ngay lập tức.
+  - `BluetoothPopupOverlay.kt` & `DESIGN.md`: Nâng cấp popup tai nghe sang thẻ nổi **Floating Liquid Glass** chuẩn OriginOS 6–7 (tách viền 12dp + `navBarBottom + 12dp`, bo tròn 4 góc đồng tâm 32dp, giới hạn 420dp trên màn gập/ngang, `FLAG_BLUR_BEHIND` bán kính 36 + Hardware Fallback `#EB141926`/`#F2FFFFFF`, 4 ánh sáng vật lý Edge/Specular/Ambient/Touch Light, huy hiệu trạng thái `#00D084`, pin TWS Huarong Atomic Pods 16dp `tnum`, kéo thả `First-frame Interruptible` có sức căng bề mặt 0.18f khi kéo lên; bảo toàn 100% 3D WebView Redmi Buds 6 Play & Lenovo LE208).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.10.apk`: Nâng `versionCode = 21010`, `versionName = "2.10.10"` (giữ nguyên `applicationId = "com.autonavi.minimap"`), `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.9 — Đồng Bộ Đầy Đủ Whitelist Ứng Dụng Nhạc/Audio Đảo Gốc OriginOS Atomic Island**:
   - `MediaCard.kt`: Cập nhật `ORIGIN_SUPPORTED_MUSIC_PACKAGES` gồm đầy đủ 26 gói viết chữ thường được Đảo gốc OriginOS hỗ trợ (Apple Music, Spotify, YouTube Music `com.google.android.apps.youtube.music`, QQ Music, NetEase Cloud Music, HeyTap, KuGou/Lite/Viper, KuWo, WeSing, Luna, Migu, MissEvan, Bodian, Duoduo Opera, QQ Music HD, AiChang, Blue Ocean, VLC, Video Player, Dedao, WeHear, Qidian Reader, iReader, Vivo Global Animation); gỡ Apple Music, Spotify và YouTube Music khỏi `THIRD_PARTY_MUSIC_PACKAGES` (giữ nguyên Zing MP3, SoundCloud, Deezer, Amazon Music, Tidal, Audiomack, TuneIn, Spotify Lite/Canary... hiển thị trên Đảo OriginIsle); giữ nguyên toàn bộ logic `oi_show_notify = true`, `createMusicWaveIcon`, `status_chip_text = " "`, `oi_btn_transparent = true` và `MediaIslandLaunchActivity`.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.9.apk`: Nâng `versionCode = 21009`, `versionName = "2.10.9"` (giữ nguyên `applicationId = "com.autonavi.minimap"`), `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
