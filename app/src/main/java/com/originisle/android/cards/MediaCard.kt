@@ -450,7 +450,7 @@ object MediaCard {
             putExtra("text", artist)
             putExtra("source_pkg", pkg)
             putExtra("oi_left_content", if (rawAlbumArt != null) "" else track)
-            putExtra("status_chip_text", chip)
+            putExtra("status_chip_text", " ")
 
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
@@ -469,10 +469,10 @@ object MediaCard {
             putExtra(
                 "oi_right_icon",
                 if (playing) createMusicWaveIcon(waveColors)
-                else Icon.createWithResource(context, R.drawable.ic_media_pause),
+                else createPausedWaveIcon(waveColors),
             )
             putExtra("oi_show_right_icon", true)
-            putExtra("oi_right_content", if (playing) "" else chip)
+            putExtra("oi_right_content", "")
 
             putParcelableArrayListExtra("actions", actions)
             putExtra("source_content_intent", contentClickIntent)
@@ -674,6 +674,41 @@ object MediaCard {
             val top = cy - barH / 2f
             paint.color = parsedColors[i % parsedColors.size]
             canvas.drawRoundRect(RectF(left, top, left + barW, top + barH), rx, rx, paint)
+        }
+        return Icon.createWithBitmap(bmp)
+    }
+
+    /**
+     * Vẽ 5 chấm tròn nhỏ đồng bộ vị trí 5 cột sóng nhạc (trạng thái sóng dừng lại khi tạm dừng phát)
+     */
+    private fun createPausedWaveIcon(waveColors: List<String>, size: Int = 96): Icon {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+        val fallbackHex = listOf("#FF5376", "#00E5FF", "#7C4DFF")
+        val parsedColors = (if (waveColors.isNotEmpty()) waveColors else fallbackHex).mapNotNull { hex ->
+            runCatching { Color.parseColor(hex) }.getOrNull()
+        }.ifEmpty {
+            fallbackHex.map { Color.parseColor(it) }
+        }
+        val padX = size * 0.14f
+        val usableW = size - padX * 2
+        val gap = usableW * 0.095f
+        val dotSize = (usableW - gap * 4) / 5f
+        val cy = size / 2f
+        val r = dotSize / 2f
+        for (i in 0 until 5) {
+            val baseColor = parsedColors[i % parsedColors.size]
+            paint.color = Color.argb(
+                170,
+                Color.red(baseColor),
+                Color.green(baseColor),
+                Color.blue(baseColor),
+            )
+            val cx = padX + i * (dotSize + gap) + r
+            canvas.drawCircle(cx, cy, r, paint)
         }
         return Icon.createWithBitmap(bmp)
     }

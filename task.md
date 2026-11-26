@@ -1,5 +1,5 @@
 # DANH SÁCH CÔNG VIỆC (TASK MATRIX)
 
-## Đợt v2.10.19 — Đảo Nhạc Upstream Gốc + Sóng Nhạc 5 Cột (`createMusicWaveIcon`)
-- [x] Giữ nguyên 100% logic & nút chuẩn gốc `upstream/main` (`v2.10.17`, bỏ `oi_btn_transparent`), chỉ thay phần hiển thị sóng nhạc khi đang phát bằng `createMusicWaveIcon(waveColors)` trên `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (`oi_right_content = if (playing) "" else chip`) trong `MediaCard.kt` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
-- [x] Build `v2.10.19`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.19` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]
+## Đợt v2.10.20 — Xóa Chữ "Playing" & Đổi Icon Tạm Dừng Pill Thành 5 Chấm Tròn Sóng Dừng (`.....`)
+- [x] Đặt `status_chip_text = " "` và `oi_right_content = ""` (xóa hoàn toàn chữ `"Playing"`), bổ sung `createPausedWaveIcon(waveColors)` vẽ 5 chấm tròn đồng bộ vị trí/màu sóng nhạc khi tạm dừng trong `MediaCard.kt`, giữ nguyên 100% logic & nút chuẩn gốc `upstream/main` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
+- [x] Build `v2.10.20`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.20` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]
