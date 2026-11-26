@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.12` (mã bản dựng `versionCode = 21012`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.13` (mã bản dựng `versionCode = 21013`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.13 — Khôi Phục Nền Ổn Định `v2.10.9` + Chuẩn `upstream/main` Cho Đảo Nhạc & Popup Tai Nghe**:
+  - `MediaCard.kt` & `MediaControlReceiver.kt`: Khôi phục sạch về `v2.10.9` (`5470dd8`), gỡ bỏ `AudioManager.isMusicActive` (bị `false` khi phát offload trên Vivo X200 Pro), `optimisticPlaying`, cache `lastController` và throttle `5000ms`; khớp chuẩn `upstream/main` (`null -> sbn.isOngoing`, `STATE_NONE -> false`), giữ 26 gói whitelist OriginOS + sóng nhạc 5 cột + `oi_show_notify = true` + `MediaIslandLaunchActivity`.
+  - `BluetoothPopupOverlay.kt`: Khôi phục nguyên trạng bản bottom sheet bám đáy ổn định từ `v2.10.9` (`5470dd8`), kết hợp cơ chế kích hoạt tức thì trong `EarbudsCard.kt`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.13.apk`: Nâng `versionCode = 21013`, `versionName = "2.10.13"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.12 — Vá Nút Đảo Nhạc (`AudioManager.isMusicActive`), Kích Hoạt Popup Tai Nghe Tức Thì & Dáng Bottom Sheet Bám Đáy**:
   - `MediaCard.kt`: Gỡ logic so khớp chuỗi `actionTitles` gây kẹt tam giác khi đang phát trên Zing MP3; chỉ dùng `effectiveController.playbackState.state` (chuẩn `upstream/main`) và fallback sang `AudioManager.isMusicActive` khi `null`/`STATE_NONE`.
   - `EarbudsCard.kt`: Gọi `BluetoothPopupOverlay.showOrUpdate(...)` tức thì ngay khi kết nối tai nghe mới (`ACTION_ACL_CONNECTED` / `ACTION_CONNECTION_STATE_CHANGED`, `!wasAlreadyConnectedBefore`) và khi `onBatteryUpdated` lần đầu nhận đủ chi tiết pin Fast Pair, rồi cập nhật pin sống trực tiếp lên popup đang mở.

@@ -52,47 +52,6 @@ object MediaCard {
     @Volatile private var lastArtSignature: String = ""
     @Volatile private var lastDispatchTimeMs: Long = 0L
 
-    @Volatile private var lastController: MediaController? = null
-    @Volatile private var lastRawAlbumArt: Bitmap? = null
-    @Volatile private var lastDurationMs: Long = 0L
-    @Volatile private var lastPositionMs: Long = 0L
-    @Volatile private var lastSourceActions: Array<Notification.Action>? = null
-    @Volatile private var lastContentIntent: PendingIntent? = null
-
-    @Volatile private var cachedArtKey: String = ""
-    @Volatile private var cachedPillLeftIcon: Icon? = null
-    @Volatile private var cachedBadgedAlbumIcon: Icon? = null
-    @Volatile private var cachedExpandedArtBmp: Bitmap? = null
-    @Volatile private var cachedWaveColors: ArrayList<String>? = null
-    @Volatile private var cachedWaveIcon: Icon? = null
-
-    @Volatile private var optimisticPlaying: Boolean? = null
-    @Volatile private var optimisticUntilMs: Long = 0L
-
-    fun isCurrentlyPlaying(): Boolean = lastPlaying == true
-
-    fun applyOptimisticPlaying(context: Context, newPlaying: Boolean) {
-        optimisticPlaying = newPlaying
-        optimisticUntilMs = SystemClock.elapsedRealtime() + 900L
-        val pkg = lastPkg
-        if (pkg.isBlank()) return
-        dispatchMediaCard(
-            context = context.applicationContext,
-            pkg = pkg,
-            controller = lastController ?: IconCache.activeControllers[ID],
-            track = lastTrack,
-            artist = lastArtist,
-            playing = newPlaying,
-            rawAlbumArt = lastRawAlbumArt,
-            durationMs = lastDurationMs,
-            positionMs = lastPositionMs,
-            sourceActions = lastSourceActions,
-            contentIntent = lastContentIntent,
-            forceRefresh = true,
-            bypassThrottle = true,
-        )
-    }
-
     /** Các gói dịch vụ điều khiển đảo nhạc gốc trên OriginOS 6 (Vivo / iQOO) */
     val ORIGIN_NATIVE_MUSIC_PACKAGES = setOf(
         "com.vivo.musicwidgetmix",
@@ -216,12 +175,8 @@ object MediaCard {
             return
         }
 
-        val effectiveController = controller
-            ?: lastController?.takeIf { it.packageName.equals(sbn.packageName, ignoreCase = true) }
-            ?: IconCache.activeControllers[ID]?.takeIf { it.packageName.equals(sbn.packageName, ignoreCase = true) }
-
         val n = sbn.notification
-        val md = effectiveController?.metadata
+        val md = controller?.metadata
         val track = md?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
             .ifBlank { extrasTitle(sbn) }
             .ifBlank { appLabel(context, sbn.packageName) }
@@ -240,21 +195,20 @@ object MediaCard {
             .trim()
             .take(40)
 
-        // Xác định chính xác trạng thái phát: ưu tiên MediaController (kể cả fallback cache cùng gói),
-        // sau đó đối chiếu action title trên notification gốc và AudioManager.isMusicActive (tránh Zing MP3 giữ isOngoing=true khi đang tạm dừng)
-        val playbackStateValue = effectiveController?.playbackState?.state
+        // Đối chiếu chuẩn upstream fvhde/origin-isle: chỉ fallback sbn.isOngoing khi playbackState == null
+        val playbackStateValue = controller?.playbackState?.state
         val playing = when (playbackStateValue) {
             PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
             PlaybackState.STATE_FAST_FORWARDING, PlaybackState.STATE_REWINDING,
             PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
             PlaybackState.STATE_CONNECTING,
             -> true
-            PlaybackState.STATE_PAUSED, PlaybackState.STATE_STOPPED, PlaybackState.STATE_ERROR -> false
-            else -> inferPlayingFromNotificationOrAudio(context, n)
+            null -> sbn.isOngoing
+            else -> false
         }
 
-        if (effectiveController != null) {
-            IconCache.activeControllers[legacyId] = effectiveController
+        if (controller != null) {
+            IconCache.activeControllers[legacyId] = controller
         }
 
         val notifLargeIcon = n.getLargeIcon()
@@ -275,12 +229,12 @@ object MediaCard {
             ?: notifLargeBitmap)?.let(::shrinkForIcon)
 
         val durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-        val positionMs = (effectiveController?.playbackState?.position ?: 0L).coerceAtLeast(0L)
+        val positionMs = (controller?.playbackState?.position ?: 0L).coerceAtLeast(0L)
 
         dispatchMediaCard(
             context = context,
             pkg = sbn.packageName,
-            controller = effectiveController,
+            controller = controller,
             track = track,
             artist = artist,
             playing = playing,
@@ -291,14 +245,6 @@ object MediaCard {
             contentIntent = n.contentIntent,
             forceRefresh = forceRefresh,
         )
-    }
-
-    private fun inferPlayingFromNotificationOrAudio(context: Context, n: Notification): Boolean {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
-        if (audioManager != null) {
-            return audioManager.isMusicActive
-        }
-        return (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
     }
 
     fun postFromController(
@@ -384,7 +330,6 @@ object MediaCard {
         sourceActions: Array<Notification.Action>?,
         contentIntent: PendingIntent?,
         forceRefresh: Boolean,
-        bypassThrottle: Boolean = false,
     ) {
         val isNightMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
@@ -393,76 +338,30 @@ object MediaCard {
             IconCache.activeControllers[ID] = controller
         }
 
-        val now = SystemClock.elapsedRealtime()
-        val optPlaying = optimisticPlaying
-        val optUntil = optimisticUntilMs
-        val effectivePlaying = if (!bypassThrottle && optPlaying != null && now < optUntil) {
-            if (playing == optPlaying) {
-                optimisticUntilMs = 0L
-                optimisticPlaying = null
-                playing
-            } else {
-                optPlaying
-            }
-        } else {
-            if (!bypassThrottle && optPlaying != null && now >= optUntil) {
-                optimisticUntilMs = 0L
-                optimisticPlaying = null
-            }
-            playing
-        }
-
         val artSignature = rawAlbumArt?.let { bmp ->
             val soft = ensureSoftwareBitmap(bmp)
             if (soft.width > 0 && soft.height > 0) "${soft.width}x${soft.height}:${soft.getPixel(soft.width / 2, soft.height / 2)}" else "empty"
         } ?: "none"
 
+        val now = SystemClock.elapsedRealtime()
         val stateUnchanged = (
             track == lastTrack &&
                 artist == lastArtist &&
-                effectivePlaying == lastPlaying &&
+                playing == lastPlaying &&
                 pkg == lastPkg &&
                 isNightMode == lastUiNightMode &&
                 artSignature == lastArtSignature
             )
-        if (stateUnchanged && !bypassThrottle && PlaygroundService.activeCardIds.contains(ID) && (now - lastDispatchTimeMs) < 5000L) {
-            lastDurationMs = durationMs
-            lastPositionMs = positionMs
-            if (controller != null) lastController = controller
-            if (sourceActions != null) lastSourceActions = sourceActions
-            if (contentIntent != null) lastContentIntent = contentIntent
-            val cachedArt = cachedExpandedArtBmp ?: IconCache.activeLargeBitmaps[ID]
-            if (cachedArt != null) {
-                val clickIntent = contentIntent ?: lastContentIntent ?: fallbackClickIntent(context, pkg)
-                MediaIslandOverlay.updateSnapshot(
-                    MediaSnapshot(
-                        pkg = pkg,
-                        track = track,
-                        artist = artist,
-                        playing = effectivePlaying,
-                        badgedAlbumArt = cachedArt,
-                        durationMs = durationMs,
-                        positionMs = positionMs,
-                        controller = controller ?: lastController,
-                        contentIntent = clickIntent,
-                    ),
-                )
-            }
+        if (stateUnchanged && !forceRefresh && PlaygroundService.activeCardIds.contains(ID) && (now - lastDispatchTimeMs) < 3000L) {
             return
         }
         lastTrack = track
         lastArtist = artist
-        lastPlaying = effectivePlaying
+        lastPlaying = playing
         lastPkg = pkg
         lastUiNightMode = isNightMode
         lastArtSignature = artSignature
         lastDispatchTimeMs = now
-        lastController = controller
-        lastRawAlbumArt = rawAlbumArt
-        lastDurationMs = durationMs
-        lastPositionMs = positionMs
-        lastSourceActions = sourceActions
-        lastContentIntent = contentIntent
 
         val durSec = if (durationMs > 0L) durationMs / 1000L else 0L
         val posSec = if (positionMs > 0L) positionMs / 1000L else 0L
@@ -472,51 +371,17 @@ object MediaCard {
             appLabel(context, pkg)
         }
 
-        val artCacheKey = "$pkg|$artSignature"
-        val cKey = cachedArtKey
-        val cPill = cachedPillLeftIcon
-        val cBadged = cachedBadgedAlbumIcon
-        val cExpanded = cachedExpandedArtBmp
-        val cWaveColors = cachedWaveColors
-        val cWaveIcon = cachedWaveIcon
+        val baseAlbumBitmap: Bitmap = rawAlbumArt ?: createDefaultAlbumBitmap(context, pkg)
+        val artBmp: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
+        val expandedArtBmp: Bitmap = composeAlbumArtWithAppBadge(context, artBmp, pkg)
 
-        val pillLeftIcon: Icon
-        val badgedAlbumIcon: Icon
-        val expandedArtBmp: Bitmap
-        val waveColors: ArrayList<String>
-        val waveIcon: Icon
-        if (
-            artCacheKey == cKey &&
-            cPill != null &&
-            cBadged != null &&
-            cExpanded != null &&
-            cWaveColors != null &&
-            cWaveIcon != null
-        ) {
-            pillLeftIcon = cPill
-            badgedAlbumIcon = cBadged
-            expandedArtBmp = cExpanded
-            waveColors = ArrayList(cWaveColors)
-            waveIcon = cWaveIcon
-        } else {
-            val baseAlbumBitmap: Bitmap = rawAlbumArt ?: createDefaultAlbumBitmap(context, pkg)
-            val artBmp: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
-            expandedArtBmp = composeAlbumArtWithAppBadge(context, artBmp, pkg)
-            pillLeftIcon = Icon.createWithBitmap(artBmp)
-            badgedAlbumIcon = Icon.createWithBitmap(expandedArtBmp)
-            waveColors = ArrayList(waveColorsFrom(rawAlbumArt ?: baseAlbumBitmap))
-            waveIcon = createMusicWaveIcon(waveColors)
-
-            cachedArtKey = artCacheKey
-            cachedPillLeftIcon = pillLeftIcon
-            cachedBadgedAlbumIcon = badgedAlbumIcon
-            cachedExpandedArtBmp = expandedArtBmp
-            cachedWaveColors = ArrayList(waveColors)
-            cachedWaveIcon = waveIcon
-        }
+        val pillLeftIcon: Icon = Icon.createWithBitmap(artBmp)
+        val badgedAlbumIcon: Icon = Icon.createWithBitmap(expandedArtBmp)
 
         IconCache.activeSmallIcons[ID] = pillLeftIcon
         IconCache.activeLargeBitmaps[ID] = expandedArtBmp
+
+        val waveColors = ArrayList(waveColorsFrom(rawAlbumArt ?: baseAlbumBitmap))
 
         fun mediaAction(action: String) = PendingIntent.getBroadcast(
             context, (ID.toString() + action).hashCode(),
@@ -546,7 +411,7 @@ object MediaCard {
             pkg = pkg,
             track = track,
             artist = artist,
-            playing = effectivePlaying,
+            playing = playing,
             badgedAlbumArt = expandedArtBmp,
             durationMs = durationMs,
             positionMs = positionMs,
@@ -559,7 +424,7 @@ object MediaCard {
             makeAction(context, R.drawable.ic_media_prev, prevAction),
             makeAction(
                 context,
-                if (effectivePlaying) R.drawable.ic_media_pause else R.drawable.ic_media_play,
+                if (playing) R.drawable.ic_media_pause else R.drawable.ic_media_play,
                 playPauseAction,
             ),
             makeAction(context, R.drawable.ic_media_next, nextAction),
@@ -567,7 +432,7 @@ object MediaCard {
 
         val buttonIcons = arrayListOf<Icon>(
             actions[0].getIcon() ?: IconCache.safeResourceIcon(context, R.drawable.ic_media_prev),
-            actions[1].getIcon() ?: IconCache.safeResourceIcon(context, if (effectivePlaying) R.drawable.ic_media_pause else R.drawable.ic_media_play),
+            actions[1].getIcon() ?: IconCache.safeResourceIcon(context, if (playing) R.drawable.ic_media_pause else R.drawable.ic_media_play),
             actions[2].getIcon() ?: IconCache.safeResourceIcon(context, R.drawable.ic_media_next),
         )
         val buttonActions = arrayListOf<PendingIntent>(prevAction, playPauseAction, nextAction)
@@ -588,7 +453,7 @@ object MediaCard {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val chip = if (effectivePlaying) "Playing" else " "
+        val chip = if (playing) "Playing" else " "
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
@@ -599,7 +464,7 @@ object MediaCard {
             putExtra("subtext", subtext)
             putExtra("source_app", appLabel(context, pkg))
             putExtra("source_pkg", pkg)
-            putExtra("is_ongoing", effectivePlaying)
+            putExtra("is_ongoing", playing)
             putExtra("oi_island_show_time", 0)
             putExtra("oi_auto_dismiss_ms", 0L)
             putExtra("oi_bg_color", "#FF262626")
@@ -619,11 +484,11 @@ object MediaCard {
             putParcelableArrayListExtra("oi_button_icons", buttonIcons)
 
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-            putExtra("oi_wave_state", if (effectivePlaying) 1 else 0)
+            putExtra("oi_wave_state", if (playing) 1 else 0)
             putStringArrayListExtra("oi_wave_color_list", waveColors)
             putExtra(
                 "oi_right_icon",
-                if (effectivePlaying) waveIcon
+                if (playing) createMusicWaveIcon(waveColors)
                 else Icon.createWithResource(context, R.drawable.ic_media_pause),
             )
             putExtra("oi_show_right_icon", true)
@@ -658,20 +523,6 @@ object MediaCard {
             lastUiNightMode = null
             lastArtSignature = ""
             lastDispatchTimeMs = 0L
-            lastController = null
-            lastRawAlbumArt = null
-            lastDurationMs = 0L
-            lastPositionMs = 0L
-            lastSourceActions = null
-            lastContentIntent = null
-            cachedArtKey = ""
-            cachedPillLeftIcon = null
-            cachedBadgedAlbumIcon = null
-            cachedExpandedArtBmp = null
-            cachedWaveColors = null
-            cachedWaveIcon = null
-            optimisticPlaying = null
-            optimisticUntilMs = 0L
         }
         activeMediaCastIds.remove(id)
         pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
