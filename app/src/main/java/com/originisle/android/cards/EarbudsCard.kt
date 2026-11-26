@@ -194,6 +194,19 @@ object EarbudsCard {
         return cur == target || cur.contains(target) || target.contains(cur)
     }
 
+    internal fun shouldSuppressReconnectPopup(
+        wasAlreadyConnectedBefore: Boolean,
+        isShowing: Boolean,
+        isNewLowBattery: Boolean,
+        lastShownMs: Long,
+        nowMs: Long,
+        cooldownMs: Long = 15_000L,
+    ): Boolean {
+        if (isShowing || isNewLowBattery) return false
+        if (wasAlreadyConnectedBefore) return true
+        return lastShownMs > 0L && (nowMs - lastShownMs) in 0L until cooldownMs
+    }
+
     /** Ghi nhận thời điểm kết nối gần nhất của thiết bị để phục vụ cơ chế chống dập tắt (Anti-Flap Cooldown). */
     fun markDeviceConnectedTime(nameOrAddress: String) {
         if (nameOrAddress.isBlank()) return
@@ -1119,7 +1132,18 @@ object EarbudsCard {
                     val isLowNew = initial.effectiveLevel in 0..LOW_LEVEL && devName !in warnedLow
                     val alreadyShowing = isShowing(isWearableDevice, devName) ||
                         (address.isNotBlank() && isShowing(isWearableDevice, address))
-                    if (!wasAlreadyConnectedBefore || alreadyShowing || isLowNew) {
+                    val connectKey = (address.takeIf { it.isNotBlank() } ?: devName).trim().lowercase()
+                    val nameKey = devName.trim().lowercase()
+                    val lastShown = lastConnectShownAt[connectKey] ?: lastConnectShownAt[nameKey] ?: 0L
+                    val nowMs = System.currentTimeMillis()
+                    if (!shouldSuppressReconnectPopup(
+                            wasAlreadyConnectedBefore = wasAlreadyConnectedBefore,
+                            isShowing = alreadyShowing,
+                            isNewLowBattery = isLowNew,
+                            lastShownMs = lastShown,
+                            nowMs = nowMs,
+                        )
+                    ) {
                         show(context, device, devName, initial, low = (initial.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                     }
                 } else {
@@ -1155,7 +1179,18 @@ object EarbudsCard {
                         val isLowNew = telemetry.effectiveLevel in 0..LOW_LEVEL && devName !in warnedLow
                         val alreadyShowing = isShowing(isWearableDevice, devName) ||
                             (address.isNotBlank() && isShowing(isWearableDevice, address))
-                        if (!wasAlreadyConnectedBefore || alreadyShowing || isLowNew) {
+                        val connectKey = (address.takeIf { it.isNotBlank() } ?: devName).trim().lowercase()
+                        val nameKey = devName.trim().lowercase()
+                        val lastShown = lastConnectShownAt[connectKey] ?: lastConnectShownAt[nameKey] ?: 0L
+                        val nowMs = System.currentTimeMillis()
+                        if (!shouldSuppressReconnectPopup(
+                                wasAlreadyConnectedBefore = wasAlreadyConnectedBefore,
+                                isShowing = alreadyShowing,
+                                isNewLowBattery = isLowNew,
+                                lastShownMs = lastShown,
+                                nowMs = nowMs,
+                            )
+                        ) {
                             show(context, device, devName, telemetry, low = (telemetry.effectiveLevel in 0..LOW_LEVEL), isWearable = isWearableDevice)
                         }
                     }

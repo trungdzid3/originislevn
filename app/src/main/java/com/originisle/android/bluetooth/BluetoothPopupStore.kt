@@ -107,6 +107,19 @@ enum class BluetoothPopupTheme(val id: String, val label: String) {
     }
 }
 
+enum class RedmiCaseColor(val id: String, val label: String, val swatchHex: Long) {
+    ICE_BLUE("ice_blue", "Xanh băng", 0xFFB6DAF7L),
+    WHITE("white", "Trắng sứ", 0xFFF2F4F7L),
+    BLACK("black", "Đen", 0xFF2B2F36L),
+    PINK("pink", "Hồng", 0xFFF5D0D8L);
+
+    companion object {
+        fun fromId(id: String?): RedmiCaseColor {
+            return entries.firstOrNull { it.id == id } ?: ICE_BLUE
+        }
+    }
+}
+
 data class BluetoothPopupDeviceConfig(
     val key: String,
     val enabled: Boolean = true,
@@ -122,6 +135,7 @@ object BluetoothPopupStore {
 
     private const val POPUP_PREFS = "bt_popup_prefs"
     private const val KEY_POPUP_THEME = "popup_theme"
+    private const val KEY_REDMI_CASE_COLOR = "redmi_case_color"
     private const val IMAGES_DIR_NAME = "bt_popup_images"
     private const val MAX_GIF_BYTES = 4 * 1024 * 1024
     private const val MAX_STATIC_DIM_PX = 512
@@ -244,6 +258,19 @@ object BluetoothPopupStore {
         context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_POPUP_THEME, theme.id)
+            .apply()
+    }
+
+    fun getRedmiCaseColor(context: Context): RedmiCaseColor {
+        val id = context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_REDMI_CASE_COLOR, null)
+        return RedmiCaseColor.fromId(id)
+    }
+
+    fun setRedmiCaseColor(context: Context, color: RedmiCaseColor) {
+        context.getSharedPreferences(POPUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_REDMI_CASE_COLOR, color.id)
             .apply()
     }
 

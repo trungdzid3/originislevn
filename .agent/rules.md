@@ -17,7 +17,7 @@ Chế độ tự động hóa: Tự động kiểm tra bảo mật (Secret Guard
 
 ## QUY CHUẨN ĐIỀU PHỐI THỐNG NHẤT (SUBAGENT & /SWARM)
 - **Kế hoạch tổng quát & Thuật toán**: Dùng **Gemini 4 Carbon** (`gemini-4-carbon-medium`; hết quota/không có fallback sang **Gemini 4 Neon** `gemini-4-neon-medium`, và nếu Neon cũng hết/không có thì fallback về **Gemini 4 Hydrogen** `gemini-4-hydrogen-medium`).
-- **Kế hoạch chi tiết**: Dùng **Gemini 4 Argon** (`gemini-4-argon-medium`; hết quota/không có fallback sang **Gemini 4 Neon** `gemini-4-neon-medium`, và nếu Neon cũng hết/không có thì fallback về **Gemini 4 Hydrogen** `gemini-4-hydrogen-medium`).
+- **Kế hoạch chi tiết**: Dùng **Gemini 4 Neon** (`gemini-4-neon-medium`; hết quota/không có fallback về **Gemini 4 Hydrogen** `gemini-4-hydrogen-medium`).
 - **Mức 1 (`DIRECT`)**: 1 file hoặc hotfix dưới 30 dòng -> sửa trực tiếp.
 - **Mức 2 (`Subagent thường`)**: 2–3 file độc lập không cần verify chéo -> dùng **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`) để thực thi và tiết kiệm quota.
 - **Mức 3 (`/swarm` Mode)**: Việc lớn nhiều tầng (Coder + Verifier + Build/Release) hoặc khi gọi `/swarm` -> **Coordinator (Điều phối)** ưu tiên **Gemini 4 Neon** (`gemini-4-neon-medium`; nếu hết quota/không có thì fallback về **Gemini 4 Hydrogen** `gemini-4-hydrogen-medium`; không fallback ngược về Carbon/Argon), **Workers (Thực thi)** dùng **Gemini 4 Hydrogen** (`gemini-4-hydrogen-medium`).

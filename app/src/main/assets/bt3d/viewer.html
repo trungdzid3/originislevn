@@ -56,6 +56,46 @@
       var OPEN_MS = 1450;
       var TARGET_LID_ROT = -1.66;
 
+      var COLOR_PRESETS = {
+        ice_blue: {
+          vertexColors: true,
+          color: 0xffffff,
+          roughness: 0.38,
+          decalFill: 'rgba(105, 126, 148, 0.50)'
+        },
+        white: {
+          vertexColors: false,
+          color: 0xf0f3f7,
+          roughness: 0.36,
+          decalFill: 'rgba(105, 126, 148, 0.50)'
+        },
+        black: {
+          vertexColors: false,
+          color: 0x262a30,
+          roughness: 0.44,
+          decalFill: 'rgba(255, 255, 255, 0.45)'
+        },
+        pink: {
+          vertexColors: false,
+          color: 0xf3cdd6,
+          roughness: 0.38,
+          decalFill: 'rgba(105, 126, 148, 0.50)'
+        }
+      };
+
+      function getQueryColor() {
+        try {
+          var params = new URLSearchParams(window.location.search || '');
+          var c = (params.get('color') || 'ice_blue').toLowerCase();
+          if (Object.prototype.hasOwnProperty.call(COLOR_PRESETS, c)) {
+            return c;
+          }
+        } catch (e) {}
+        return 'ice_blue';
+      }
+
+      var activePreset = COLOR_PRESETS[getQueryColor()] || COLOR_PRESETS.ice_blue;
+
       function clamp(v, min, max) {
         return Math.max(min, Math.min(max, v));
       }
@@ -277,8 +317,9 @@
             }
             if (o.isMesh) {
               o.material = new THREE.MeshPhysicalMaterial({
-                vertexColors: true,
-                roughness: 0.38,
+                vertexColors: activePreset.vertexColors,
+                color: activePreset.color,
+                roughness: activePreset.roughness,
                 metalness: 0.02,
                 envMapIntensity: 0.52,
                 clearcoat: 0.24,
@@ -293,7 +334,7 @@
             rc.height = 96;
             var rctx = rc.getContext('2d');
             rctx.font = "600 54px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-            rctx.fillStyle = 'rgba(105, 126, 148, 0.50)';
+            rctx.fillStyle = activePreset.decalFill;
             rctx.textAlign = 'center';
             rctx.textBaseline = 'middle';
             rctx.fillText('Redmi', 128, 48);

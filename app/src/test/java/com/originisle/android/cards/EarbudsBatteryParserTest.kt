@@ -1,6 +1,7 @@
 package com.originisle.android.cards
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -86,5 +87,67 @@ class EarbudsBatteryParserTest {
         assertEquals(90, enJoined.right)
         assertEquals(-1, enJoined.case)
         assertTrue(enJoined.hasDetails)
+    }
+
+    @Test
+    fun shouldSuppressReconnectPopup_blocksAlreadyConnectedUnlessShowingOrNewLowBattery() {
+        assertTrue(
+            EarbudsCard.shouldSuppressReconnectPopup(
+                wasAlreadyConnectedBefore = true,
+                isShowing = false,
+                isNewLowBattery = false,
+                lastShownMs = 0L,
+                nowMs = 20_000L,
+            ),
+        )
+        assertFalse(
+            EarbudsCard.shouldSuppressReconnectPopup(
+                wasAlreadyConnectedBefore = true,
+                isShowing = true,
+                isNewLowBattery = false,
+                lastShownMs = 15_000L,
+                nowMs = 20_000L,
+            ),
+        )
+        assertFalse(
+            EarbudsCard.shouldSuppressReconnectPopup(
+                wasAlreadyConnectedBefore = true,
+                isShowing = false,
+                isNewLowBattery = true,
+                lastShownMs = 15_000L,
+                nowMs = 20_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun shouldSuppressReconnectPopup_allowsFreshConnectAfterDisconnectAndRespectsCooldown() {
+        assertFalse(
+            EarbudsCard.shouldSuppressReconnectPopup(
+                wasAlreadyConnectedBefore = false,
+                isShowing = false,
+                isNewLowBattery = false,
+                lastShownMs = 0L,
+                nowMs = 20_000L,
+            ),
+        )
+        assertTrue(
+            EarbudsCard.shouldSuppressReconnectPopup(
+                wasAlreadyConnectedBefore = false,
+                isShowing = false,
+                isNewLowBattery = false,
+                lastShownMs = 10_000L,
+                nowMs = 24_999L,
+            ),
+        )
+        assertFalse(
+            EarbudsCard.shouldSuppressReconnectPopup(
+                wasAlreadyConnectedBefore = false,
+                isShowing = false,
+                isNewLowBattery = false,
+                lastShownMs = 10_000L,
+                nowMs = 25_000L,
+            ),
+        )
     }
 }

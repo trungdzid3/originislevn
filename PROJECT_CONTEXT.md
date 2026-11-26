@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.8.2` (mã bản dựng `versionCode = 20802`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.8.3` (mã bản dựng `versionCode = 20803`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -74,6 +74,12 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.8.3 — Chọn Màu Vỏ Hộp 3D Redmi Buds 6 Play, Unit Test `EarbudsCard` & Dọn `Theme.kt`**:
+  - `BluetoothPopupStore.kt`, `BluetoothPopupOverlay.kt`, `viewer.html`, `BluetoothPopupSheet.kt`: Thêm `RedmiCaseColor` (`ICE_BLUE`, `WHITE`, `BLACK`, `PINK`), lưu/đọc `redmi_case_color`, truyền `?color=` sang `viewer.html` để đổi màu vỏ hộp 3D + màu chữ decal `"Redmi"`, và hiển thị hàng chọn 4 màu khi preset là `REDMI_BUDS_6_PLAY`.
+  - `EarbudsCard.kt` & `EarbudsBatteryParserTest.kt`: Chuẩn hóa helper `shouldSuppressReconnectPopup` cho cả nhánh tức thời và `pending` của `CONNECTED`, bổ sung unit test chống báo lại và cooldown 15s.
+  - `Theme.kt`: Xóa `DarkPalette` và `LightPalette` dư thừa, đặt `LocalIsleColors = staticCompositionLocalOf { FallbackDarkColorScheme.toIsleColorPalette(true) }`.
+  - `BluetoothPopupStoreTest.kt`: Bổ sung unit test cho `RedmiCaseColor.fromId` và `getRedmiCaseColor`/`setRedmiCaseColor`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.8.3.apk`: Nâng `versionCode = 20803`, `versionName = "2.8.3"`.
 - **Origin Isle VN v2.8.2 — Tinh Gọn M3 & Chặn Báo Lại "Đã kết nối" Khi Mở App Nhạc**:
   - `HomeScreen.kt`: Xóa nhóm `"Popup Bluetooth"` (chuyển sang `ModulesScreen.kt`) và xóa nút `"Mở cài đặt thông báo hệ thống"` trong `NestedSettingContainer`.
   - `ModulesScreen.kt`: Tiếp nhận `"Popup kết nối Bluetooth"` và `"Tùy chỉnh tai nghe Bluetooth"` (`BluetoothPopupSheet`) đặt ngay dưới `"Tai nghe & Thiết bị đeo"`.

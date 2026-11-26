@@ -833,7 +833,8 @@ object BluetoothPopupOverlay {
 
             currentWebView = webView
             stage.addView(webView)
-            webView.loadUrl("https://bt3d.local/viewer.html")
+            val colorId = BluetoothPopupStore.getRedmiCaseColor(context).id
+            webView.loadUrl("https://bt3d.local/viewer.html?color=$colorId")
         }
 
         return stage

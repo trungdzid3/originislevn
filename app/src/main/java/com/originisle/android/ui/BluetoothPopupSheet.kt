@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -65,6 +67,7 @@ import com.originisle.android.bluetooth.BluetoothPopupBattery
 import com.originisle.android.bluetooth.BluetoothPopupOverlay
 import com.originisle.android.bluetooth.BluetoothPopupStore
 import com.originisle.android.bluetooth.BluetoothPopupTheme
+import com.originisle.android.bluetooth.RedmiCaseColor
 
 /**
  * Bottom sheet Material 3 cho phép tùy chỉnh giao diện thẻ popup, ảnh / GIF và preset hiển thị
@@ -81,6 +84,9 @@ fun BluetoothPopupSheet(
     var pickingForKey by remember { mutableStateOf<String?>(null) }
     var popupTheme by remember(refreshVersion) {
         mutableStateOf(BluetoothPopupStore.getPopupTheme(context))
+    }
+    var redmiCaseColor by remember(refreshVersion) {
+        mutableStateOf(BluetoothPopupStore.getRedmiCaseColor(context))
     }
 
     val btPermissionLauncher = rememberLauncherForActivityResult(
@@ -394,6 +400,73 @@ fun BluetoothPopupSheet(
                                         }
                                         if (rowItems.size == 1) {
                                             Spacer(Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (config.preset == BluetoothDevicePreset.REDMI_BUDS_6_PLAY) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "Màu vỏ hộp 3D",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = IsleColors.TextSecondary,
+                                    )
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        RedmiCaseColor.entries.forEach { caseColor ->
+                                            val selected = redmiCaseColor == caseColor
+                                            Row(
+                                                modifier = Modifier
+                                                    .heightIn(min = 38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        if (selected) {
+                                                            MaterialTheme.colorScheme.secondaryContainer
+                                                        } else {
+                                                            MaterialTheme.colorScheme.surfaceContainerHigh
+                                                        },
+                                                    )
+                                                    .border(
+                                                        width = if (selected) 1.5.dp else 0.5.dp,
+                                                        color = if (selected) {
+                                                            MaterialTheme.colorScheme.primary
+                                                        } else {
+                                                            IsleColors.BorderHairline
+                                                        },
+                                                        shape = CircleShape,
+                                                    )
+                                                    .clickable(role = Role.RadioButton) {
+                                                        redmiCaseColor = caseColor
+                                                        BluetoothPopupStore.setRedmiCaseColor(context, caseColor)
+                                                        refreshVersion++
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(14.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(caseColor.swatchHex))
+                                                        .border(0.5.dp, IsleColors.BorderHairline, CircleShape),
+                                                )
+                                                Text(
+                                                    text = caseColor.label,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (selected) {
+                                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                                    } else {
+                                                        IsleColors.Text
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 }
