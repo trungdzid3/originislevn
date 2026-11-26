@@ -425,6 +425,7 @@ object MediaCard {
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", true)
+            putExtra("oi_btn_transparent", true)
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", true)
 

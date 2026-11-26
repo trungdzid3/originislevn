@@ -18,6 +18,7 @@ import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
 import com.originisle.android.tiktok.TikTokStreakActionReceiver
 import com.originisle.android.tiktok.TikTokStreakDetector
+import com.originisle.android.tiktok.TikTokStreakLaunchActivity
 
 /**
  * Thẻ hiển thị chuỗi trò chuyện TikTok (TikTok Streak) trên Đảo Origin.
@@ -28,9 +29,25 @@ object TikTokStreakCard {
     const val ID = 35012
     private const val HOLD_MS = 10_000L
     const val COLOR_STREAK = "#FFFF6B1A"
+    private val TIKTOK_PACKAGES = listOf(
+        "com.ss.android.ugc.trill",
+        "com.zhiliaoapp.musically",
+        "com.ss.android.ugc.aweme",
+    )
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var autoCancelRunnable: Runnable? = null
+
+    private fun resolveInstalledTikTokPkg(context: Context, preferred: String? = null): String {
+        val candidates = (listOfNotNull(preferred?.takeIf { it.isNotBlank() }) + TIKTOK_PACKAGES).distinct()
+        val pm = context.packageManager
+        for (pkg in candidates) {
+            if (runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull() != null) {
+                return pkg
+            }
+        }
+        return preferred?.takeIf { it.isNotBlank() } ?: "com.ss.android.ugc.trill"
+    }
 
     fun createFlameIcon(context: Context, size: Int = 96): Icon {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -51,23 +68,22 @@ object TikTokStreakCard {
     ) {
         val app = context.applicationContext
 
-        val targetPi = info.contentIntent ?: fallbackClickIntent(app, info.sourcePkg)
+        val resolvedPkg = resolveInstalledTikTokPkg(app, info.sourcePkg)
+        val targetPi = info.contentIntent ?: fallbackClickIntent(app, resolvedPkg)
 
-        // PendingIntent trỏ tới BroadcastReceiver để copy tin nhắn và mở app TikTok
-        val actionIntent = Intent(app, TikTokStreakActionReceiver::class.java).apply {
-            action = TikTokStreakActionReceiver.ACTION_SEND_TIKTOK_STREAK
-            putExtra(TikTokStreakActionReceiver.EXTRA_TARGET_INTENT, targetPi)
-            putExtra(TikTokStreakActionReceiver.EXTRA_SOURCE_PKG, info.sourcePkg)
-            putExtra("cast_id", ID)
-        }
-        val streakPi = PendingIntent.getBroadcast(
+        // PendingIntent trỏ tới Activity trong suốt để copy tin nhắn và mở app TikTok không bị BAL chặn
+        val streakActivityPi = PendingIntent.getActivity(
             app,
             ID,
-            actionIntent,
+            Intent(app, TikTokStreakLaunchActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(TikTokStreakActionReceiver.EXTRA_TARGET_INTENT, targetPi)
+                putExtra(TikTokStreakActionReceiver.EXTRA_SOURCE_PKG, resolvedPkg)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val tiktokAppIcon = IconCache.safeAppIcon(app, info.sourcePkg)
+        val tiktokAppIcon = IconCache.safeAppIcon(app, resolvedPkg)
         val flameIcon = createFlameIcon(app)
         IconCache.activeSmallIcons[ID] = tiktokAppIcon
         IconCache.activeLargeIcons[ID] = flameIcon
@@ -76,7 +92,11 @@ object TikTokStreakCard {
         val pillLeft = info.friendName.trim().take(12).ifBlank { "TikTok" }
         val pillRight = ""
         val buttonTitle = "Giữ chuỗi"
-        val notifAction = Notification.Action.Builder(null, buttonTitle, streakPi).build()
+        val notifAction = Notification.Action.Builder(
+            Icon.createWithResource(app, R.drawable.ic_tiktok_streak_fire),
+            buttonTitle,
+            streakActivityPi,
+        ).build()
 
         val intent = Intent(app, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
@@ -89,7 +109,7 @@ object TikTokStreakCard {
             putExtra("subtext", "Chạm để mở chat & tự sao chép tin nhắn chuỗi")
             putExtra("oi_left_content", pillLeft)
             putExtra("oi_right_content", pillRight)
-            putExtra("status_chip_text", pillRight)
+            putExtra("status_chip_text", " ")
             putExtra("oi_show_left_icon", true)
             putExtra("oi_left_icon", tiktokAppIcon)
             putExtra("oi_show_right_icon", true)
@@ -101,7 +121,8 @@ object TikTokStreakCard {
             putExtra("oi_auto_dismiss_ms", HOLD_MS)
             putExtra("oi_island_show_time", 10)
             putExtra("oi_force_show", true)
-            putExtra("oi_show_notify", false)
+            putExtra("oi_show_notify", true)
+            putExtra("oi_btn_transparent", true)
             putExtra("is_high_priority", true)
             putExtra("oi_dismiss_when_kill", true)
             putExtra("oi_island_click_expand", true)
@@ -115,9 +136,9 @@ object TikTokStreakCard {
             putStringArrayListExtra("oi_button_titles", arrayListOf(buttonTitle))
 
             // Chạm lần 2 vào thẻ mở rộng hoặc nút để mở TikTok & sao chép biểu tượng chuỗi
-            putExtra("click_resp", streakPi)
-            putExtra("source_content_intent", streakPi)
-            putExtra("source_pkg", info.sourcePkg)
+            putExtra("click_resp", streakActivityPi)
+            putExtra("source_content_intent", streakActivityPi)
+            putExtra("source_pkg", resolvedPkg)
         }
         app.startService(intent)
 
@@ -133,13 +154,14 @@ object TikTokStreakCard {
 
     fun postSample(context: Context) {
         val app = context.applicationContext
-        val clickPi = fallbackClickIntent(app, "com.zhiliaoapp.musically")
+        val installedPkg = resolveInstalledTikTokPkg(app)
+        val clickPi = fallbackClickIntent(app, installedPkg)
         val sampleInfo = TikTokStreakDetector.TikTokStreakInfo(
             friendName = "Lan Anh",
             message = "Duy trì chuỗi với Lan Anh ngay nào!",
             streakDays = 15,
             contentIntent = clickPi,
-            sourcePkg = "com.zhiliaoapp.musically",
+            sourcePkg = installedPkg,
         )
         post(app, sampleInfo, null)
     }

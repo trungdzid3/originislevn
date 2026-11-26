@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.1` (mã bản dựng `versionCode = 21001`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.2` (mã bản dựng `versionCode = 21002`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.10.2.apk # File APK xuất bản v2.10.2 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.1.apk # File APK xuất bản v2.10.1 (5,815,372 bytes / ~5.55 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.0.apk # File APK xuất bản v2.10.0 (5,815,376 bytes / ~5.55 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.9.0.apk  # File APK xuất bản v2.9.0 (5,815,372 bytes / ~5.55 MB, R8 minify + shrinkResources)
@@ -79,6 +80,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.2 — Nút Đảo Kính Mờ OriginOS 6–7 & Sửa Mở TikTok Từ Đảo Mở Rộng**:
+  - `ic_media_prev.xml`, `ic_media_play.xml`, `ic_media_pause.xml`, `ic_media_next.xml`: Vẽ lại 4 icon điều khiển nhạc bo góc mềm mại chuẩn `originos-design`.
+  - `OriginIslandBuilder.kt` & `MediaCard.kt`: Nối `btnTransparent` trong nhánh `template == 8` (nền kính mờ `#26FFFFFF` + chữ/icon trắng) và bật `oi_btn_transparent = true` cho nút nhạc.
+  - `TikTokStreakLaunchActivity.kt`, `AndroidManifest.xml` & `TikTokStreakCard.kt`: Thay `BroadcastReceiver` bằng Translucent Activity trampoline (vượt giới hạn BAL Android 14–16 để mở thẳng TikTok khi chạm thẻ mở rộng hoặc bấm `"Giữ chuỗi"`, gửi `targetPi` với `MODE_BACKGROUND_ACTIVITY_START_ALLOWED`, tự dò gói `com.ss.android.ugc.trill` / `com.zhiliaoapp.musically` / `com.ss.android.ugc.aweme`, bật `oi_btn_transparent = true`, `oi_show_notify = true`, `status_chip_text = " "`).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.2.apk`: Nâng `versionCode = 21002`, `versionName = "2.10.2"`.
 - **Origin Isle VN v2.10.1 — Sửa Lỗi Đảo Âm Nhạc (Zing MP3 & SuperX Media Card)**:
   - `MediaCard.kt`: Đặt `chip = if (playing) "Playing" else " "` cho `status_chip_text` & `oi_right_content`; bật `oi_show_notify = true` & `oi_island_click_expand = true`; xóa nhánh ghi đè `oi_capsule_click_resp`/`click_resp` bằng `openOverlayPi`, giữ `source_content_intent = contentClickIntent`; khi `!playing` đặt `oi_right_icon = ic_media_pause` & `oi_show_right_icon = true`; `makeAction` dùng `Icon.createWithResource(context, iconRes)` và xóa `renderTintedBitmapIcon`.
   - `NotificationCastListener.kt`: Tại `onNotificationPosted`, chỉ `return` sớm khi `sbn.tag == OriginIslandConstants.SUPERX_TAG` (hoặc `ORIGIN_NATIVE_MUSIC_PACKAGES`), không chặn nhầm thông báo thường có `BUNDLE_KEY_SCENE` / `BUNDLE_KEY_ISLAND_NOTIFY`.
