@@ -450,7 +450,7 @@ object MediaCard {
             putExtra("text", artist)
             putExtra("source_pkg", pkg)
             putExtra("oi_left_content", if (rawAlbumArt != null) "" else track)
-            putExtra("status_chip_text", " ")
+            putExtra("status_chip_text", chip)
 
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
@@ -460,7 +460,6 @@ object MediaCard {
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", true)
-            putExtra("oi_btn_transparent", true)
 
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
             putExtra("oi_wave_state", if (playing) 1 else 0)
@@ -473,7 +472,7 @@ object MediaCard {
                 else Icon.createWithResource(context, R.drawable.ic_media_pause),
             )
             putExtra("oi_show_right_icon", true)
-            putExtra("oi_right_content", "")
+            putExtra("oi_right_content", if (playing) "" else chip)
 
             putParcelableArrayListExtra("actions", actions)
             putExtra("source_content_intent", contentClickIntent)

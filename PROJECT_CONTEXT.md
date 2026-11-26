@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.18` (mã bản dựng `versionCode = 21018`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.19` (mã bản dựng `versionCode = 21019`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.19 — Đảo Nhạc Upstream Gốc + Sóng Nhạc 5 Cột (`createMusicWaveIcon`)**:
+  - `MediaCard.kt`: Giữ nguyên hoàn toàn logic trạng thái, `is_ongoing = true`, `status_chip_text = chip` và nút chuẩn gốc `upstream/main` (`v2.10.17`, bỏ `oi_btn_transparent`); chỉ dùng `createMusicWaveIcon(waveColors)` trên `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (`oi_right_content = if (playing) "" else chip`) khi đang phát và `ic_media_pause` khi tạm dừng.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.19.apk`: Nâng `versionCode = 21019`, `versionName = "2.10.19"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,100 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.18 — 3 Nút Kính Mờ OriginOS 6–7 & Sóng Nhạc 5 Cột Trên Nền Upstream `v2.10.17`**:
   - `MediaCard.kt`: Bật `oi_btn_transparent = true` (3 nút kính mờ bán trong suốt `#26FFFFFF` + icon trắng `#FFFFFF` chuẩn `originos-design`) và thêm lại sóng nhạc 5 cột `createMusicWaveIcon(waveColors)` trên `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` (`status_chip_text = " "`, `oi_right_content = ""`) khi đang phát, `ic_media_pause` khi tạm dừng; giữ nguyên 100% logic trạng thái `upstream/main` (`v2.10.17`), 26 gói whitelist OriginOS, vá pin TWS (`EarbudsCard.kt`, `NotificationCastListener.kt`) và popup tai nghe OriginOS 6–7 (`BluetoothPopupOverlay.kt`).
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.18.apk`: Nâng `versionCode = 21018`, `versionName = "2.10.18"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
