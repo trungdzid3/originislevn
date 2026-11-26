@@ -438,20 +438,16 @@ object MediaCard {
             putParcelableArrayListExtra("oi_button_actions", buttonActions)
             putParcelableArrayListExtra("oi_button_icons", buttonIcons)
 
-            putExtra(
-                "oi_right_template",
-                if (playing) OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE
-                else OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON,
-            )
+            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
             putExtra("oi_wave_state", if (playing) 1 else 0)
             putStringArrayListExtra("oi_wave_color_list", waveColors)
-            if (!playing) {
-                putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
-                putExtra("oi_show_right_icon", true)
-                putExtra("oi_right_content", "")
-            } else {
-                putExtra("oi_show_right_icon", false)
-            }
+            putExtra(
+                "oi_right_icon",
+                if (playing) createMusicWaveIcon(waveColors)
+                else Icon.createWithResource(context, R.drawable.ic_media_pause),
+            )
+            putExtra("oi_show_right_icon", true)
+            putExtra("oi_right_content", "")
             putExtra("status_chip_text", chip)
 
             putParcelableArrayListExtra("actions", actions)
@@ -626,6 +622,39 @@ object MediaCard {
 
             output
         }.getOrDefault(albumBitmap)
+    }
+
+    /**
+     * Vẽ icon 5 cột sóng nhạc bo tròn viên thuốc từ bảng màu bìa album để hiển thị ổn định trên SuperX pill bên phải
+     */
+    private fun createMusicWaveIcon(waveColors: List<String>, size: Int = 96): Icon {
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+        val fallbackHex = listOf("#FF5376", "#00E5FF", "#7C4DFF")
+        val parsedColors = (if (waveColors.isNotEmpty()) waveColors else fallbackHex).mapNotNull { hex ->
+            runCatching { Color.parseColor(hex) }.getOrNull()
+        }.ifEmpty {
+            fallbackHex.map { Color.parseColor(it) }
+        }
+        val ratios = floatArrayOf(0.36f, 0.72f, 0.52f, 0.88f, 0.44f)
+        val padX = size * 0.14f
+        val usableW = size - padX * 2
+        val gap = usableW * 0.095f
+        val barW = (usableW - gap * 4) / 5f
+        val maxBarH = size * 0.64f
+        val cy = size / 2f
+        val rx = barW / 2f
+        for (i in ratios.indices) {
+            val barH = maxBarH * ratios[i]
+            val left = padX + i * (barW + gap)
+            val top = cy - barH / 2f
+            paint.color = parsedColors[i % parsedColors.size]
+            canvas.drawRoundRect(RectF(left, top, left + barW, top + barH), rx, rx, paint)
+        }
+        return Icon.createWithBitmap(bmp)
     }
 
     /**
