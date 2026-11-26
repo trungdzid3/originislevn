@@ -7,8 +7,10 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.PorterDuff
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
@@ -30,7 +32,7 @@ object TikTokStreakCard {
 
     const val ID = 35012
     private const val HOLD_MS = 10_000L
-    const val COLOR_STREAK = "#FFFF5E00"
+    const val COLOR_STREAK = "#FFFF6B1A"
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var autoCancelRunnable: Runnable? = null
@@ -41,28 +43,43 @@ object TikTokStreakCard {
         val center = size / 2f
         val radius = size / 2f - size * 0.05f
 
-        // Nền tròn tối (#FF18181A)
+        // Nền tròn tối ấm có quầng sáng cam nhẹ ở tâm
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF18181A")
+            shader = RadialGradient(
+                center,
+                center * 1.05f,
+                radius,
+                intArrayOf(
+                    Color.parseColor("#FF3B1B0C"),
+                    Color.parseColor("#FF1B1514"),
+                    Color.parseColor("#FF121114"),
+                ),
+                floatArrayOf(0f, 0.65f, 1f),
+                Shader.TileMode.CLAMP,
+            )
             style = Paint.Style.FILL
         }
         canvas.drawCircle(center, center, radius, bgPaint)
 
-        // Viền cam sáng (#4DFF5E00)
+        // Viền gradient cam - vàng mảnh tinh tế
+        val strokeW = size * 0.038f
         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#4DFF5E00")
+            shader = LinearGradient(
+                0f, 0f, size.toFloat(), size.toFloat(),
+                Color.parseColor("#FFFFB300"),
+                Color.parseColor("#FFFF5E00"),
+                Shader.TileMode.CLAMP,
+            )
             style = Paint.Style.STROKE
-            strokeWidth = size * 0.04f
+            strokeWidth = strokeW
         }
-        canvas.drawCircle(center, center, radius - strokePaint.strokeWidth / 2f, strokePaint)
+        canvas.drawCircle(center, center, radius - strokeW / 2f, strokePaint)
 
-        // Vector R.drawable.ic_tiktok_streak_fire căn giữa với màu cam rực rỡ (#FFFF5E00)
+        // Giữ nguyên 2 tầng màu cam (#FFFF5E00) + lõi vàng sáng (#FFFFD000) của ic_tiktok_streak_fire
         val drawable = ContextCompat.getDrawable(context, R.drawable.ic_tiktok_streak_fire)?.mutate()
         if (drawable != null) {
-            val pad = (size * 0.22f).toInt()
+            val pad = (size * 0.21f).toInt()
             drawable.setBounds(pad, pad, size - pad, size - pad)
-            drawable.setTint(Color.parseColor("#FFFF5E00"))
-            drawable.setTintMode(PorterDuff.Mode.SRC_IN)
             drawable.draw(canvas)
         }
         return Icon.createWithBitmap(bmp)
@@ -101,7 +118,9 @@ object TikTokStreakCard {
         } else {
             "${info.friendName} · Nhắc giữ chuỗi"
         }
-        val buttonTitle = "Mở TikTok"
+        val pillLeft = info.friendName.trim().take(12).ifBlank { "TikTok" }
+        val pillRight = if (info.streakDays > 0) "${info.streakDays}d" else "Chuỗi"
+        val buttonTitle = "Giữ chuỗi"
         val notifAction = Notification.Action.Builder(null, buttonTitle, streakPi).build()
 
         val intent = Intent(app, PlaygroundService::class.java).apply {
@@ -112,10 +131,10 @@ object TikTokStreakCard {
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
             putExtra("title", expandedTitle)
             putExtra("text", info.message)
-            putExtra("subtext", "Chạm vào thẻ để mở TikTok & giữ chuỗi")
-            putExtra("oi_left_content", "")
-            putExtra("oi_right_content", "")
-            putExtra("status_chip_text", "")
+            putExtra("subtext", "Chạm để mở chat & tự sao chép tin nhắn chuỗi")
+            putExtra("oi_left_content", pillLeft)
+            putExtra("oi_right_content", pillRight)
+            putExtra("status_chip_text", pillRight)
             putExtra("oi_show_left_icon", true)
             putExtra("oi_left_icon", tiktokAppIcon)
             putExtra("oi_show_right_icon", true)
@@ -132,8 +151,8 @@ object TikTokStreakCard {
             putExtra("oi_dismiss_when_kill", true)
             putExtra("oi_island_click_expand", true)
 
-            // Bảng màu cam ngọn lửa chuẩn OriginOS (không bật hào quang lòe loẹt)
-            putExtra("oi_bg_color", "#33FF5E00")
+            // Bảng màu cam ngọn lửa dịu mắt, chuẩn OriginOS 6
+            putExtra("oi_bg_color", "#26FF6B1A")
             putExtra("oi_fg_color", COLOR_STREAK)
 
             // Cấu hình nút bấm tương tác

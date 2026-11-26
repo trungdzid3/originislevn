@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.8.3` (mã bản dựng `versionCode = 20803`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.8.4` (mã bản dựng `versionCode = 20804`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.8.4.apk  # File APK xuất bản v2.8.4 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.3.apk  # File APK xuất bản v2.7.3 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.2.apk  # File APK xuất bản v2.7.2 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.1.apk  # File APK xuất bản v2.7.1 (R8 minify + shrinkResources)
@@ -74,6 +75,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.8.4 — Nâng Cấp Giao Diện Đảo Chuỗi TikTok**:
+  - `TikTokStreakCard.kt` & `IslandSamples.kt`: Thiết kế lại `createGlowingFlameBadge` với nền `RadialGradient` tối ấm, viền `LinearGradient` cam-vàng và giữ nguyên 2 tầng màu cam-vàng của `ic_tiktok_streak_fire`; hiển thị tên bạn bè (`pillLeft`) và số ngày chuỗi (`Nd` / `Chuỗi`) ngay trên viên thuốc thu gọn, đổi nút hành động sang `"Giữ chuỗi"` với bảng màu tonal `#26FF6B1A` / `#FFFF6B1A`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.8.4.apk`: Nâng `versionCode = 20804`, `versionName = "2.8.4"`.
 - **Origin Isle VN v2.8.3 — Chọn Màu Vỏ Hộp 3D Redmi Buds 6 Play, Unit Test `EarbudsCard` & Dọn `Theme.kt`**:
   - `BluetoothPopupStore.kt`, `BluetoothPopupOverlay.kt`, `viewer.html`, `BluetoothPopupSheet.kt`: Thêm `RedmiCaseColor` (`ICE_BLUE`, `WHITE`, `BLACK`, `PINK`), lưu/đọc `redmi_case_color`, truyền `?color=` sang `viewer.html` để đổi màu vỏ hộp 3D + màu chữ decal `"Redmi"`, và hiển thị hàng chọn 4 màu khi preset là `REDMI_BUDS_6_PLAY`.
   - `EarbudsCard.kt` & `EarbudsBatteryParserTest.kt`: Chuẩn hóa helper `shouldSuppressReconnectPopup` cho cả nhánh tức thời và `pending` của `CONNECTED`, bổ sung unit test chống báo lại và cooldown 15s.
