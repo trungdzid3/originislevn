@@ -4,11 +4,9 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -17,6 +15,7 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
@@ -38,7 +37,6 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
@@ -386,15 +384,20 @@ object BluetoothPopupOverlay {
     ): SwipeDismissSheetLayout {
         val colorScheme = resolveMaterialColorScheme(context, isDark)
         val cornerRadius = dp(context, 32).toFloat()
-        val glassBgColor = if (isDark) 0xF2121620.toInt() else 0xF7FFFFFF.toInt()
-        val edgeLightTop = if (isDark) 0x38FFFFFF else 0xD9FFFFFF.toInt()
+        val glassBgColor = if (isDark) 0xF4141824.toInt() else 0xF8FFFFFF.toInt()
+        val edgeLightTop = if (isDark) 0x3CFFFFFF else 0xEBFFFFFF.toInt()
         val edgeLightBottom = if (isDark) 0x0AFFFFFF else 0x10000000
+        val ambientColor = colorScheme.primary.copy(alpha = if (isDark) 0.14f else 0.08f).toArgb()
+        val specularColor = if (isDark) 0x70FFFFFF else 0xFFFFFFFF.toInt()
         val sheetBg = LiquidGlassSheetDrawable(
             cornerRadiusPx = cornerRadius,
             fillColor = glassBgColor,
             edgeTopColor = edgeLightTop,
             edgeBottomColor = edgeLightBottom,
-            strokeWidthPx = dpFloat(context, 1f).coerceAtLeast(1f),
+            strokeWidthPx = dpFloat(context, 1.2f).coerceAtLeast(1f),
+            ambientColor = ambientColor,
+            specularColor = specularColor,
+            roundBottomCorners = false,
         )
 
         val sheet = SwipeDismissSheetLayout(context, rootScrim).apply {
@@ -402,37 +405,87 @@ object BluetoothPopupOverlay {
             gravity = Gravity.CENTER_HORIZONTAL
             background = sheetBg
             elevation = dp(context, 24).toFloat()
-            setPadding(0, 0, 0, navBarBottom + dp(context, 16))
+            setPadding(0, 0, 0, navBarBottom + dp(context, 18))
             isClickable = true
             isFocusable = false
             // Keep screenWidth referenced cleanly for tablet/landscape sizing symmetry
             minimumWidth = min(screenWidth, dp(context, 320))
         }
 
-        // OriginOS slim drag handle
+        // OriginOS 6-7 slim drag handle
         val handleView = View(context).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                this.cornerRadius = dp(context, 2).toFloat()
-                setColor(colorScheme.onSurfaceVariant.copy(alpha = 0.38f).toArgb())
+                this.cornerRadius = dpFloat(context, 2f)
+                setColor(colorScheme.onSurfaceVariant.copy(alpha = 0.36f).toArgb())
             }
-            layoutParams = LinearLayout.LayoutParams(dp(context, 36), dp(context, 4)).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(context, 38), dp(context, 4)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = dp(context, 10)
             }
         }
         sheet.addView(handleView)
 
+        // Thin liquid glass status badge pill
+        val statusPill = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(context, 10), dp(context, 4), dp(context, 10), dp(context, 4))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                this.cornerRadius = dpFloat(context, 999f)
+                setColor(if (isDark) 0x16FFFFFF else 0xC8F3F5FA.toInt())
+                setStroke(
+                    dpFloat(context, 0.8f).toInt().coerceAtLeast(1),
+                    if (isDark) 0x28FFFFFF else 0x18000000,
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(context, 14)
+            }
+        }
+        val statusDot = View(context).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0xFF00D084.toInt())
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(context, 7), dp(context, 7))
+        }
+        statusPill.addView(statusDot)
+
+        val statusLabel = TextView(context).apply {
+            text = "Đã kết nối"
+            setTextColor(colorScheme.onSurface.copy(alpha = 0.88f).toArgb())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            includeFontPadding = true
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginStart = dp(context, 6)
+            }
+        }
+        statusPill.addView(statusLabel)
+        sheet.addView(statusPill)
+
         val resolvedName = config.customName?.takeIf { it.isNotBlank() }
             ?: deviceName.ifBlank { config.preset.label }
 
-        // Title
+        // Title (vivo Sans Vietnamese diacritics protected via includeFontPadding & lineSpacing)
         val titleView = TextView(context).apply {
             text = resolvedName
             gravity = Gravity.CENTER
             setTextColor(colorScheme.onSurface.toArgb())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 23f)
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            includeFontPadding = true
+            setLineSpacing(dpFloat(context, 3f), 1.05f)
             letterSpacing = -0.01f
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
@@ -441,24 +494,25 @@ object BluetoothPopupOverlay {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply {
-                topMargin = dp(context, 18)
+                topMargin = dp(context, 10)
             }
         }
         sheet.addView(titleView)
 
         // Subtitle
         val subtitleView = TextView(context).apply {
-            text = "$resolvedName đã kết nối và sẵn sàng phát âm thanh trên thiết bị này"
+            text = "Sẵn sàng phát âm thanh trên thiết bị này"
             gravity = Gravity.CENTER
             setTextColor(colorScheme.onSurfaceVariant.toArgb())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f)
-            setLineSpacing(dp(context, 3).toFloat(), 1f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            includeFontPadding = true
+            setLineSpacing(dpFloat(context, 2f), 1.05f)
             setPadding(dp(context, 32), 0, dp(context, 32), 0)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply {
-                topMargin = dp(context, 6)
+                topMargin = dp(context, 4)
             }
         }
         sheet.addView(subtitleView)
@@ -477,11 +531,11 @@ object BluetoothPopupOverlay {
             .start()
         sheet.addView(visualView)
 
-        // OriginOS battery pills
+        // OriginOS Huarong Atomic battery pods
         val batteryContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(context, 20), 0, dp(context, 20), 0)
+            setPadding(dp(context, 24), 0, dp(context, 24), 0)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -493,36 +547,38 @@ object BluetoothPopupOverlay {
         renderBatterySection(context, batteryContainer, battery, isDark)
         sheet.addView(batteryContainer)
 
-        // Bottom action row
-        val actionRow = FrameLayout(context).apply {
+        // Bottom action row (Info circle + full-weight Done pill with Touch Light)
+        val actionRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(context, 24), 0, dp(context, 24), 0)
+            clipChildren = false
+            clipToPadding = false
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(context, 52),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         }
 
-        val infoStrokeColor = colorScheme.onSurfaceVariant.toArgb()
-        val infoGlassFill = if (isDark) 0x18FFFFFF else 0xB8F2F4F8.toInt()
-        val infoEdgeStroke = if (isDark) 0x30FFFFFF else 0x1F000000
-        val infoBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(infoGlassFill)
-            setStroke(dpFloat(context, 1f).toInt().coerceAtLeast(1), infoEdgeStroke)
-        }
+        val infoBg = LiquidGlassSheetDrawable(
+            cornerRadiusPx = dpFloat(context, 23f),
+            fillColor = if (isDark) 0x16FFFFFF else 0xC8F3F5FA.toInt(),
+            edgeTopColor = if (isDark) 0x36FFFFFF else 0xE6FFFFFF.toInt(),
+            edgeBottomColor = if (isDark) 0x0AFFFFFF else 0x18000000,
+            strokeWidthPx = dpFloat(context, 1.1f).coerceAtLeast(1f),
+            specularColor = if (isDark) 0x55FFFFFF else 0xFFFFFFFF.toInt(),
+            roundBottomCorners = true,
+        )
         val infoButton = TextView(context).apply {
             text = "i"
             gravity = Gravity.CENTER
-            setTextColor(infoStrokeColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setTextColor(colorScheme.onSurface.toArgb())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            includeFontPadding = true
             background = infoBg
             contentDescription = "Cài đặt Bluetooth"
-            layoutParams = FrameLayout.LayoutParams(
-                dp(context, 34),
-                dp(context, 34),
-                Gravity.START or Gravity.CENTER_VERTICAL,
-            )
+            layoutParams = LinearLayout.LayoutParams(dp(context, 46), dp(context, 46))
             setOnClickListener {
                 dismissOnMainThread()
                 runCatching {
@@ -532,29 +588,30 @@ object BluetoothPopupOverlay {
                 }
             }
         }
+        attachTouchLightFeedback(infoButton)
         actionRow.addView(infoButton)
 
         val doneBgColor = if (isDark) 0xFFFFFFFF.toInt() else colorScheme.primary.toArgb()
         val doneTextColor = if (isDark) 0xFF121620.toInt() else colorScheme.onPrimary.toArgb()
         val doneBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            this.cornerRadius = dp(context, 999).toFloat()
+            this.cornerRadius = dpFloat(context, 999f)
             setColor(doneBgColor)
         }
         val doneButton = TextView(context).apply {
             text = "Hoàn tất"
             gravity = Gravity.CENTER
             setTextColor(doneTextColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            includeFontPadding = true
             background = doneBg
-            layoutParams = FrameLayout.LayoutParams(
-                dp(context, 204),
-                dp(context, 46),
-                Gravity.CENTER,
-            )
+            layoutParams = LinearLayout.LayoutParams(0, dp(context, 48), 1f).apply {
+                marginStart = dp(context, 12)
+            }
             setOnClickListener { dismissOnMainThread() }
         }
+        attachTouchLightFeedback(doneButton)
         actionRow.addView(doneButton)
 
         sheet.addView(actionRow)
@@ -888,11 +945,11 @@ object BluetoothPopupOverlay {
         val items = mutableListOf<Pair<String, Int>>()
         val hasLeftRight = battery.left in 0..100 || battery.right in 0..100
         if (hasLeftRight) {
-            if (battery.left in 0..100) items.add("L ${battery.left}%" to battery.left)
-            if (battery.caseBattery in 0..100) items.add("Hộp ${battery.caseBattery}%" to battery.caseBattery)
-            if (battery.right in 0..100) items.add("R ${battery.right}%" to battery.right)
+            if (battery.left in 0..100) items.add("Tai trái" to battery.left)
+            if (battery.caseBattery in 0..100) items.add("Hộp sạc" to battery.caseBattery)
+            if (battery.right in 0..100) items.add("Tai phải" to battery.right)
         } else if (battery.main in 0..100) {
-            items.add("Pin ${battery.main}%" to battery.main)
+            items.add("Pin tai nghe" to battery.main)
         }
 
         if (items.isEmpty()) {
@@ -902,66 +959,139 @@ object BluetoothPopupOverlay {
 
         container.visibility = View.VISIBLE
         val colorScheme = resolveMaterialColorScheme(context, isDark)
-        val pillBgColor = if (isDark) 0x18FFFFFF else 0xB8F2F4F8.toInt()
-        val pillStrokeColor = if (isDark) 0x2EFFFFFF else 0x1A000000
-        val textColor = colorScheme.onSurface.toArgb()
+        val valueColor = colorScheme.onSurface.toArgb()
+        val labelColor = colorScheme.onSurfaceVariant.toArgb()
 
-        items.forEach { (label, level) ->
-            val pill = buildBatteryPill(context, label, level, pillBgColor, pillStrokeColor, textColor, isDark)
-            val lp = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(context, 28),
-            ).apply {
-                marginStart = dp(context, 4)
-                marginEnd = dp(context, 4)
+        items.forEachIndexed { index, (label, level) ->
+            val pod = buildBatteryPod(context, label, level, valueColor, labelColor, isDark)
+            val lp = if (items.size == 1) {
+                LinearLayout.LayoutParams(
+                    dp(context, 116),
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                )
+            } else {
+                LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f,
+                ).apply {
+                    if (index > 0) marginStart = dp(context, 8)
+                }
             }
-            container.addView(pill, lp)
+            container.addView(pod, lp)
         }
     }
 
-    private fun buildBatteryPill(
+    private fun buildBatteryPod(
         context: Context,
         label: String,
         level: Int,
-        pillBgColor: Int,
-        pillStrokeColor: Int,
-        textColor: Int,
+        valueColor: Int,
+        labelColor: Int,
         isDark: Boolean,
     ): LinearLayout {
-        val pill = LinearLayout(context).apply {
+        val podBg = LiquidGlassSheetDrawable(
+            cornerRadiusPx = dpFloat(context, 18f),
+            fillColor = if (isDark) 0x16FFFFFF else 0xC8F3F5FA.toInt(),
+            edgeTopColor = if (isDark) 0x34FFFFFF else 0xEBFFFFFF.toInt(),
+            edgeBottomColor = if (isDark) 0x0AFFFFFF else 0x14000000,
+            strokeWidthPx = dpFloat(context, 1.1f).coerceAtLeast(1f),
+            specularColor = if (isDark) 0x48FFFFFF else 0xE6FFFFFF.toInt(),
+            roundBottomCorners = true,
+        )
+
+        val pod = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(context, 10), dp(context, 10), dp(context, 10), dp(context, 10))
+            background = podBg
+        }
+
+        val topRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(context, 10), 0, dp(context, 10), 0)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(context, 999).toFloat()
-                setColor(pillBgColor)
-                setStroke(dp(context, 1), pillStrokeColor)
-            }
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
         }
 
         val batteryIcon = View(context).apply {
             background = BatteryPillIconDrawable(level.coerceIn(0, 100), isDark)
-            layoutParams = LinearLayout.LayoutParams(dp(context, 20), dp(context, 10))
+            layoutParams = LinearLayout.LayoutParams(dp(context, 22), dp(context, 11))
         }
-        pill.addView(batteryIcon)
+        topRow.addView(batteryIcon)
 
-        val labelView = TextView(context).apply {
-            text = label
-            setTextColor(textColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        val percentView = TextView(context).apply {
+            text = "$level%"
+            setTextColor(valueColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            fontFeatureSettings = "tnum"
+            includeFontPadding = true
             maxLines = 1
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply {
-                marginStart = dp(context, 5)
+                marginStart = dp(context, 6)
             }
         }
-        pill.addView(labelView)
+        topRow.addView(percentView)
+        pod.addView(topRow)
 
-        return pill
+        val labelView = TextView(context).apply {
+            text = label
+            gravity = Gravity.CENTER
+            setTextColor(labelColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            includeFontPadding = true
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = dp(context, 3)
+            }
+        }
+        pod.addView(labelView)
+
+        return pod
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun attachTouchLightFeedback(view: View) {
+        view.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    pauseAutoDismiss()
+                    v.animate().cancel()
+                    v.animate()
+                        .scaleX(0.95f)
+                        .scaleY(0.95f)
+                        .alpha(0.88f)
+                        .setDuration(90L)
+                        .setInterpolator(originInterpolator)
+                        .start()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().cancel()
+                    v.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .alpha(1f)
+                        .setDuration(220L)
+                        .setInterpolator(OvershootInterpolator(1.05f))
+                        .start()
+                    if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        scheduleAutoDismiss()
+                    }
+                }
+            }
+            false
+        }
     }
 
     private fun dp(context: Context, value: Int): Int {
@@ -991,14 +1121,18 @@ object BluetoothPopupOverlay {
 
         private var downX = 0f
         private var downY = 0f
+        private var startTranslationY = 0f
         private var isDragging = false
         private var velocityTracker: VelocityTracker? = null
 
         override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    animate().cancel()
+                    rootScrim.animate().cancel()
                     downX = ev.rawX
                     downY = ev.rawY
+                    startTranslationY = translationY
                     isDragging = false
                     pauseAutoDismiss()
                     initVelocityTracker(ev)
@@ -1007,7 +1141,7 @@ object BluetoothPopupOverlay {
                     trackVelocity(ev)
                     val dy = ev.rawY - downY
                     val dx = abs(ev.rawX - downX)
-                    if (dy > touchSlop && dy > dx) {
+                    if (abs(dy) > touchSlop && abs(dy) > dx) {
                         isDragging = true
                         return true
                     }
@@ -1025,8 +1159,11 @@ object BluetoothPopupOverlay {
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    animate().cancel()
+                    rootScrim.animate().cancel()
                     downX = event.rawX
                     downY = event.rawY
+                    startTranslationY = translationY
                     isDragging = false
                     pauseAutoDismiss()
                     initVelocityTracker(event)
@@ -1034,34 +1171,38 @@ object BluetoothPopupOverlay {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     trackVelocity(event)
-                    val dy = (event.rawY - downY).coerceAtLeast(0f)
-                    if (dy > touchSlop) {
+                    val rawDy = event.rawY - downY
+                    if (abs(rawDy) > touchSlop) {
                         isDragging = true
                     }
                     if (isDragging) {
-                        translationY = dy
-                        val progress = (dy / scrimFadeDistancePx).coerceIn(0f, 1f)
+                        val proposedY = startTranslationY + rawDy
+                        val dampedY = if (proposedY < 0f) proposedY * 0.16f else proposedY
+                        translationY = dampedY
+                        val progress = (dampedY.coerceAtLeast(0f) / scrimFadeDistancePx).coerceIn(0f, 1f)
                         rootScrim.alpha = 1f - progress * 0.85f
                     }
                     return true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     trackVelocity(event)
-                    val dy = (event.rawY - downY).coerceAtLeast(0f)
+                    val rawDy = event.rawY - downY
                     val yVelocity = velocityTracker?.let { tracker ->
                         tracker.computeCurrentVelocity(1000)
                         tracker.yVelocity
                     } ?: 0f
                     recycleVelocityTracker()
 
-                    if (isDragging && (dy > dismissThresholdPx || yVelocity > 1200f)) {
+                    if (isDragging && (translationY > dismissThresholdPx || (rawDy > 0f && yVelocity > 1200f))) {
                         dismissOnMainThread()
                     } else {
+                        animate().cancel()
                         animate()
                             .translationY(0f)
-                            .setDuration(220L)
-                            .setInterpolator(originInterpolator)
+                            .setDuration(240L)
+                            .setInterpolator(OvershootInterpolator(0.85f))
                             .start()
+                        rootScrim.animate().cancel()
                         rootScrim.animate()
                             .alpha(1f)
                             .setDuration(220L)
@@ -1185,24 +1326,43 @@ object BluetoothPopupOverlay {
         private val edgeTopColor: Int,
         private val edgeBottomColor: Int,
         private val strokeWidthPx: Float,
+        private val ambientColor: Int = Color.TRANSPARENT,
+        private val specularColor: Int = Color.TRANSPARENT,
+        private val roundBottomCorners: Boolean = false,
     ) : Drawable() {
+
+        private val specularWidthPx = (strokeWidthPx * 0.75f).coerceAtLeast(1f)
 
         private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = fillColor
         }
+        private val ambientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
         private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = strokeWidthPx
         }
+        private val specularPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = specularWidthPx
+            strokeCap = Paint.Cap.ROUND
+        }
         private val fillPath = Path()
         private val strokePath = Path()
+        private val bottomRadius = if (roundBottomCorners) cornerRadiusPx else 0f
         private val radii = floatArrayOf(
             cornerRadiusPx, cornerRadiusPx,
             cornerRadiusPx, cornerRadiusPx,
-            0f, 0f,
-            0f, 0f,
+            bottomRadius, bottomRadius,
+            bottomRadius, bottomRadius,
         )
+        private var specularStartX = 0f
+        private var specularEndX = 0f
+        private var specularY = 0f
+        private var hasAmbient = false
+        private var hasSpecular = false
 
         override fun onBoundsChange(bounds: Rect) {
             super.onBoundsChange(bounds)
@@ -1215,7 +1375,11 @@ object BluetoothPopupOverlay {
 
             val half = strokeWidthPx / 2f
             strokePath.reset()
-            strokePath.addRoundRect(half, half, w - half, h + strokeWidthPx, radii, Path.Direction.CW)
+            if (roundBottomCorners) {
+                strokePath.addRoundRect(half, half, w - half, h - half, radii, Path.Direction.CW)
+            } else {
+                strokePath.addRoundRect(half, half, w - half, h + strokeWidthPx, radii, Path.Direction.CW)
+            }
 
             strokePaint.shader = LinearGradient(
                 0f,
@@ -1226,22 +1390,75 @@ object BluetoothPopupOverlay {
                 edgeBottomColor,
                 Shader.TileMode.CLAMP,
             )
+
+            hasAmbient = ambientColor != Color.TRANSPARENT && Color.alpha(ambientColor) > 0
+            if (hasAmbient) {
+                val centerX = w * 0.5f
+                val centerY = h * 0.34f
+                val radius = maxOf(w, h) * 0.62f
+                val midAmbient = Color.argb(
+                    (Color.alpha(ambientColor) * 0.35f).toInt(),
+                    Color.red(ambientColor),
+                    Color.green(ambientColor),
+                    Color.blue(ambientColor),
+                )
+                ambientPaint.shader = RadialGradient(
+                    centerX,
+                    centerY,
+                    radius.coerceAtLeast(1f),
+                    intArrayOf(ambientColor, midAmbient, Color.TRANSPARENT),
+                    floatArrayOf(0f, 0.45f, 1f),
+                    Shader.TileMode.CLAMP,
+                )
+            } else {
+                ambientPaint.shader = null
+            }
+
+            specularStartX = cornerRadiusPx.coerceAtMost(w * 0.4f)
+            specularEndX = (w - cornerRadiusPx).coerceAtLeast(w * 0.6f)
+            specularY = specularWidthPx * 0.5f
+            hasSpecular = specularColor != Color.TRANSPARENT &&
+                Color.alpha(specularColor) > 0 &&
+                specularEndX > specularStartX
+            if (hasSpecular) {
+                specularPaint.shader = LinearGradient(
+                    specularStartX,
+                    specularY,
+                    specularEndX,
+                    specularY,
+                    intArrayOf(Color.TRANSPARENT, specularColor, specularColor, Color.TRANSPARENT),
+                    floatArrayOf(0f, 0.25f, 0.75f, 1f),
+                    Shader.TileMode.CLAMP,
+                )
+            } else {
+                specularPaint.shader = null
+            }
         }
 
         override fun draw(canvas: Canvas) {
             if (bounds.isEmpty) return
             canvas.drawPath(fillPath, fillPaint)
+            if (hasAmbient) {
+                canvas.drawPath(fillPath, ambientPaint)
+            }
             canvas.drawPath(strokePath, strokePaint)
+            if (hasSpecular) {
+                canvas.drawLine(specularStartX, specularY, specularEndX, specularY, specularPaint)
+            }
         }
 
         override fun setAlpha(alpha: Int) {
             fillPaint.alpha = alpha
+            ambientPaint.alpha = alpha
             strokePaint.alpha = alpha
+            specularPaint.alpha = alpha
         }
 
         override fun setColorFilter(colorFilter: ColorFilter?) {
             fillPaint.colorFilter = colorFilter
+            ambientPaint.colorFilter = colorFilter
             strokePaint.colorFilter = colorFilter
+            specularPaint.colorFilter = colorFilter
         }
 
         @Deprecated("Deprecated in Java")

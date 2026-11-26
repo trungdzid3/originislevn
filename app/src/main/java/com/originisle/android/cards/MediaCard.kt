@@ -195,7 +195,7 @@ object MediaCard {
             .trim()
             .take(40)
 
-        // Đối chiếu chuẩn upstream fvhde/origin-isle: chỉ fallback sbn.isOngoing khi playbackState == null
+        // Tối ưu trạng thái phát nhạc (như v2.10.3–v2.10.5): Zing MP3 trả STATE_NONE khi đang phát
         val playbackStateValue = controller?.playbackState?.state
         val playing = when (playbackStateValue) {
             PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
@@ -203,7 +203,7 @@ object MediaCard {
             PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
             PlaybackState.STATE_CONNECTING,
             -> true
-            null -> sbn.isOngoing
+            null, PlaybackState.STATE_NONE -> sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
             else -> false
         }
 
