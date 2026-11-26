@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.7` (mã bản dựng `versionCode = 21007`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.8` (mã bản dựng `versionCode = 21008`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.10.8.apk # File APK xuất bản v2.10.8 (5,832,096 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.7.apk # File APK xuất bản v2.10.7 (5,832,096 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.6.apk # File APK xuất bản v2.10.6 (5,832,072 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.4.apk # File APK xuất bản v2.10.4 (5,832,072 bytes / ~5.56 MB, R8 minify + shrinkResources)
@@ -84,6 +85,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.8 — Khôi Phục Đảo Nhạc Quốc Tế (Spotify, YouTube Music, Apple Music, Zing MP3) & Bật `oi_show_notify`**:
+  - `MediaCard.kt`: Đặt `ORIGIN_SUPPORTED_MUSIC_PACKAGES` chỉ gồm các app nhạc nội địa Trung Quốc (`com.tencent.qqmusic`, `com.netease.cloudmusic`, `com.kugou.android`, `cn.kuwo.player`, `com.luna.music`); đưa Spotify, YouTube Music, Apple Music, Zing MP3 trở lại `THIRD_PARTY_MUSIC_PACKAGES`; bật lại `oi_show_notify = true` trong `dispatchMediaCard`, giữ nguyên sóng nhạc 5 cột `createMusicWaveIcon`, `status_chip_text = " "`, `oi_btn_transparent = true` và `overlayActivityPi` (`MediaIslandLaunchActivity`).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.8.apk`: Nâng `versionCode = 21008`, `versionName = "2.10.8"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.7 — Đảo Âm Nhạc Hybrid Mở `MediaIslandOverlay` Qua Translucent Activity**:
   - `MediaIslandLaunchActivity.kt` & `AndroidManifest.xml`: Tạo Activity trong suốt trung gian (`excludeFromRecents="true"`, `noHistory="true"`, `taskAffinity=""`), tắt transition open/close trên Android 14+, gọi `MediaIslandOverlay.show(applicationContext)` và fallback mở app nhạc nguồn (`EXTRA_FALLBACK_INTENT` với `MODE_BACKGROUND_ACTIVITY_START_ALLOWED` hoặc `getLaunchIntentForPackage(EXTRA_SOURCE_PKG)`) nếu overlay không hiển thị được.
   - `MediaCard.kt` (`dispatchMediaCard`): Kiểm tra `MediaIslandOverlay.canShow(context) && prefs.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true)`, gán `source_content_intent` sang `MediaIslandLaunchActivity` (`ID + 99`) hoặc fallback `contentClickIntent`, giữ nguyên `oi_island_click_expand = true`, `oi_show_notify = false`, `status_chip_text = " "` và `TEMPLATE_RIGHT_ISLAND_TEXT_ICON`.

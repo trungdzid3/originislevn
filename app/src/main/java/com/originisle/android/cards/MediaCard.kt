@@ -60,8 +60,17 @@ object MediaCard {
         "com.vivo.music",
     )
 
-    /** Các ứng dụng nhạc đã được Đảo nhạc gốc OriginOS 6 hỗ trợ trực tiếp — nhường đảo gốc xử lý */
+    /** Các ứng dụng nhạc nội địa đã được Đảo nhạc gốc OriginOS 6 hỗ trợ trực tiếp — nhường đảo gốc xử lý */
     val ORIGIN_SUPPORTED_MUSIC_PACKAGES = setOf(
+        "com.tencent.qqmusic",
+        "com.netease.cloudmusic",
+        "com.kugou.android",
+        "cn.kuwo.player",
+        "com.luna.music",
+    )
+
+    /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
+    val THIRD_PARTY_MUSIC_PACKAGES = setOf(
         "com.spotify.music",
         "com.spotify.music.lite",
         "com.spotify.lite",
@@ -71,10 +80,6 @@ object MediaCard {
         "com.zing.mp3",
         "com.vng.zingmp3",
         "vn.com.vng.zingmp3",
-    )
-
-    /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
-    val THIRD_PARTY_MUSIC_PACKAGES = setOf(
         "com.soundcloud.android",
         "deezer.android.app",
         "com.amazon.mp3",
@@ -449,7 +454,7 @@ object MediaCard {
             putExtra("oi_island_click_expand", true)
             putExtra("oi_btn_transparent", true)
             putExtra("oi_force_show", true)
-            putExtra("oi_show_notify", false)
+            putExtra("oi_show_notify", true)
 
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", pillLeftIcon)
