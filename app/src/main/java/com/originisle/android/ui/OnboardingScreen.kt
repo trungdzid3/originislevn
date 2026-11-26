@@ -15,8 +15,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,11 +68,21 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
         mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false))
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
+    OriginSpaceBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 760.dp),
+                contentPadding = ScreenPadding,
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+            ) {
         item {
             Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -163,6 +176,8 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 container = IsleColors.Accent,
                 content = Color.White,
             )
+        }
+            }
         }
     }
 }

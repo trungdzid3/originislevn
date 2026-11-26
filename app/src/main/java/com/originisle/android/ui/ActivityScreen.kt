@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -102,49 +105,74 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
         }
     }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = ScreenPadding) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                ScreenHeader("Nhật ký hoạt động", onBack) {
-                    CircleIconButton(IsleIcons.Trash, "Xóa nhật ký", onClick = { CastLog.clear(context) }, iconSize = 19.dp)
+    OriginSpaceBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 760.dp),
+                contentPadding = ScreenPadding,
+            ) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                        ScreenHeader("Nhật ký hoạt động", onBack) {
+                            CircleIconButton(IsleIcons.Trash, "Xóa nhật ký", onClick = { CastLog.clear(context) }, iconSize = 19.dp)
+                        }
+
+                        // Cảnh báo nếu dịch vụ bị ngắt hoặc chưa cấp quyền trên Vivo OriginOS
+                        if (!connected) {
+                            VivoDiagnosticAlertCard(
+                                context = context,
+                                hasAccess = hasAccess,
+                                isBound = isBound,
+                                onReconnect = { reconnectListener(context) },
+                            )
+                        }
+
+                        ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
+
+                        SegmentedControl(
+                            listOf("Tất cả", "Đã hiện", "Bỏ qua"), filter, { filter = it },
+                            track = IsleColors.Surface, height = 40.dp,
+                        )
+                    }
                 }
 
-                // Cảnh báo nếu dịch vụ bị ngắt hoặc chưa cấp quyền trên Vivo OriginOS
-                if (!connected) {
-                    VivoDiagnosticAlertCard(
-                        context = context,
-                        hasAccess = hasAccess,
-                        isBound = isBound,
-                        onReconnect = { reconnectListener(context) },
-                    )
+                if (entries.isEmpty()) {
+                    item {
+                        val emptyShape = RoundedCornerShape(26.dp)
+                        Box(
+                            Modifier
+                                .clip(emptyShape)
+                                .background(IsleColors.Surface)
+                                .border(
+                                    width = 0.8.dp,
+                                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                    shape = emptyShape,
+                                ),
+                        ) {
+                            EmptyMessage(
+                                if (CastLog.entries.isEmpty()) {
+                                    "Chưa có hoạt động nào được ghi nhận."
+                                } else {
+                                    "Không có dữ liệu phù hợp với bộ lọc."
+                                },
+                            )
+                        }
+                    }
                 }
-
-                ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
-
-                SegmentedControl(
-                    listOf("Tất cả", "Đã hiện", "Bỏ qua"), filter, { filter = it },
-                    track = IsleColors.Surface, height = 40.dp,
-                )
-            }
-        }
-
-        if (entries.isEmpty()) {
-            item {
-                Box(Modifier.clip(RoundedCornerShape(24.dp)).background(IsleColors.Surface)) {
-                    EmptyMessage(
-                        if (CastLog.entries.isEmpty()) {
-                            "Chưa có hoạt động nào được ghi nhận."
-                        } else {
-                            "Không có dữ liệu phù hợp với bộ lọc."
-                        },
-                    )
+                itemsIndexed(entries) { i, e ->
+                    Column(Modifier.clip(groupItemShape(i, entries.size)).background(IsleColors.Surface)) {
+                        if (i > 0) GroupDivider(inset = 0.dp)
+                        LogRow(e)
+                    }
                 }
-            }
-        }
-        itemsIndexed(entries) { i, e ->
-            Column(Modifier.clip(groupItemShape(i, entries.size)).background(IsleColors.Surface)) {
-                if (i > 0) GroupDivider(inset = 0.dp)
-                LogRow(e)
             }
         }
     }
@@ -158,12 +186,13 @@ private fun VivoDiagnosticAlertCard(
     isBound: Boolean,
     onReconnect: () -> Unit,
 ) {
+    val alertShape = RoundedCornerShape(26.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(alertShape)
             .background(IsleColors.BadBg)
-            .border(1.2.dp, IsleColors.Bad.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+            .border(1.0.dp, IsleColors.Bad.copy(alpha = 0.4f), alertShape)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -264,11 +293,17 @@ private fun VivoDiagnosticAlertCard(
 
 @Composable
 private fun ListenerCard(connected: Boolean, now: Long, onReconnect: () -> Unit) {
+    val cardShape = RoundedCornerShape(26.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(cardShape)
             .background(if (connected) IsleColors.GoodBg else IsleColors.BadBg)
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = cardShape,
+            )
             .padding(start = 18.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),

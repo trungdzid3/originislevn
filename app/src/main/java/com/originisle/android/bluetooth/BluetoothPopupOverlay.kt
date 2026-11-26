@@ -13,9 +13,13 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.ImageDecoder
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
@@ -382,19 +386,16 @@ object BluetoothPopupOverlay {
     ): SwipeDismissSheetLayout {
         val colorScheme = resolveMaterialColorScheme(context, isDark)
         val cornerRadius = dp(context, 32).toFloat()
-        val sheetBg = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadii = floatArrayOf(
-                cornerRadius, cornerRadius,
-                cornerRadius, cornerRadius,
-                0f, 0f,
-                0f, 0f,
-            )
-            setColor(colorScheme.surfaceContainerLow.toArgb())
-            if (isDark) {
-                setStroke(dp(context, 1), colorScheme.outlineVariant.copy(alpha = 0.45f).toArgb())
-            }
-        }
+        val glassBgColor = if (isDark) 0xF2121620.toInt() else 0xF7FFFFFF.toInt()
+        val edgeLightTop = if (isDark) 0x38FFFFFF else 0xD9FFFFFF.toInt()
+        val edgeLightBottom = if (isDark) 0x0AFFFFFF else 0x10000000
+        val sheetBg = LiquidGlassSheetDrawable(
+            cornerRadiusPx = cornerRadius,
+            fillColor = glassBgColor,
+            edgeTopColor = edgeLightTop,
+            edgeBottomColor = edgeLightBottom,
+            strokeWidthPx = dpFloat(context, 1f).coerceAtLeast(1f),
+        )
 
         val sheet = SwipeDismissSheetLayout(context, rootScrim).apply {
             orientation = LinearLayout.VERTICAL
@@ -502,10 +503,12 @@ object BluetoothPopupOverlay {
         }
 
         val infoStrokeColor = colorScheme.onSurfaceVariant.toArgb()
+        val infoGlassFill = if (isDark) 0x18FFFFFF else 0xB8F2F4F8.toInt()
+        val infoEdgeStroke = if (isDark) 0x30FFFFFF else 0x1F000000
         val infoBg = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(colorScheme.surfaceContainerHigh.toArgb())
-            setStroke(dpFloat(context, 1.3f).toInt().coerceAtLeast(1), infoStrokeColor)
+            setColor(infoGlassFill)
+            setStroke(dpFloat(context, 1f).toInt().coerceAtLeast(1), infoEdgeStroke)
         }
         val infoButton = TextView(context).apply {
             text = "i"
@@ -531,15 +534,17 @@ object BluetoothPopupOverlay {
         }
         actionRow.addView(infoButton)
 
+        val doneBgColor = if (isDark) 0xFFFFFFFF.toInt() else colorScheme.primary.toArgb()
+        val doneTextColor = if (isDark) 0xFF121620.toInt() else colorScheme.onPrimary.toArgb()
         val doneBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            this.cornerRadius = dp(context, 23).toFloat()
-            setColor(colorScheme.primaryContainer.toArgb())
+            this.cornerRadius = dp(context, 999).toFloat()
+            setColor(doneBgColor)
         }
         val doneButton = TextView(context).apply {
             text = "Hoàn tất"
             gravity = Gravity.CENTER
-            setTextColor(colorScheme.onPrimaryContainer.toArgb())
+            setTextColor(doneTextColor)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             background = doneBg
@@ -897,8 +902,8 @@ object BluetoothPopupOverlay {
 
         container.visibility = View.VISIBLE
         val colorScheme = resolveMaterialColorScheme(context, isDark)
-        val pillBgColor = colorScheme.surfaceContainerHigh.toArgb()
-        val pillStrokeColor = colorScheme.outlineVariant.copy(alpha = 0.5f).toArgb()
+        val pillBgColor = if (isDark) 0x18FFFFFF else 0xB8F2F4F8.toInt()
+        val pillStrokeColor = if (isDark) 0x2EFFFFFF else 0x1A000000
         val textColor = colorScheme.onSurface.toArgb()
 
         items.forEach { (label, level) ->
@@ -1168,6 +1173,75 @@ object BluetoothPopupOverlay {
         override fun setColorFilter(colorFilter: ColorFilter?) {
             strokePaint.colorFilter = colorFilter
             fillPaint.colorFilter = colorFilter
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+    }
+
+    private class LiquidGlassSheetDrawable(
+        private val cornerRadiusPx: Float,
+        fillColor: Int,
+        private val edgeTopColor: Int,
+        private val edgeBottomColor: Int,
+        private val strokeWidthPx: Float,
+    ) : Drawable() {
+
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = fillColor
+        }
+        private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = strokeWidthPx
+        }
+        private val fillPath = Path()
+        private val strokePath = Path()
+        private val radii = floatArrayOf(
+            cornerRadiusPx, cornerRadiusPx,
+            cornerRadiusPx, cornerRadiusPx,
+            0f, 0f,
+            0f, 0f,
+        )
+
+        override fun onBoundsChange(bounds: Rect) {
+            super.onBoundsChange(bounds)
+            val w = bounds.width().toFloat()
+            val h = bounds.height().toFloat()
+            if (w <= 0f || h <= 0f) return
+
+            fillPath.reset()
+            fillPath.addRoundRect(0f, 0f, w, h, radii, Path.Direction.CW)
+
+            val half = strokeWidthPx / 2f
+            strokePath.reset()
+            strokePath.addRoundRect(half, half, w - half, h + strokeWidthPx, radii, Path.Direction.CW)
+
+            strokePaint.shader = LinearGradient(
+                0f,
+                0f,
+                0f,
+                h,
+                edgeTopColor,
+                edgeBottomColor,
+                Shader.TileMode.CLAMP,
+            )
+        }
+
+        override fun draw(canvas: Canvas) {
+            if (bounds.isEmpty) return
+            canvas.drawPath(fillPath, fillPaint)
+            canvas.drawPath(strokePath, strokePaint)
+        }
+
+        override fun setAlpha(alpha: Int) {
+            fillPaint.alpha = alpha
+            strokePaint.alpha = alpha
+        }
+
+        override fun setColorFilter(colorFilter: ColorFilter?) {
+            fillPaint.colorFilter = colorFilter
+            strokePaint.colorFilter = colorFilter
         }
 
         @Deprecated("Deprecated in Java")

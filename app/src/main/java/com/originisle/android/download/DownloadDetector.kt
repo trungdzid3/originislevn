@@ -68,7 +68,10 @@ object DownloadDetector {
         "com.vivo.music",
         "com.android.bbkmusic",
         "com.vivo.musicwidgetmix",
-        "com.vivo.mediacontrol"
+        "com.vivo.mediacontrol",
+        "com.zing.mp3",
+        "com.vng.zingmp3",
+        "vn.com.vng.zingmp3"
     )
 
     private val NAV_PACKAGES = setOf(

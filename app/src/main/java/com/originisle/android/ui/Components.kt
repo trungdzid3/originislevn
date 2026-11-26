@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -12,12 +13,17 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,9 +31,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,8 +49,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -63,15 +71,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 /** Shared building blocks for OriginOS 6 UI: grouped squircle cards, settings rows, pills, switches. */
 
 /** Page padding shared by every screen. */
 val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 28.dp)
 
-private val GroupRadius = 24.dp
+private val GroupRadius = 26.dp
 
 /** Top-level tab header with large Material 3 title and optional trailing action. */
 @Composable
@@ -93,7 +103,7 @@ fun MainScreenHeader(title: String, trailing: @Composable () -> Unit = {}) {
     }
 }
 
-/** Compact Material 3 tonal shortcut card used in 2-column quick action rows. */
+/** Compact OriginOS 6-7 Atomic Widget shortcut card used in 2-column quick action rows. */
 @Composable
 fun TonalShortcutCard(
     icon: ImageVector,
@@ -103,12 +113,34 @@ fun TonalShortcutCard(
     modifier: Modifier = Modifier,
     tileColor: Color = IsleColors.Accent,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "shortcutTouchScale",
+    )
+    val cardShape = RoundedCornerShape(24.dp)
+
     Column(
         modifier = modifier
-            .clip(MaterialTheme.shapes.large)
+            .scale(scale)
+            .clip(cardShape)
             .background(IsleColors.Surface)
-            .border(0.5.dp, IsleColors.BorderHairline, MaterialTheme.shapes.large)
-            .clickable(role = Role.Button, onClick = onClick)
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = cardShape,
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                role = Role.Button,
+                onClick = onClick,
+            )
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -172,7 +204,7 @@ fun CircleIconButton(
     }
 }
 
-/** A full-width (or weighted) rounded button with an optional leading icon. */
+/** A full-width (or weighted) rounded button with an optional leading icon and Touch Light spring. */
 @Composable
 fun PillButton(
     text: String,
@@ -185,13 +217,37 @@ fun PillButton(
     enabled: Boolean = true,
     height: Dp = 52.dp,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "pillButtonScale",
+    )
+
     Surface(
         onClick = onClick,
         enabled = enabled,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(height / 2),
         color = container,
         contentColor = content,
-        modifier = modifier.heightIn(min = height).alpha(if (enabled) 1f else 0.4f).semantics { role = Role.Button },
+        border = if (enabled) {
+            BorderStroke(
+                width = 0.7.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+            )
+        } else {
+            null
+        },
+        modifier = modifier
+            .scale(scale)
+            .heightIn(min = height)
+            .alpha(if (enabled) 1f else 0.4f)
+            .semantics { role = Role.Button },
     ) {
         Row(
             Modifier.padding(horizontal = 16.dp),
@@ -202,7 +258,14 @@ fun PillButton(
                 Icon(icon, null, Modifier.size(iconSize), tint = content)
                 Spacer(Modifier.width(8.dp))
             }
-            Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = content)
+            Text(
+                text = text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = content,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -218,18 +281,19 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Material 3 card with 24dp rounded corners holding a group of settings rows. */
+/** OriginOS 6-7 Liquid Glass card with 26dp squircle corners and Edge Light border. */
 @Composable
 fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val cardShape = RoundedCornerShape(GroupRadius)
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(GroupRadius))
+            .clip(cardShape)
             .background(IsleColors.Surface)
             .border(
-                width = 0.5.dp,
-                color = IsleColors.BorderHairline,
-                shape = RoundedCornerShape(GroupRadius),
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = cardShape,
             )
             .animateContentSize(
                 animationSpec = spring(
@@ -257,14 +321,22 @@ fun GroupDivider(inset: Dp = 56.dp) {
     Box(Modifier.padding(start = inset).fillMaxWidth().height(0.5.dp).background(IsleColors.Divider))
 }
 
-/** Material 3 tonal container icon badge. */
+/** OriginOS 6-7 squircle icon tile (13dp) with subtle static edge highlight. */
 @Composable
 fun IconTile(icon: ImageVector, color: Color = IsleColors.Accent, size: Dp = 38.dp) {
+    val tileShape = RoundedCornerShape(13.dp)
     Box(
         Modifier
             .size(size)
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.14f)),
+            .clip(tileShape)
+            .background(color.copy(alpha = 0.14f))
+            .border(
+                width = 0.6.dp,
+                brush = Brush.verticalGradient(
+                    listOf(color.copy(alpha = 0.28f), color.copy(alpha = 0.06f)),
+                ),
+                shape = tileShape,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, null, Modifier.size(20.dp), tint = color)
@@ -376,12 +448,12 @@ fun NestedSettingContainer(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 2.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(18.dp))
                 .background(IsleColors.SurfaceHigh)
                 .border(
                     width = 0.8.dp,
-                    color = IsleColors.BorderHairline,
-                    shape = RoundedCornerShape(16.dp),
+                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                    shape = RoundedCornerShape(18.dp),
                 )
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
@@ -416,25 +488,73 @@ fun NestedSettingContainer(
 }
 
 /**
- * Material Design 3 official Switch styled with MaterialTheme.colorScheme tokens.
+ * OriginOS 6-7 Pill Switch (50dp x 28dp) with First-frame Interruptible spring thumb physics.
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
-    Switch(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        modifier = modifier,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-            checkedTrackColor = MaterialTheme.colorScheme.primary,
-            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            uncheckedBorderColor = MaterialTheme.colorScheme.outline,
-        ),
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+
+    val trackColor by animateColorAsState(
+        targetValue = if (checked) MaterialTheme.colorScheme.primary else IsleColors.SwitchOff,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "isleSwitchTrack",
     )
+    val thumbOffset by animateDpAsState(
+        targetValue = if (checked) 25.dp else 3.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "isleSwitchThumbOffset",
+    )
+    val thumbScale by animateFloatAsState(
+        targetValue = if (pressed) 1.08f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "isleSwitchThumbScale",
+    )
+
+    val toggleModifier = if (onCheckedChange != null) {
+        Modifier.toggleable(
+            value = checked,
+            interactionSource = interactionSource,
+            indication = null,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+        )
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = modifier
+            .size(width = 50.dp, height = 28.dp)
+            .clip(CircleShape)
+            .background(trackColor)
+            .border(
+                width = 0.6.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = CircleShape,
+            )
+            .then(toggleModifier),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
+                .size(22.dp)
+                .scale(thumbScale)
+                .shadow(elevation = 2.dp, shape = CircleShape, clip = false)
+                .clip(CircleShape)
+                .background(Color.White),
+        )
+    }
 }
 
-/** Material 3 Segmented Pill control. */
+/** OriginOS 6-7 Segmented Pill control with Liquid Motion sliding indicator. */
 @Composable
 fun SegmentedControl(
     options: List<String>,
@@ -444,39 +564,90 @@ fun SegmentedControl(
     track: Color = IsleColors.SurfaceHigh,
     height: Dp = 46.dp,
 ) {
-    Row(
-        modifier
+    if (options.isEmpty()) return
+    val safeSelected = selected.coerceIn(0, options.lastIndex)
+
+    BoxWithConstraints(
+        modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .clip(RoundedCornerShape(50))
+            .clip(CircleShape)
             .background(track)
+            .border(
+                width = 0.6.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = CircleShape,
+            )
             .padding(3.dp)
             .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        options.forEachIndexed { i, label ->
-            val on = i == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(50))
-                    .background(if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                    .selectable(selected = on, role = Role.Tab, onClick = { onSelect(i) }),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    fontSize = 14.sp,
-                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                    color = if (on) MaterialTheme.colorScheme.onSecondaryContainer else IsleColors.TextSecondary,
+        val segmentWidth = maxWidth / options.size
+        val indicatorOffset by animateDpAsState(
+            targetValue = segmentWidth * safeSelected,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+            label = "segmentedIndicator",
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
+                .width(segmentWidth)
+                .fillMaxHeight()
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                .border(
+                    width = 0.6.dp,
+                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                    shape = CircleShape,
+                ),
+        )
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            options.forEachIndexed { i, label ->
+                val on = i == safeSelected
+                val interactionSource = remember { MutableInteractionSource() }
+                val pressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (pressed) 0.97f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                    label = "segmentScale_$i",
                 )
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .scale(scale)
+                        .clip(CircleShape)
+                        .selectable(
+                            selected = on,
+                            interactionSource = interactionSource,
+                            indication = null,
+                            role = Role.Tab,
+                            onClick = { onSelect(i) },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 14.sp,
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                        color = if (on) MaterialTheme.colorScheme.onSecondaryContainer else IsleColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
 }
 
-/** Material 3 FilterChip / Tonal Chip button (delay picker, sample picker). */
+/** OriginOS 6-7 Squircle ChoiceChip with Touch Light spring feedback. */
 @Composable
 fun ChoiceChip(
     label: String,
@@ -485,16 +656,48 @@ fun ChoiceChip(
     modifier: Modifier = Modifier,
     selectedContainer: Color = MaterialTheme.colorScheme.primaryContainer,
     selectedContent: Color = MaterialTheme.colorScheme.onPrimaryContainer,
-    shape: Shape = RoundedCornerShape(12.dp),
+    shape: Shape = RoundedCornerShape(14.dp),
     height: Dp = 44.dp,
     horizontalPadding: Dp = 8.dp,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "choiceChipScale",
+    )
+    val bgColor by animateColorAsState(
+        targetValue = if (selected) selectedContainer else IsleColors.SurfaceHigher,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "choiceChipBg",
+    )
+
     Box(
         modifier
+            .scale(scale)
             .heightIn(min = height)
             .clip(shape)
-            .background(if (selected) selectedContainer else IsleColors.SurfaceHigher)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .background(bgColor)
+            .border(
+                width = if (selected) 0.9.dp else 0.6.dp,
+                brush = if (selected) {
+                    Brush.verticalGradient(listOf(selectedContent.copy(alpha = 0.28f), selectedContent.copy(alpha = 0.08f)))
+                } else {
+                    Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom))
+                },
+                shape = shape,
+            )
+            .selectable(
+                selected = selected,
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
             .padding(horizontal = horizontalPadding, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -645,4 +848,171 @@ fun EmptyMessage(text: String) {
         color = IsleColors.TextSecondary,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
     )
+}
+
+/**
+ * Nền Space System 2.0 với quầng sáng Ambient Glow dịu ở đỉnh màn hình,
+ * hòa sắc liền mạch lên Status Bar (超无界状态栏).
+ */
+@Composable
+fun OriginSpaceBackground(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val bgColor = IsleColors.Background
+    val glowColor = IsleColors.AmbientGlow
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(bgColor),
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(glowColor, Color.Transparent),
+                    center = Offset(size.width * 0.5f, 0f),
+                    radius = (size.width * 0.95f).coerceAtLeast(1f),
+                ),
+            )
+        }
+        content()
+    }
+}
+
+/** Tab item cho thanh điều hướng nổi OriginOS 6-7. */
+data class OriginNavTab(
+    val label: String,
+    val icon: ImageVector,
+)
+
+/**
+ * Thanh điều hướng kính lỏng nổi (Liquid Glass Floating Capsule Navigation Bar)
+ * với chỉ báo trượt spring (Liquid Motion) và viền sáng Edge Light.
+ */
+@Composable
+fun OriginFloatingNavBar(
+    tabs: List<OriginNavTab>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (tabs.isEmpty()) return
+    val safeSelected = selectedIndex.coerceIn(0, tabs.lastIndex)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 460.dp)
+                .height(64.dp)
+                .shadow(
+                    elevation = 16.dp,
+                    shape = CircleShape,
+                    ambientColor = Color.Black.copy(alpha = 0.16f),
+                    spotColor = Color.Black.copy(alpha = 0.22f),
+                )
+                .clip(CircleShape)
+                .background(IsleColors.FloatingGlassBg)
+                .border(
+                    width = 0.9.dp,
+                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                    shape = CircleShape,
+                )
+                .padding(5.dp)
+                .selectableGroup(),
+        ) {
+            val tabWidth = maxWidth / tabs.size
+            val indicatorOffset by animateDpAsState(
+                targetValue = tabWidth * safeSelected,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                ),
+                label = "originNavIndicator",
+            )
+
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
+                    .width(tabWidth)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+                    .background(IsleColors.Accent.copy(alpha = 0.16f))
+                    .border(
+                        width = 0.7.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                IsleColors.Accent.copy(alpha = 0.34f),
+                                IsleColors.Accent.copy(alpha = 0.08f),
+                            ),
+                        ),
+                        shape = CircleShape,
+                    ),
+            )
+
+            Row(modifier = Modifier.fillMaxSize()) {
+                tabs.forEachIndexed { index, tab ->
+                    val selected = index == safeSelected
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val pressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (pressed) 0.96f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium,
+                        ),
+                        label = "navTabScale_$index",
+                    )
+                    val contentColor by animateColorAsState(
+                        targetValue = if (selected) IsleColors.Accent else IsleColors.TextSecondary,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        label = "navTabColor_$index",
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .scale(scale)
+                            .clip(CircleShape)
+                            .selectable(
+                                selected = selected,
+                                interactionSource = interactionSource,
+                                indication = null,
+                                role = Role.Tab,
+                                onClick = { onSelect(index) },
+                            )
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = tab.label,
+                            tint = contentColor,
+                            modifier = Modifier.size(21.dp),
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = tab.label,
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = contentColor,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

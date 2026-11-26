@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,14 +84,22 @@ fun UpdateDialog(
             usePlatformDefaultWidth = false,
         ),
     ) {
+        val dialogShape = RoundedCornerShape(30.dp)
+        val badgeShape = RoundedCornerShape(10.dp)
+        val changelogShape = RoundedCornerShape(18.dp)
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .clip(RoundedCornerShape(28.dp))
-                .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(28.dp)),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 6.dp,
+                .widthIn(max = 460.dp)
+                .clip(dialogShape)
+                .border(
+                    width = 0.9.dp,
+                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                    shape = dialogShape,
+                ),
+            shape = dialogShape,
+            color = IsleColors.FloatingGlassBg,
+            tonalElevation = 0.dp,
         ) {
             Column(
                 modifier = Modifier.padding(22.dp),
@@ -109,9 +119,13 @@ fun UpdateDialog(
                     ) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(badgeShape)
                                 .background(IsleColors.SurfaceHigh)
-                                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(8.dp))
+                                .border(
+                                    width = 0.7.dp,
+                                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                    shape = badgeShape,
+                                )
                                 .padding(horizontal = 8.dp, vertical = 3.dp),
                         ) {
                             Text(
@@ -144,9 +158,13 @@ fun UpdateDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 90.dp, max = 220.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                            .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
+                            .clip(changelogShape)
+                            .background(IsleColors.SurfaceHigh)
+                            .border(
+                                width = 0.8.dp,
+                                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                shape = changelogShape,
+                            )
                             .padding(14.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
@@ -234,32 +252,15 @@ fun UpdateDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Nút phụ: "Để sau"
-                    Surface(
+                    PillButton(
+                        text = "Để sau",
                         onClick = onDismiss,
                         enabled = !isDownloading,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp),
-                        shape = RoundedCornerShape(23.dp),
-                        color = if (isDownloading) {
-                            MaterialTheme.colorScheme.surfaceContainerHighest
-                        } else {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        },
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Để sau",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (isDownloading) {
-                                    IsleColors.TextTertiary
-                                } else {
-                                    MaterialTheme.colorScheme.onSecondaryContainer
-                                },
-                            )
-                        }
-                    }
+                        modifier = Modifier.weight(1f),
+                        container = IsleColors.SurfaceHigh,
+                        content = if (isDownloading) IsleColors.TextTertiary else IsleColors.Text,
+                        height = 46.dp,
+                    )
 
                     // Nút chính: "Cập nhật ngay" / "Đang tải..." / "Cài đặt lại"
                     val primaryButtonText = when (downloadState) {
@@ -269,9 +270,10 @@ fun UpdateDialog(
                         is DownloadState.Failed -> "Thử lại"
                     }
 
-                    Surface(
+                    PillButton(
+                        text = primaryButtonText,
                         onClick = {
-                            if (isDownloading) return@Surface
+                            if (isDownloading) return@PillButton
                             when (val state = downloadState) {
                                 is DownloadState.Downloaded -> {
                                     UpdateChecker.installApk(context, state.file)
@@ -293,29 +295,11 @@ fun UpdateDialog(
                             }
                         },
                         enabled = !isDownloading,
-                        modifier = Modifier
-                            .weight(1.3f)
-                            .height(46.dp),
-                        shape = RoundedCornerShape(23.dp),
-                        color = if (isDownloading) {
-                            MaterialTheme.colorScheme.surfaceContainerHighest
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = primaryButtonText,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isDownloading) {
-                                    IsleColors.TextTertiary
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimary
-                                },
-                            )
-                        }
-                    }
+                        modifier = Modifier.weight(1.3f),
+                        container = if (isDownloading) IsleColors.SurfaceHigher else IsleColors.Accent,
+                        content = if (isDownloading) IsleColors.TextTertiary else MaterialTheme.colorScheme.onPrimary,
+                        height = 46.dp,
+                    )
                 }
             }
         }

@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -145,20 +146,33 @@ fun BluetoothPopupSheet(
         }
     }
 
+    val sheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.statusBarsPadding(),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = sheetShape,
         containerColor = IsleColors.Background,
         contentColor = IsleColors.Text,
         dragHandle = {
             Box(
                 Modifier
-                    .padding(top = 10.dp, bottom = 6.dp)
-                    .size(width = 36.dp, height = 5.dp)
-                    .clip(CircleShape)
-                    .background(IsleColors.SurfaceHigher),
-            )
+                    .fillMaxWidth()
+                    .border(
+                        width = 0.8.dp,
+                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
+                        shape = sheetShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .padding(top = 10.dp, bottom = 6.dp)
+                        .size(width = 38.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(IsleColors.SurfaceHigher),
+                )
+            }
         },
     ) {
         Column(
@@ -295,12 +309,17 @@ fun BluetoothPopupSheet(
                                         runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
                                     }
                                 }
+                                val previewShape = RoundedCornerShape(14.dp)
                                 Box(
                                     modifier = Modifier
                                         .size(52.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                        .border(0.5.dp, IsleColors.BorderHairline, RoundedCornerShape(14.dp)),
+                                        .clip(previewShape)
+                                        .background(IsleColors.SurfaceHigh)
+                                        .border(
+                                            width = 0.8.dp,
+                                            brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                            shape = previewShape,
+                                        ),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     if (customBitmap != null) {
@@ -428,15 +447,22 @@ fun BluetoothPopupSheet(
                                                         if (selected) {
                                                             MaterialTheme.colorScheme.secondaryContainer
                                                         } else {
-                                                            MaterialTheme.colorScheme.surfaceContainerHigh
+                                                            IsleColors.SurfaceHigh
                                                         },
                                                     )
                                                     .border(
-                                                        width = if (selected) 1.5.dp else 0.5.dp,
-                                                        color = if (selected) {
-                                                            MaterialTheme.colorScheme.primary
+                                                        width = if (selected) 1.5.dp else 0.7.dp,
+                                                        brush = if (selected) {
+                                                            Brush.verticalGradient(
+                                                                listOf(
+                                                                    MaterialTheme.colorScheme.primary,
+                                                                    MaterialTheme.colorScheme.primary,
+                                                                ),
+                                                            )
                                                         } else {
-                                                            IsleColors.BorderHairline
+                                                            Brush.verticalGradient(
+                                                                listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom),
+                                                            )
                                                         },
                                                         shape = CircleShape,
                                                     )
@@ -483,8 +509,8 @@ fun BluetoothPopupSheet(
                                         imagePicker.launch("image/*")
                                     },
                                     modifier = Modifier.weight(1f),
-                                    container = MaterialTheme.colorScheme.secondaryContainer,
-                                    content = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    container = IsleColors.SurfaceHigh,
+                                    content = IsleColors.Text,
                                     height = 42.dp,
                                 )
                                 PillButton(

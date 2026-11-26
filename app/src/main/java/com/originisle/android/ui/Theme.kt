@@ -86,6 +86,10 @@ data class IsleColorPalette(
     val tileGreen: Color,
     val tileAmber: Color,
     val tileGray: Color,
+    val edgeLightTop: Color,
+    val edgeLightBottom: Color,
+    val floatingGlassBg: Color,
+    val ambientGlow: Color,
 )
 
 val LocalIsleColors = staticCompositionLocalOf { FallbackDarkColorScheme.toIsleColorPalette(true) }
@@ -147,6 +151,12 @@ object IsleColors {
     val TileGreen: Color @Composable get() = LocalIsleColors.current.tileGreen
     val TileAmber: Color @Composable get() = LocalIsleColors.current.tileAmber
     val TileGray: Color @Composable get() = LocalIsleColors.current.tileGray
+
+    // OriginOS 6-7 Space System 2.0 & Liquid Glass tokens
+    val EdgeLightTop: Color @Composable get() = LocalIsleColors.current.edgeLightTop
+    val EdgeLightBottom: Color @Composable get() = LocalIsleColors.current.edgeLightBottom
+    val FloatingGlassBg: Color @Composable get() = LocalIsleColors.current.floatingGlassBg
+    val AmbientGlow: Color @Composable get() = LocalIsleColors.current.ambientGlow
 }
 
 @OptIn(ExperimentalTextApi::class)
@@ -608,11 +618,11 @@ fun resolveMaterialColorScheme(context: Context, isDark: Boolean): ColorScheme {
 
 private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = IsleColorPalette(
     isDark = isDark,
-    background = surface,
-    surface = surfaceContainerLow,
-    surfaceHigh = surfaceContainer,
-    surfaceHigher = surfaceContainerHigh,
-    menu = surfaceContainerHigh,
+    background = if (isDark) Color(0xFF090B10) else Color(0xFFF3F5FA),
+    surface = if (isDark) Color(0xFF141822) else Color(0xFFFFFFFF),
+    surfaceHigh = if (isDark) Color(0xFF1B202D) else Color(0xFFEEF2F8),
+    surfaceHigher = if (isDark) Color(0xFF232A3A) else Color(0xFFE5EAF3),
+    menu = if (isDark) Color(0xFF1B202D) else Color(0xFFFFFFFF),
     borderHairline = outlineVariant.copy(alpha = 0.45f),
     borderActive = primary.copy(alpha = 0.35f),
     text = onSurface,
@@ -623,7 +633,7 @@ private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = 
     accent = primary,
     glowAccent = primaryContainer,
     accentText = primary,
-    switchOff = surfaceContainerHighest,
+    switchOff = if (isDark) Color(0xFF2A3142) else Color(0xFFD5DCE8),
     divider = outlineVariant.copy(alpha = 0.4f),
     danger = error,
     good = if (isDark) Color(0xFF00D084) else Color(0xFF00A86B),
@@ -650,14 +660,18 @@ private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = 
     tileGreen = if (isDark) Color(0xFF00D084) else Color(0xFF00A86B),
     tileAmber = if (isDark) Color(0xFFFF9F2E) else Color(0xFFF57C00),
     tileGray = onSurfaceVariant,
+    edgeLightTop = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.85f),
+    edgeLightBottom = if (isDark) Color.White.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.06f),
+    floatingGlassBg = if (isDark) Color(0xE6141822) else Color(0xEBFFFFFF),
+    ambientGlow = if (isDark) primary.copy(alpha = 0.14f) else primary.copy(alpha = 0.10f),
 )
 
 val IsleShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(26.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable
@@ -698,7 +712,10 @@ fun OriginIsleTheme(content: @Composable () -> Unit) {
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            @Suppress("DEPRECATION")
             window.statusBarColor = android.graphics.Color.TRANSPARENT
+            @Suppress("DEPRECATION")
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !isDark

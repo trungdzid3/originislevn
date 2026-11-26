@@ -75,6 +75,9 @@ object MediaCard {
         "tunein.player",
         "fm.player",
         "vstudio.android.musicplayer",
+        "com.zing.mp3",
+        "com.vng.zingmp3",
+        "vn.com.vng.zingmp3",
     )
 
     private val handler = Handler(Looper.getMainLooper())

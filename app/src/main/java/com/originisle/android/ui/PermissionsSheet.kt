@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -75,17 +77,33 @@ fun PermissionsSheet(
     // screen — the same ack flag the onboarding row writes.
     var autoStartAck by remember { mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false)) }
 
+    val sheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.statusBarsPadding(),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = sheetShape,
         containerColor = IsleColors.Background,
         contentColor = IsleColors.Text,
         dragHandle = {
             Box(
-                Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 5.dp)
-                    .clip(CircleShape).background(IsleColors.SurfaceHigher),
-            )
+                Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 0.8.dp,
+                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
+                        shape = sheetShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .padding(top = 10.dp, bottom = 6.dp)
+                        .size(width = 38.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(IsleColors.SurfaceHigher),
+                )
+            }
         },
     ) {
         Column(
@@ -216,11 +234,17 @@ private fun PermissionRow(
 /** The one-line banner Home shows while notification access or battery is broken. */
 @Composable
 fun SetupAttentionBanner(onClick: () -> Unit) {
+    val bannerShape = RoundedCornerShape(26.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(bannerShape)
             .background(IsleColors.WarnBg)
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = bannerShape,
+            )
             .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 60.dp)
             .padding(horizontal = 16.dp),

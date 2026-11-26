@@ -1,77 +1,103 @@
-# HỢP ĐỒNG THIẾT KẾ MATERIAL DESIGN 3 (SSOT) - ORIGIN ISLE VIỆT NAM
-Chuẩn thiết kế: Google Material Design 3 (Material You Dynamic Color + Tonal Surface Containers)
+# HỢP ĐỒNG THIẾT KẾ ORIGINOS 6–7 (SSOT) — ORIGIN ISLE VIỆT NAM
+Chuẩn thiết kế: **vivo OriginOS 6 (Space System 2.0)** & **OriginOS 7 (Liquid Glass / Atomic Motion 7.0)**
 
 ---
 
-## 1. TRIẾT LÝ THẨM MỸ & KHÔNG GIAN (MATERIAL YOU TONAL SYSTEM)
-- **Tư tưởng cốt lõi**: Giao diện thuần Material Design 3 (M3), phân tầng chiều sâu bằng Tonal Surface Containers thay cho bóng đổ nặng nề, kết hợp Dynamic Color (Android 12+ / `Build.VERSION_CODES.S`) để đồng bộ hài hòa với hình nền hệ thống.
-- **Bề mặt & Chiều sâu (Surface Roles)**:
-  - **Background (`surface`)**: Nền tổng thể của màn hình (`colorScheme.surface`).
-  - **Surface (`surfaceContainerLow`)**: Bề mặt thẻ nhóm `GroupCard`.
-  - **SurfaceHigh (`surfaceContainer`)**: Bề mặt thẻ lồng nhau `NestedSettingContainer` và thanh công cụ phụ.
-  - **SurfaceHigher (`surfaceContainerHigh`)**: Bề mặt chip chưa chọn, menu thả xuống và hộp thoại `UpdateDialog`.
-  - **SwitchOff (`surfaceContainerHighest`)**: Rãnh công tắc khi tắt, nền preview.
-  - **Viền Hairline (`0.5dp`)**: `outlineVariant.copy(alpha = 0.45f)` giúp tách bạch nhẹ nhàng các khối thẻ trên cả Dark Mode và Light Mode.
+## 1. TRIẾT LÝ KHÔNG GIAN & THẨM MỸ (SPACE SYSTEM 2.0)
+
+- **Tư tưởng cốt lõi**: Chuyển dịch từ giao diện phẳng phân tầng bằng màu sắc sang **giao diện mô phỏng vật lý thực**, lấy **ánh sáng, chiều sâu không gian (Z-axis) và động lực học chất lỏng** làm trục dẫn dắt.
+- **Thanh trạng thái siêu không ranh giới**: Kích hoạt `WindowCompat.setDecorFitsSystemWindows(window, false)` với `statusBarColor = Color.Transparent` và `navigationBarColor = Color.Transparent`. Nền `OriginSpaceBackground` kéo dài quầng sáng đỉnh màn hình hòa liền mạch vào thanh trạng thái, loại bỏ hoàn toàn vạch chia thô.
+- **Phân tầng Bề mặt 3 lớp (`--os-surface-tier`)**:
+  1. **Tầng Nền (Base Space)**: `surface` kết hợp quầng `AmbientGlow` dịu ở đỉnh màn hình.
+  2. **Tầng Thẻ Giữa (Mid-tier Liquid Glass Cards)**: `surfaceContainerLow` cho `GroupCard` và `surfaceContainer` cho `NestedSettingContainer`.
+  3. **Tầng Nổi Đỉnh (Floating Overlay / Bar)**: `FloatingGlassBg` (`#E6141822` ở Dark / `#EBFFFFFF` ở Light) cho `OriginFloatingNavBar`, và `#F2121620` (Dark) / `#F7FFFFFF` (Light) cho `BluetoothPopupOverlay`.
 
 ---
 
-## 2. BẢNG MÀU DỰ ÁN (PROJECT PALETTE & SEMANTIC TOKENS)
+## 2. HỆ THỐNG VẬT LIỆU & ÁNH SÁNG (LIQUID GLASS & 4 LOẠI ÁNH SÁNG)
 
-### A. Dynamic Color, Preset `AppThemeColor` & Tonal Fallback
-- **Android 12+ (`SDK_INT >= S`)**: Mặc định `AppThemeColor.DYNAMIC` (`Tự động`, `#00BFA5`) tự động nạp `dynamicDarkColorScheme(context)` và `dynamicLightColorScheme(context)`.
-- **Bộ màu chủ đề Preset (`AppThemeColor`, `PREF_APP_THEME_COLOR`)**:
-  - `DYNAMIC` (`Tự động`, `#00BFA5`): Theo màu động Material You của máy (fallback sang bộ Teal chuẩn nếu Android < 12).
-  - `BLUE` (`Xanh dương`, `#2563EB`), `TEAL` (`Xanh ngọc`, `#00897B`), `VIOLET` (`Tím`, `#7C4DFF`), `ROSE` (`Hồng`, `#D84374`), `AMBER` (`Hổ phách`, `#D97706`) — mỗi màu có đủ bộ `darkColorScheme` và `lightColorScheme` chuẩn M3.
-- **Đồng bộ Popup kết nối Bluetooth (`BluetoothPopupOverlay.kt`)**:
-  - Mặc định `BluetoothPopupTheme.SYSTEM` đọc `resolveAppIsDarkTheme(context)` và `resolveMaterialColorScheme(context, isDark)` làm nguồn chân lý màu duy nhất.
-  - Ánh xạ trực tiếp `surfaceContainerLow` (nền sheet), `onSurface` (tiêu đề & mức pin), `onSurfaceVariant` (phụ đề, thanh nắm & nút `(i)`), `surfaceContainerHigh` (viên pin & nền nút `(i)`), `outlineVariant` (viền hairline viên pin & sheet tối), `primaryContainer` / `onPrimaryContainer` (nút `"Hoàn tất"`).
-- **Fallback Tonal Palette**: Cung cấp bộ `FallbackDarkColorScheme` và `FallbackLightColorScheme` sắc nét đầy đủ các vai trò `surface`, `surfaceContainerLowest` -> `surfaceContainerHighest`, `primary`, `onPrimary`, `primaryContainer`, `onPrimaryContainer`, `secondaryContainer`, `onSecondaryContainer`, `tertiaryContainer`, `error`, `errorContainer`, `onErrorContainer`, `outline`, `outlineVariant`.
+### A. Vật liệu Kính Lỏng (Liquid Glass) & Hạ cấp Phần cứng (Hardware Fallback)
+- Hỗ trợ 3 mức sắc thái bề mặt (*Realistic / Natural / Soft*) dựa trên độ trong suốt và độ tương phản nền.
+- **Hardware Fallback (Phân mảnh phần cứng)**: Giao diện không phụ thuộc sống còn vào hiệu ứng blur GPU nặng. Trên thiết bị tầm trung hoặc khi hệ thống giảm hiệu ứng mờ, các bề mặt kính tự động hạ cấp mạch lạc sang nền mờ đục / nền đặc (`FallbackDarkColorScheme`, `FallbackLightColorScheme`) mà vẫn giữ nguyên cấu trúc phân cấp bằng khoảng trắng, viền Edge Light và độ tương phản chữ.
 
-### B. Ánh Xạ `IsleColorPalette` từ M3 `ColorScheme`
-- **Accent & Interactive**: `accent = primary`, `glowAccent = primaryContainer`, `accentText = primary`, `borderActive = primary.copy(alpha = 0.35f)`.
-- **Typography & Icons**: `text = onSurface`, `textSecondary = onSurfaceVariant`, `textTertiary = onSurfaceVariant.copy(alpha = 0.75f)`, `textChip = onSecondaryContainer`, `chevron = onSurfaceVariant`.
-- **Dividers & Hairlines**: `borderHairline = outlineVariant.copy(alpha = 0.45f)`, `divider = outlineVariant.copy(alpha = 0.4f)`.
-- **Trạng thái (Semantic Status)**:
-  - **Thành công (`good*`)**: `#00D084` (Dark) / `#00A86B` (Light) cùng các tonal container tương phản rõ ràng.
-  - **Cảnh báo (`warn*`)**: `#FF9F2E` (Dark) / `#F57C00` (Light).
-  - **Lỗi / Nguy hiểm (`bad*` / `danger`)**: Ánh xạ trực tiếp `error`, `errorContainer`, `onErrorContainer`.
+### B. Hệ thống 4 Ánh sáng Vật lý
+1. **Edge Light (`--os-light-edge`)**: Thay thế bóng đổ đen đặc bằng viền sáng mảnh theo hướng ánh sáng trên-xuống (`Brush.verticalGradient` từ `EdgeLightTop` -> `EdgeLightBottom`):
+   - `EdgeLightTop`: `Color.White.copy(alpha = 0.22f)` (Dark) / `Color.White.copy(alpha = 0.85f)` (Light).
+   - `EdgeLightBottom`: `Color.White.copy(alpha = 0.04f)` (Dark) / `Color.Black.copy(alpha = 0.06f)` (Light).
+2. **Ambient Light (`AmbientGlow`)**: Quầng sáng môi trường tỏa dịu từ đỉnh `OriginSpaceBackground` (`accent.copy(alpha = 0.14f)` ở Dark / `accent.copy(alpha = 0.10f)` ở Light), đồng bộ với màu nhấn động (`AppThemeColor` / Monet).
+3. **Touch Light & Đàn hồi Vật lý**: Mọi thành phần tương tác (`PillButton`, `SegmentedControl`, `ChoiceChip`, `TonalShortcutCard`) phản hồi chạm ngay ở khung hình đầu tiên (*First-frame Interruptible*) với độ co đàn hồi `0.97f` theo `spring`.
+4. **Local Lift Under Text**: Chữ và icon đặt trên bề mặt kính lỏng luôn đảm bảo tương phản cao (`onSurface`, `onSurfaceVariant`) trên cả Dark Mode và Light Mode.
 
 ---
 
-## 3. HỆ THỐNG KIỂU CHỮ (TYPOGRAPHY)
-- **Họ phông chữ**: Tôn trọng `VivoSans` / `FontFamily.SansSerif` và `fontScale` hệ thống.
-- **Phân cấp**:
+## 3. HỌ ĐƯỜNG CONG SQUIRCLE ĐỒNG TÂM (`IsleShapes`)
+
+- Toàn bộ bo góc tuân thủ nguyên tắc **Squircle đồng tâm** (bo góc ngoài lớn hơn bo góc thành phần lồng bên trong):
+  - `extraLarge`: `30.dp` (khung lớn, `OriginFloatingNavBar`, Bottom Sheet `32.dp`).
+  - `large`: `26.dp` (`GroupCard`).
+  - `medium`: `18.dp` (`NestedSettingContainer`, `TonalShortcutCard`).
+  - `small`: `14.dp` (`IconTile`, `ChoiceChip`, thành phần lồng trong).
+  - `pill`: `999.dp` / `50%` (`IsleSwitch`, `PillButton`, `SegmentedControl`, viên pin Bluetooth).
+
+---
+
+## 4. BẢNG MÀU DỰ ÁN & ĐỒNG BỘ POPUP (`Theme.kt` & `BluetoothPopupOverlay.kt`)
+
+- **Dynamic Color & Preset `AppThemeColor`**:
+  - Mặc định `AppThemeColor.DYNAMIC` (`#00BFA5`) trích xuất màu Monet trên Android 12+ (`SDK_INT >= S`).
+  - Các preset chuẩn: `BLUE` (`#2563EB`), `TEAL` (`#00897B`), `VIOLET` (`#7C4DFF`), `ROSE` (`#D84374`), `AMBER` (`#D97706`).
+- **Semantic Status**:
+  - Thành công (`good*`): `#00D084` (Dark) / `#00A86B` (Light).
+  - Cảnh báo (`warn*`): `#FF9F2E` (Dark) / `#F57C00` (Light).
+  - Lỗi (`bad*` / `danger`): Ánh xạ trực tiếp `error`, `errorContainer`, `onErrorContainer`.
+- **Popup Bluetooth (`BluetoothPopupOverlay.kt`)**:
+  - Đọc `resolveAppIsDarkTheme(context)` và `resolveMaterialColorScheme(context, isDark)`.
+  - Nền kính `#F2121620` (Dark) / `#F7FFFFFF` (Light), viền `Edge Light` mảnh bao quanh sheet bo góc `32.dp`, giữ nguyên 3D `WebView`, animation kéo đóng và pin TWS.
+  - Nút `"Hoàn tất"` dạng viên thuốc OriginOS tương phản cao (`#FFFFFF` chữ `#121620` trên Dark; `primary` / `onPrimary` trên Light).
+
+---
+
+## 5. HỆ THỐNG KIỂU CHỮ (`vivo Sans`)
+
+- **Họ phông chữ**: Ưu tiên `vivo Sans` / `FontFamily.SansSerif`, tôn trọng `fontScale` hệ thống. Kiểm thử kỹ dấu thanh kép tiếng Việt (`ệ`, `ổ`, `ữ`) ở cỡ chữ nhỏ và weight đậm để tránh chạm dấu hoặc cắt ngọn.
+- **Phân cấp hiển thị**:
   - **Screen Title (`headlineLarge`)**: `28sp`, `FontWeight.Bold`, letter spacing `-0.5sp`.
   - **SectionLabel**: `13sp`, `FontWeight.SemiBold`, màu `TextSecondary`.
   - **SettingRow Title**: `16sp`, `FontWeight.SemiBold`, `Modifier.weight(1f)`.
-  - **NavRow Value**: Giới hạn `maxLines = 1`, `TextOverflow.Ellipsis`, `widthIn(max = 136.dp)` tránh kéo giãn bố cục khi kiểm tra cập nhật.
+  - **NavRow Value**: `maxLines = 1`, `TextOverflow.Ellipsis`, `widthIn(max = 136.dp)`.
   - **Subtitle**: `13sp`, `lineHeight = 18sp`, màu `TextSecondary`.
 
 ---
 
-## 4. LINH KIỆN CHUẨN MATERIAL DESIGN 3 (COMPONENTS)
-- **GroupCard**: Container `RoundedCornerShape(24.dp)`, nền `IsleColors.Surface` (`surfaceContainerLow`), viền `0.5.dp` `IsleColors.BorderHairline`.
-- **IconTile**: Huy hiệu tonal container `38.dp`, bo góc `12.dp`, nền `color.copy(alpha = 0.14f)`, chứa `Icon` kích thước `20.dp` màu `color`.
-- **IsleSwitch**: Sử dụng `androidx.compose.material3.Switch` chính thức với `SwitchDefaults.colors(...)` ánh xạ `primary`, `onPrimary`, `surfaceContainerHighest`, `outline`.
-- **SegmentedControl**: Dạng M3 Segmented Pill (`RoundedCornerShape(50)` cho track `SurfaceHigh` và mục đang chọn nền `secondaryContainer`, chữ `onSecondaryContainer`).
-- **ChoiceChip**: Phong cách M3 FilterChip / Tonal Chip (`primaryContainer` / `onPrimaryContainer` khi chọn; `SurfaceHigher` / `TextSecondary` khi chưa chọn).
-- **PillButton**: Mặc định dùng `primary` / `onPrimary` chuẩn M3 (vẫn hỗ trợ truyền `container`, `content` tùy biến).
-- **UpdateDialog**: Hộp thoại M3 `RoundedCornerShape(28.dp)`, nền `surfaceContainerHigh`, thẻ changelog `surfaceContainer`, nút chính `primary` / `onPrimary`, nút phụ `secondaryContainer` / `onSecondaryContainer`.
-- **NestedSettingContainer**: Card con `SurfaceHigh` bo góc `16.dp` kèm `AnimatedVisibility` mượt mà.
+## 6. LINH KIỆN CHUẨN ORIGINOS (`Components.kt`)
+
+- **`OriginSpaceBackground`**: Khung nền Space System 2.0 với quầng `AmbientGlow` ở đỉnh màn hình tràn liền mạch lên Status Bar.
+- **`OriginFloatingNavBar`**: Thanh điều hướng kính lỏng nổi lơ lửng ở đáy màn hình (`FloatingGlassBg` + viền `Edge Light` + chừa `navigationBarsPadding()`), viên thuốc chỉ báo trượt mượt theo `spring` (*Liquid Motion*).
+- **`GroupCard`**: Thẻ nhóm bo góc squircle `26.dp`, nền kính phân tầng kèm viền sáng `Edge Light` (`EdgeLightTop` -> `EdgeLightBottom`).
+- **`IsleSwitch`**: Pill Switch đặc trưng OriginOS (`50.dp x 28.dp`), núm tròn trắng chuyển động `spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)`, *First-frame Interruptible*.
+- **`IconTile`**: Huy hiệu squircle `38.dp`, bo góc `12.dp`–`14.dp`, nền `color.copy(alpha = 0.14f)`, icon `20.dp` đồng bộ nét.
+- **`PillButton`**: Nút viên thuốc bo tròn hoàn toàn, hiệu ứng nhấn đàn hồi *Touch Light* (`0.97f`), hỗ trợ `container` / `content` tùy biến.
+- **`SegmentedControl` & `ChoiceChip`**: Bo góc viên thuốc / squircle, viền `Edge Light`, phản hồi chạm đàn hồi.
+- **`NestedSettingContainer`**: Thẻ lồng nhau `18.dp` kèm `AnimatedVisibility`.
 
 ---
 
-## 5. KIẾN TRÚC 3 TAB CHUẨN MATERIAL DESIGN 3 (`NavigationBar`)
-- **Điều hướng chính**: `NavigationBar` cố định ở đáy `Scaffold` (`containerColor = IsleColors.Surface`, indicator `secondaryContainer` / `onSecondaryContainer`, hairline trên `0.5dp`) cho 3 đích cấp cao nhất; tự động ẩn khi mở màn hình con `AppsScreen` hoặc `ActivityScreen`.
-1. **Tab 1 — Trang chủ (`HomeScreen.kt`)**:
-   - Thiết kế tối giản vừa gọn ~1.5 màn hình: `MainScreenHeader` (kèm menu 3 chấm mở `ModalBottomSheet` Phòng thử nghiệm mẫu Đảo, Đóng tất cả thẻ, Chạy lại hướng dẫn), Banner cảnh báo quyền (tự ẩn hoàn toàn khi đủ quyền), `CompactStatusCard` (chấm trạng thái + tên thiết bị + công tắc tổng `cast_notifications`).
-   - **Nhóm 1 — Giao diện & Tương tác**: Giao diện (`Sáng / Hệ thống / Tối`), Chặn Pop-up nổi (kèm `NestedSettingContainer` chọn chế độ + nút mở cài đặt thông báo hệ thống), Chạm viên thuốc mở rộng, Trả lời nhanh nổi.
-   - **Nhóm 2 — Popup Bluetooth**: Công tắc Popup kết nối Bluetooth & `NavRow` tùy chỉnh tai nghe Bluetooth.
-   - **Lối tắt nhanh**: 2 `TonalShortcutCard` ngang hàng mở `AppsScreen` và `ActivityScreen`.
-2. **Tab 2 — Tính năng (`ModulesScreen.kt`)**:
-   - **Nhóm 1 — Dịch vụ & Ứng dụng**: Gọi xe & Giao đồ ăn, Biến động số dư Ngân hàng, Cuộc gọi Zalo, Chuỗi TikTok (kèm hộp tin nhắn lồng nhau), Tải xuống & Quick Share, Nhắc lịch & Sự kiện, Cuộc gọi & Đàm thoại.
-   - **Nhóm 2 — Hệ thống & Phần cứng**: Trình phát nhạc, Tai nghe & Thiết bị đeo, Pin & Sạc (kèm chọn thời gian hiển thị lồng nhau), Chế độ Âm thanh, Đèn pin, Chỉ báo Camera & Micro.
-3. **Tab 3 — Cài đặt (`SettingsScreen.kt`)**:
-   - **Nhóm 1 — Quy tắc & Riêng tư**: Mức lọc thông báo (`Quan trọng / Tất cả` + tự ẩn tin nhắn thường), Thời lượng viên thuốc (`3s / 5s / 7s / 10s`), Bỏ qua im lặng, Màn hình khóa, Ẩn số dư & OTP khi khóa, Theo Không làm phiền, Lịch giờ yên tĩnh (kèm 2 nút chọn giờ), Nút thao tác trên thẻ.
-   - **Nhóm 2 — Giữ nền (Shizuku)**: Trạng thái & nút `Áp dụng` (`ShizukuKeepAliveHelper`) + Tự áp dụng sau khi khởi động lại.
-   - **Nhóm 3 — Hệ thống & Cập nhật**: `NavRow` Quyền hệ thống (`PermissionsSheet`) & Kiểm tra cập nhật (`UpdateDialog`).
+## 7. KIẾN TRÚC 3 TAB & THÍCH ỨNG MÀN HÌNH GẬP (`4:3`)
+
+- **Điều hướng chính**: `OriginFloatingNavBar` nổi ở `Alignment.BottomCenter` khi `onboardingDone && !isSubPage`; tự động ẩn khi mở `AppsScreen` hoặc `ActivityScreen`. Các màn hình cuộn (`HomeScreen`, `ModulesScreen`, `SettingsScreen`) luôn chừa `contentPadding` đáy tối thiểu `112.dp` để nội dung cuối không bị thanh nổi che khuất.
+- **3 Đích cấp cao nhất**:
+  1. **Tab 1 — Trang chủ (`HomeScreen.kt`)**: `MainScreenHeader`, Banner cảnh báo quyền (tự ẩn khi đủ quyền), `CompactStatusCard`, Nhóm Giao diện & Tương tác, Nhóm Popup Bluetooth, 2 `TonalShortcutCard` mở `AppsScreen` và `ActivityScreen`.
+  2. **Tab 2 — Tính năng (`ModulesScreen.kt`)**: Nhóm Dịch vụ & Ứng dụng và Nhóm Hệ thống & Phần cứng.
+  3. **Tab 3 — Cài đặt (`SettingsScreen.kt`)**: Nhóm Quy tắc & Riêng tư, Nhóm Giữ nền (`ShizukuKeepAliveHelper`), Nhóm Hệ thống & Cập nhật (`PermissionsSheet`, `UpdateDialog`).
+- **Thích ứng Màn hình Gập & Tỷ lệ `4:3`**:
+  - Hỗ trợ co giãn động mượt mà, giữ nguyên trạng thái trang và dữ liệu đang nhập, không tạo viền đen 2 bên.
+  - Khi màn hình mở rộng vượt ngưỡng tỷ lệ `4:3` (hoặc tablet), giới hạn chiều rộng nội dung tối đa `widthIn(max = 760.dp)` căn giữa cân đối và không đặt popup/dialog cắt ngang trục bản lề.
+
+---
+
+## 8. QUY TẮC CHỐNG LỖI THIẾT KẾ (APP ANTI-PATTERNS)
+
+- Cấm sử dụng `NavigationBar` phẳng mặc định của M3 kèm vạch chia `HorizontalDivider` ở đáy màn hình.
+- Cấm dùng `androidx.compose.material3.Switch` thô thay cho `IsleSwitch` đàn hồi OriginOS.
+- Cấm khóa cảm ứng chờ animation kết thúc; mọi chuyển động phải ngắt được ngay ở khung hình đầu tiên.
+- Cấm dùng emoji hoặc icon sticker màu sắc trong giao diện và tài liệu.

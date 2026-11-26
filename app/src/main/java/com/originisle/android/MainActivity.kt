@@ -18,19 +18,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,7 +35,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.island.PlaygroundService
@@ -51,10 +42,12 @@ import com.originisle.android.service.NotificationCastListener
 import com.originisle.android.ui.ActivityScreen
 import com.originisle.android.ui.AppsScreen
 import com.originisle.android.ui.HomeScreen
-import com.originisle.android.ui.IsleColors
 import com.originisle.android.ui.ModulesScreen
 import com.originisle.android.ui.OnboardingScreen
+import com.originisle.android.ui.OriginFloatingNavBar
 import com.originisle.android.ui.OriginIsleTheme
+import com.originisle.android.ui.OriginNavTab
+import com.originisle.android.ui.OriginSpaceBackground
 import com.originisle.android.ui.PREFS_NAME
 import com.originisle.android.ui.SettingsScreen
 import com.originisle.android.ui.UpdateChecker
@@ -244,56 +237,24 @@ private fun Screen() {
         }
     }
 
-    Scaffold(
-        containerColor = IsleColors.Background,
-        bottomBar = {
-            if (onboardingDone && !isSubPage) {
-                Column {
-                    HorizontalDivider(thickness = 0.5.dp, color = IsleColors.BorderHairline)
-                    NavigationBar(
-                        containerColor = IsleColors.Surface,
-                        tonalElevation = 0.dp,
-                    ) {
-                        val navColors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        val tabs = listOf(
-                            Triple(Page.HOME, "Trang chủ", NavHomeIcon),
-                            Triple(Page.MODULES, "Tính năng", NavModulesIcon),
-                            Triple(Page.SETTINGS, "Cài đặt", NavSettingsIcon),
-                        )
-                        tabs.forEach { (tabPage, label, icon) ->
-                            val selected = page == tabPage
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    page = tabPage
-                                    lastTab = tabPage
-                                },
-                                icon = { Icon(icon, contentDescription = label) },
-                                label = {
-                                    Text(
-                                        text = label,
-                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                                    )
-                                },
-                                colors = navColors,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-    ) { inner ->
-        Box(
-            modifier = Modifier.fillMaxSize().padding(inner),
+    val navTabs = remember {
+        listOf(
+            OriginNavTab("Trang chủ", NavHomeIcon),
+            OriginNavTab("Tính năng", NavModulesIcon),
+            OriginNavTab("Cài đặt", NavSettingsIcon),
+        )
+    }
+    val tabPages = remember { listOf(Page.HOME, Page.MODULES, Page.SETTINGS) }
+
+    OriginSpaceBackground(Modifier.fillMaxSize()) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
             contentAlignment = Alignment.TopCenter,
         ) {
-            Box(Modifier.fillMaxSize().widthIn(max = 640.dp)) {
+            val adaptiveMaxWidth = if (maxWidth > maxHeight * 1.33f) 760.dp else 640.dp
+            Box(Modifier.fillMaxSize().widthIn(max = adaptiveMaxWidth)) {
                 if (!onboardingDone) {
                     OnboardingScreen(context, prefs) { onboardingDone = true }
                     return@Box
@@ -325,6 +286,20 @@ private fun Screen() {
                     Page.ACTIVITY -> ActivityScreen(context, onBack = { page = lastTab })
                 }
             }
+        }
+
+        if (onboardingDone && !isSubPage) {
+            val selectedIndex = tabPages.indexOf(page).coerceAtLeast(0)
+            OriginFloatingNavBar(
+                tabs = navTabs,
+                selectedIndex = selectedIndex,
+                onSelect = { index ->
+                    val target = tabPages.getOrNull(index) ?: Page.HOME
+                    page = target
+                    lastTab = target
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
