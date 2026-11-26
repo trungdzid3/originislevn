@@ -214,13 +214,13 @@ object BluetoothPopupOverlay {
             battery = battery,
             isDark = isDark,
             screenWidth = screenWidth,
+            navBarBottom = navBarBottom,
             rootScrim = rootScrim,
         )
 
-        val sideMarginPx = dp(context, 12)
-        val isWideOrFoldable = screenWidth > screenHeight * 4 / 3 || screenWidth > dp(context, 480)
-        val sheetWidth = if (isWideOrFoldable) {
-            min(screenWidth - sideMarginPx * 2, dp(context, 420))
+        val maxSheetWidth = dp(context, 480)
+        val sheetWidth = if (screenWidth > maxSheetWidth) {
+            min(screenWidth, maxSheetWidth)
         } else {
             ViewGroup.LayoutParams.MATCH_PARENT
         }
@@ -229,11 +229,7 @@ object BluetoothPopupOverlay {
             sheetWidth,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-        ).apply {
-            leftMargin = sideMarginPx
-            rightMargin = sideMarginPx
-            bottomMargin = navBarBottom + dp(context, 12)
-        }
+        )
 
         rootScrim.addView(sheetContainer, sheetLayoutParams)
 
@@ -395,11 +391,12 @@ object BluetoothPopupOverlay {
         battery: BluetoothPopupBattery,
         isDark: Boolean,
         screenWidth: Int,
+        navBarBottom: Int,
         rootScrim: FrameLayout,
     ): SwipeDismissSheetLayout {
         val colorScheme = resolveMaterialColorScheme(context, isDark)
         val cornerRadius = dp(context, 32).toFloat()
-        val glassBgColor = if (isDark) 0xEB141926.toInt() else 0xF2FFFFFF.toInt()
+        val glassBgColor = if (isDark) 0xF2121620.toInt() else 0xF7FFFFFF.toInt()
         val edgeLightTop = if (isDark) 0x42FFFFFF else 0xE6FFFFFF.toInt()
         val edgeLightBottom = if (isDark) 0x0DFFFFFF else 0x14000000
         val specularColor = if (isDark) 0x66FFFFFF else 0xFAFFFFFF.toInt()
@@ -412,6 +409,7 @@ object BluetoothPopupOverlay {
             edgeBottomColor = edgeLightBottom,
             specularColor = specularColor,
             strokeWidthPx = dpFloat(context, 1f).coerceAtLeast(1f),
+            roundBottomCorners = false,
         )
 
         val sheet = SwipeDismissSheetLayout(context, rootScrim).apply {
@@ -419,11 +417,11 @@ object BluetoothPopupOverlay {
             gravity = Gravity.CENTER_HORIZONTAL
             background = sheetBg
             elevation = dp(context, 24).toFloat()
-            setPadding(0, 0, 0, dp(context, 20))
+            setPadding(0, 0, 0, navBarBottom + dp(context, 16))
             isClickable = true
             isFocusable = false
             // Keep screenWidth referenced cleanly for tablet/landscape sizing symmetry
-            minimumWidth = min((screenWidth - dp(context, 24)).coerceAtLeast(0), dp(context, 320))
+            minimumWidth = min(screenWidth, dp(context, 320))
         }
 
         // OriginOS slim drag handle
@@ -1333,6 +1331,7 @@ object BluetoothPopupOverlay {
         private val edgeBottomColor: Int,
         private val specularColor: Int,
         private val strokeWidthPx: Float,
+        private val roundBottomCorners: Boolean = true,
     ) : Drawable() {
 
         private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1356,11 +1355,12 @@ object BluetoothPopupOverlay {
         private var specularStartX = 0f
         private var specularEndX = 0f
         private var specularY = 0f
+        private val bottomRadius = if (roundBottomCorners) cornerRadiusPx else 0f
         private val radii = floatArrayOf(
             cornerRadiusPx, cornerRadiusPx,
             cornerRadiusPx, cornerRadiusPx,
-            cornerRadiusPx, cornerRadiusPx,
-            cornerRadiusPx, cornerRadiusPx,
+            bottomRadius, bottomRadius,
+            bottomRadius, bottomRadius,
         )
 
         override fun onBoundsChange(bounds: Rect) {
@@ -1374,7 +1374,8 @@ object BluetoothPopupOverlay {
 
             val half = strokeWidthPx / 2f
             strokePath.reset()
-            strokePath.addRoundRect(half, half, w - half, h - half, radii, Path.Direction.CW)
+            val strokeBottom = if (roundBottomCorners) h - half else h + strokeWidthPx
+            strokePath.addRoundRect(half, half, w - half, strokeBottom, radii, Path.Direction.CW)
 
             if (ambientColor != Color.TRANSPARENT) {
                 val radius = (w * 0.62f).coerceAtLeast(1f)

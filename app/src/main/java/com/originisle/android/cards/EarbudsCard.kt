@@ -1107,6 +1107,22 @@ object EarbudsCard {
                     scanActiveNotificationsForEarbuds(context, devName)?.let { scanned ->
                         initial = mergeTelemetry(initial, scanned)
                     }
+                    if (!wasAlreadyConnectedBefore && BluetoothPopupStore.isHeadphoneDevice(device, devName)) {
+                        runCatching {
+                            BluetoothPopupOverlay.showOrUpdate(
+                                context = context,
+                                addressOrKey = address.ifBlank { devName },
+                                deviceName = devName,
+                                battery = BluetoothPopupBattery(
+                                    main = initial.main,
+                                    left = initial.left,
+                                    right = initial.right,
+                                    caseBattery = initial.case,
+                                ),
+                                forcePreview = false,
+                            )
+                        }
+                    }
                 }
                 if (hasPendingAudioWait && !initial.hasDetails) {
                     return
@@ -2829,7 +2845,8 @@ object EarbudsCard {
         if (eff in 0..100) {
             saveCachedBattery(ctx, name, eff)
         }
-        val deviceAddressOrName = findBluetoothDevice(ctx, name)?.address?.takeIf { it.isNotBlank() } ?: name
+        val targetDev = findBluetoothDevice(ctx, name)
+        val deviceAddressOrName = targetDev?.address?.takeIf { it.isNotBlank() } ?: name
         runCatching {
             val btBattery = BluetoothPopupBattery(
                 main = merged.main,
@@ -2840,6 +2857,17 @@ object EarbudsCard {
             BluetoothPopupOverlay.updateBatteryIfShowing(deviceAddressOrName, btBattery)
             if (deviceAddressOrName != name) {
                 BluetoothPopupOverlay.updateBatteryIfShowing(name, btBattery)
+            }
+            if (!isWearableDevice && !hadDetailsBefore && merged.hasDetails &&
+                BluetoothPopupStore.isHeadphoneDevice(targetDev, name)
+            ) {
+                BluetoothPopupOverlay.showOrUpdate(
+                    context = ctx,
+                    addressOrKey = deviceAddressOrName,
+                    deviceName = name,
+                    battery = btBattery,
+                    forcePreview = false,
+                )
             }
         }
         val currentlyShowing = isShowing(isWearableDevice, name)

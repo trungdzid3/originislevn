@@ -294,15 +294,11 @@ object MediaCard {
     }
 
     private fun inferPlayingFromNotificationOrAudio(context: Context, n: Notification): Boolean {
-        val actionTitles = n.actions?.mapNotNull { it.title?.toString()?.lowercase()?.trim() }.orEmpty()
-        if (actionTitles.any { it.contains("pause") || it.contains("tạm dừng") || it.contains("dừng") }) {
-            return true
-        }
-        if (actionTitles.any { it == "play" || it.contains("play") || it.contains("phát") || it.contains("tiếp tục") }) {
-            return false
-        }
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
-        return audioManager?.isMusicActive == true
+        if (audioManager != null) {
+            return audioManager.isMusicActive
+        }
+        return (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
     }
 
     fun postFromController(

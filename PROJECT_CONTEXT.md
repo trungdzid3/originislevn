@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.11` (mã bản dựng `versionCode = 21011`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.12` (mã bản dựng `versionCode = 21012`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.12 — Vá Nút Đảo Nhạc (`AudioManager.isMusicActive`), Kích Hoạt Popup Tai Nghe Tức Thì & Dáng Bottom Sheet Bám Đáy**:
+  - `MediaCard.kt`: Gỡ logic so khớp chuỗi `actionTitles` gây kẹt tam giác khi đang phát trên Zing MP3; chỉ dùng `effectiveController.playbackState.state` (chuẩn `upstream/main`) và fallback sang `AudioManager.isMusicActive` khi `null`/`STATE_NONE`.
+  - `EarbudsCard.kt`: Gọi `BluetoothPopupOverlay.showOrUpdate(...)` tức thì ngay khi kết nối tai nghe mới (`ACTION_ACL_CONNECTED` / `ACTION_CONNECTION_STATE_CHANGED`, `!wasAlreadyConnectedBefore`) và khi `onBatteryUpdated` lần đầu nhận đủ chi tiết pin Fast Pair, rồi cập nhật pin sống trực tiếp lên popup đang mở.
+  - `BluetoothPopupOverlay.kt`: Đưa lại về dạng bottom sheet bám sát cạnh dưới (bo 2 góc trên `32dp`, 2 góc dưới `0dp`, `maxSheetWidth = 480dp`), giữ các chi tiết OriginOS (viền `Edge Light` + `Ambient Light`, huy hiệu `"Đã kết nối"`, pin TWS `tnum`, `Touch Light`, kéo thả mượt).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.12.apk`: Nâng `versionCode = 21012`, `versionName = "2.10.12"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.11 — Vá Popup Tai Nghe (`FLAG_BLUR_BEHIND`) & Vá Nút Tạm Dừng Kẹt `||` Trên Zing MP3**:
   - `BluetoothPopupOverlay.kt`: Gỡ `FLAG_BLUR_BEHIND` và `blurBehindRadius` khỏi `TYPE_APPLICATION_OVERLAY` để tránh OriginOS 6 từ chối/ẩn cửa sổ overlay, thêm log lỗi `addView`; giữ nguyên toàn bộ giao diện Floating Liquid Glass OriginOS 6–7 (bo 4 góc 32dp tách viền, Edge/Specular/Ambient/Touch Light, pin TWS 16dp `tnum`, kéo thả `First-frame Interruptible`).
   - `MediaCard.kt`: Trong `post(...)`, ưu tiên dùng `effectiveController` (tham số hoặc cache `lastController` / `IconCache.activeControllers[ID]` cùng gói); khi `playbackState` là `null`/`STATE_NONE`, gọi `inferPlayingFromNotificationOrAudio` (đối chiếu action title trên notification gốc và `AudioManager.isMusicActive`) thay vì tin vào `sbn.isOngoing` (khắc phục lỗi nút tạm dừng kẹt `||` trên Zing MP3).
