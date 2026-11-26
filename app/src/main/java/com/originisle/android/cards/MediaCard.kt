@@ -57,14 +57,22 @@ object MediaCard {
         "com.vivo.music",
     )
 
-    /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
-    val THIRD_PARTY_MUSIC_PACKAGES = setOf(
+    /** Các ứng dụng nhạc đã được Đảo nhạc gốc OriginOS 6 hỗ trợ trực tiếp — nhường đảo gốc xử lý */
+    val ORIGIN_SUPPORTED_MUSIC_PACKAGES = setOf(
         "com.spotify.music",
         "com.spotify.music.lite",
+        "com.spotify.lite",
         "com.spotify.music.canary",
         "com.google.android.apps.youtube.music",
-        "com.soundcloud.android",
         "com.apple.android.music",
+        "com.zing.mp3",
+        "com.vng.zingmp3",
+        "vn.com.vng.zingmp3",
+    )
+
+    /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
+    val THIRD_PARTY_MUSIC_PACKAGES = setOf(
+        "com.soundcloud.android",
         "deezer.android.app",
         "com.amazon.mp3",
         "com.aspiro.tidal",
@@ -72,9 +80,6 @@ object MediaCard {
         "tunein.player",
         "fm.player",
         "vstudio.android.musicplayer",
-        "com.zing.mp3",
-        "com.vng.zingmp3",
-        "vn.com.vng.zingmp3",
     )
 
     private val handler = Handler(Looper.getMainLooper())
@@ -128,8 +133,8 @@ object MediaCard {
 
         val pkg = sbn.packageName.lowercase()
 
-        // 1. Nếu chính gói phát nhạc gốc của Vivo gửi thông báo: nhường cho Đảo gốc, không can thiệp
-        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES) {
+        // 1. Nếu chính gói phát nhạc gốc của Vivo hoặc app nhạc đã được Đảo gốc hỗ trợ: nhường cho Đảo gốc, không can thiệp
+        if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || pkg in ORIGIN_SUPPORTED_MUSIC_PACKAGES) {
             clear(context, ID)
             return
         }
@@ -223,7 +228,7 @@ object MediaCard {
         forceRefresh: Boolean = false,
     ) {
         val pkgLower = pkg.lowercase()
-        if (pkgLower in ORIGIN_NATIVE_MUSIC_PACKAGES) {
+        if (pkgLower in ORIGIN_NATIVE_MUSIC_PACKAGES || pkgLower in ORIGIN_SUPPORTED_MUSIC_PACKAGES) {
             clear(ctx, ID)
             return
         }
@@ -427,7 +432,7 @@ object MediaCard {
             putExtra("oi_island_click_expand", true)
             putExtra("oi_btn_transparent", true)
             putExtra("oi_force_show", true)
-            putExtra("oi_show_notify", true)
+            putExtra("oi_show_notify", false)
 
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", pillLeftIcon)

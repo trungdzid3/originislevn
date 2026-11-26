@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.5` (mã bản dựng `versionCode = 21005`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.6` (mã bản dựng `versionCode = 21006`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.10.6.apk # File APK xuất bản v2.10.6 (5,832,072 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.4.apk # File APK xuất bản v2.10.4 (5,832,072 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.3.apk # File APK xuất bản v2.10.3 (5,832,072 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.2.apk # File APK xuất bản v2.10.2 (R8 minify + shrinkResources)
@@ -82,6 +83,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.6 — Nhường Đảo Nhạc Gốc OriginOS 6 & Tắt Thông Báo Trùng**:
+  - `MediaCard.kt`: Thêm `ORIGIN_SUPPORTED_MUSIC_PACKAGES` (Spotify, YouTube Music, Apple Music, Zing MP3) và gỡ khỏi `THIRD_PARTY_MUSIC_PACKAGES`; tại `post(...)` & `postFromController(...)` nếu `pkgLower in ORIGIN_NATIVE_MUSIC_PACKAGES || pkgLower in ORIGIN_SUPPORTED_MUSIC_PACKAGES` thì `clear(..., ID)` và `return`; tại `dispatchMediaCard(...)` đặt `oi_show_notify = false` để tránh thông báo trùng.
+  - `NotificationCastListener.kt`: Bỏ qua `ORIGIN_SUPPORTED_MUSIC_PACKAGES` tại `onNotificationPosted` (`cancelStrayDownloadCard` + log nhường Đảo nhạc gốc), `pollRunnable`, `syncMediaSessions`, `isEligibleMediaController`, `dispatchControllerSession` và loại trừ trong `isKnownMusicApp`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.6.apk`: Nâng `versionCode = 21006`, `versionName = "2.10.6"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,072 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.4 — Vẽ Icon Sóng Nhạc 5 Cột Bằng Canvas Cho SuperX Pill Phải**:
   - `MediaCard.kt` (`dispatchMediaCard` ~dòng 441-451, `createMusicWaveIcon` ~dòng 630-658): Bổ sung `createMusicWaveIcon(waveColors, size = 96)` vẽ 5 cột sóng nhạc bo tròn viên thuốc (`0.36f, 0.72f, 0.52f, 0.88f, 0.44f`) phối màu xoay vòng từ `waveColors` (fallback `#FF5376`, `#00E5FF`, `#7C4DFF`); luôn dùng `TEMPLATE_RIGHT_ISLAND_TEXT_ICON`, `oi_show_right_icon = true`, `oi_right_content = ""`, truyền `createMusicWaveIcon(waveColors)` khi `playing` và `ic_media_pause` khi `!playing`, giữ nguyên `status_chip_text`.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.4.apk`: Nâng `versionCode = 21004`, `versionName = "2.10.4"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,072 bytes (~5.56 MB).

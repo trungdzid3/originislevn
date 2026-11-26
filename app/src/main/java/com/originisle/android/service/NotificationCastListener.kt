@@ -322,7 +322,9 @@ class NotificationCastListener : NotificationListenerService() {
         fun isKnownMusicApp(pkg: String?): Boolean {
             if (pkg.isNullOrBlank()) return false
             val lower = pkg.lowercase()
-            if (lower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) return false
+            if (lower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+                lower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+            ) return false
             return lower in KNOWN_MUSIC_APPS ||
                 DownloadDetector.isMusicOrMediaApp(lower)
         }
@@ -686,6 +688,7 @@ class NotificationCastListener : NotificationListenerService() {
                 active?.forEach { sbn ->
                     val pkgLower = sbn.packageName.lowercase()
                     if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+                        pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES ||
                         sbn.tag == OriginIslandConstants.SUPERX_TAG
                     ) {
                         return@forEach
@@ -849,7 +852,9 @@ class NotificationCastListener : NotificationListenerService() {
                         for (controller in sessions) {
                             val pkg = controller.packageName
                             val pkgLower = pkg.lowercase()
-                            if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) continue
+                            if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+                                pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+                            ) continue
                             val isMusic = isKnownMusicApp(pkg) || pkg in MediaCard.THIRD_PARTY_MUSIC_PACKAGES
                             if (!isMusic || !isAppEnabled(prefs, pkg)) continue
                             val state = controller.playbackState?.state
@@ -1023,7 +1028,9 @@ class NotificationCastListener : NotificationListenerService() {
 
         for (controller in sessions) {
             val pkgLower = controller.packageName.lowercase()
-            if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) continue
+            if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+                pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+            ) continue
             val token = controller.sessionToken
             if (!trackedMediaCallbacks.containsKey(token)) {
                 val cb = object : MediaController.Callback() {
@@ -1055,7 +1062,9 @@ class NotificationCastListener : NotificationListenerService() {
     private fun isEligibleMediaController(controller: MediaController): Boolean {
         val pkg = controller.packageName
         val pkgLower = pkg.lowercase()
-        if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) return false
+        if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+            pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+        ) return false
         val prefs = getSharedPreferences(PREFS, 0)
         if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, pkg)) return false
         val state = controller.playbackState?.state
@@ -1073,7 +1082,9 @@ class NotificationCastListener : NotificationListenerService() {
     private fun dispatchControllerSession(controller: MediaController) {
         val pkg = controller.packageName
         val pkgLower = pkg.lowercase()
-        if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES) return
+        if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
+            pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+        ) return
         val prefs = getSharedPreferences(PREFS, 0)
         if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, pkg)) return
 
@@ -1263,6 +1274,12 @@ class NotificationCastListener : NotificationListenerService() {
                     MediaCard.clearAll(applicationContext)
                     MediaCard.clear(applicationContext, IconCache.castIdFor(sbn))
                 }
+                return
+            }
+
+            if (pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES) {
+                cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                log(sbn, "bỏ qua — nhường Đảo nhạc gốc OriginOS 6", false)
                 return
             }
 
