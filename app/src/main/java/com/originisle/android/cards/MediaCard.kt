@@ -172,7 +172,7 @@ object MediaCard {
             PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
             PlaybackState.STATE_CONNECTING,
             -> true
-            null -> sbn.isOngoing
+            null, PlaybackState.STATE_NONE -> sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
             else -> false
         }
 
@@ -448,11 +448,11 @@ object MediaCard {
             if (!playing) {
                 putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
                 putExtra("oi_show_right_icon", true)
+                putExtra("oi_right_content", "")
             } else {
                 putExtra("oi_show_right_icon", false)
             }
             putExtra("status_chip_text", chip)
-            putExtra("oi_right_content", chip)
 
             putParcelableArrayListExtra("actions", actions)
             putExtra(

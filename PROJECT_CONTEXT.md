@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.2` (mã bản dựng `versionCode = 21002`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.3` (mã bản dựng `versionCode = 21003`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.10.3.apk # File APK xuất bản v2.10.3 (5,832,072 bytes / ~5.56 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.2.apk # File APK xuất bản v2.10.2 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.1.apk # File APK xuất bản v2.10.1 (5,815,372 bytes / ~5.55 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.0.apk # File APK xuất bản v2.10.0 (5,815,376 bytes / ~5.55 MB, R8 minify + shrinkResources)
@@ -80,6 +81,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.3 — Sửa Sóng Nhạc Đảo Media & Nhận Diện Trạng Thái Phát (`STATE_NONE`)**:
+  - `OriginIslandBuilder.kt` (~dòng 446-455): Xóa `right.putBoolean(C.BUNDLE_KEY_ISLAND_RIGHT_PLAY_PAG, waveState == 1)` tại nhánh `rightTemplate == 1` để sóng nhạc SuperX hiển thị chuẩn không bị cờ PAG chặn.
+  - `MediaCard.kt` (`post`, `dispatchMediaCard`): Xử lý `null, PlaybackState.STATE_NONE -> sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0`; chỉ truyền `status_chip_text` (không truyền `oi_right_content` khi `playing == true` để tránh đụng template sóng nhạc 1; khi `!playing` giữ `oi_right_icon = ic_media_pause`, `oi_show_right_icon = true`, `oi_right_content = ""` hiển thị icon pause thuần bên phải).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.3.apk`: Nâng `versionCode = 21003`, `versionName = "2.10.3"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,072 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.2 — Nút Đảo Kính Mờ OriginOS 6–7 & Sửa Mở TikTok Từ Đảo Mở Rộng**:
   - `ic_media_prev.xml`, `ic_media_play.xml`, `ic_media_pause.xml`, `ic_media_next.xml`: Vẽ lại 4 icon điều khiển nhạc bo góc mềm mại chuẩn `originos-design`.
   - `OriginIslandBuilder.kt` & `MediaCard.kt`: Nối `btnTransparent` trong nhánh `template == 8` (nền kính mờ `#26FFFFFF` + chữ/icon trắng) và bật `oi_btn_transparent = true` cho nút nhạc.
