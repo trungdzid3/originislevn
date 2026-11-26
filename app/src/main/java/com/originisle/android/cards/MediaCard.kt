@@ -60,23 +60,41 @@ object MediaCard {
         "com.vivo.music",
     )
 
-    /** Các ứng dụng nhạc nội địa đã được Đảo nhạc gốc OriginOS 6 hỗ trợ trực tiếp — nhường đảo gốc xử lý */
+    /** Các ứng dụng âm nhạc/audio nằm trong whitelist được Đảo gốc OriginOS Atomic Island hỗ trợ trực tiếp — nhường đảo gốc xử lý */
     val ORIGIN_SUPPORTED_MUSIC_PACKAGES = setOf(
+        "com.apple.android.music",
+        "com.spotify.music",
+        "com.google.android.apps.youtube.music",
         "com.tencent.qqmusic",
         "com.netease.cloudmusic",
+        "com.heytap.music",
         "com.kugou.android",
+        "com.kugou.android.lite",
+        "com.kugou.viper",
         "cn.kuwo.player",
+        "com.tencent.karaoke",
         "com.luna.music",
+        "cmccwm.mobilemusic",
+        "cn.missevan",
+        "cn.wenyu.bodian",
+        "com.duoduo.opera",
+        "com.tencent.gqmusicpad",
+        "com.aichang.yage",
+        "com.blueocean.musicplayer",
+        "org.videolan.vlc",
+        "video.player",
+        "com.luojilab.player",
+        "com.tencent.wehear",
+        "com.gidian.qdreader",
+        "com.chaozh.ireaderfree",
+        "com.vivo.globalanimation",
     )
 
     /** Các gói ứng dụng âm nhạc bên thứ ba phổ biến không bao giờ bị thu hồi nhầm */
     val THIRD_PARTY_MUSIC_PACKAGES = setOf(
-        "com.spotify.music",
         "com.spotify.music.lite",
         "com.spotify.lite",
         "com.spotify.music.canary",
-        "com.google.android.apps.youtube.music",
-        "com.apple.android.music",
         "com.zing.mp3",
         "com.vng.zingmp3",
         "vn.com.vng.zingmp3",
