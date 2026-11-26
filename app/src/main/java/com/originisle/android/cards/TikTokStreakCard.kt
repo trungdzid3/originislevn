@@ -6,11 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.Shader
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
@@ -37,48 +32,12 @@ object TikTokStreakCard {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var autoCancelRunnable: Runnable? = null
 
-    fun createGlowingFlameBadge(context: Context, size: Int = 128): Icon {
+    fun createFlameIcon(context: Context, size: Int = 96): Icon {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val center = size / 2f
-        val radius = size / 2f - size * 0.05f
-
-        // Nền tròn tối ấm có quầng sáng cam nhẹ ở tâm
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = RadialGradient(
-                center,
-                center * 1.05f,
-                radius,
-                intArrayOf(
-                    Color.parseColor("#FF3B1B0C"),
-                    Color.parseColor("#FF1B1514"),
-                    Color.parseColor("#FF121114"),
-                ),
-                floatArrayOf(0f, 0.65f, 1f),
-                Shader.TileMode.CLAMP,
-            )
-            style = Paint.Style.FILL
-        }
-        canvas.drawCircle(center, center, radius, bgPaint)
-
-        // Viền gradient cam - vàng mảnh tinh tế
-        val strokeW = size * 0.038f
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                0f, 0f, size.toFloat(), size.toFloat(),
-                Color.parseColor("#FFFFB300"),
-                Color.parseColor("#FFFF5E00"),
-                Shader.TileMode.CLAMP,
-            )
-            style = Paint.Style.STROKE
-            strokeWidth = strokeW
-        }
-        canvas.drawCircle(center, center, radius - strokeW / 2f, strokePaint)
-
-        // Giữ nguyên 2 tầng màu cam (#FFFF5E00) + lõi vàng sáng (#FFFFD000) của ic_tiktok_streak_fire
         val drawable = ContextCompat.getDrawable(context, R.drawable.ic_tiktok_streak_fire)?.mutate()
         if (drawable != null) {
-            val pad = (size * 0.21f).toInt()
+            val pad = (size * 0.08f).toInt()
             drawable.setBounds(pad, pad, size - pad, size - pad)
             drawable.draw(canvas)
         }
@@ -109,17 +68,13 @@ object TikTokStreakCard {
         )
 
         val tiktokAppIcon = IconCache.safeAppIcon(app, info.sourcePkg)
-        val flameBadgeIcon = createGlowingFlameBadge(app)
+        val flameIcon = createFlameIcon(app)
         IconCache.activeSmallIcons[ID] = tiktokAppIcon
-        IconCache.activeLargeIcons[ID] = flameBadgeIcon
+        IconCache.activeLargeIcons[ID] = flameIcon
 
-        val expandedTitle = if (info.streakDays > 0) {
-            "${info.friendName} · Chuỗi ${info.streakDays} ngày"
-        } else {
-            "${info.friendName} · Nhắc giữ chuỗi"
-        }
+        val expandedTitle = info.friendName.trim().ifBlank { "Chuỗi TikTok" }
         val pillLeft = info.friendName.trim().take(12).ifBlank { "TikTok" }
-        val pillRight = if (info.streakDays > 0) "${info.streakDays}d" else "Chuỗi"
+        val pillRight = ""
         val buttonTitle = "Giữ chuỗi"
         val notifAction = Notification.Action.Builder(null, buttonTitle, streakPi).build()
 
@@ -130,7 +85,7 @@ object TikTokStreakCard {
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS) // 8
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON) // 4
             putExtra("title", expandedTitle)
-            putExtra("text", info.message)
+            putExtra("text", info.message.trim().ifBlank { "Duy trì chuỗi TikTok ngay nào!" })
             putExtra("subtext", "Chạm để mở chat & tự sao chép tin nhắn chuỗi")
             putExtra("oi_left_content", pillLeft)
             putExtra("oi_right_content", pillRight)
@@ -138,9 +93,9 @@ object TikTokStreakCard {
             putExtra("oi_show_left_icon", true)
             putExtra("oi_left_icon", tiktokAppIcon)
             putExtra("oi_show_right_icon", true)
-            putExtra("oi_right_icon", flameBadgeIcon)
+            putExtra("oi_right_icon", flameIcon)
             putExtra("oi_base_icon", tiktokAppIcon)
-            putExtra("oi_large_icon", flameBadgeIcon)
+            putExtra("oi_large_icon", flameIcon)
             putExtra("icon_res", R.mipmap.ic_launcher_round)
             putExtra("is_ongoing", false)
             putExtra("oi_auto_dismiss_ms", HOLD_MS)
@@ -151,8 +106,8 @@ object TikTokStreakCard {
             putExtra("oi_dismiss_when_kill", true)
             putExtra("oi_island_click_expand", true)
 
-            // Bảng màu cam ngọn lửa dịu mắt, chuẩn OriginOS 6
-            putExtra("oi_bg_color", "#26FF6B1A")
+            // Bảng màu Material Design 3 surfaceContainerHigh + cam ngọn lửa
+            putExtra("oi_bg_color", "#FF1D1B20")
             putExtra("oi_fg_color", COLOR_STREAK)
 
             // Cấu hình nút bấm tương tác

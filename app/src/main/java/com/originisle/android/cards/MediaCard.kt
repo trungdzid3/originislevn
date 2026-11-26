@@ -29,7 +29,11 @@ import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
 import com.originisle.android.service.MediaControlReceiver
+import com.originisle.android.service.MediaIslandOverlay
+import com.originisle.android.service.MediaSnapshot
 import com.originisle.android.service.NotificationCastListener
+import com.originisle.android.ui.PREFS_NAME
+import com.originisle.android.ui.PREF_MEDIA_OVERLAY_EXPAND
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -372,6 +376,28 @@ object MediaCard {
 
         val contentClickIntent: PendingIntent = contentIntent ?: fallbackClickIntent(context, pkg)
 
+        val snapshot = MediaSnapshot(
+            pkg = pkg,
+            track = track,
+            artist = artist,
+            playing = playing,
+            badgedAlbumArt = expandedArtBmp,
+            durationMs = durationMs,
+            positionMs = positionMs,
+            controller = controller,
+            contentIntent = contentClickIntent,
+        )
+        MediaIslandOverlay.updateSnapshot(snapshot)
+
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val useHybridOverlay = MediaIslandOverlay.canShow(context) && prefs.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true)
+        val openOverlayPi = PendingIntent.getBroadcast(
+            context,
+            ID + 99,
+            Intent(MediaControlReceiver.ACTION_OPEN_MEDIA_ISLAND).setPackage(context.packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
         val actions = arrayListOf<Notification.Action>(
             makeAction(context, R.drawable.ic_media_prev, prevAction),
             makeAction(
@@ -406,7 +432,11 @@ object MediaCard {
             putExtra("oi_ongoing", playing)
             putExtra("is_ongoing", playing)
             putExtra("oi_auto_Disappear", false)
-            putExtra("oi_island_click_expand", true)
+            putExtra("oi_island_click_expand", !useHybridOverlay)
+            if (useHybridOverlay) {
+                putExtra("oi_capsule_click_resp", openOverlayPi)
+                putExtra("click_resp", openOverlayPi)
+            }
             putExtra("oi_force_show", true)
             putExtra("oi_show_notify", false)
             putExtra("oi_Suppress_Toast", true)
@@ -449,6 +479,7 @@ object MediaCard {
 
     fun clear(context: Context, id: Int = ID) {
         if (id == ID) {
+            MediaIslandOverlay.dismiss()
             lastTrack = ""
             lastArtist = ""
             lastPlaying = null

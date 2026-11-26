@@ -21,6 +21,7 @@ class MediaControlReceiver : BroadcastReceiver() {
         const val ACTION_PREV = "com.originisle.android.MEDIA_PREV"
         const val ACTION_SEEK = "com.originisle.android.MEDIA_SEEK"
         const val ACTION_CUSTOM = "com.originisle.android.MEDIA_CUSTOM"
+        const val ACTION_OPEN_MEDIA_ISLAND = "com.originisle.android.OPEN_MEDIA_ISLAND"
         const val EXTRA_TOKEN = "media_session_token"
         const val EXTRA_SEEK_PERCENT = "seek_percent"
         const val EXTRA_CUSTOM_ACTION = "custom_action"
@@ -28,6 +29,10 @@ class MediaControlReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
+        if (action == ACTION_OPEN_MEDIA_ISLAND) {
+            MediaIslandOverlay.toggle(context)
+            return
+        }
         val castId = intent.getIntExtra("cast_id", -1)
         val token = intent.getParcelableExtra(EXTRA_TOKEN, MediaSession.Token::class.java)
 

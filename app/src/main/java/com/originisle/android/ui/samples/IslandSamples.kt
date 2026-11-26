@@ -85,8 +85,8 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Chuỗi TikTok", "Lan Anh · Chuỗi 15 ngày · Nút Giữ chuỗi",
-            IslandPreview(R.drawable.ic_tiktok_streak_fire, "Lan Anh", IslandPreview.Right.Capsule("15d")),
+            "Chuỗi TikTok", "Lan Anh · Nhắc giữ chuỗi · Nút Giữ chuỗi",
+            IslandPreview(R.drawable.ic_tiktok_streak_fire, "Lan Anh", IslandPreview.Right.Text("")),
         ) { ctx ->
             TikTokStreakCard.postSample(ctx)
         },

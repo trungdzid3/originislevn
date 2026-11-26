@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.8.4` (mã bản dựng `versionCode = 20804`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.8.5` (mã bản dựng `versionCode = 20805`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.8.5.apk  # File APK xuất bản v2.8.5 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.8.4.apk  # File APK xuất bản v2.8.4 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.3.apk  # File APK xuất bản v2.7.3 (R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.7.2.apk  # File APK xuất bản v2.7.2 (R8 minify + shrinkResources)
@@ -75,6 +76,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.8.5 — Đảo Âm Nhạc Hybrid OriginOS 6 (`MediaIslandOverlay`) & Đảo Chuỗi TikTok M3**:
+  - `MediaIslandOverlay.kt`, `MediaControlReceiver.kt`, `ic_media_output.xml`: Bổ sung `MediaSnapshot`, `MediaIslandOverlay` (nền kính tối bo góc `30dp`, hỗ trợ `FLAG_BLUR_BEHIND`, bìa album có badge mở app nhạc, nút đầu ra âm thanh, thanh `SeekBar` kéo tua trực tiếp qua `transportControls.seekTo` với bộ đếm `1000ms` chỉ chạy khi đang mở & phát, 3 nút điều khiển trần `Prev`/`Play-Pause`/`Next`, chạm ngoài/vuốt lên/6s tự đóng), và `ACTION_OPEN_MEDIA_ISLAND`.
+  - `MediaCard.kt` & `Prefs.kt`: Thêm `PREF_MEDIA_OVERLAY_EXPAND` (`"cast_media_overlay_expand"`, mặc định `true`); giữ nguyên SuperX Pill sóng nhạc, khi có quyền Overlay sẽ mở `MediaIslandOverlay` thay cho `TEMPLATE_BUTTONS`, tự fallback về `TEMPLATE_BUTTONS` nếu chưa có quyền Overlay, và gọi `MediaIslandOverlay.dismiss()` khi `clear()`.
+  - `TikTokStreakCard.kt` & `IslandSamples.kt`: Chuyển `createFlameIcon` vẽ trực tiếp `ic_tiktok_streak_fire` không vòng tròn nền/viền, bỏ hiển thị số ngày ở pill (`pillRight = ""`) và tiêu đề mở rộng, dùng `oi_bg_color = "#FF1D1B20"` (M3 `surfaceContainerHigh`).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.8.5.apk`: Nâng `versionCode = 20805`, `versionName = "2.8.5"`.
 - **Origin Isle VN v2.8.4 — Nâng Cấp Giao Diện Đảo Chuỗi TikTok**:
   - `TikTokStreakCard.kt` & `IslandSamples.kt`: Thiết kế lại `createGlowingFlameBadge` với nền `RadialGradient` tối ấm, viền `LinearGradient` cam-vàng và giữ nguyên 2 tầng màu cam-vàng của `ic_tiktok_streak_fire`; hiển thị tên bạn bè (`pillLeft`) và số ngày chuỗi (`Nd` / `Chuỗi`) ngay trên viên thuốc thu gọn, đổi nút hành động sang `"Giữ chuỗi"` với bảng màu tonal `#26FF6B1A` / `#FFFF6B1A`.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.8.4.apk`: Nâng `versionCode = 20804`, `versionName = "2.8.4"`.

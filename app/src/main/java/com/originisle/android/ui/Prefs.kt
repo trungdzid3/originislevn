@@ -26,3 +26,6 @@ const val PREF_BT_CONNECT_POPUP = "cast_bt_connect_popup"
 /** App theme & Material Design 3 color theme preferences (v2.7.1). */
 const val PREF_APP_THEME = "app_theme"
 const val PREF_APP_THEME_COLOR = "app_theme_color"
+
+/** Hybrid Media Island overlay preference (v2.8.5, default true). */
+const val PREF_MEDIA_OVERLAY_EXPAND = "cast_media_overlay_expand"
