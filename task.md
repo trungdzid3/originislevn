@@ -1,5 +1,5 @@
 # DANH SÁCH CÔNG VIỆC (TASK MATRIX)
 
-## Đợt v2.10.20 — Xóa Chữ "Playing" & Đổi Icon Tạm Dừng Pill Thành 5 Chấm Tròn Sóng Dừng (`.....`)
-- [x] Đặt `status_chip_text = " "` và `oi_right_content = ""` (xóa hoàn toàn chữ `"Playing"`), bổ sung `createPausedWaveIcon(waveColors)` vẽ 5 chấm tròn đồng bộ vị trí/màu sóng nhạc khi tạm dừng trong `MediaCard.kt`, giữ nguyên 100% logic & nút chuẩn gốc `upstream/main` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
-- [x] Build `v2.10.20`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.20` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]
+## Đợt v2.10.21 — Sửa Kẹt Trạng Thái Khi Xóa Chữ "Playing" (Phân Biệt `status_chip_text` & `oi_right_content`)
+- [x] Tách `status_chip_text = if (playing) " " else "  "` và `oi_right_content = if (playing) "" else " "` trong `MediaCard.kt` để vẫn ẩn hoàn toàn chữ `"Playing"` nhưng buộc vivo OriginOS 6 SystemUI re-render tức thì cả 5 cột sóng / 5 chấm tròn và nút Play/Pause khi đổi trạng thái | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
+- [x] Build `v2.10.21`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.21` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]

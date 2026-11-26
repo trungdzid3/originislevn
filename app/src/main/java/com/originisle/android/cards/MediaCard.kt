@@ -450,7 +450,7 @@ object MediaCard {
             putExtra("text", artist)
             putExtra("source_pkg", pkg)
             putExtra("oi_left_content", if (rawAlbumArt != null) "" else track)
-            putExtra("status_chip_text", " ")
+            putExtra("status_chip_text", if (playing) " " else "  ")
 
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
@@ -472,7 +472,7 @@ object MediaCard {
                 else createPausedWaveIcon(waveColors),
             )
             putExtra("oi_show_right_icon", true)
-            putExtra("oi_right_content", "")
+            putExtra("oi_right_content", if (playing) "" else " ")
 
             putParcelableArrayListExtra("actions", actions)
             putExtra("source_content_intent", contentClickIntent)

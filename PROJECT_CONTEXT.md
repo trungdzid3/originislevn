@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.20` (mã bản dựng `versionCode = 21020`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.21` (mã bản dựng `versionCode = 21021`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.21 — Sửa Kẹt Trạng Thái Khi Xóa Chữ "Playing" (Phân Biệt `status_chip_text` & `oi_right_content`)**:
+  - `MediaCard.kt`: Đặt `status_chip_text = if (playing) " " else "  "` và `oi_right_content = if (playing) "" else " "` để xóa hoàn toàn chữ `"Playing"` nhưng vẫn tạo khác biệt chuỗi giữa 2 trạng thái nhằm buộc OriginOS 6 SystemUI re-render tức thì 5 cột sóng nhạc (`createMusicWaveIcon`), 5 chấm tròn sóng dừng (`createPausedWaveIcon`) và nút Play/Pause chuẩn gốc `upstream/main`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.21.apk`: Nâng `versionCode = 21021`, `versionName = "2.10.21"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,100 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.20 — Xóa Chữ "Playing" & Đổi Icon Tạm Dừng Pill Thành 5 Chấm Tròn Sóng Dừng (`.....`)**:
   - `MediaCard.kt`: Đặt `status_chip_text = " "` và `oi_right_content = ""` (xóa hoàn toàn chữ `"Playing"`); bổ sung `createPausedWaveIcon(waveColors)` vẽ 5 chấm tròn nhỏ đồng bộ vị trí/màu sóng nhạc (trạng thái sóng hạ xuống đứng yên khi tạm dừng thay cho `ic_media_pause`), giữ nguyên 100% logic trạng thái & nút chuẩn gốc `upstream/main`.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.20.apk`: Nâng `versionCode = 21020`, `versionName = "2.10.20"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,100 bytes (~5.56 MB).
