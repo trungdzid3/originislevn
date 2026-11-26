@@ -1,6 +1,6 @@
 # DANH SÁCH CÔNG VIỆC (TASK MATRIX)
 
-## Đợt v2.10.10 — Sửa Lag & Nút Tạm Dừng Đảo Nhạc + Nâng Cấp Popup Tai Nghe Chuẩn OriginOS 6–7
-- [x] Tối ưu cache bitmap & throttle `MediaCard.kt`, sửa logic nhận diện trạng thái phát và cập nhật tức thì (optimistic toggle) trong `MediaControlReceiver.kt` để ấn tạm dừng chuyển sang tam giác ngay lập tức không lag | [Agent: Subagent-Fix-Media-Pause-Lag] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt, app/src/main/java/com/originisle/android/service/MediaControlReceiver.kt]
-- [x] Nâng cấp `BluetoothPopupOverlay.kt` theo chuẩn OriginOS 6–7 Floating Liquid Glass (Space System 2.0, 4 loại ánh sáng, Squircle đồng tâm, FLAG_BLUR_BEHIND + hardware fallback, Touch Light & First-frame Interruptible) và đồng bộ `DESIGN.md` | [Agent: Subagent-OriginOS-Earbuds-Popup] | [Skill: originos-design] | [Locked Files: app/src/main/java/com/originisle/android/bluetooth/BluetoothPopupOverlay.kt, DESIGN.md]
-- [x] Nâng version `v2.10.10`, chạy `testDebugUnitTest assembleRelease`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.10` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]
+## Đợt v2.10.11 — Vá Popup Tai Nghe (`FLAG_BLUR_BEHIND`) & Vá Nút Tạm Dừng Kẹt `||` Trên Zing MP3
+- [x] Gỡ `FLAG_BLUR_BEHIND` / `blurBehindRadius` trên `BluetoothPopupOverlay.kt` (giữ nguyên giao diện Floating Liquid Glass OriginOS 6–7) | [Agent: Lead-Orchestrator] | [Skill: originos-design] | [Locked Files: app/src/main/java/com/originisle/android/bluetooth/BluetoothPopupOverlay.kt]
+- [x] Sửa `MediaCard.post(...)` dùng `effectiveController` + `inferPlayingFromNotificationOrAudio` (tránh Zing MP3 giữ `isOngoing=true` khi đang tạm dừng) | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
+- [x] Build `v2.10.11` (`testDebugUnitTest assembleRelease`), cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.11` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]

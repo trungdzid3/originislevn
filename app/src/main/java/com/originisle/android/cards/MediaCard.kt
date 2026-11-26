@@ -216,8 +216,12 @@ object MediaCard {
             return
         }
 
+        val effectiveController = controller
+            ?: lastController?.takeIf { it.packageName.equals(sbn.packageName, ignoreCase = true) }
+            ?: IconCache.activeControllers[ID]?.takeIf { it.packageName.equals(sbn.packageName, ignoreCase = true) }
+
         val n = sbn.notification
-        val md = controller?.metadata
+        val md = effectiveController?.metadata
         val track = md?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
             .ifBlank { extrasTitle(sbn) }
             .ifBlank { appLabel(context, sbn.packageName) }
@@ -236,20 +240,21 @@ object MediaCard {
             .trim()
             .take(40)
 
-        // Tối ưu trạng thái phát nhạc: hỗ trợ các app không gửi PlaybackState đầy đủ
-        val playbackStateValue = controller?.playbackState?.state
+        // Xác định chính xác trạng thái phát: ưu tiên MediaController (kể cả fallback cache cùng gói),
+        // sau đó đối chiếu action title trên notification gốc và AudioManager.isMusicActive (tránh Zing MP3 giữ isOngoing=true khi đang tạm dừng)
+        val playbackStateValue = effectiveController?.playbackState?.state
         val playing = when (playbackStateValue) {
             PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
             PlaybackState.STATE_FAST_FORWARDING, PlaybackState.STATE_REWINDING,
             PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
             PlaybackState.STATE_CONNECTING,
             -> true
-            null, PlaybackState.STATE_NONE -> sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
-            else -> false
+            PlaybackState.STATE_PAUSED, PlaybackState.STATE_STOPPED, PlaybackState.STATE_ERROR -> false
+            else -> inferPlayingFromNotificationOrAudio(context, n)
         }
 
-        if (controller != null) {
-            IconCache.activeControllers[legacyId] = controller
+        if (effectiveController != null) {
+            IconCache.activeControllers[legacyId] = effectiveController
         }
 
         val notifLargeIcon = n.getLargeIcon()
@@ -270,12 +275,12 @@ object MediaCard {
             ?: notifLargeBitmap)?.let(::shrinkForIcon)
 
         val durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-        val positionMs = (controller?.playbackState?.position ?: 0L).coerceAtLeast(0L)
+        val positionMs = (effectiveController?.playbackState?.position ?: 0L).coerceAtLeast(0L)
 
         dispatchMediaCard(
             context = context,
             pkg = sbn.packageName,
-            controller = controller,
+            controller = effectiveController,
             track = track,
             artist = artist,
             playing = playing,
@@ -286,6 +291,18 @@ object MediaCard {
             contentIntent = n.contentIntent,
             forceRefresh = forceRefresh,
         )
+    }
+
+    private fun inferPlayingFromNotificationOrAudio(context: Context, n: Notification): Boolean {
+        val actionTitles = n.actions?.mapNotNull { it.title?.toString()?.lowercase()?.trim() }.orEmpty()
+        if (actionTitles.any { it.contains("pause") || it.contains("tạm dừng") || it.contains("dừng") }) {
+            return true
+        }
+        if (actionTitles.any { it == "play" || it.contains("play") || it.contains("phát") || it.contains("tiếp tục") }) {
+            return false
+        }
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+        return audioManager?.isMusicActive == true
     }
 
     fun postFromController(

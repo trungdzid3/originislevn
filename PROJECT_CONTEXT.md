@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.10` (mã bản dựng `versionCode = 21010`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.11` (mã bản dựng `versionCode = 21011`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.11 — Vá Popup Tai Nghe (`FLAG_BLUR_BEHIND`) & Vá Nút Tạm Dừng Kẹt `||` Trên Zing MP3**:
+  - `BluetoothPopupOverlay.kt`: Gỡ `FLAG_BLUR_BEHIND` và `blurBehindRadius` khỏi `TYPE_APPLICATION_OVERLAY` để tránh OriginOS 6 từ chối/ẩn cửa sổ overlay, thêm log lỗi `addView`; giữ nguyên toàn bộ giao diện Floating Liquid Glass OriginOS 6–7 (bo 4 góc 32dp tách viền, Edge/Specular/Ambient/Touch Light, pin TWS 16dp `tnum`, kéo thả `First-frame Interruptible`).
+  - `MediaCard.kt`: Trong `post(...)`, ưu tiên dùng `effectiveController` (tham số hoặc cache `lastController` / `IconCache.activeControllers[ID]` cùng gói); khi `playbackState` là `null`/`STATE_NONE`, gọi `inferPlayingFromNotificationOrAudio` (đối chiếu action title trên notification gốc và `AudioManager.isMusicActive`) thay vì tin vào `sbn.isOngoing` (khắc phục lỗi nút tạm dừng kẹt `||` trên Zing MP3).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.11.apk`: Nâng `versionCode = 21011`, `versionName = "2.10.11"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.10 — Sửa Lag & Nút Tạm Dừng Đảo Nhạc + Nâng Cấp Popup Tai Nghe Chuẩn OriginOS 6–7**:
   - `MediaCard.kt` & `MediaControlReceiver.kt`: Cache bìa album/bảng màu sóng nhạc theo khóa `"$pkg|$artSignature"`, giảm spam `startService` trên main thread bằng throttle 5000ms cho tick trùng trạng thái (vẫn cập nhật `MediaIslandOverlay` snapshot/positionMs); bổ sung Optimistic Toggle (`isCurrentlyPlaying()`, `applyOptimisticPlaying()`, cửa sổ 900ms) và nhận diện đủ trạng thái phát trong `MediaControlReceiver` để ấn tạm dừng chuyển sang biểu tượng tam giác (`ic_media_play`) ngay lập tức.
   - `BluetoothPopupOverlay.kt` & `DESIGN.md`: Nâng cấp popup tai nghe sang thẻ nổi **Floating Liquid Glass** chuẩn OriginOS 6–7 (tách viền 12dp + `navBarBottom + 12dp`, bo tròn 4 góc đồng tâm 32dp, giới hạn 420dp trên màn gập/ngang, `FLAG_BLUR_BEHIND` bán kính 36 + Hardware Fallback `#EB141926`/`#F2FFFFFF`, 4 ánh sáng vật lý Edge/Specular/Ambient/Touch Light, huy hiệu trạng thái `#00D084`, pin TWS Huarong Atomic Pods 16dp `tnum`, kéo thả `First-frame Interruptible` có sức căng bề mặt 0.18f khi kéo lên; bảo toàn 100% 3D WebView Redmi Buds 6 Play & Lenovo LE208).

@@ -83,7 +83,6 @@ object BluetoothPopupOverlay {
     private const val COLOR_BATTERY_AMBER = 0xFFFF9F2E.toInt()
     private const val COLOR_BATTERY_RED = 0xFFFF5247.toInt()
     private const val COLOR_STATUS_CONNECTED = 0xFF00D084.toInt()
-    private const val BLUR_BEHIND_RADIUS_PX = 36
 
     private val originInterpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -238,32 +237,23 @@ object BluetoothPopupOverlay {
 
         rootScrim.addView(sheetContainer, sheetLayoutParams)
 
-        val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        val windowFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            baseFlags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-        } else {
-            baseFlags
-        }
-
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            windowFlags,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = 0
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                blurBehindRadius = BLUR_BEHIND_RADIUS_PX
-            }
         }
 
         try {
             wm.addView(rootScrim, params)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("BluetoothPopupOverlay", "addView failed", e)
             cleanupReferences()
             return
         }
