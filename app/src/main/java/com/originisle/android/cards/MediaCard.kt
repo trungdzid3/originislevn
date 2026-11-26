@@ -194,7 +194,6 @@ object MediaCard {
             .trim()
             .take(40)
 
-        // Tối ưu trạng thái phát nhạc (như v2.10.3–v2.10.5): Zing MP3 trả STATE_NONE khi đang phát
         val playbackStateValue = controller?.playbackState?.state
         val playing = when (playbackStateValue) {
             PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
@@ -202,7 +201,7 @@ object MediaCard {
             PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
             PlaybackState.STATE_CONNECTING,
             -> true
-            null, PlaybackState.STATE_NONE -> sbn.isOngoing || (n.flags and Notification.FLAG_ONGOING_EVENT) != 0
+            null -> sbn.isOngoing
             else -> false
         }
 
@@ -398,11 +397,30 @@ object MediaCard {
                 titleKeywords.any { title.contains(it) }
             }?.actionIntent
 
-        val prevAction = findSourceAction(listOf("previous", "skip back", "rewind", "trước", "lùi"))
-            ?: mediaAction(MediaControlReceiver.ACTION_PREV)
-        val playPauseAction = mediaAction(MediaControlReceiver.ACTION_PLAY_PAUSE)
-        val nextAction = findSourceAction(listOf("next", "skip forward", "fast forward", "tiếp", "tới"))
-            ?: mediaAction(MediaControlReceiver.ACTION_NEXT)
+        val prevSourceAction = findSourceAction(listOf("previous", "skip back", "rewind", "trước", "lùi"))
+        val nextSourceAction = findSourceAction(listOf("next", "skip forward", "fast forward", "tiếp", "tới"))
+        val sessionActions = controller?.playbackState?.actions ?: 0L
+        val hasPrev = prevSourceAction != null || (sessionActions and PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L
+        val hasNext = nextSourceAction != null || (sessionActions and PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
+
+        val actions = arrayListOf<Notification.Action>()
+        if (hasPrev) {
+            actions.add(
+                makeAction(context, R.drawable.ic_media_prev, prevSourceAction ?: mediaAction(MediaControlReceiver.ACTION_PREV)),
+            )
+        }
+        actions.add(
+            makeAction(
+                context,
+                if (playing) R.drawable.ic_media_pause else R.drawable.ic_media_play,
+                mediaAction(MediaControlReceiver.ACTION_PLAY_PAUSE),
+            ),
+        )
+        if (hasNext) {
+            actions.add(
+                makeAction(context, R.drawable.ic_media_next, nextSourceAction ?: mediaAction(MediaControlReceiver.ACTION_NEXT)),
+            )
+        }
 
         val contentClickIntent: PendingIntent = contentIntent ?: fallbackClickIntent(context, pkg)
 
@@ -419,72 +437,46 @@ object MediaCard {
         )
         MediaIslandOverlay.updateSnapshot(snapshot)
 
-        val actions = arrayListOf<Notification.Action>(
-            makeAction(context, R.drawable.ic_media_prev, prevAction),
-            makeAction(
-                context,
-                if (playing) R.drawable.ic_media_pause else R.drawable.ic_media_play,
-                playPauseAction,
-            ),
-            makeAction(context, R.drawable.ic_media_next, nextAction),
-        )
-
-        val buttonIcons = arrayListOf<Icon>(
-            actions[0].getIcon() ?: IconCache.safeResourceIcon(context, R.drawable.ic_media_prev),
-            actions[1].getIcon() ?: IconCache.safeResourceIcon(context, if (playing) R.drawable.ic_media_pause else R.drawable.ic_media_play),
-            actions[2].getIcon() ?: IconCache.safeResourceIcon(context, R.drawable.ic_media_next),
-        )
-        val buttonActions = arrayListOf<PendingIntent>(prevAction, playPauseAction, nextAction)
-
         pendingDismissTasks.remove(ID)?.let { handler.removeCallbacks(it) }
 
         val chip = if (playing) "Playing" else " "
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
-            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putExtra("is_ongoing", true)
+
             putExtra("oi_scene", "NAVIGATION")
             putExtra("title", track)
             putExtra("text", artist)
-            putExtra("subtext", subtext)
-            putExtra("source_app", appLabel(context, pkg))
             putExtra("source_pkg", pkg)
-            putExtra("is_ongoing", playing)
-            putExtra("oi_island_show_time", 0)
-            putExtra("oi_auto_dismiss_ms", 0L)
-            putExtra("oi_bg_color", "#FF262626")
-            putExtra("oi_fg_color", "#FFFFFFFF")
-            putExtra("oi_island_click_expand", true)
-            putExtra("oi_btn_transparent", true)
-            putExtra("oi_force_show", true)
-            putExtra("oi_show_notify", true)
+            putExtra("oi_left_content", if (rawAlbumArt != null) "" else track)
+            putExtra("status_chip_text", chip)
 
-            putExtra("oi_left_content", "")
             putExtra("oi_left_icon", pillLeftIcon)
             putExtra("oi_large_icon", badgedAlbumIcon)
             putExtra("oi_show_left_icon", true)
             putExtra("icon_res", R.drawable.ic_media_play)
-            putStringArrayListExtra("oi_button_titles", arrayListOf("", "", ""))
-            putParcelableArrayListExtra("oi_button_actions", buttonActions)
-            putParcelableArrayListExtra("oi_button_icons", buttonIcons)
+            putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putExtra("oi_bg_color", "#FF262626")
+            putExtra("oi_fg_color", "#FFFFFFFF")
+            putExtra("oi_island_click_expand", true)
 
-            putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-            putExtra("oi_wave_state", if (playing) 1 else 0)
-            putStringArrayListExtra("oi_wave_color_list", waveColors)
-            putExtra(
-                "oi_right_icon",
-                if (playing) createMusicWaveIcon(waveColors)
-                else Icon.createWithResource(context, R.drawable.ic_media_pause),
-            )
-            putExtra("oi_show_right_icon", true)
-            putExtra("oi_right_content", "")
-            putExtra("status_chip_text", " ")
+            if (playing) {
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_WAVE)
+                putExtra("oi_wave_state", 1)
+                if (waveColors.isNotEmpty()) {
+                    putStringArrayListExtra("oi_wave_color_list", waveColors)
+                }
+                putExtra("oi_show_right_icon", false)
+            } else {
+                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
+                putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
+                putExtra("oi_show_right_icon", true)
+            }
+            putExtra("oi_right_content", chip)
 
             putParcelableArrayListExtra("actions", actions)
-            putExtra(
-                "source_content_intent",
-                contentClickIntent,
-            )
+            putExtra("source_content_intent", contentClickIntent)
         }
         context.startService(intent)
         CastLog.add("Nhạc", track, "hiển thị — $track ($artist)", true)

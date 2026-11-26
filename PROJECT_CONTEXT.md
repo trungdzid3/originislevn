@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.16` (mã bản dựng `versionCode = 21016`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.17` (mã bản dựng `versionCode = 21017`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.17 — Khôi Phục Đảo Nhạc Y Hệt Upstream `fvhde/origin-isle` (Trước Khi Thêm Sóng & Sửa Nút)**:
+  - `MediaCard.kt` & `MediaControlReceiver.kt`: Khôi phục y hệt logic `upstream/main` trước khi thêm sóng 5 cột và nút trong suốt (`TEMPLATE_RIGHT_ISLAND_WAVE` với `oi_wave_state = 1`, `oi_show_right_icon = false` khi đang phát; `TEMPLATE_RIGHT_ISLAND_TEXT_ICON` + `ic_media_pause` khi tạm dừng; `is_ongoing = true`, `status_chip_text = chip`, `oi_right_content = chip`, bỏ `oi_btn_transparent = true`, chỉ thêm Prev/Next khi `hasPrev`/`hasNext`, `null -> sbn.isOngoing`, và `if (state?.state == PlaybackState.STATE_PLAYING) controls.pause() else controls.play()`). Giữ nguyên 26 gói whitelist OriginOS, phần vá pin TWS (`EarbudsCard.kt`, `NotificationCastListener.kt`) và popup tai nghe OriginOS 6–7 (`BluetoothPopupOverlay.kt`).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.17.apk`: Nâng `versionCode = 21017`, `versionName = "2.10.17"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,096 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.16 — Vá Nhận Diện Pin TWS (`com.mi.earphone`/Fast Pair) & Sửa Kẹt Nút Nhạc (`MediaControlReceiver`)**:
   - `EarbudsCard.kt` & `NotificationCastListener.kt`: Bổ sung quét `RemoteViews` (`contentView`/`bigContentView`) + `sbn.postTime` trong `pollRunnable` cho các gói tai nghe (`com.mi.earphone`, `com.google.android.gms`...); hỗ trợ regex đảo ngược không cần ngoặc (`100% L/R/Dock`), tự ánh xạ 3 số `%` TWS thành `(left, right, case)` khi nhãn là icon ảnh, và fallback sang thiết bị audio A2DP/Headset đang kết nối khi tiêu đề thông báo là tên app chung (`Xiaomi Earbuds`).
   - `MediaControlReceiver.kt`, `MediaCard.kt` & `NotificationCastListener.kt`: Sửa `ACTION_PLAY_PAUSE` nhận diện đủ `STATE_PLAYING`/`STATE_BUFFERING`/`STATE_CONNECTING` và đối chiếu `MediaCard.isCurrentlyPlaying()` khi `null`/`STATE_NONE` để gọi đúng `controls.pause()` thay vì `controls.play()`; đồng thời cho phép cập nhật `STATE_PAUSED` khi `controller.metadata == null` của các app nhạc.
