@@ -1267,10 +1267,7 @@ class NotificationCastListener : NotificationListenerService() {
             }
 
             val rawExtras = sbn.notification.extras
-            if (sbn.tag == OriginIslandConstants.SUPERX_TAG ||
-                rawExtras?.containsKey(OriginIslandConstants.BUNDLE_KEY_SCENE) == true ||
-                rawExtras?.getBoolean(OriginIslandConstants.BUNDLE_KEY_ISLAND_NOTIFY, false) == true
-            ) {
+            if (sbn.tag == OriginIslandConstants.SUPERX_TAG) {
                 val scene = rawExtras?.getString(OriginIslandConstants.BUNDLE_KEY_SCENE)
                 if ((scene.equals("MUSIC", ignoreCase = true) || scene.equals("AUDIO", ignoreCase = true)) &&
                     isOriginNativePlayerActive()

@@ -262,7 +262,7 @@ class PlaygroundService : Service() {
         val lockscreenOptIn = prefs.getBoolean("cast_lockscreen_live_card", false)
         val displays = (baseDisplays and OriginIslandConstants.DISPLAY_LOCKSCREEN.inv()) or
             (if (lockscreenOptIn) OriginIslandConstants.DISPLAY_LOCKSCREEN else 0)
-        val showNotify = intent.getBooleanExtra("oi_show_notify", false)
+        val showNotify = intent.getBooleanExtra("oi_show_notify", true)
         val islandNotify = intent.getBooleanExtra("oi_island_notify", false)
         val isOngoing = intent.getBooleanExtra("is_ongoing", false)
         val hasExplicitShowTime = intent.hasExtra("oi_island_show_time")

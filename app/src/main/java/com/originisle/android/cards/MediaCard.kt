@@ -22,7 +22,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.originisle.android.R
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
@@ -32,8 +31,6 @@ import com.originisle.android.service.MediaControlReceiver
 import com.originisle.android.service.MediaIslandOverlay
 import com.originisle.android.service.MediaSnapshot
 import com.originisle.android.service.NotificationCastListener
-import com.originisle.android.ui.PREFS_NAME
-import com.originisle.android.ui.PREF_MEDIA_OVERLAY_EXPAND
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -392,15 +389,6 @@ object MediaCard {
         )
         MediaIslandOverlay.updateSnapshot(snapshot)
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val useHybridOverlay = MediaIslandOverlay.canShow(context) && prefs.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true)
-        val openOverlayPi = PendingIntent.getBroadcast(
-            context,
-            ID + 99,
-            Intent(MediaControlReceiver.ACTION_OPEN_MEDIA_ISLAND).setPackage(context.packageName),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
         val actions = arrayListOf<Notification.Action>(
             makeAction(context, R.drawable.ic_media_prev, prevAction),
             makeAction(
@@ -420,6 +408,7 @@ object MediaCard {
 
         pendingDismissTasks.remove(ID)?.let { handler.removeCallbacks(it) }
 
+        val chip = if (playing) "Playing" else " "
         val intent = Intent(context, PlaygroundService::class.java).apply {
             action = PlaygroundService.ACTION_START
             putExtra("id", ID)
@@ -435,13 +424,9 @@ object MediaCard {
             putExtra("oi_auto_dismiss_ms", 0L)
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
-            putExtra("oi_island_click_expand", !useHybridOverlay)
-            if (useHybridOverlay) {
-                putExtra("oi_capsule_click_resp", openOverlayPi)
-                putExtra("click_resp", openOverlayPi)
-            }
+            putExtra("oi_island_click_expand", true)
             putExtra("oi_force_show", true)
-            putExtra("oi_show_notify", false)
+            putExtra("oi_show_notify", true)
 
             putExtra("oi_left_content", "")
             putExtra("oi_left_icon", pillLeftIcon)
@@ -459,9 +444,14 @@ object MediaCard {
             )
             putExtra("oi_wave_state", if (playing) 1 else 0)
             putStringArrayListExtra("oi_wave_color_list", waveColors)
-            putExtra("oi_show_right_icon", false)
-            putExtra("status_chip_text", "")
-            putExtra("oi_right_content", "")
+            if (!playing) {
+                putExtra("oi_right_icon", Icon.createWithResource(context, R.drawable.ic_media_pause))
+                putExtra("oi_show_right_icon", true)
+            } else {
+                putExtra("oi_show_right_icon", false)
+            }
+            putExtra("status_chip_text", chip)
+            putExtra("oi_right_content", chip)
 
             putParcelableArrayListExtra("actions", actions)
             putExtra(
@@ -516,24 +506,8 @@ object MediaCard {
         context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
 
-    private fun renderTintedBitmapIcon(context: Context, iconRes: Int, tintColor: Int): Icon? = runCatching {
-        val drawable = ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return null
-        val size = 96
-        val pad = 16
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        drawable.setBounds(pad, pad, size - pad, size - pad)
-        drawable.setTint(tintColor)
-        drawable.setTintMode(PorterDuff.Mode.SRC_IN)
-        drawable.draw(canvas)
-        Icon.createWithBitmap(bmp)
-    }.getOrNull()
-
     private fun makeAction(context: Context, iconRes: Int, pi: PendingIntent): Notification.Action {
-        val isNightMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val actionIconColor = if (isNightMode) Color.WHITE else Color.parseColor("#FF1C1C1E")
-        val icon = renderTintedBitmapIcon(context, iconRes, actionIconColor)
-            ?: IconCache.safeResourceIcon(context, iconRes)
+        val icon = Icon.createWithResource(context, iconRes)
         return Notification.Action.Builder(icon, "", pi).build()
     }
 

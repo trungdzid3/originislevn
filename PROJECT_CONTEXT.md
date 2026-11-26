@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.0` (mã bản dựng `versionCode = 21000`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.1` (mã bản dựng `versionCode = 21001`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -57,6 +57,7 @@ origin-isle-vn/
 ├── PROJECT_CONTEXT.md                # Lưu trữ ngữ cảnh tinh gọn (Lean Context)
 ├── task.md                           # Phân quyền công việc & Locked Files
 ├── origin-isle-vn.code-workspace     # Cấu hình workspace
+├── release/OriginIsle-VN-v2.10.1.apk # File APK xuất bản v2.10.1 (5,815,372 bytes / ~5.55 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.10.0.apk # File APK xuất bản v2.10.0 (5,815,376 bytes / ~5.55 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.9.0.apk  # File APK xuất bản v2.9.0 (5,815,372 bytes / ~5.55 MB, R8 minify + shrinkResources)
 ├── release/OriginIsle-VN-v2.8.5.apk  # File APK xuất bản v2.8.5 (R8 minify + shrinkResources)
@@ -78,6 +79,11 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.1 — Sửa Lỗi Đảo Âm Nhạc (Zing MP3 & SuperX Media Card)**:
+  - `MediaCard.kt`: Đặt `chip = if (playing) "Playing" else " "` cho `status_chip_text` & `oi_right_content`; bật `oi_show_notify = true` & `oi_island_click_expand = true`; xóa nhánh ghi đè `oi_capsule_click_resp`/`click_resp` bằng `openOverlayPi`, giữ `source_content_intent = contentClickIntent`; khi `!playing` đặt `oi_right_icon = ic_media_pause` & `oi_show_right_icon = true`; `makeAction` dùng `Icon.createWithResource(context, iconRes)` và xóa `renderTintedBitmapIcon`.
+  - `NotificationCastListener.kt`: Tại `onNotificationPosted`, chỉ `return` sớm khi `sbn.tag == OriginIslandConstants.SUPERX_TAG` (hoặc `ORIGIN_NATIVE_MUSIC_PACKAGES`), không chặn nhầm thông báo thường có `BUNDLE_KEY_SCENE` / `BUNDLE_KEY_ISLAND_NOTIFY`.
+  - `PlaygroundService.kt`: Sửa mặc định `oi_show_notify` trong `readAndPost` thành `true`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.1.apk`: Nâng `versionCode = 21001`, `versionName = "2.10.1"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,815,372 bytes (~5.55 MB).
 - **Origin Isle VN v2.10.0 — OriginOS 7 Liquid Glass & Huarong Grid Overhaul + Sửa Lỗi Media Island Music**:
   - `Theme.kt`, `Components.kt`: Tinh chỉnh `IsleTypography` lineHeights (`bodyMedium = 20.sp`, `bodySmall = 19.sp`, `labelLarge = 20.sp`, `labelMedium = 19.sp`) chống cắt dấu tiếng Việt; nâng cấp `OriginFloatingNavBar` (viền Edge Light 2 lớp + specular `0.5.dp`, Liquid Lens pill indicator `0.72f` damping / `StiffnessMediumLow`, Touch Light `0.96f`) và `OriginSpaceBackground` (multi-stop top-edge Ambient Light).
   - `HomeScreen.kt`, `MediaIslandOverlay.kt`, `DESIGN.md`: Nâng cấp `CompactStatusCard` thành OriginOS Atomic Status Widget (zero-tier Huarong Grid) với trạng thái kết nối, tên thiết bị + phiên bản, đếm số Đảo hôm nay (`CastLog.entries.size` `tnum`) và `IsleSwitch` trong squircle `26.dp` Edge Light; thay cặp shortcut bằng 1x2 `AtomicShortcutTile`; thêm Edge Light (`LayerDrawable`) & Touch Light (`0.90f -> 1f`) cho `MediaIslandOverlay.kt` và cập nhật `DESIGN.md`.
