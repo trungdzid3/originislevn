@@ -11,13 +11,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,10 +41,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,154 +102,151 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
             filtered.groupBy { it.label.firstOrNull()?.takeIf(Char::isLetter)?.uppercaseChar() ?: '#' }
         }
     }
+    // Acts on whatever's currently shown — with no search or filter that's every app, but it also
+    // doubles as "enable/disable all matching X" once you've typed a query.
     val anyOff = filtered.any { it.pkg in ignored }
 
-    OriginCollapsingScaffold(
-        title = "Ứng dụng",
-        onBack = onBack,
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-        trailing = {
-            if (!loading && filtered.isNotEmpty()) {
-                PillButton(
-                    text = if (anyOff) "Bật tất cả" else "Tắt tất cả",
-                    onClick = {
-                        if (anyOff) ignored.removeAll(filtered.map { it.pkg }.toSet())
-                        else filtered.forEach { if (it.pkg !in ignored) ignored.add(it.pkg) }
-                        prefs.edit().putStringSet("cast_ignored_apps", ignored.toSet()).apply()
-                    },
-                    variant = PillButtonVariant.ALPHA_BLUE,
-                    height = 38.dp,
-                )
-            }
-        },
-    ) {
-        item(key = "apps_controls") {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 6.dp, bottom = 10.dp),
+    OriginSpaceBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 760.dp),
+                contentPadding = ScreenPadding,
             ) {
-                VSearchView2(
-                    query = query,
-                    onQueryChange = { query = it },
-                    placeholder = "Tìm kiếm ứng dụng",
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf("Tất cả", "Đang bật", "Đã tắt").forEachIndexed { index, label ->
-                        ChoiceChip(
-                            label = label,
-                            selected = filter == index,
-                            onClick = { filter = index },
-                            selectedContainer = IsleColors.AccentSoft,
-                            selectedContent = IsleColors.Accent,
-                            shape = G2RoundedCornerShape(18.dp),
-                            height = 38.dp,
-                            horizontalPadding = 14.dp,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-
-                GroupCard {
-                    ToggleRow(
-                        icon = IsleIcons.Grid,
-                        tileColor = IsleColors.TileGray,
-                        title = "Ứng dụng hệ thống",
-                        checked = showSystem,
-                        subtitle = "Hiển thị cả các ứng dụng và dịch vụ không có biểu tượng",
-                    ) {
-                        showSystem = it
-                        prefs.edit().putBoolean("apps_show_system", it).apply()
-                    }
-                }
-
-                Text(
-                    text = "Tắt những ứng dụng bạn không muốn hiển thị trên đảo. Tin nhắn văn bản thông thường đã được lọc tự động, nên cuộc gọi vẫn sẽ hiển thị ngay cả khi tắt tin nhắn.",
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    color = IsleColors.TextSub,
-                )
-            }
-        }
-
-        if (loading) {
-            item(key = "apps_loading") {
-                Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = IsleColors.Accent)
-                }
-            }
-        } else if (filtered.isEmpty()) {
-            item(key = "apps_empty") {
-                GroupCard {
-                    EmptyMessage(
-                        if (query.isNotBlank()) "Không có ứng dụng nào khớp với \"$query\"." else "Không có ứng dụng nào",
-                    )
-                }
-            }
-        }
-
-        if (!loading) groups.forEach { (letter, items) ->
-            item(key = "letter-$letter") {
-                Text(
-                    text = letter.toString(),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = IsleColors.TextSub,
-                    modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp),
-                )
-            }
-            itemsIndexed(items, key = { _, app -> app.pkg }) { i, app ->
-                val on = app.pkg !in ignored
-                val shape = groupItemShape(i, items.size)
-                val isDark = IsleColors.isDark
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(IsleColors.Surface)
-                        .then(
-                            if (isDark) {
-                                Modifier.border(
-                                    width = 0.8.dp,
-                                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                                    shape = shape,
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                        ScreenHeader("Ứng dụng", onBack) {
+                            if (!loading && filtered.isNotEmpty()) {
+                                PillButton(
+                                    if (anyOff) "Bật tất cả" else "Tắt tất cả",
+                                    onClick = {
+                                        if (anyOff) ignored.removeAll(filtered.map { it.pkg }.toSet())
+                                        else filtered.forEach { if (it.pkg !in ignored) ignored.add(it.pkg) }
+                                        prefs.edit().putStringSet("cast_ignored_apps", ignored.toSet()).apply()
+                                    },
+                                    container = IsleColors.SurfaceHigh,
+                                    content = IsleColors.AccentText,
+                                    height = 44.dp,
                                 )
-                            } else {
-                                Modifier
-                            },
-                        ),
-                ) {
-                    if (i > 0) GroupDivider(inset = 66.dp)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .toggleable(value = on, role = Role.Switch) { allowed ->
-                                if (allowed) ignored.remove(app.pkg) else if (app.pkg !in ignored) ignored.add(app.pkg)
-                                prefs.edit().putStringSet("cast_ignored_apps", ignored.toSet()).apply()
                             }
-                            .heightIn(min = 60.dp)
-                            .padding(start = 16.dp, end = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Box(Modifier.size(36.dp).clip(G2RoundedCornerShape(11.dp))) {
-                            AppIcon(context, app, iconCache)
+                        }
+                        SearchField(query, onChange = { query = it })
+                        SegmentedControl(
+                            listOf("Tất cả", "Đang bật", "Đã tắt"), filter, { filter = it },
+                            track = IsleColors.Surface, height = 40.dp,
+                        )
+                        GroupCard {
+                            ToggleRow(
+                                IsleIcons.Grid, IsleColors.TileGray, "Ứng dụng hệ thống", showSystem,
+                                subtitle = "Hiển thị cả các ứng dụng và dịch vụ không có biểu tượng",
+                            ) {
+                                showSystem = it; prefs.edit().putBoolean("apps_show_system", it).apply()
+                            }
                         }
                         Text(
-                            text = app.label,
-                            modifier = Modifier.weight(1f),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (on) IsleColors.Text else IsleColors.TextSub,
+                            "Tắt những ứng dụng bạn không muốn hiển thị trên đảo. Tin nhắn văn bản thông thường đã được lọc tự động, nên cuộc gọi vẫn sẽ hiển thị ngay cả khi tắt tin nhắn.",
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = IsleColors.TextSecondary,
                         )
-                        IsleSwitch(on, onCheckedChange = null)
+                    }
+                }
+
+                if (loading) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = IsleColors.Accent)
+                        }
+                    }
+                } else if (filtered.isEmpty()) {
+                    item {
+                        EmptyMessage(if (query.isNotBlank()) "Không có ứng dụng nào khớp với \"$query\"." else "Không có ứng dụng nào")
+                    }
+                }
+
+                if (!loading) groups.forEach { (letter, items) ->
+                    item(key = "letter-$letter") {
+                        SectionLabel(letter.toString(), Modifier.padding(top = 12.dp, bottom = 8.dp))
+                    }
+                    itemsIndexed(items, key = { _, app -> app.pkg }) { i, app ->
+                        val on = app.pkg !in ignored
+                        Column(Modifier.clip(groupItemShape(i, items.size)).background(IsleColors.Surface)) {
+                            if (i > 0) GroupDivider(inset = 66.dp)
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .toggleable(value = on, role = Role.Switch) { allowed ->
+                                        if (allowed) ignored.remove(app.pkg) else if (app.pkg !in ignored) ignored.add(app.pkg)
+                                        prefs.edit().putStringSet("cast_ignored_apps", ignored.toSet()).apply()
+                                    }
+                                    .heightIn(min = 60.dp)
+                                    .padding(start = 16.dp, end = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                Box(Modifier.size(36.dp).clip(G2RoundedCornerShape(11.dp))) {
+                                    AppIcon(context, app, iconCache)
+                                }
+                                Text(
+                                    app.label,
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (on) IsleColors.Text else IsleColors.TextSecondary,
+                                )
+                                IsleSwitch(on, onCheckedChange = null)
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SearchField(query: String, onChange: (String) -> Unit) {
+    val searchShape = G2RoundedCornerShape(20.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(searchShape)
+            .background(IsleColors.SurfaceHigher)
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = searchShape,
+            )
+            .padding(start = 16.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(IsleIcons.Search, null, Modifier.size(18.dp), tint = IsleColors.TextSecondary)
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) Text("Tìm kiếm ứng dụng", fontSize = 16.sp, color = IsleColors.TextSecondary)
+            BasicTextField(
+                value = query,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = TextStyle(fontFamily = VivoSans, fontSize = 16.sp, color = IsleColors.Text),
+                cursorBrush = SolidColor(IsleColors.Accent),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Tìm kiếm ứng dụng" },
+            )
+        }
+        if (query.isNotEmpty()) {
+            CircleIconButton(
+                IsleIcons.Close, "Xóa tìm kiếm", onClick = { onChange("") },
+                background = IsleColors.Surface, tint = IsleColors.TextSecondary, iconSize = 18.dp,
+            )
         }
     }
 }

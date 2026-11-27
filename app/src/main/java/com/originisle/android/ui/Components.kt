@@ -39,28 +39,20 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -70,23 +62,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -96,41 +84,28 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Shared building blocks for OriginOS 6 / ROM 16.0 UI: G2 squircle cards, collapsing scaffold, settings rows, pills, switches. */
-
-/** Page padding shared by every screen (OriginUI ROM 16.0: 14.dp horizontal). */
-val ScreenPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 28.dp)
-
-private val GroupRadius = 24.dp
+/** Shared building blocks for OriginOS 6 UI: grouped squircle cards, settings rows, pills, switches. */
 
 /**
- * OriginOS 6 / OriginUI ROM 16.0 G2 continuous squircle shape.
- * Approximates superellipse |x|^4 + |y|^4 = r^4 using smooth cubic Bézier corner transitions
- * with extended tangent lead-in (1.28 * r) so curvature transitions seamlessly into straight edges.
+ * OriginOS ROM 16.0 G2 continuous rounded corner shape (squircle).
+ * Uses symmetric dual-cubic Bezier curves per corner for zero-curvature tangency at straight edges.
  */
 class G2RoundedCornerShape(
     topStart: CornerSize,
     topEnd: CornerSize,
     bottomEnd: CornerSize,
     bottomStart: CornerSize,
-) : CornerBasedShape(topStart, topEnd, bottomEnd, bottomStart) {
+) : CornerBasedShape(
+    topStart = topStart,
+    topEnd = topEnd,
+    bottomEnd = bottomEnd,
+    bottomStart = bottomStart,
+) {
     constructor(cornerRadius: Dp) : this(
-        CornerSize(cornerRadius),
-        CornerSize(cornerRadius),
-        CornerSize(cornerRadius),
-        CornerSize(cornerRadius),
-    )
-
-    constructor(
-        topStart: Dp,
-        topEnd: Dp,
-        bottomEnd: Dp,
-        bottomStart: Dp,
-    ) : this(
-        CornerSize(topStart),
-        CornerSize(topEnd),
-        CornerSize(bottomEnd),
-        CornerSize(bottomStart),
+        topStart = CornerSize(cornerRadius),
+        topEnd = CornerSize(cornerRadius),
+        bottomEnd = CornerSize(cornerRadius),
+        bottomStart = CornerSize(cornerRadius),
     )
 
     override fun createOutline(
@@ -141,41 +116,53 @@ class G2RoundedCornerShape(
         bottomStart: Float,
         layoutDirection: LayoutDirection,
     ): Outline {
+        if (topStart + topEnd + bottomEnd + bottomStart == 0f) {
+            return Outline.Rectangle(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+        }
+        val tl = if (layoutDirection == LayoutDirection.Ltr) topStart else topEnd
+        val tr = if (layoutDirection == LayoutDirection.Ltr) topEnd else topStart
+        val br = if (layoutDirection == LayoutDirection.Ltr) bottomEnd else bottomStart
+        val bl = if (layoutDirection == LayoutDirection.Ltr) bottomStart else bottomEnd
+
         val w = size.width
         val h = size.height
-        if (w <= 0f || h <= 0f) return Outline.Rectangle(Rect(0f, 0f, w, h))
+        val halfMin = min(w, h) * 0.5f
 
-        val isLtr = layoutDirection == LayoutDirection.Ltr
-        val tlRaw = (if (isLtr) topStart else topEnd).coerceAtLeast(0f)
-        val trRaw = (if (isLtr) topEnd else topStart).coerceAtLeast(0f)
-        val brRaw = (if (isLtr) bottomEnd else bottomStart).coerceAtLeast(0f)
-        val blRaw = (if (isLtr) bottomStart else bottomEnd).coerceAtLeast(0f)
+        fun span(r: Float): Float = (r * 1.28f).coerceAtMost(halfMin)
 
-        val maxExtent = min(w, h) * 0.5f
-        val g2Factor = 1.28f
-        val tl = (tlRaw * g2Factor).coerceAtMost(maxExtent)
-        val tr = (trRaw * g2Factor).coerceAtMost(maxExtent)
-        val br = (brRaw * g2Factor).coerceAtMost(maxExtent)
-        val bl = (blRaw * g2Factor).coerceAtMost(maxExtent)
-        val cpRatio = 0.42f
+        val pTL = span(tl)
+        val pTR = span(tr)
+        val pBR = span(br)
+        val pBL = span(bl)
+
+        val kMid = 0.2288f
+        val kHandle = 0.65f
 
         val path = Path().apply {
-            moveTo(tl, 0f)
-            lineTo(w - tr, 0f)
-            if (tr > 0f) {
-                cubicTo(w - tr * cpRatio, 0f, w, tr * cpRatio, w, tr)
+            moveTo(pTL, 0f)
+            lineTo(w - pTR, 0f)
+            if (pTR > 0f) {
+                val d = pTR * kMid
+                cubicTo(w - pTR * kHandle, 0f, w - 2f * d, 0f, w - d, d)
+                cubicTo(w, 2f * d, w, pTR * kHandle, w, pTR)
             }
-            lineTo(w, h - br)
-            if (br > 0f) {
-                cubicTo(w, h - br * cpRatio, w - br * cpRatio, h, w - br, h)
+            lineTo(w, h - pBR)
+            if (pBR > 0f) {
+                val d = pBR * kMid
+                cubicTo(w, h - pBR * kHandle, w, h - 2f * d, w - d, h - d)
+                cubicTo(w - 2f * d, h, w - pBR * kHandle, h, w - pBR, h)
             }
-            lineTo(bl, h)
-            if (bl > 0f) {
-                cubicTo(bl * cpRatio, h, 0f, h - bl * cpRatio, 0f, h - bl)
+            lineTo(pBL, h)
+            if (pBL > 0f) {
+                val d = pBL * kMid
+                cubicTo(pBL * kHandle, h, 2f * d, h, d, h - d)
+                cubicTo(0f, h - 2f * d, 0f, h - pBL * kHandle, 0f, h - pBL)
             }
-            lineTo(0f, tl)
-            if (tl > 0f) {
-                cubicTo(0f, tl * cpRatio, tl * cpRatio, 0f, tl, 0f)
+            lineTo(0f, pTL)
+            if (pTL > 0f) {
+                val d = pTL * kMid
+                cubicTo(0f, pTL * kHandle, 0f, 2f * d, d, d)
+                cubicTo(2f * d, 0f, pTL * kHandle, 0f, pTL, 0f)
             }
             close()
         }
@@ -187,7 +174,7 @@ class G2RoundedCornerShape(
         topEnd: CornerSize,
         bottomEnd: CornerSize,
         bottomStart: CornerSize,
-    ): G2RoundedCornerShape = G2RoundedCornerShape(topStart, topEnd, bottomEnd, bottomStart)
+    ): CornerBasedShape = G2RoundedCornerShape(topStart, topEnd, bottomEnd, bottomStart)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -207,175 +194,10 @@ class G2RoundedCornerShape(
     }
 }
 
-typealias G2SquircleShape = G2RoundedCornerShape
+/** Page padding shared by every screen. */
+val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 28.dp)
 
-/**
- * OriginOS 6 / ROM 16.0 collapsing toolbar scaffold.
- * Renders a 28.sp expanded title that smoothly collapses into an 18.sp pinned top bar
- * on scroll, with seamless statusBarsPadding() and bottom clearance for OriginFloatingNavBar.
- */
-@Composable
-fun OriginCollapsingScaffold(
-    title: String,
-    modifier: Modifier = Modifier,
-    onBack: (() -> Unit)? = null,
-    trailing: @Composable RowScope.() -> Unit = {},
-    hasBottomNav: Boolean = false,
-    listState: LazyListState = rememberLazyListState(),
-    contentPadding: PaddingValues = ScreenPadding,
-    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(12.dp),
-    content: LazyListScope.() -> Unit,
-) {
-    val collapseFraction by remember {
-        derivedStateOf {
-            if (listState.firstVisibleItemIndex > 0) {
-                1f
-            } else {
-                (listState.firstVisibleItemScrollOffset / 96f).coerceIn(0f, 1f)
-            }
-        }
-    }
-    val topBarAlpha by animateFloatAsState(
-        targetValue = if (collapseFraction > 0.35f) 0.96f else 0f,
-        animationSpec = tween(durationMillis = 160),
-        label = "originTopBarBg",
-    )
-    val collapsedTitleAlpha by animateFloatAsState(
-        targetValue = if (collapseFraction > 0.55f) 1f else 0f,
-        animationSpec = tween(durationMillis = 160),
-        label = "originCollapsedTitle",
-    )
-    val stickyTrailingAlpha by animateFloatAsState(
-        targetValue = if (onBack != null || collapseFraction > 0.45f) 1f else 0f,
-        animationSpec = tween(durationMillis = 160),
-        label = "originStickyTrailing",
-    )
-    val expandedTitleAlpha = (1f - collapseFraction * 1.4f).coerceIn(0f, 1f)
-    val layoutDirection = LocalLayoutDirection.current
-    val bottomClearance = if (hasBottomNav) 96.dp else 0.dp
-
-    OriginSpaceBackground(modifier = modifier) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = contentPadding.calculateLeftPadding(layoutDirection),
-                end = contentPadding.calculateRightPadding(layoutDirection),
-                top = 0.dp,
-                bottom = contentPadding.calculateBottomPadding() + bottomClearance,
-            ),
-            verticalArrangement = verticalArrangement,
-        ) {
-            item(key = "origin_collapsing_header") {
-                if (onBack == null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(top = 12.dp, bottom = 4.dp)
-                            .padding(horizontal = 6.dp)
-                            .heightIn(min = 44.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = title,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.5).sp,
-                            color = IsleColors.Text,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .weight(1f)
-                                .alpha(expandedTitleAlpha),
-                        )
-                        if (collapseFraction <= 0.45f) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.alpha(expandedTitleAlpha),
-                                content = trailing,
-                            )
-                        }
-                    }
-                } else {
-                    Spacer(Modifier.statusBarsPadding().height(52.dp))
-                    Text(
-                        text = title,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp,
-                        color = IsleColors.Text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                            .alpha(expandedTitleAlpha),
-                    )
-                }
-            }
-            content()
-            item(key = "origin_bottom_nav_inset") {
-                Spacer(Modifier.navigationBarsPadding())
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(IsleColors.Background.copy(alpha = topBarAlpha))
-                .statusBarsPadding(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (onBack != null) {
-                    CircleIconButton(
-                        icon = IsleIcons.Back,
-                        contentDescription = "Quay lại",
-                        onClick = onBack,
-                        background = if (collapseFraction > 0.55f) Color.Transparent else IsleColors.Surface,
-                    )
-                }
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = IsleColors.Text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = if (onBack == null) 8.dp else 2.dp)
-                        .alpha(collapsedTitleAlpha),
-                )
-                if (onBack != null || collapseFraction > 0.45f) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.alpha(if (onBack != null) 1f else stickyTrailingAlpha),
-                        content = trailing,
-                    )
-                }
-            }
-            if (collapseFraction > 0.55f) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(0.5.dp)
-                        .background(IsleColors.Divider),
-                )
-            }
-        }
-    }
-}
+private val GroupRadius = 24.dp
 
 /** Top-level tab header with large Material 3 title and optional trailing action. */
 @Composable
@@ -418,23 +240,16 @@ fun TonalShortcutCard(
         label = "shortcutTouchScale",
     )
     val cardShape = G2RoundedCornerShape(24.dp)
-    val isDark = IsleColors.isDark
 
     Column(
         modifier = modifier
             .scale(scale)
             .clip(cardShape)
             .background(IsleColors.Surface)
-            .then(
-                if (isDark) {
-                    Modifier.border(
-                        width = 0.8.dp,
-                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                        shape = cardShape,
-                    )
-                } else {
-                    Modifier
-                },
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = cardShape,
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -475,11 +290,9 @@ fun ScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> 
             title,
             modifier = Modifier.weight(1f).padding(start = 6.dp),
             fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
             letterSpacing = (-0.5).sp,
             color = IsleColors.Text,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
         trailing()
     }
@@ -507,47 +320,6 @@ fun CircleIconButton(
     }
 }
 
-enum class PillButtonVariant {
-    PRIMARY,
-    ALPHA_BLUE,
-    ALPHA_GRAY,
-}
-
-/** OriginUI ROM 16.0 PillButton with 3 semantic variants (PRIMARY, ALPHA_BLUE, ALPHA_GRAY). */
-@Composable
-fun PillButton(
-    text: String,
-    onClick: () -> Unit,
-    variant: PillButtonVariant,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    iconSize: Dp = 18.dp,
-    enabled: Boolean = true,
-    height: Dp = 50.dp,
-) {
-    val container = when (variant) {
-        PillButtonVariant.PRIMARY -> IsleColors.Accent
-        PillButtonVariant.ALPHA_BLUE -> IsleColors.AccentSoft
-        PillButtonVariant.ALPHA_GRAY -> IsleColors.SurfaceHigher
-    }
-    val content = when (variant) {
-        PillButtonVariant.PRIMARY -> Color.White
-        PillButtonVariant.ALPHA_BLUE -> IsleColors.Accent
-        PillButtonVariant.ALPHA_GRAY -> IsleColors.Text
-    }
-    PillButton(
-        text = text,
-        onClick = onClick,
-        modifier = modifier,
-        icon = icon,
-        iconSize = iconSize,
-        container = container,
-        content = content,
-        enabled = enabled,
-        height = height,
-    )
-}
-
 /** A full-width (or weighted) rounded button with an optional leading icon and Touch Light spring. */
 @Composable
 fun PillButton(
@@ -559,7 +331,7 @@ fun PillButton(
     container: Color = MaterialTheme.colorScheme.primary,
     content: Color = MaterialTheme.colorScheme.onPrimary,
     enabled: Boolean = true,
-    height: Dp = 50.dp,
+    height: Dp = 52.dp,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -571,18 +343,15 @@ fun PillButton(
         ),
         label = "pillButtonScale",
     )
-    val isDark = IsleColors.isDark
-    val pillRadius = (height / 2).coerceIn(24.dp, 32.dp)
-    val pillShape = G2RoundedCornerShape(pillRadius)
 
     Surface(
         onClick = onClick,
         enabled = enabled,
         interactionSource = interactionSource,
-        shape = pillShape,
+        shape = G2RoundedCornerShape(24.dp),
         color = container,
         contentColor = content,
-        border = if (enabled && isDark) {
+        border = if (enabled) {
             BorderStroke(
                 width = 0.7.dp,
                 brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
@@ -623,31 +392,24 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         text,
         modifier = modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
-        color = IsleColors.TextTertiary,
+        fontWeight = FontWeight.SemiBold,
+        color = IsleColors.TextSecondary,
     )
 }
 
-/** OriginUI ROM 16.0 card with 24dp G2 squircle corners, clean #FFFFFF in Light and Edge Light in Dark. */
+/** OriginOS 6-7 Liquid Glass card with 24dp G2 squircle corners and Edge Light border. */
 @Composable
 fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val cardShape = G2RoundedCornerShape(GroupRadius)
-    val isDark = IsleColors.isDark
     Column(
         modifier
             .fillMaxWidth()
             .clip(cardShape)
             .background(IsleColors.Surface)
-            .then(
-                if (isDark) {
-                    Modifier.border(
-                        width = 0.8.dp,
-                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                        shape = cardShape,
-                    )
-                } else {
-                    Modifier
-                },
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                shape = cardShape,
             )
             .animateContentSize(
                 animationSpec = spring(
@@ -666,7 +428,12 @@ fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
 fun groupItemShape(index: Int, count: Int): Shape {
     val top = if (index == 0) GroupRadius else 0.dp
     val bottom = if (index == count - 1) GroupRadius else 0.dp
-    return G2RoundedCornerShape(topStart = top, topEnd = top, bottomEnd = bottom, bottomStart = bottom)
+    return G2RoundedCornerShape(
+        topStart = CornerSize(top),
+        topEnd = CornerSize(top),
+        bottomEnd = CornerSize(bottom),
+        bottomStart = CornerSize(bottom),
+    )
 }
 
 /** Hairline between rows in OriginOS 6, inset to line up with row titles. */
@@ -675,7 +442,7 @@ fun GroupDivider(inset: Dp = 56.dp) {
     Box(Modifier.padding(start = inset).fillMaxWidth().height(0.5.dp).background(IsleColors.Divider))
 }
 
-/** OriginOS 6-7 squircle icon tile (13dp) with subtle static edge highlight. */
+/** OriginOS 6-7 squircle icon tile (13dp G2) with subtle static edge highlight. */
 @Composable
 fun IconTile(icon: ImageVector, color: Color = IsleColors.Accent, size: Dp = 38.dp) {
     val tileShape = G2RoundedCornerShape(13.dp)
@@ -719,9 +486,9 @@ fun SettingRow(
     ) {
         IconTile(icon, color = tileColor)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = IsleColors.Text)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
             if (subtitle != null) {
-                Text(subtitle, fontSize = 12.5.sp, color = IsleColors.TextSub, lineHeight = 17.5.sp)
+                Text(subtitle, fontSize = 13.sp, color = IsleColors.TextSecondary, lineHeight = 18.sp)
             }
         }
         trailing()
@@ -820,7 +587,7 @@ fun NestedSettingContainer(
                     modifier = Modifier
                         .width(3.dp)
                         .height(30.dp)
-                        .clip(CircleShape)
+                        .clip(RoundedCornerShape(1.5.dp))
                         .background(IsleColors.Accent.copy(alpha = 0.6f)),
                 )
                 Spacer(Modifier.width(12.dp))
@@ -842,9 +609,9 @@ fun NestedSettingContainer(
 }
 
 /**
- * OriginUI ROM 16.0 MoveBoolButton (44dp x 28dp):
- * - OFF: track #59CCCCCC (Light) / #75464646 (Dark), hollow ring thumb (18dp, stroke 2.5dp).
- * - ON: track accent.copy(alpha = 0.24f / 0.36f), solid white thumb with accent halo glow.
+ * OriginOS ROM 16.0 MoveBoolButton Switch (44dp x 28dp):
+ * - OFF: track #59CCCCCC (Light) / #75464646 (Dark), thumb vòng tròn rỗng (hollow ring) nét 2.5dp đường kính 18dp.
+ * - ON: track accent alpha 0.24f (Light) / 0.36f (Dark), thumb tròn đặc trắng + halo mềm màu accent.
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
@@ -853,12 +620,13 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
     val isDark = IsleColors.isDark
     val accent = IsleColors.Accent
 
+    val targetTrackColor = if (checked) {
+        accent.copy(alpha = if (isDark) 0.36f else 0.24f)
+    } else {
+        if (isDark) Color(0x75464646) else Color(0x59CCCCCC)
+    }
     val trackColor by animateColorAsState(
-        targetValue = if (checked) {
-            accent.copy(alpha = if (isDark) 0.36f else 0.24f)
-        } else {
-            if (isDark) Color(0x75464646) else Color(0x59CCCCCC)
-        },
+        targetValue = targetTrackColor,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "isleSwitchTrack",
     )
@@ -877,6 +645,11 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
             stiffness = Spring.StiffnessMedium,
         ),
         label = "isleSwitchThumbScale",
+    )
+    val onProgress by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "isleSwitchOnProgress",
     )
 
     val toggleModifier = if (onCheckedChange != null) {
@@ -899,34 +672,43 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
             .then(toggleModifier),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (checked) {
-            // Solid white thumb with accent halo/glow
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(thumbOffset.roundToPx(), 0) }
-                    .size(18.dp)
-                    .scale(thumbScale)
-                    .shadow(
-                        elevation = 4.dp,
-                        shape = CircleShape,
-                        clip = false,
-                        ambientColor = accent,
-                        spotColor = accent,
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
+                .size(18.dp)
+                .scale(thumbScale),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Soft accent halo when ON
+            if (onProgress > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .alpha(onProgress * 0.45f)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(accent.copy(alpha = 0.7f), Color.Transparent),
+                            ),
+                        ),
+                )
+            }
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                if (onProgress > 0.01f) {
+                    drawCircle(
+                        color = Color.White.copy(alpha = onProgress),
+                        radius = size.minDimension * 0.5f,
                     )
-                    .border(width = 1.5.dp, color = accent.copy(alpha = 0.45f), shape = CircleShape)
-                    .clip(CircleShape)
-                    .background(Color.White),
-            )
-        } else {
-            // Hollow ring thumb (18dp, stroke 2.5dp)
-            val ringColor = if (isDark) Color(0xFFE0E0E0) else Color.White
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(thumbOffset.roundToPx(), 0) }
-                    .size(18.dp)
-                    .scale(thumbScale)
-                    .border(width = 2.5.dp, color = ringColor, shape = CircleShape),
-            )
+                }
+                if (onProgress < 0.99f) {
+                    val strokePx = 2.5.dp.toPx()
+                    drawCircle(
+                        color = Color.White.copy(alpha = 1f - onProgress),
+                        radius = (size.minDimension - strokePx) * 0.5f,
+                        style = Stroke(width = strokePx),
+                    )
+                }
+            }
         }
     }
 }
@@ -944,16 +726,19 @@ fun SegmentedControl(
     if (options.isEmpty()) return
     val safeSelected = selected.coerceIn(0, options.lastIndex)
 
+    val segmentTrackShape = G2RoundedCornerShape(18.dp)
+    val segmentThumbShape = G2RoundedCornerShape(15.dp)
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .clip(CircleShape)
+            .clip(segmentTrackShape)
             .background(track)
             .border(
                 width = 0.6.dp,
                 brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                shape = CircleShape,
+                shape = segmentTrackShape,
             )
             .padding(3.dp)
             .selectableGroup(),
@@ -973,12 +758,12 @@ fun SegmentedControl(
                 .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
                 .width(segmentWidth)
                 .fillMaxHeight()
-                .clip(CircleShape)
+                .clip(segmentThumbShape)
                 .background(MaterialTheme.colorScheme.secondaryContainer)
                 .border(
                     width = 0.6.dp,
                     brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                    shape = CircleShape,
+                    shape = segmentThumbShape,
                 ),
         )
 
@@ -1000,7 +785,7 @@ fun SegmentedControl(
                         .weight(1f)
                         .fillMaxHeight()
                         .scale(scale)
-                        .clip(CircleShape)
+                        .clip(segmentThumbShape)
                         .selectable(
                             selected = on,
                             interactionSource = interactionSource,
@@ -1033,7 +818,7 @@ fun ChoiceChip(
     modifier: Modifier = Modifier,
     selectedContainer: Color = MaterialTheme.colorScheme.primaryContainer,
     selectedContent: Color = MaterialTheme.colorScheme.onPrimaryContainer,
-    shape: Shape = G2RoundedCornerShape(14.dp),
+    shape: Shape = G2RoundedCornerShape(18.dp),
     height: Dp = 44.dp,
     horizontalPadding: Dp = 8.dp,
 ) {
@@ -1215,208 +1000,6 @@ fun ColorSwatchPill(
     }
 }
 
-/** OriginUI ROM 16.0 HeroCard with 30dp G2 squircle corners. */
-@Composable
-fun HeroCard(
-    modifier: Modifier = Modifier,
-    containerColor: Color = IsleColors.Surface,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val cardShape = G2RoundedCornerShape(30.dp)
-    val isDark = IsleColors.isDark
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(cardShape)
-            .background(containerColor)
-            .then(
-                if (isDark) {
-                    Modifier.border(
-                        width = 0.8.dp,
-                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                        shape = cardShape,
-                    )
-                } else {
-                    Modifier
-                },
-            ),
-        content = content,
-    )
-}
-
-/**
- * OriginUI ROM 16.0 VSearchView2:
- * Chiều cao 46.dp, bo góc G2RoundedCornerShape(20.dp), nền #0D000000 (Light) / #14FFFFFF (Dark).
- */
-@Composable
-fun VSearchView2(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String = "Tìm kiếm...",
-    onSearch: (() -> Unit)? = null,
-    trailing: @Composable () -> Unit = {},
-) {
-    val searchShape = G2RoundedCornerShape(20.dp)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 46.dp)
-            .clip(searchShape)
-            .background(IsleColors.SurfaceHigher)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(
-            imageVector = IsleIcons.Search,
-            contentDescription = null,
-            tint = IsleColors.TextTertiary,
-            modifier = Modifier.size(18.dp),
-        )
-        Box(
-            modifier = Modifier.weight(1f),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (query.isEmpty()) {
-                Text(
-                    text = placeholder,
-                    fontSize = 15.sp,
-                    color = IsleColors.TextTertiary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    fontFamily = VivoSans,
-                    fontSize = 15.sp,
-                    color = IsleColors.Text,
-                ),
-                cursorBrush = SolidColor(IsleColors.Accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke() }),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (query.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(CircleShape)
-                    .background(IsleColors.TextTertiary.copy(alpha = 0.22f))
-                    .clickable(role = Role.Button) { onQueryChange("") },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = IsleIcons.Close,
-                    contentDescription = "Xóa tìm kiếm",
-                    tint = IsleColors.TextSecondary,
-                    modifier = Modifier.size(13.dp),
-                )
-            }
-        }
-        trailing()
-    }
-}
-
-/**
- * OriginUI ROM 16.0 VTipCard:
- * Bo góc G2RoundedCornerShape(12.dp), tiêu đề 14.sp, nội dung 12.sp, action link #456FFF / #6EA3FF.
- */
-@Composable
-fun VTipCard(
-    title: String,
-    body: String,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    iconTint: Color = IsleColors.Accent,
-    containerColor: Color = IsleColors.Surface,
-    actionLabel: String? = null,
-    actionColor: Color = IsleColors.Link,
-    onAction: (() -> Unit)? = null,
-    onDismiss: (() -> Unit)? = null,
-) {
-    val tipShape = G2RoundedCornerShape(12.dp)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(tipShape)
-            .background(containerColor)
-            .border(0.5.dp, IsleColors.Divider, tipShape)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        if (icon != null) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .size(30.dp)
-                    .clip(G2RoundedCornerShape(9.dp))
-                    .background(iconTint.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(17.dp),
-                )
-            }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = IsleColors.Text,
-            )
-            Text(
-                text = body,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = IsleColors.TextSecondary,
-            )
-            if (actionLabel != null && onAction != null) {
-                Text(
-                    text = actionLabel,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = actionColor,
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .clip(G2RoundedCornerShape(6.dp))
-                        .clickable(role = Role.Button, onClick = onAction)
-                        .padding(vertical = 2.dp),
-                )
-            }
-        }
-        if (onDismiss != null) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button, onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = IsleIcons.Close,
-                    contentDescription = "Đóng",
-                    tint = IsleColors.TextTertiary,
-                    modifier = Modifier.size(15.dp),
-                )
-            }
-        }
-    }
-}
-
 /** Centered grey message for empty lists. */
 @Composable
 fun EmptyMessage(text: String) {
@@ -1477,6 +1060,55 @@ fun OriginSpaceBackground(
     }
 }
 
+/** OriginOS ROM 16.0 VTipCard-style warning/tip banner with 12dp G2 corners. */
+@Composable
+fun WarningBanner(
+    title: String,
+    message: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val bannerShape = G2RoundedCornerShape(12.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(bannerShape)
+            .background(IsleColors.Surface)
+            .border(width = 0.8.dp, color = IsleColors.Divider, shape = bannerShape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IsleColors.Text,
+            )
+            Text(
+                text = message,
+                fontSize = 12.sp,
+                color = IsleColors.TextSecondary,
+                lineHeight = 17.sp,
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            Text(
+                text = actionLabel,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF456FFF),
+                modifier = Modifier
+                    .clip(G2RoundedCornerShape(8.dp))
+                    .clickable(role = Role.Button, onClick = onAction)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
 /** Tab item cho thanh điều hướng nổi OriginOS 6-7. */
 data class OriginNavTab(
     val label: String,
@@ -1500,41 +1132,33 @@ fun OriginFloatingNavBar(
     val isDark = IsleColors.isDark
     val specularTop = if (isDark) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.92f)
     val lensSpecularTop = if (isDark) Color.White.copy(alpha = 0.24f) else Color.White.copy(alpha = 0.78f)
+    val dockShape = G2RoundedCornerShape(32.dp)
+    val lensShape = G2RoundedCornerShape(27.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 460.dp)
-                .height(60.dp)
+                .height(64.dp)
                 .shadow(
-                    elevation = if (isDark) 16.dp else 10.dp,
-                    shape = CircleShape,
-                    ambientColor = Color.Black.copy(alpha = if (isDark) 0.22f else 0.08f),
-                    spotColor = Color.Black.copy(alpha = if (isDark) 0.28f else 0.12f),
+                    elevation = 16.dp,
+                    shape = dockShape,
+                    ambientColor = Color.Black.copy(alpha = 0.16f),
+                    spotColor = Color.Black.copy(alpha = 0.22f),
                 )
-                .clip(CircleShape)
-                .background(if (isDark) IsleColors.FloatingGlassBg else Color.White)
-                .then(
-                    if (isDark) {
-                        Modifier.border(
-                            width = 0.9.dp,
-                            brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                            shape = CircleShape,
-                        )
-                    } else {
-                        Modifier.border(
-                            width = 0.6.dp,
-                            color = IsleColors.Divider,
-                            shape = CircleShape,
-                        )
-                    },
+                .clip(dockShape)
+                .background(IsleColors.FloatingGlassBg)
+                .border(
+                    width = 0.9.dp,
+                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                    shape = dockShape,
                 ),
         ) {
             // Inner specular top highlight (0.5.dp) for two-layer Edge Light refraction
@@ -1551,7 +1175,7 @@ fun OriginFloatingNavBar(
                                 1.0f to Color.Transparent,
                             ),
                         ),
-                        shape = CircleShape,
+                        shape = dockShape,
                     ),
             )
 
@@ -1577,7 +1201,7 @@ fun OriginFloatingNavBar(
                         .offset { IntOffset(indicatorOffset.roundToPx(), 0) }
                         .width(tabWidth)
                         .fillMaxHeight()
-                        .clip(CircleShape)
+                        .clip(lensShape)
                         .background(
                             Brush.verticalGradient(
                                 listOf(
@@ -1594,7 +1218,7 @@ fun OriginFloatingNavBar(
                                     IsleColors.Accent.copy(alpha = 0.08f),
                                 ),
                             ),
-                            shape = CircleShape,
+                            shape = lensShape,
                         ),
                 ) {
                     Box(
@@ -1610,7 +1234,7 @@ fun OriginFloatingNavBar(
                                         1.0f to Color.Transparent,
                                     ),
                                 ),
-                                shape = CircleShape,
+                                shape = lensShape,
                             ),
                     )
                 }
@@ -1634,7 +1258,7 @@ fun OriginFloatingNavBar(
                             label = "navTabTouchLight_$index",
                         )
                         val contentColor by animateColorAsState(
-                            targetValue = if (selected) IsleColors.Accent else IsleColors.TextTertiary,
+                            targetValue = if (selected) IsleColors.Accent else IsleColors.TextSecondary,
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                             label = "navTabColor_$index",
                         )
@@ -1644,7 +1268,7 @@ fun OriginFloatingNavBar(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .scale(scale)
-                                .clip(CircleShape)
+                                .clip(lensShape)
                                 .background(IsleColors.Accent.copy(alpha = touchLightAlpha))
                                 .selectable(
                                     selected = selected,

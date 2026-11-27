@@ -1,108 +1,107 @@
-# Hợp Đồng Thiết Kế Giao Diện - OriginIsle VN (DESIGN.md SSOT)
-
-> **Chuẩn tham chiếu**: OriginOS 6 / OriginUI ROM 16.0 (`V2318` Android 16) kết hợp hệ thống token & thành phần thực tế từ `extracted-rom16-specs.md` và `originui-components.md`.
-
----
-
-## 1. Atmosphere & Aesthetic (Không khí & Thẩm mỹ chủ đạo)
-- **Phong cách**: **OriginUI ROM 16.0 (Clean Atmospheric Glass & G2 Squircle)** — tối giản, khoảng thở lớn, phân lớp bề mặt rõ ràng bằng độ tương phản nền-thẻ (`#F2F2F5` vs `#FFFFFF` ở Light Mode; `#0D0F14` vs `#171A21` ở Dark Mode), đường phân cách siêu mảnh (`0.5.dp`), và hiệu ứng bo góc liên tục G2 (`k = radius * 0.22`).
-- **Nguyên tắc thị giác**:
-  - Loại bỏ cảm giác "Material 3 mặc định" (tím/xanh xám đục). Ưu tiên nền sáng tinh khiết `#F2F2F5` + thẻ trắng `#FFFFFF` nổi bật rõ rệt, và nền tối sâu `#0D0F14` + thẻ `#171A21` có viền ánh sáng cạnh (`Edge Light`) tinh tế.
-  - Thao tác mượt mà với spring physics (`emil-design-eng`), không giật cục.
+# HỢP ĐỒNG THIẾT KẾ ORIGINOS 6–7 (SSOT) — ORIGIN ISLE VIỆT NAM
+Chuẩn thiết kế: **vivo OriginOS 6 (Space System 2.0)** & **OriginOS 7 (Liquid Glass / Atomic Motion 7.0)**
 
 ---
 
-## 2. Project Palette (Bảng màu Dự án - ROM 16.0)
+## 1. TRIẾT LÝ KHÔNG GIAN & THẨM MỸ (SPACE SYSTEM 2.0)
 
-### 2.1 Light Mode (OriginUI ROM 16.0 Chuẩn)
-| Vai trò | Giá trị Hex | Ghi chú |
-|---|---|---|
-| Page Background (`bg`) | `#F2F2F5` | Nền trang tổng thể |
-| Card / Surface (`card`) | `#FFFFFF` | Thẻ nhóm, Bottom Navigation, Sheet |
-| Surface Variant (`cardAlt`) | `#F7F8FA` | Thẻ phụ, vùng lồng |
-| Input / Chip Fill (`chipBg`) | `#0D000000` | Ô tìm kiếm `VSearchView2`, nút AlphaGray, Chip chưa chọn |
-| Primary Accent (`accent`) | `#0F77FF` | Điểm nhấn mặc định OriginUI (hỗ trợ Dynamic Color / Preset) |
-| Primary Alpha Fill (`accentSoft`) | `#1A0F77FF` | Nền nút AlphaBlue, pill đang chọn |
-| Action Link (`link`) | `#456FFF` | Liên kết trong `VTipCard` |
-| Destructive (`error`) | `#FF3636` | Cảnh báo, xóa, trạng thái lỗi |
-| Success (`ok`) | `#23B26D` | Trạng thái hoạt động tốt |
-| Warning (`warn`) | `#FF9500` | Cảnh báo nhẹ |
-| Text Primary (`textPrimary`) | `#E6000000` | Tiêu đề, nội dung chính (90% đen) |
-| Text Secondary (`textSecondary`) | `#CC000000` | Mô tả phụ `g2` (80% đen) |
-| Text Sub-item (`textSub`) | `#78000000` | Phụ đề hàng `VListItem` (47% đen) |
-| Text Muted (`textMuted`) | `#59000000` | Nhãn tab không chọn, gợi ý `g5` (35% đen) |
-| Hairline Divider (`divider`) | `#14000000` | Đường kẻ phân cách `0.5.dp` (8% đen) |
-
-### 2.2 Dark Mode (OriginUI Dark & Edge Light)
-| Vai trò | Giá trị Hex | Ghi chú |
-|---|---|---|
-| Page Background (`bg`) | `#0D0F14` | Nền tối sâu OriginOS |
-| Card / Surface (`card`) | `#171A21` | Thẻ nhóm, Sheet tối |
-| Surface Variant (`cardAlt`) | `#1E222B` | Thẻ phụ, vùng lồng |
-| Input / Chip Fill (`chipBg`) | `#14FFFFFF` | Ô tìm kiếm, nút phụ |
-| Primary Accent (`accent`) | `#2E8BFF` | Xanh sáng tối ưu độ tương phản nền tối |
-| Primary Alpha Fill (`accentSoft`) | `#260F77FF` | Nền pill nhấn nhẹ |
-| Text Primary (`textPrimary`) | `#F2F4F8` | Chữ chính |
-| Text Secondary (`textSecondary`) | `#B3F2F4F8` | Chữ phụ |
-| Text Muted (`textMuted`) | `#73F2F4F8` | Nhãn mờ |
-| Hairline Divider (`divider`) | `#1FFFFFFF` | Viền mảnh `0.5.dp` |
-| Nav Bar Floating (`navBg`) | `#EB141822` | Thanh điều hướng nổi bán trong suốt + Edge Light |
+- **Tư tưởng cốt lõi**: Chuyển dịch từ giao diện phẳng phân tầng bằng màu sắc sang **giao diện mô phỏng vật lý thực**, lấy **ánh sáng, chiều sâu không gian (Z-axis) và động lực học chất lỏng** làm trục dẫn dắt.
+- **Thanh trạng thái siêu không ranh giới**: Kích hoạt `WindowCompat.setDecorFitsSystemWindows(window, false)` với `statusBarColor = Color.Transparent` và `navigationBarColor = Color.Transparent`. Nền `OriginSpaceBackground` kéo dài quầng sáng đỉnh màn hình hòa liền mạch vào thanh trạng thái, loại bỏ hoàn toàn vạch chia thô.
+- **Phân tầng Bề mặt 3 lớp (`--os-surface-tier`)**:
+  1. **Tầng Nền (Base Space)**: `surface` kết hợp quầng `AmbientGlow` dịu ở đỉnh màn hình.
+  2. **Tầng Thẻ Giữa (Mid-tier Liquid Glass Cards)**: `surfaceContainerLow` cho `GroupCard` và `surfaceContainer` cho `NestedSettingContainer`.
+  3. **Tầng Nổi Đỉnh (Floating Overlay / Bar)**: `FloatingGlassBg` (`#E6141822` ở Dark / `#EBFFFFFF` ở Light) cho `OriginFloatingNavBar`, và `#F4141824` (Dark) / `#F8FFFFFF` (Light) với 4 ánh sáng vật lý (`Edge Light`, `Top Specular Highlight`, `Ambient Light`, `Touch Light`) cho `BluetoothPopupOverlay` (tuyệt đối không dùng `FLAG_BLUR_BEHIND`).
 
 ---
 
-## 3. Fillet / Border Radius & Layout Tokens (ROM 16.0)
-- **Horizontal Screen / Card Margin**: `14.dp` (`ScreenPadding`) cho khoảng cách lề tiêu chuẩn của thẻ nhóm `VListItem` / `GroupCard`.
-- **Corner Radii (Fillet System + G2 Squircle)**:
-  - Áp dụng **`G2RoundedCornerShape`** (đường cong liên tục G2 bậc 4 / superellipse `|x|^4 + |y|^4 = r^4`) cho mọi thẻ, nút, thanh tìm kiếm và hộp thoại.
-  - `S = 12.dp`: `VTipCard` (`WarningBanner`), thumbnail, tile nhỏ.
-  - `M = 18.dp`–`20.dp`: Thẻ phụ lồng trong, `VSearchView2` (`20.dp`).
-  - `L = 24.dp`: `GroupCard` chính (`GroupRadius`), `Button` chuẩn (`24.dp`), `BentoTile`.
-  - `XL = 30.dp`–`32.dp`: `VDialog`, `ModalBottomSheet` (`30.dp`), `HeroCard` (`30.dp`), `Button` lớn (`32.dp` / `CircleShape`).
-- **Collapsing Toolbar (OriginOS Settings Style)**:
-  - Tiêu đề trang mở rộng `28.sp` (SemiBold/Bold, tracking `-0.5.sp`), tự động thu gọn mượt thành `18.sp` trên thanh tiêu đề ghim đỉnh khi người dùng cuộn danh sách (`OriginCollapsingScaffold`).
-- **Hairline Divider**: `0.5.dp` (`divider`), thụt lề trái `16.dp` (hoặc thẳng hàng với text khi có icon) bên trong `GroupCard`.
+## 2. HỆ THỐNG VẬT LIỆU & ÁNH SÁNG (LIQUID GLASS & 4 LOẠI ÁNH SÁNG)
+
+### A. Vật liệu Kính Lỏng (Liquid Glass) & Hạ cấp Phần cứng (Hardware Fallback)
+- Hỗ trợ 3 mức sắc thái bề mặt (*Realistic / Natural / Soft*) dựa trên độ trong suốt và độ tương phản nền.
+- **Hardware Fallback (Phân mảnh phần cứng)**: Giao diện không phụ thuộc sống còn vào hiệu ứng blur GPU nặng. Trên thiết bị tầm trung hoặc khi hệ thống giảm hiệu ứng mờ, các bề mặt kính tự động hạ cấp mạch lạc sang nền mờ đục / nền đặc (`FallbackDarkColorScheme`, `FallbackLightColorScheme`) mà vẫn giữ nguyên cấu trúc phân cấp bằng khoảng trắng, viền Edge Light và độ tương phản chữ.
+
+### B. Hệ thống 4 Ánh sáng Vật lý
+1. **Edge Light (`--os-light-edge`)**: Thay thế bóng đổ đen đặc bằng viền sáng mảnh theo hướng ánh sáng trên-xuống (`Brush.verticalGradient` từ `EdgeLightTop` -> `EdgeLightBottom`):
+   - `EdgeLightTop`: `Color.White.copy(alpha = 0.22f)` (Dark) / `Color.White.copy(alpha = 0.85f)` (Light).
+   - `EdgeLightBottom`: `Color.White.copy(alpha = 0.04f)` (Dark) / `Color.Black.copy(alpha = 0.06f)` (Light).
+2. **Ambient Light (`AmbientGlow`)**: Quầng sáng môi trường tỏa dịu từ đỉnh `OriginSpaceBackground` (`accent.copy(alpha = 0.14f)` ở Dark / `accent.copy(alpha = 0.10f)` ở Light), đồng bộ với màu nhấn động (`AppThemeColor` / Monet).
+3. **Touch Light & Đàn hồi Vật lý**: Mọi thành phần tương tác (`PillButton`, `SegmentedControl`, `ChoiceChip`, `TonalShortcutCard`) phản hồi chạm ngay ở khung hình đầu tiên (*First-frame Interruptible*) với độ co đàn hồi `0.97f` theo `spring`.
+4. **Local Lift Under Text**: Chữ và icon đặt trên bề mặt kính lỏng luôn đảm bảo tương phản cao (`onSurface`, `onSurfaceVariant`) trên cả Dark Mode và Light Mode.
 
 ---
 
-## 4. Typography Scale (Phân cấp chữ ROM 16.0)
-- **Font Family**: `VivoSans` (`vivo-sans` system với fallback `FontFamily.SansSerif`) cho an toàn dấu tiếng Việt kép (`ệ, ổ, ữ, đ`), kết hợp `JakartaSans` nếu cần.
-- **Kích thước chuẩn**:
-  - Toolbar Expanded Title: `28.sp` (SemiBold/Bold, tracking `-0.5.sp`)
-  - Toolbar Collapsed Title: `18.sp` (SemiBold)
-  - Section Header / Group Label: `13.sp` (Medium, `textMuted`)
-  - ListItem Title / Input (`VListItem`): `16.sp` (Medium, `textPrimary`)
-  - Tab / Toolbar Button: `15.sp` (Medium)
-  - `VTipCard` Title: `14.sp` (SemiBold)
-  - `VTipCard` Body / ListItem Subtitle: `12.sp`–`13.sp` (`textSub` / `textMuted`)
-  - Search Tag / Caption: `12.sp`
+## 3. HỌ ĐƯỜNG CONG SQUIRCLE ĐỒNG TÂM (`IsleShapes`)
+
+- Toàn bộ bo góc tuân thủ nguyên tắc **Squircle đồng tâm** (bo góc ngoài lớn hơn bo góc thành phần lồng bên trong):
+  - `extraLarge`: `30.dp` (khung lớn, `OriginFloatingNavBar`, Bottom Sheet `32.dp`).
+  - `large`: `26.dp` (`GroupCard`).
+  - `medium`: `18.dp` (`NestedSettingContainer`, `TonalShortcutCard`).
+  - `small`: `14.dp` (`IconTile`, `ChoiceChip`, thành phần lồng trong).
+  - `pill`: `999.dp` / `50%` (`IsleSwitch`, `PillButton`, `SegmentedControl`, viên pin Bluetooth).
 
 ---
 
-## 5. OriginUI Component Contracts (Bắt buộc đồng bộ)
+## 4. BẢNG MÀU DỰ ÁN & ĐỒNG BỘ POPUP (`Theme.kt` & `BluetoothPopupOverlay.kt`)
 
-1. **`MoveBoolButton` (`IsleSwitch`)**:
-   - Kích thước track: `44.dp x 28.dp` (`vos7_0`), bo tròn hoàn toàn.
-   - Trạng thái **OFF**: Track `#59CCCCCC` (Light) / `#75464646` (Dark), thumb là **vòng tròn rỗng (hollow ring)** viền `2.5.dp`, đường kính ~`18.dp`, màu trắng (Light) hoặc `#E0E0E0` (Dark).
-   - Trạng thái **ON**: Track `accent.copy(alpha = 0.22f)` (Light `#330F77FF`) hoặc `accent.copy(alpha = 0.35f)` (Dark), thumb là **hình tròn đặc** màu trắng/sáng có viền halo/diffuse glow màu `accent`.
-2. **`VListItem` & `GroupCard`**:
-   - Bo góc `24.dp`, nền `#FFFFFF` (Light) / `#171A21` (Dark), lề ngang `14.dp`.
-   - Ngăn cách bằng đường `0.5.dp` (`divider`).
-3. **`VTipCard` (`WarningBanner`)**:
-   - Bo góc `12.dp`, nền `#FFFFFF` hoặc `#08000000` (Light) / `#1E222B` (Dark), chữ tiêu đề `14.sp`, nội dung `12.sp`, nút hành động màu `#456FFF` (hoặc semantic accent khi cảnh báo lỗi).
-4. **`VSearchView2`**:
-   - Chiều cao `44.dp`–`48.dp`, bo góc `20.dp`, nền `#0D000000` (Light) / `#14FFFFFF` (Dark), không viền thô.
-5. **`Button` (`PillButton`)**:
-   - Chiều cao tối thiểu `50.dp` (Large), bo góc `24.dp`–`32.dp`.
-   - Biến thể: Primary (`#0F77FF`, chữ trắng), AlphaBlue (`#1A0F77FF`, chữ `#0F77FF`), AlphaGray (`#0D000000`, chữ `#E6000000`).
-6. **`VDialog` & Bottom Sheet**:
-   - Bo góc `30.dp`, nền `#FFFFFF` (Light) / `#171A21` (Dark), nút hành động chuẩn OriginUI `50.dp`.
-7. **`BottomNavigationView` (`OriginFloatingNavBar`)**:
-   - Light Mode: Nền `#FFFFFF` / `#F2F2F5` kết hợp viền mảnh `#14000000`, mục chọn `#0F77FF`, mục chưa chọn `#59000000`.
-   - Dark Mode: `#EB141822` + Edge Light `#29FFFFFF`.
+- **Dynamic Color & Preset `AppThemeColor`**:
+  - Mặc định `AppThemeColor.DYNAMIC` (`#00BFA5`) trích xuất màu Monet trên Android 12+ (`SDK_INT >= S`).
+  - Các preset chuẩn: `BLUE` (`#2563EB`), `TEAL` (`#00897B`), `VIOLET` (`#7C4DFF`), `ROSE` (`#D84374`), `AMBER` (`#D97706`).
+- **Semantic Status**:
+  - Thành công (`good*`): `#00D084` (Dark) / `#00A86B` (Light).
+  - Cảnh báo (`warn*`): `#FF9F2E` (Dark) / `#F57C00` (Light).
+  - Lỗi (`bad*` / `danger`): Ánh xạ trực tiếp `error`, `errorContainer`, `onErrorContainer`.
+- **Popup Bluetooth (`BluetoothPopupOverlay.kt`)**:
+  - **Bottom Sheet Bám Đáy (`32.dp`)**: Bám sát cạnh dưới (`MATCH_PARENT` trên điện thoại, giới hạn `min(screenWidth, 480.dp)` trên màn rộng), bo 2 góc trên `32.dp` và 2 góc dưới `0.dp`, padding đáy `navBarBottom + 18.dp`; chỉ sử dụng `FLAG_NOT_FOCUSABLE or FLAG_LAYOUT_IN_SCREEN or FLAG_LAYOUT_NO_LIMITS` (`PixelFormat.TRANSLUCENT`), **tuyệt đối không dùng `FLAG_BLUR_BEHIND` hay `blurBehindRadius`** (tránh bị OriginOS 6 ẩn/chặn cửa sổ overlay).
+  - **Bề mặt Kính Lỏng & 4 Ánh sáng Vật lý**: Nền kính cân bằng tương phản cao `#F4141824` (Dark) / `#F8FFFFFF` (Light); **Edge Light** chuyển sắc trên-xuống `1.2.dp` kèm đường **Top Specular Highlight** `0.9.dp` mảnh mềm dọc cạnh trên giữa 2 góc bo; quầng **Ambient Light** (`RadialGradient`) tỏa mềm từ vùng giữa-trên thẻ phía sau khu vực tai nghe 3D theo `colorScheme.primary` (`0.14f` Dark / `0.08f` Light); **Touch Light** co đàn hồi `0.95f` + `alpha 0.88f` -> `OvershootInterpolator(1.05f)` trên nút tròn `"i"` (`46.dp x 46.dp`) và nút viên thuốc `"Hoàn tất"` (`height = 48.dp`).
+  - **Header `vivo Sans` & Huy hiệu Trạng thái**: Thanh kéo mỏng `38.dp x 4.dp`, huy hiệu trạng thái kính mỏng nằm trên tiêu đề (`#00D084` `7.dp` + `"Đã kết nối"` `11.5.sp`), tiêu đề `23.sp` đậm `includeFontPadding = true` (`lineSpacing 3.dp / 1.05x`) bảo toàn dấu kép tiếng Việt (`ệ`, `ổ`, `ữ`), subtitle gọn gàng `13.sp` `onSurfaceVariant`.
+  - **Huarong Atomic Battery Pods (`18.dp`, 2 dòng) & Atomic Motion 7.0**: Mỗi mục pin TWS là một Squircle đồng tâm bo 4 góc `18.dp` (`LiquidGlassSheetDrawable`) với nền kính nhẹ (`0x16FFFFFF` Dark / `0xC8F3F5FA` Light) và viền `Edge Light`, hiển thị 2 dòng (trên: icon `22.dp x 11.dp` + phần trăm `14.sp` đậm `tnum`; dưới: nhãn `11.sp` `"Tai trái"`, `"Hộp sạc"`, `"Tai phải"` hoặc `"Pin tai nghe"`), chia đều ngang (`weight = 1f` khi có 2–3 ô, tối đa `116.dp` khi chỉ có 1 ô). Hỗ trợ **First-frame Interruptible** (`ACTION_DOWN` hủy animation ngay khung đầu trên sheet và scrim, kéo lên trên có sức căng bề mặt `0.16f` rồi bật hồi êm), bảo toàn 3D `WebView`, hoạt ảnh Lenovo LE208 và giải mã ảnh/GIF.
 
 ---
 
-## 6. Role-Based UI Constraints & App Anti-Patterns
-- **Tuyệt đối không**: Dùng Emoji làm icon UI (chỉ dùng `Icons.Rounded.*` hoặc vector custom).
-- **Tuyệt đối không**: Thay đổi signature public của các Composable dùng chung (`IsleSwitch`, `GroupCard`, `PillButton`, `WarningBanner`, `SettingRow`, `ToggleRow`, `NavRow`, `OriginFloatingNavBar`, `MainScreenHeader`, `ScreenHeader`, `CompactStatusCard`, `AtomicShortcutTile`) để không làm gãy các màn hình đang hoạt động.
-- **Tuyệt đối không**: Sửa `applicationId = "com.autonavi.minimap"`.
+## 5. HỆ THỐNG KIỂU CHỮ (`vivo Sans`)
+
+- **Họ phông chữ**: Ưu tiên `vivo Sans` / `FontFamily.SansSerif`, tôn trọng `fontScale` hệ thống. Kiểm thử kỹ dấu thanh kép tiếng Việt (`ệ`, `ổ`, `ữ`) ở cỡ chữ nhỏ và weight đậm để tránh chạm dấu hoặc cắt ngọn.
+- **Phân cấp hiển thị**:
+  - **Screen Title (`headlineLarge`)**: `28sp`, `FontWeight.Bold`, letter spacing `-0.5sp`.
+  - **SectionLabel**: `13sp`, `FontWeight.SemiBold`, màu `TextSecondary`.
+  - **SettingRow Title**: `16sp`, `FontWeight.SemiBold`, `Modifier.weight(1f)`.
+  - **NavRow Value**: `maxLines = 1`, `TextOverflow.Ellipsis`, `widthIn(max = 136.dp)`.
+  - **Subtitle**: `13sp`, `lineHeight = 18sp`, màu `TextSecondary`.
+
+---
+
+## 6. LINH KIỆN CHUẨN ORIGINOS (`Components.kt`)
+
+- **`OriginSpaceBackground`**: Khung nền Space System 2.0 với quầng `AmbientGlow` ở đỉnh màn hình tràn liền mạch lên Status Bar.
+- **`OriginFloatingNavBar` (Liquid Glass Dock + Liquid Lens)**: Thanh điều hướng kính lỏng nổi lơ lửng ở đáy màn hình (`FloatingGlassBg` + `navigationBarsPadding()`), sử dụng **viền Edge Light 2 lớp kèm đường specular highlight `0.5.dp` ở cạnh trên**. Viên thuốc chỉ báo **Liquid Lens** trượt mượt giữa các tab theo `spring(dampingRatio = Spring.DampingRatioLowBouncy / 0.72f, stiffness = Spring.StiffnessMediumLow)` (*First-frame Interruptible*) kết hợp phản hồi co đàn hồi *Touch Light* (`0.96f`).
+- **`CompactStatusCard` (Huarong Grid Atomic Status Widget)**: Thẻ trạng thái nguyên tử không tầng (*zero-tier*) chuẩn Lưới Hoa Dung trong khung squircle `26.dp` có viền `Edge Light`, gom gọn: huy hiệu trạng thái kết nối dạng pill, tên thiết bị + phiên bản, dải thông số lượt thẻ Đảo trong ngày (`CastLog.entries.size` với chữ số `tnum`), và công tắc tổng `IsleSwitch` thao tác trực tiếp tại chỗ.
+- **`AtomicShortcutTile` (Lưới Atomic 1x2)**: Cặp ô lối tắt nhanh (`Ứng dụng` & `Nhật ký`) cân đối theo lưới `1x2`, tuân thủ **Squircle đồng tâm** (`26.dp` khung ngoài, `14.dp` ô icon bên trong) kèm viền `Edge Light` và phản hồi chạm *Touch Light* (`0.96f` spring + ánh sáng chạm nhẹ).
+- **`MediaIslandOverlay` (Liquid Glass Media Overlay)**: Thẻ phát nhạc nổi (`WindowManager`) bo góc `30.dp` sử dụng **viền Edge Light chuyển sắc từ trên xuống dưới** (`LayerDrawable` `TOP_BOTTOM`) và phản hồi *Touch Light* co nảy (`0.90f` -> `1f` với `OvershootInterpolator`) trên 3 nút điều khiển `Prev` / `Play-Pause` / `Next`.
+- **`GroupCard`**: Thẻ nhóm bo góc squircle `26.dp`, nền kính phân tầng kèm viền sáng `Edge Light` (`EdgeLightTop` -> `EdgeLightBottom`).
+- **`IsleSwitch`**: Pill Switch đặc trưng OriginOS (`50.dp x 28.dp`), núm tròn trắng chuyển động `spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)`, *First-frame Interruptible*.
+- **`IconTile`**: Huy hiệu squircle `38.dp`, bo góc `12.dp`–`14.dp`, nền `color.copy(alpha = 0.14f)`, icon `20.dp` đồng bộ nét.
+- **`PillButton`**: Nút viên thuốc bo tròn hoàn toàn, hiệu ứng nhấn đàn hồi *Touch Light* (`0.97f`), hỗ trợ `container` / `content` tùy biến.
+- **`SegmentedControl` & `ChoiceChip`**: Bo góc viên thuốc / squircle, viền `Edge Light`, phản hồi chạm đàn hồi.
+- **`NestedSettingContainer`**: Thẻ lồng nhau `18.dp` kèm `AnimatedVisibility`.
+
+---
+
+## 7. KIẾN TRÚC 3 TAB & THÍCH ỨNG MÀN HÌNH GẬP (`4:3`)
+
+- **Điều hướng chính**: `OriginFloatingNavBar` nổi ở `Alignment.BottomCenter` khi `onboardingDone && !isSubPage`; tự động ẩn khi mở `AppsScreen` hoặc `ActivityScreen`. Các màn hình cuộn (`HomeScreen`, `ModulesScreen`, `SettingsScreen`) luôn chừa `contentPadding` đáy tối thiểu `112.dp` để nội dung cuối không bị thanh nổi che khuất.
+- **3 Đích cấp cao nhất**:
+  1. **Tab 1 — Trang chủ (`HomeScreen.kt`)**: `MainScreenHeader`, Banner cảnh báo quyền (tự ẩn khi đủ quyền), `CompactStatusCard` (Huarong Grid Atomic Status Widget), Nhóm Giao diện & Tương tác, cặp `AtomicShortcutTile` 1x2 mở `AppsScreen` và `ActivityScreen`.
+  2. **Tab 2 — Tính năng (`ModulesScreen.kt`)**: Nhóm Dịch vụ & Ứng dụng và Nhóm Hệ thống & Phần cứng.
+  3. **Tab 3 — Cài đặt (`SettingsScreen.kt`)**: Nhóm Quy tắc & Riêng tư, Nhóm Giữ nền (`ShizukuKeepAliveHelper`), Nhóm Hệ thống & Cập nhật (`PermissionsSheet`, `UpdateDialog`).
+- **Thích ứng Màn hình Gập & Tỷ lệ `4:3`**:
+  - Hỗ trợ co giãn động mượt mà, giữ nguyên trạng thái trang và dữ liệu đang nhập, không tạo viền đen 2 bên.
+  - Khi màn hình mở rộng vượt ngưỡng tỷ lệ `4:3` (hoặc tablet), giới hạn chiều rộng nội dung tối đa `widthIn(max = 760.dp)` căn giữa cân đối và không đặt popup/dialog cắt ngang trục bản lề.
+
+---
+
+## 8. QUY TẮC CHỐNG LỖI THIẾT KẾ (APP ANTI-PATTERNS)
+
+- Cấm sử dụng `NavigationBar` phẳng mặc định của M3 kèm vạch chia `HorizontalDivider` ở đáy màn hình.
+- Cấm dùng `androidx.compose.material3.Switch` thô thay cho `IsleSwitch` đàn hồi OriginOS.
+- Cấm khóa cảm ứng chờ animation kết thúc; mọi chuyển động phải ngắt được ngay ở khung hình đầu tiên.
+- Cấm dùng emoji hoặc icon sticker màu sắc trong giao diện và tài liệu.

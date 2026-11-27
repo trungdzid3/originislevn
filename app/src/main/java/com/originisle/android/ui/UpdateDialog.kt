@@ -6,15 +6,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -49,12 +49,12 @@ private sealed class DownloadState {
 }
 
 /**
- * Hộp thoại cập nhật phiên bản mới thiết kế chuẩn OriginUI ROM 16.0 (Vivo OriginOS 6).
+ * Hộp thoại cập nhật phiên bản mới thiết kế chuẩn phong cách tối màu Vivo OriginOS 6.
  *
- * - Khung Dialog bo góc G2 30.dp, nền IsleColors.Surface, không bóng đổ thô.
- * - Header: "Cập nhật phiên bản mới" 20.sp Bold kèm badge `v[current] -> v[versionName]`.
- * - Changelog Card: Bo góc G2 18.dp, nền chip (IsleColors.SurfaceHigher), có thanh cuộn.
- * - Nút hành động 50.dp: PillButton ALPHA_GRAY ("Để sau") và PRIMARY ("Cập nhật ngay" / "Cài đặt lại").
+ * - Header: "Cập nhật phiên bản mới" kèm badge `v[current] -> v[versionName]`.
+ * - Changelog Card: Bo tròn tối màu (SurfaceHigh), có thanh cuộn hiển thị nhật ký phát hành.
+ * - Trạng thái tải: Hiện dung lượng tệp, khi bấm "Cập nhật ngay" hiển thị LinearProgressIndicator kèm thông số MB.
+ * - Khi tải xong: Tự động gọi cài đặt APK qua FileProvider và chuyển nút thành "Cài đặt lại".
  */
 @Composable
 fun UpdateDialog(
@@ -86,81 +86,61 @@ fun UpdateDialog(
         val dialogShape = G2RoundedCornerShape(30.dp)
         val badgeShape = G2RoundedCornerShape(10.dp)
         val changelogShape = G2RoundedCornerShape(18.dp)
-        val isDark = IsleColors.isDark
-
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 460.dp)
                 .clip(dialogShape)
-                .then(
-                    if (isDark) {
-                        Modifier.border(
-                            width = 0.8.dp,
-                            brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                            shape = dialogShape,
-                        )
-                    } else {
-                        Modifier
-                    },
+                .border(
+                    width = 0.9.dp,
+                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                    shape = dialogShape,
                 ),
             shape = dialogShape,
-            color = IsleColors.Surface,
+            color = IsleColors.FloatingGlassBg,
             tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
         ) {
             Column(
                 modifier = Modifier.padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // 1. Tiêu đề & Phiên bản Badge
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    IconTile(
-                        icon = IsleIcons.Download,
-                        color = IsleColors.Accent,
-                        size = 42.dp,
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Cập nhật phiên bản mới",
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IsleColors.Text,
                     )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(
-                            text = "Cập nhật phiên bản mới",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.3).sp,
-                            color = IsleColors.Text,
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Box(
+                            modifier = Modifier
+                                .clip(badgeShape)
+                                .background(IsleColors.SurfaceHigh)
+                                .border(
+                                    width = 0.7.dp,
+                                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                    shape = badgeShape,
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(badgeShape)
-                                    .background(IsleColors.AccentSoft)
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
-                            ) {
-                                Text(
-                                    text = "v$currentVersion -> v${release.versionName}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = IsleColors.Accent,
-                                )
-                            }
-                            if (release.title.isNotBlank() && release.title != release.versionName && release.title != "v${release.versionName}") {
-                                Text(
-                                    text = release.title,
-                                    fontSize = 12.sp,
-                                    color = IsleColors.TextSub,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                            Text(
+                                text = "v$currentVersion → v${release.versionName}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IsleColors.Accent,
+                            )
+                        }
+                        if (release.title.isNotBlank() && release.title != release.versionName && release.title != "v${release.versionName}") {
+                            Text(
+                                text = release.title,
+                                fontSize = 12.sp,
+                                color = IsleColors.TextSecondary,
+                                maxLines = 1,
+                            )
                         }
                     }
                 }
@@ -171,21 +151,24 @@ fun UpdateDialog(
                         text = "Nội dung cập nhật",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = IsleColors.TextSub,
+                        color = IsleColors.TextTertiary,
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 90.dp, max = 220.dp)
                             .clip(changelogShape)
-                            .background(IsleColors.SurfaceHigher)
+                            .background(IsleColors.SurfaceHigh)
+                            .border(
+                                width = 0.8.dp,
+                                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                shape = changelogShape,
+                            )
                             .padding(14.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         Text(
-                            text = release.changelog.ifBlank {
-                                "Bản cập nhật tối ưu hóa hiệu năng, cải tiến giao diện Đảo Động và sửa các lỗi phát sinh."
-                            },
+                            text = release.changelog.ifBlank { "Bản cập nhật tối ưu hóa hiệu năng, cải tiến giao diện Đảo Động và sửa các lỗi phát sinh." },
                             fontSize = 13.sp,
                             lineHeight = 19.sp,
                             color = IsleColors.Text,
@@ -193,7 +176,7 @@ fun UpdateDialog(
                     }
                 }
 
-                // 3. Trạng thái tải & Tiến độ
+                // 3. Trạng thái tải & Tiến độ (Progress Bar)
                 when (val state = downloadState) {
                     is DownloadState.Idle -> {
                         Row(
@@ -204,7 +187,7 @@ fun UpdateDialog(
                             Text(
                                 text = "Dung lượng tải về",
                                 fontSize = 13.sp,
-                                color = IsleColors.TextSub,
+                                color = IsleColors.TextSecondary,
                             )
                             Text(
                                 text = formatFileSize(release.sizeBytes),
@@ -222,7 +205,7 @@ fun UpdateDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(8.dp)
-                                    .clip(CircleShape),
+                                    .clip(G2RoundedCornerShape(4.dp)),
                                 color = IsleColors.Accent,
                                 trackColor = IsleColors.SurfaceHigher,
                             )
@@ -230,53 +213,55 @@ fun UpdateDialog(
                             Text(
                                 text = "Đang tải... ${state.progress}% (${formatFileSize(state.downloadedBytes)} / ${formatFileSize(total)})",
                                 fontSize = 12.sp,
-                                color = IsleColors.Link,
+                                color = IsleColors.AccentText,
                                 fontWeight = FontWeight.Medium,
                             )
                         }
                     }
                     is DownloadState.Downloaded -> {
-                        VTipCard(
-                            title = "Đã tải xong tệp cập nhật (v${release.versionName})",
-                            body = "Hệ thống đang mở trình cài đặt gói. Nếu bị gián đoạn, bấm \"Cài đặt lại\".",
-                            icon = IsleIcons.Check,
-                            iconTint = IsleColors.GoodText,
-                            containerColor = IsleColors.GoodBg,
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Đã tải xong tệp cập nhật (v${release.versionName})",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IsleColors.Good,
+                            )
+                            Text(
+                                text = "Hệ thống đang mở trình cài đặt gói. Nếu bị gián đoạn, bấm \"Cài đặt lại\".",
+                                fontSize = 11.5.sp,
+                                color = IsleColors.TextSecondary,
+                            )
+                        }
                     }
                     is DownloadState.Failed -> {
-                        VTipCard(
-                            title = "Không thể tải bản cập nhật",
-                            body = state.error,
-                            icon = IsleIcons.Close,
-                            iconTint = IsleColors.BadText,
-                            containerColor = IsleColors.BadBg,
+                        Text(
+                            text = state.error,
+                            fontSize = 13.sp,
+                            color = IsleColors.Danger,
                         )
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(0.5.dp)
-                        .background(IsleColors.Divider),
-                )
+                Spacer(modifier = Modifier.height(2.dp))
 
-                // 4. Hai nút bấm bo tròn chuẩn OriginUI ROM 16.0 (50.dp)
+                // 4. Hai nút bấm bo tròn chuẩn OriginOS
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Nút phụ: "Để sau"
                     PillButton(
                         text = "Để sau",
                         onClick = onDismiss,
-                        variant = PillButtonVariant.ALPHA_GRAY,
                         enabled = !isDownloading,
                         modifier = Modifier.weight(1f),
-                        height = 50.dp,
+                        container = IsleColors.SurfaceHigh,
+                        content = if (isDownloading) IsleColors.TextTertiary else IsleColors.Text,
+                        height = 46.dp,
                     )
 
+                    // Nút chính: "Cập nhật ngay" / "Đang tải..." / "Cài đặt lại"
                     val primaryButtonText = when (downloadState) {
                         is DownloadState.Idle -> "Cập nhật ngay"
                         is DownloadState.Downloading -> "Đang tải..."
@@ -308,10 +293,11 @@ fun UpdateDialog(
                                 }
                             }
                         },
-                        variant = PillButtonVariant.PRIMARY,
                         enabled = !isDownloading,
                         modifier = Modifier.weight(1.3f),
-                        height = 50.dp,
+                        container = if (isDownloading) IsleColors.SurfaceHigher else IsleColors.Accent,
+                        content = if (isDownloading) IsleColors.TextTertiary else MaterialTheme.colorScheme.onPrimary,
+                        height = 46.dp,
                     )
                 }
             }

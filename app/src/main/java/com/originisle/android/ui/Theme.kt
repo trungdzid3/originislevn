@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -58,9 +59,6 @@ data class IsleColorPalette(
     val accent: Color,
     val glowAccent: Color,
     val accentText: Color,
-    val accentSoft: Color = Color(0x1A0F77FF),
-    val link: Color = Color(0xFF456FFF),
-    val textSub: Color = Color(0x78000000),
     val switchOff: Color,
     val divider: Color,
     val danger: Color,
@@ -112,17 +110,14 @@ object IsleColors {
 
     val Text: Color @Composable get() = LocalIsleColors.current.text
     val TextSecondary: Color @Composable get() = LocalIsleColors.current.textSecondary
-    val TextSub: Color @Composable get() = LocalIsleColors.current.textSub
     val TextTertiary: Color @Composable get() = LocalIsleColors.current.textTertiary
     val TextChip: Color @Composable get() = LocalIsleColors.current.textChip
     val Chevron: Color @Composable get() = LocalIsleColors.current.chevron
 
-    // OriginUI ROM 16.0 Accent (#0F77FF mặc định)
+    // Vivo OriginOS 6 Teal / Cyan Mint accent (#00BFA5)
     val Accent: Color @Composable get() = LocalIsleColors.current.accent
     val GlowAccent: Color @Composable get() = LocalIsleColors.current.glowAccent
-    val AccentSoft: Color @Composable get() = LocalIsleColors.current.accentSoft
     val AccentText: Color @Composable get() = LocalIsleColors.current.accentText
-    val Link: Color @Composable get() = LocalIsleColors.current.link
     val SwitchOff: Color @Composable get() = LocalIsleColors.current.switchOff
     val Divider: Color @Composable get() = LocalIsleColors.current.divider
     val Danger: Color @Composable get() = LocalIsleColors.current.danger
@@ -258,7 +253,7 @@ private val IsleTypography = Typography(
 )
 
 enum class AppThemeColor(val key: String, val label: String, val swatch: Color) {
-    DYNAMIC("DYNAMIC", "Tự động", Color(0xFF0F77FF)),
+    DYNAMIC("DYNAMIC", "Tự động", Color(0xFF00BFA5)),
     BLUE("BLUE", "Xanh dương", Color(0xFF0F77FF)),
     TEAL("TEAL", "Xanh ngọc", Color(0xFF00897B)),
     VIOLET("VIOLET", "Tím", Color(0xFF7C4DFF)),
@@ -275,65 +270,65 @@ enum class AppThemeColor(val key: String, val label: String, val swatch: Color) 
 private val BlueDarkColorScheme = darkColorScheme(
     primary = Color(0xFF2E8BFF),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0x260F77FF),
-    onPrimaryContainer = Color(0xFF7BB8FF),
+    primaryContainer = Color(0xFF1041A9),
+    onPrimaryContainer = Color(0xFFDBE1FF),
     secondary = Color(0xFFC1C6DD),
     onSecondary = Color(0xFF2B3042),
-    secondaryContainer = Color(0xFF1E222B),
-    onSecondaryContainer = Color(0xFFF2F4F8),
+    secondaryContainer = Color(0xFF414659),
+    onSecondaryContainer = Color(0xFFDDE2FA),
     tertiary = Color(0xFFE1BBE0),
     onTertiary = Color(0xFF422744),
     tertiaryContainer = Color(0xFF5A3D5C),
     onTertiaryContainer = Color(0xFFFED7FC),
-    background = Color(0xFF0D0F14),
-    onBackground = Color(0xFFF2F4F8),
-    surface = Color(0xFF171A21),
-    onSurface = Color(0xFFF2F4F8),
-    surfaceVariant = Color(0xFF1E222B),
-    onSurfaceVariant = Color(0xB3F2F4F8),
-    surfaceContainerLowest = Color(0xFF090B10),
-    surfaceContainerLow = Color(0xFF13161D),
-    surfaceContainer = Color(0xFF171A21),
-    surfaceContainerHigh = Color(0xFF1E222B),
-    surfaceContainerHighest = Color(0xFF262B36),
-    error = Color(0xFFFF5252),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFF471619),
+    background = Color(0xFF11131A),
+    onBackground = Color(0xFFE2E2EC),
+    surface = Color(0xFF11131A),
+    onSurface = Color(0xFFE2E2EC),
+    surfaceVariant = Color(0xFF444650),
+    onSurfaceVariant = Color(0xFFC4C6D2),
+    surfaceContainerLowest = Color(0xFF0C0E14),
+    surfaceContainerLow = Color(0xFF191B22),
+    surfaceContainer = Color(0xFF1D1F27),
+    surfaceContainerHigh = Color(0xFF282A31),
+    surfaceContainerHighest = Color(0xFF33353C),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    outline = Color(0x4DFFFFFF),
-    outlineVariant = Color(0x1FFFFFFF),
+    outline = Color(0xFF8E909B),
+    outlineVariant = Color(0xFF444650),
 )
 
 private val BlueLightColorScheme = lightColorScheme(
     primary = Color(0xFF0F77FF),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0x1A0F77FF),
-    onPrimaryContainer = Color(0xFF0F77FF),
+    primaryContainer = Color(0xFF1A0F77FF),
+    onPrimaryContainer = Color(0xFF00174C),
     secondary = Color(0xFF585E72),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE8EEF8),
-    onSecondaryContainer = Color(0xE6000000),
-    tertiary = Color(0xFF456FFF),
+    secondaryContainer = Color(0xFFDDE2FA),
+    onSecondaryContainer = Color(0xFF151B2C),
+    tertiary = Color(0xFF735474),
     onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0x1A456FFF),
-    onTertiaryContainer = Color(0xFF456FFF),
-    background = Color(0xFFF2F2F5),
-    onBackground = Color(0xE6000000),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xE6000000),
-    surfaceVariant = Color(0xFFF7F8FA),
-    onSurfaceVariant = Color(0xCC000000),
+    tertiaryContainer = Color(0xFFFED7FC),
+    onTertiaryContainer = Color(0xFF2B122E),
+    background = Color(0xFFF9F9FF),
+    onBackground = Color(0xFF191B22),
+    surface = Color(0xFFF9F9FF),
+    onSurface = Color(0xFF191B22),
+    surfaceVariant = Color(0xFFE1E2EC),
+    onSurfaceVariant = Color(0xFF444650),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF7F8FA),
-    surfaceContainer = Color(0xFFF2F2F5),
-    surfaceContainerHigh = Color(0xFFEBEDF2),
-    surfaceContainerHighest = Color(0xFFE3E5EB),
-    error = Color(0xFFFF3636),
+    surfaceContainerLow = Color(0xFFF3F3FA),
+    surfaceContainer = Color(0xFFEDEDF5),
+    surfaceContainerHigh = Color(0xFFE7E8EF),
+    surfaceContainerHighest = Color(0xFFE2E2EC),
+    error = Color(0xFFBA1A1A),
     onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0x1AFF3636),
-    onErrorContainer = Color(0xFFFF3636),
-    outline = Color(0x33000000),
-    outlineVariant = Color(0x14000000),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    outline = Color(0xFF757781),
+    outlineVariant = Color(0xFFC4C6D2),
 )
 
 private val TealDarkColorScheme = darkColorScheme(
@@ -592,8 +587,8 @@ private val AmberLightColorScheme = lightColorScheme(
     outlineVariant = Color(0xFFD3C4B4),
 )
 
-private val FallbackDarkColorScheme = BlueDarkColorScheme
-private val FallbackLightColorScheme = BlueLightColorScheme
+private val FallbackDarkColorScheme = TealDarkColorScheme
+private val FallbackLightColorScheme = TealLightColorScheme
 
 fun resolveAppIsDarkTheme(context: Context): Boolean {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -633,56 +628,53 @@ private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = 
     menu = if (isDark) Color(0xFF1E222B) else Color(0xFFFFFFFF),
     borderHairline = if (isDark) Color(0x1FFFFFFF) else Color(0x14000000),
     borderActive = primary.copy(alpha = 0.35f),
-    text = if (isDark) Color(0xFFF2F4F8) else Color(0xE6000000),
-    textSecondary = if (isDark) Color(0xB3F2F4F8) else Color(0xCC000000),
-    textTertiary = if (isDark) Color(0x73F2F4F8) else Color(0x59000000),
-    textChip = if (isDark) Color(0xFFF2F4F8) else Color(0xE6000000),
-    chevron = if (isDark) Color(0x73F2F4F8) else Color(0x59000000),
+    text = if (isDark) onSurface else Color(0xE6000000),
+    textSecondary = if (isDark) onSurfaceVariant else Color(0xCC000000),
+    textTertiary = if (isDark) onSurfaceVariant.copy(alpha = 0.75f) else Color(0x59000000),
+    textChip = onSecondaryContainer,
+    chevron = if (isDark) onSurfaceVariant else Color(0x59000000),
     accent = primary,
-    glowAccent = primary.copy(alpha = if (isDark) 0.15f else 0.10f),
+    glowAccent = if (isDark) primary.copy(alpha = 0.24f) else Color(0x1A0F77FF),
     accentText = primary,
-    accentSoft = primary.copy(alpha = if (isDark) 0.15f else 0.10f),
-    link = if (isDark) Color(0xFF6EA3FF) else Color(0xFF456FFF),
-    textSub = if (isDark) Color(0x99F2F4F8) else Color(0x78000000),
     switchOff = if (isDark) Color(0x75464646) else Color(0x59CCCCCC),
     divider = if (isDark) Color(0x1FFFFFFF) else Color(0x14000000),
     danger = if (isDark) error else Color(0xFFFF3636),
-    good = if (isDark) Color(0xFF2AD17E) else Color(0xFF23B26D),
-    goodText = if (isDark) Color(0xFF3CE08F) else Color(0xFF23B26D),
-    goodBg = if (isDark) Color(0xFF0F261A) else Color(0x1A23B26D),
-    goodButton = if (isDark) Color(0xFF153624) else Color(0x2923B26D),
-    goodSubtle = if (isDark) Color(0xFF8CD8B8) else Color(0xFF23B26D),
-    goodIconBg = if (isDark) Color(0xFF122E1F) else Color(0x1F23B26D),
+    good = Color(0xFF23B26D),
+    goodText = if (isDark) Color(0xFF33DE9E) else Color(0xFF1A8E56),
+    goodBg = if (isDark) Color(0xFF0E2218) else Color(0xFFE6F7F0),
+    goodButton = if (isDark) Color(0xFF153324) else Color(0xFFC8EEDD),
+    goodSubtle = if (isDark) Color(0xFF8CD8B8) else Color(0xFF1A8E56),
+    goodIconBg = if (isDark) Color(0xFF122C1F) else Color(0xFFD4F3E4),
     bad = if (isDark) error else Color(0xFFFF3636),
-    badText = if (isDark) onErrorContainer else Color(0xFFFF3636),
-    badBg = if (isDark) errorContainer else Color(0x14FF3636),
-    badButton = if (isDark) error.copy(alpha = 0.22f) else Color(0x1AFF3636),
-    badSubtle = if (isDark) onErrorContainer.copy(alpha = 0.85f) else Color(0xCCFF3636),
-    warn = Color(0xFFFF9500),
-    warnBg = if (isDark) Color(0xFF261A0C) else Color(0x14FF9500),
-    castTagBg = primary.copy(alpha = if (isDark) 0.18f else 0.10f),
-    castTagFg = primary,
-    previewBg = if (isDark) Color(0xFF1E222B) else Color(0xFFF7F8FA),
-    previewLabel = if (isDark) Color(0xB3F2F4F8) else Color(0x78000000),
+    badText = onErrorContainer,
+    badBg = errorContainer,
+    badButton = if (isDark) error.copy(alpha = 0.2f) else Color(0x1AFF3636),
+    badSubtle = onErrorContainer.copy(alpha = 0.8f),
+    warn = if (isDark) Color(0xFFFF9F2E) else Color(0xFFF57C00),
+    warnBg = if (isDark) Color(0xFF261A0C) else Color(0xFFFFF3E0),
+    castTagBg = secondaryContainer,
+    castTagFg = onSecondaryContainer,
+    previewBg = surfaceContainerHighest,
+    previewLabel = onSurfaceVariant,
     tileBlue = primary,
     tileOrange = tertiary,
     tileTeal = primary,
     tilePurple = secondary,
-    tileGreen = if (isDark) Color(0xFF2AD17E) else Color(0xFF23B26D),
-    tileAmber = Color(0xFFFF9500),
-    tileGray = if (isDark) Color(0xB3F2F4F8) else Color(0x78000000),
-    edgeLightTop = if (isDark) Color(0x29FFFFFF) else Color(0x14000000),
-    edgeLightBottom = if (isDark) Color(0x0AFFFFFF) else Color(0x0A000000),
-    floatingGlassBg = if (isDark) Color(0xEB141822) else Color(0xF2FFFFFF),
-    ambientGlow = if (isDark) primary.copy(alpha = 0.14f) else primary.copy(alpha = 0.08f),
+    tileGreen = Color(0xFF23B26D),
+    tileAmber = if (isDark) Color(0xFFFF9F2E) else Color(0xFFF57C00),
+    tileGray = onSurfaceVariant,
+    edgeLightTop = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.85f),
+    edgeLightBottom = if (isDark) Color.White.copy(alpha = 0.04f) else Color(0x14000000),
+    floatingGlassBg = if (isDark) Color(0xEB141822) else Color(0xF5FFFFFF),
+    ambientGlow = if (isDark) primary.copy(alpha = 0.14f) else primary.copy(alpha = 0.10f),
 )
 
 val IsleShapes = Shapes(
-    extraSmall = G2RoundedCornerShape(8.dp),
-    small = G2RoundedCornerShape(12.dp),
-    medium = G2RoundedCornerShape(18.dp),
-    large = G2RoundedCornerShape(24.dp),
-    extraLarge = G2RoundedCornerShape(30.dp),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(26.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable
@@ -728,9 +720,6 @@ fun OriginIsleTheme(content: @Composable () -> Unit) {
             window.statusBarColor = android.graphics.Color.TRANSPARENT
             @Suppress("DEPRECATION")
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                window.isNavigationBarContrastEnforced = false
-            }
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !isDark
             controller.isAppearanceLightNavigationBars = !isDark
