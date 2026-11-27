@@ -435,7 +435,10 @@ object OriginIslandBuilder {
         // separate promoted chip ("Notification: Starting navigation… [Exit navigation]") in the
         // shade, on top of the island itself.
         island.putBoolean(C.BUNDLE_KEY_ISLAND_SHOW_BAR_WHEN_CARD, false)
-        island.putInt(C.BUNDLE_KEY_ISLAND_CLICK, C.ISLAND_CLICK_SHOW_CARD) // 0
+        island.putInt(
+            C.BUNDLE_KEY_ISLAND_CLICK,
+            if (!islandClickExpand && clickResp != null) C.ISLAND_CLICK_LANDING else C.ISLAND_CLICK_SHOW_CARD,
+        )
         if (clickResp != null && !islandClickExpand) {
             island.putParcelable(C.BUNDLE_KEY_ISLAND_CLICK_RESP, clickResp)
         }
