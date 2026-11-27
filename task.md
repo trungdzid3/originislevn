@@ -1,7 +1,5 @@
 # DANH SÁCH CÔNG VIỆC (TASK MATRIX)
 
-## Đợt v2.10.22 — 3 Nút Kính OriginOS Thích Ứng Sáng/Tối & Chặn Video Trình Duyệt Khỏi Đảo Nhạc (`/swarm`)
-- [x] Thiết kế 3 nút kính thích ứng Sáng/Tối trong `OriginIslandBuilder.kt` (Dark: `#26FFFFFF` / `#FFFFFF`; Light: `#1F000000` / `#333333`) và bật `oi_btn_transparent = true` trong `MediaCard.kt` giữ nguyên cơ chế chống kẹt `" "` vs `"  "` + 5 cột sóng / 5 chấm tròn | [Agent: media-ui] | [Skill: originos-design] | [Locked Files: app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt, app/src/main/java/com/originisle/android/cards/MediaCard.kt]
-- [x] Mở rộng `DownloadDetector.isBrowserPackage` và chặn trình duyệt (Edge, Chrome, Firefox, Opera, Samsung Internet, Cốc Cốc...) khỏi mọi luồng Đảo Âm Nhạc trong `NotificationCastListener.kt` và `MediaCard.kt` (vẫn giữ nguyên `DownloadCard`) | [Agent: browser-filter] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/download/DownloadDetector.kt, app/src/main/java/com/originisle/android/service/NotificationCastListener.kt]
-- [x] Nâng `v2.10.22`, chạy `testDebugUnitTest assembleRelease`, xuất APK và cập nhật `PROJECT_CONTEXT.md` | [Agent: verifier-3] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md]
-- [x] Commit, push `origin main` và phát hành GitHub Release `v2.10.22` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: task.md]
+## Đợt v2.10.23 — Nút Trong Suốt Hoàn Toàn (`Color.TRANSPARENT`) Cho Máy Tầm Trung
+- [x] Đặt `btnColor = Color.TRANSPARENT` khi `btnTransparent == true` trong `OriginIslandBuilder.kt` (vẫn giữ màu chữ/icon thích ứng `#FFFFFF` Dark / `#333333` Light) | [Agent: Lead-Orchestrator] | [Skill: originos-design] | [Locked Files: app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt]
+- [x] Build `v2.10.23`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.23` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]

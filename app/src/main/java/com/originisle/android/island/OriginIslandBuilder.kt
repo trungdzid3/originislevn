@@ -372,11 +372,7 @@ object OriginIslandBuilder {
                         isNightMode -> Color.WHITE
                         else -> Color.parseColor("#333333")
                     }
-                    val btnColor = when {
-                        !btnTransparent -> Color.WHITE
-                        isNightMode -> Color.parseColor("#26FFFFFF")
-                        else -> Color.parseColor("#1F000000")
-                    }
+                    val btnColor = if (btnTransparent) Color.TRANSPARENT else Color.WHITE
                     infos.putInt(C.BUNDLE_KEY_INFO_BTN_TYPE, btnType)
                     infos.putStringArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_LIST, ArrayList(triples.map { it.first }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_ICON_LIST, ArrayList(triples.map { it.second }))
