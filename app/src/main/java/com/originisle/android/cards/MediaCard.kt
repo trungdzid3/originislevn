@@ -470,6 +470,7 @@ object MediaCard {
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", true)
+            putExtra("oi_show_notify", false)
 
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
             putExtra("oi_wave_state", if (playing) 1 else 0)
