@@ -3,6 +3,7 @@ package com.originisle.android.island
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.Icon
@@ -365,8 +366,17 @@ object OriginIslandBuilder {
                     // given, and with a system theme colour on, its button widget repaints any opaque
                     // fill AND any text that isn't #FFFFFF/#333333/#000000 in that colour, so near-black
                     // text on a near-white fill came out accent-on-accent and unreadable (#9).
-                    val textColor = if (btnTransparent) Color.WHITE else Color.BLACK
-                    val btnColor = if (btnTransparent) Color.parseColor("#26FFFFFF") else Color.WHITE
+                    val isNightMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                    val textColor = when {
+                        !btnTransparent -> Color.BLACK
+                        isNightMode -> Color.WHITE
+                        else -> Color.parseColor("#333333")
+                    }
+                    val btnColor = when {
+                        !btnTransparent -> Color.WHITE
+                        isNightMode -> Color.parseColor("#26FFFFFF")
+                        else -> Color.parseColor("#1F000000")
+                    }
                     infos.putInt(C.BUNDLE_KEY_INFO_BTN_TYPE, btnType)
                     infos.putStringArrayList(C.BUNDLE_KEY_INFO_BTN_TEXT_LIST, ArrayList(triples.map { it.first }))
                     infos.putParcelableArrayList(C.BUNDLE_KEY_INFO_BTN_ICON_LIST, ArrayList(triples.map { it.second }))

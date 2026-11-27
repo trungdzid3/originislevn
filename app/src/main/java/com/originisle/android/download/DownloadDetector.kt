@@ -214,18 +214,25 @@ object DownloadDetector {
     }
 
     fun isBrowserPackage(pkg: String): Boolean {
-        return pkg.startsWith("com.android.chrome") ||
-            pkg.startsWith("com.chrome") ||
-            pkg.startsWith("com.microsoft.emmx") ||
-            pkg == "com.vivo.browser" ||
-            pkg == "com.brave.browser" ||
-            pkg.startsWith("org.mozilla.") ||
-            pkg.startsWith("com.opera.") ||
-            pkg == "com.coccoc.trinhduyet" ||
-            pkg.startsWith("com.sec.android.app.sbrowser") ||
-            pkg == "com.duckduckgo.mobile.android" ||
-            pkg == "mark.via.gp" ||
-            pkg.contains("browser")
+        val lower = pkg.lowercase()
+        return lower.startsWith("com.android.chrome") ||
+            lower.startsWith("com.chrome") ||
+            lower.startsWith("com.microsoft.emmx") ||
+            lower == "com.vivo.browser" ||
+            lower == "com.brave.browser" ||
+            lower.startsWith("org.mozilla.") ||
+            lower.startsWith("com.opera.") ||
+            lower == "com.opera.browser" ||
+            lower == "com.opera.mini.native" ||
+            lower == "com.vivaldi.browser" ||
+            lower == "com.coccoc.trinhduyet" ||
+            lower.startsWith("com.sec.android.app.sbrowser") ||
+            lower == "com.duckduckgo.mobile.android" ||
+            lower == "com.ucmobile.intl" ||
+            lower == "com.kiwibrowser.browser" ||
+            lower == "org.cromite.cromite" ||
+            lower == "mark.via.gp" ||
+            lower.contains("browser")
     }
 
     fun isIncognitoOrPrivateBrowsing(channelId: String, combinedText: String): Boolean {

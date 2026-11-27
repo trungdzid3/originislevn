@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `2.10.21` (mã bản dựng `versionCode = 21021`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `2.10.22` (mã bản dựng `versionCode = 21022`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v2.10.22 — Nút Kính Mờ Thích Ứng Sáng/Tối & Chặn Video Trình Duyệt Khỏi Đảo Nhạc**:
+  - `OriginIslandBuilder.kt`: Khi `btnTransparent` là `true`, tự thích ứng màu chữ/icon và nền theo `UI_MODE_NIGHT_MASK` (Tối: `#FFFFFF` / `#26FFFFFF`; Sáng: `#333333` / `#1F000000`), giữ nguyên nhánh `btnTransparent == false`.
+  - `MediaCard.kt` & `DownloadDetector.kt` & `NotificationCastListener.kt`: Mở rộng `DownloadDetector.isBrowserPackage(pkg)` (chuẩn hóa lowercase, phủ thêm Samsung Internet, Opera/Mini, Vivaldi, DuckDuckGo, Cốc Cốc, UC, Kiwi, Cromite) và loại trừ trình duyệt tại `MediaCard.kt` (`post`, `postFromController`) cùng `NotificationCastListener.kt` (`syncMediaSessions`, `isEligibleMediaController`, `dispatchControllerSession`, `pollRunnable`, `onNotificationPosted`); bật lại `oi_btn_transparent = true` trong `dispatchMediaCard(...)` và giữ nguyên contract chống kẹt trạng thái `v2.10.21`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.22.apk`: Nâng `versionCode = 21022`, `versionName = "2.10.22"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,100 bytes (~5.56 MB).
 - **Origin Isle VN v2.10.21 — Sửa Kẹt Trạng Thái Khi Xóa Chữ "Playing" (Phân Biệt `status_chip_text` & `oi_right_content`)**:
   - `MediaCard.kt`: Đặt `status_chip_text = if (playing) " " else "  "` và `oi_right_content = if (playing) "" else " "` để xóa hoàn toàn chữ `"Playing"` nhưng vẫn tạo khác biệt chuỗi giữa 2 trạng thái nhằm buộc OriginOS 6 SystemUI re-render tức thì 5 cột sóng nhạc (`createMusicWaveIcon`), 5 chấm tròn sóng dừng (`createPausedWaveIcon`) và nút Play/Pause chuẩn gốc `upstream/main`.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v2.10.21.apk`: Nâng `versionCode = 21021`, `versionName = "2.10.21"`, `testDebugUnitTest` & `assembleRelease` PASS, APK release 5,832,100 bytes (~5.56 MB).

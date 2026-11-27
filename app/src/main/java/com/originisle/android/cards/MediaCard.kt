@@ -23,6 +23,7 @@ import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import com.originisle.android.R
+import com.originisle.android.download.DownloadDetector
 import com.originisle.android.island.OriginIslandConstants
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
@@ -158,6 +159,11 @@ object MediaCard {
 
         val pkg = sbn.packageName.lowercase()
 
+        if (DownloadDetector.isBrowserPackage(pkg)) {
+            clear(context, ID)
+            return
+        }
+
         // 1. Nếu chính gói phát nhạc gốc của Vivo hoặc app nhạc đã được Đảo gốc hỗ trợ: nhường cho Đảo gốc, không can thiệp
         if (pkg in ORIGIN_NATIVE_MUSIC_PACKAGES || pkg in ORIGIN_SUPPORTED_MUSIC_PACKAGES) {
             clear(context, ID)
@@ -252,7 +258,10 @@ object MediaCard {
         forceRefresh: Boolean = false,
     ) {
         val pkgLower = pkg.lowercase()
-        if (pkgLower in ORIGIN_NATIVE_MUSIC_PACKAGES || pkgLower in ORIGIN_SUPPORTED_MUSIC_PACKAGES) {
+        if (DownloadDetector.isBrowserPackage(pkgLower) ||
+            pkgLower in ORIGIN_NATIVE_MUSIC_PACKAGES ||
+            pkgLower in ORIGIN_SUPPORTED_MUSIC_PACKAGES
+        ) {
             clear(ctx, ID)
             return
         }
@@ -457,6 +466,7 @@ object MediaCard {
             putExtra("oi_show_left_icon", true)
             putExtra("icon_res", R.drawable.ic_media_play)
             putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
+            putExtra("oi_btn_transparent", true)
             putExtra("oi_bg_color", "#FF262626")
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", true)

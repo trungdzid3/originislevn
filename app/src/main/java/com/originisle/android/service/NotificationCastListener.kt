@@ -773,6 +773,9 @@ class NotificationCastListener : NotificationListenerService() {
                     }
                     if (isActualMedia) {
                         cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                        if (DownloadDetector.isBrowserPackage(pkgLower)) {
+                            return@forEach
+                        }
                         if (handledMediaInPoll) {
                             return@forEach
                         }
@@ -854,7 +857,8 @@ class NotificationCastListener : NotificationListenerService() {
                             val pkg = controller.packageName
                             val pkgLower = pkg.lowercase()
                             if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
-                                pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+                                pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES ||
+                                DownloadDetector.isBrowserPackage(pkgLower)
                             ) continue
                             val isMusic = isKnownMusicApp(pkg) || pkg in MediaCard.THIRD_PARTY_MUSIC_PACKAGES
                             if (!isMusic || !isAppEnabled(prefs, pkg)) continue
@@ -1031,7 +1035,8 @@ class NotificationCastListener : NotificationListenerService() {
         for (controller in sessions) {
             val pkgLower = controller.packageName.lowercase()
             if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
-                pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+                pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES ||
+                DownloadDetector.isBrowserPackage(pkgLower)
             ) continue
             val token = controller.sessionToken
             if (!trackedMediaCallbacks.containsKey(token)) {
@@ -1065,7 +1070,8 @@ class NotificationCastListener : NotificationListenerService() {
         val pkg = controller.packageName
         val pkgLower = pkg.lowercase()
         if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
-            pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+            pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES ||
+            DownloadDetector.isBrowserPackage(pkgLower)
         ) return false
         val prefs = getSharedPreferences(PREFS, 0)
         if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, pkg)) return false
@@ -1085,7 +1091,8 @@ class NotificationCastListener : NotificationListenerService() {
         val pkg = controller.packageName
         val pkgLower = pkg.lowercase()
         if (pkgLower in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES ||
-            pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES
+            pkgLower in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES ||
+            DownloadDetector.isBrowserPackage(pkgLower)
         ) return
         val prefs = getSharedPreferences(PREFS, 0)
         if (!prefs.getBoolean("cast_media_sessions", true) || !isAppEnabled(prefs, pkg)) return
@@ -1457,6 +1464,10 @@ class NotificationCastListener : NotificationListenerService() {
 
             if (isActualMedia) {
                 cancelStrayDownloadCard(IconCache.castIdFor(sbn))
+                if (DownloadDetector.isBrowserPackage(pkgLower)) {
+                    log(sbn, "bỏ qua — video trình duyệt không đưa lên Đảo nhạc", false)
+                    return
+                }
                 if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
                     log(sbn, "bỏ qua — tóm tắt nhóm", false)
                     return
