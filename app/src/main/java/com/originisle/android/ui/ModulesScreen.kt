@@ -269,25 +269,11 @@ fun ModulesScreen(
 
                     GroupDivider()
 
-                    ToggleRow(
-                        icon = IsleIcons.Headphones,
-                        tileColor = IsleColors.Accent,
-                        title = "Popup kết nối Bluetooth",
-                        checked = btConnectPopup,
-                    ) {
-                        btConnectPopup = it
-                        prefs.edit().putBoolean(PREF_BT_CONNECT_POPUP, it).apply()
-                        if (it && !isOverlayPermissionGranted(context)) {
-                            openOverlayPermissionSettings(context)
-                        }
-                    }
-
-                    GroupDivider()
-
                     NavRow(
                         icon = IsleIcons.Camera,
                         tileColor = IsleColors.TileBlue,
-                        title = "Tùy chỉnh tai nghe & Popup Bluetooth",
+                        title = "Popup kết nối Bluetooth",
+                        value = if (btConnectPopup) "Đang bật" else "Đang tắt",
                         onClick = { btPopupSheetOpen = true },
                     )
                 }

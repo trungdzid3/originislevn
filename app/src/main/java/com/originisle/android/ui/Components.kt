@@ -245,6 +245,11 @@ fun OriginCollapsingScaffold(
         animationSpec = tween(durationMillis = 160),
         label = "originCollapsedTitle",
     )
+    val stickyTrailingAlpha by animateFloatAsState(
+        targetValue = if (onBack != null || collapseFraction > 0.45f) 1f else 0f,
+        animationSpec = tween(durationMillis = 160),
+        label = "originStickyTrailing",
+    )
     val expandedTitleAlpha = (1f - collapseFraction * 1.4f).coerceIn(0f, 1f)
     val layoutDirection = LocalLayoutDirection.current
     val bottomClearance = if (hasBottomNav) 96.dp else 0.dp
@@ -262,20 +267,54 @@ fun OriginCollapsingScaffold(
             verticalArrangement = verticalArrangement,
         ) {
             item(key = "origin_collapsing_header") {
-                Spacer(Modifier.statusBarsPadding().height(56.dp))
-                Text(
-                    text = title,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp,
-                    color = IsleColors.Text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
-                        .alpha(expandedTitleAlpha),
-                )
+                if (onBack == null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(top = 12.dp, bottom = 4.dp)
+                            .padding(horizontal = 6.dp)
+                            .heightIn(min = 44.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = title,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp,
+                            color = IsleColors.Text,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .alpha(expandedTitleAlpha),
+                        )
+                        if (collapseFraction <= 0.45f) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.alpha(expandedTitleAlpha),
+                                content = trailing,
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.statusBarsPadding().height(52.dp))
+                    Text(
+                        text = title,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp,
+                        color = IsleColors.Text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .alpha(expandedTitleAlpha),
+                    )
+                }
             }
             content()
             item(key = "origin_bottom_nav_inset") {
@@ -292,7 +331,7 @@ fun OriginCollapsingScaffold(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(52.dp)
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -317,11 +356,14 @@ fun OriginCollapsingScaffold(
                         .padding(start = if (onBack == null) 8.dp else 2.dp)
                         .alpha(collapsedTitleAlpha),
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    content = trailing,
-                )
+                if (onBack != null || collapseFraction > 0.45f) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.alpha(if (onBack != null) 1f else stickyTrailingAlpha),
+                        content = trailing,
+                    )
+                }
             }
             if (collapseFraction > 0.55f) {
                 Box(
