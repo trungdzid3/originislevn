@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,36 +69,36 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
         mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false))
     }
 
-    OriginSpaceBackground {
-        Box(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(IsleColors.Background)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.TopCenter,
+                .widthIn(max = 760.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 760.dp),
-                contentPadding = ScreenPadding,
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-            ) {
         item {
             Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Chào mừng đến với Origin Isle",
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.7).sp,
-                    lineHeight = 38.sp,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
+                    lineHeight = 34.sp,
                     color = IsleColors.Text,
                 )
                 Text(
                     "Cần cấp một số quyền để có thể chuyển tiếp thông báo lên đảo linh hoạt.",
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    color = IsleColors.TextTertiary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    color = IsleColors.TextSecondary,
                 )
             }
         }
@@ -175,9 +176,9 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
                 modifier = Modifier.fillMaxWidth(),
                 container = IsleColors.Accent,
                 content = Color.White,
+                height = 50.dp,
             )
         }
-            }
         }
     }
 }
@@ -226,9 +227,9 @@ private fun OnboardingRow(
                     "Mở cài đặt",
                     onClick = onAction,
                     modifier = Modifier.padding(top = 8.dp),
-                    container = IsleColors.SurfaceHigh,
-                    content = IsleColors.AccentText,
-                    height = 44.dp,
+                    container = IsleColors.Accent.copy(alpha = 0.12f),
+                    content = IsleColors.Accent,
+                    height = 50.dp,
                 )
             }
         }

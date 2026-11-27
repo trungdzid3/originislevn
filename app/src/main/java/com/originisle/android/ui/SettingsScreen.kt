@@ -109,6 +109,7 @@ fun SettingsScreen(
         ModalBottomSheet(
             onDismissRequest = { shizukuSheetOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
             containerColor = IsleColors.Menu,
             contentColor = IsleColors.Text,
         ) {
@@ -215,8 +216,8 @@ fun SettingsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             MainScreenHeader(title = "Cài đặt")
@@ -238,7 +239,7 @@ fun SettingsScreen(
                     ) {
                         Text(
                             "Mức lọc thông báo",
-                            fontSize = 15.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = IsleColors.Text,
                         )
@@ -283,7 +284,7 @@ fun SettingsScreen(
                     ) {
                         Text(
                             "Thời lượng viên thuốc",
-                            fontSize = 15.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = IsleColors.Text,
                         )

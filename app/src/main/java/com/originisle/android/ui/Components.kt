@@ -78,10 +78,10 @@ import kotlin.math.roundToInt
 
 /** Shared building blocks for OriginOS 6 UI: grouped squircle cards, settings rows, pills, switches. */
 
-/** Page padding shared by every screen. */
-val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 28.dp)
+/** Page padding shared by every screen (OriginUI ROM 16.0: 14.dp horizontal). */
+val ScreenPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 28.dp)
 
-private val GroupRadius = 26.dp
+private val GroupRadius = 24.dp
 
 /** Top-level tab header with large Material 3 title and optional trailing action. */
 @Composable
@@ -124,16 +124,23 @@ fun TonalShortcutCard(
         label = "shortcutTouchScale",
     )
     val cardShape = RoundedCornerShape(24.dp)
+    val isDark = IsleColors.isDark
 
     Column(
         modifier = modifier
             .scale(scale)
             .clip(cardShape)
             .background(IsleColors.Surface)
-            .border(
-                width = 0.8.dp,
-                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                shape = cardShape,
+            .then(
+                if (isDark) {
+                    Modifier.border(
+                        width = 0.8.dp,
+                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                        shape = cardShape,
+                    )
+                } else {
+                    Modifier
+                },
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -174,9 +181,11 @@ fun ScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> 
             title,
             modifier = Modifier.weight(1f).padding(start = 6.dp),
             fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.Bold,
             letterSpacing = (-0.5).sp,
             color = IsleColors.Text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         trailing()
     }
@@ -215,7 +224,7 @@ fun PillButton(
     container: Color = MaterialTheme.colorScheme.primary,
     content: Color = MaterialTheme.colorScheme.onPrimary,
     enabled: Boolean = true,
-    height: Dp = 52.dp,
+    height: Dp = 50.dp,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -227,15 +236,17 @@ fun PillButton(
         ),
         label = "pillButtonScale",
     )
+    val isDark = IsleColors.isDark
+    val pillRadius = (height / 2).coerceIn(24.dp, 32.dp)
 
     Surface(
         onClick = onClick,
         enabled = enabled,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(height / 2),
+        shape = RoundedCornerShape(pillRadius),
         color = container,
         contentColor = content,
-        border = if (enabled) {
+        border = if (enabled && isDark) {
             BorderStroke(
                 width = 0.7.dp,
                 brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
@@ -276,24 +287,31 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         text,
         modifier = modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = IsleColors.TextSecondary,
+        fontWeight = FontWeight.Medium,
+        color = IsleColors.TextTertiary,
     )
 }
 
-/** OriginOS 6-7 Liquid Glass card with 26dp squircle corners and Edge Light border. */
+/** OriginUI ROM 16.0 card with 24dp squircle corners, clean #FFFFFF in Light and Edge Light in Dark. */
 @Composable
 fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val cardShape = RoundedCornerShape(GroupRadius)
+    val isDark = IsleColors.isDark
     Column(
         modifier
             .fillMaxWidth()
             .clip(cardShape)
             .background(IsleColors.Surface)
-            .border(
-                width = 0.8.dp,
-                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                shape = cardShape,
+            .then(
+                if (isDark) {
+                    Modifier.border(
+                        width = 0.8.dp,
+                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                        shape = cardShape,
+                    )
+                } else {
+                    Modifier
+                },
             )
             .animateContentSize(
                 animationSpec = spring(
@@ -488,20 +506,28 @@ fun NestedSettingContainer(
 }
 
 /**
- * OriginOS 6-7 Pill Switch (50dp x 28dp) with First-frame Interruptible spring thumb physics.
+ * OriginUI ROM 16.0 MoveBoolButton (44dp x 28dp):
+ * - OFF: track #59CCCCCC (Light) / #75464646 (Dark), hollow ring thumb (18dp, stroke 2.5dp).
+ * - ON: track accent.copy(alpha = 0.24f / 0.36f), solid white thumb with accent halo glow.
  */
 @Composable
 fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val isDark = IsleColors.isDark
+    val accent = IsleColors.Accent
 
     val trackColor by animateColorAsState(
-        targetValue = if (checked) MaterialTheme.colorScheme.primary else IsleColors.SwitchOff,
+        targetValue = if (checked) {
+            accent.copy(alpha = if (isDark) 0.36f else 0.24f)
+        } else {
+            if (isDark) Color(0x75464646) else Color(0x59CCCCCC)
+        },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "isleSwitchTrack",
     )
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 25.dp else 3.dp,
+        targetValue = if (checked) 21.dp else 5.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -531,26 +557,41 @@ fun IsleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
 
     Box(
         modifier = modifier
-            .size(width = 50.dp, height = 28.dp)
+            .size(width = 44.dp, height = 28.dp)
             .clip(CircleShape)
             .background(trackColor)
-            .border(
-                width = 0.6.dp,
-                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                shape = CircleShape,
-            )
             .then(toggleModifier),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
-                .size(22.dp)
-                .scale(thumbScale)
-                .shadow(elevation = 2.dp, shape = CircleShape, clip = false)
-                .clip(CircleShape)
-                .background(Color.White),
-        )
+        if (checked) {
+            // Solid white thumb with accent halo/glow
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(thumbOffset.roundToPx(), 0) }
+                    .size(18.dp)
+                    .scale(thumbScale)
+                    .shadow(
+                        elevation = 4.dp,
+                        shape = CircleShape,
+                        clip = false,
+                        ambientColor = accent,
+                        spotColor = accent,
+                    )
+                    .border(width = 1.5.dp, color = accent.copy(alpha = 0.45f), shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(Color.White),
+            )
+        } else {
+            // Hollow ring thumb (18dp, stroke 2.5dp)
+            val ringColor = if (isDark) Color(0xFFE0E0E0) else Color.White
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(thumbOffset.roundToPx(), 0) }
+                    .size(18.dp)
+                    .scale(thumbScale)
+                    .border(width = 2.5.dp, color = ringColor, shape = CircleShape),
+            )
+        }
     }
 }
 
@@ -935,17 +976,27 @@ fun OriginFloatingNavBar(
                 .widthIn(max = 460.dp)
                 .height(64.dp)
                 .shadow(
-                    elevation = 16.dp,
+                    elevation = if (isDark) 16.dp else 10.dp,
                     shape = CircleShape,
-                    ambientColor = Color.Black.copy(alpha = 0.16f),
-                    spotColor = Color.Black.copy(alpha = 0.22f),
+                    ambientColor = Color.Black.copy(alpha = if (isDark) 0.22f else 0.08f),
+                    spotColor = Color.Black.copy(alpha = if (isDark) 0.28f else 0.12f),
                 )
                 .clip(CircleShape)
-                .background(IsleColors.FloatingGlassBg)
-                .border(
-                    width = 0.9.dp,
-                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                    shape = CircleShape,
+                .background(if (isDark) IsleColors.FloatingGlassBg else Color.White)
+                .then(
+                    if (isDark) {
+                        Modifier.border(
+                            width = 0.9.dp,
+                            brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                            shape = CircleShape,
+                        )
+                    } else {
+                        Modifier.border(
+                            width = 0.6.dp,
+                            color = IsleColors.Divider,
+                            shape = CircleShape,
+                        )
+                    },
                 ),
         ) {
             // Inner specular top highlight (0.5.dp) for two-layer Edge Light refraction
@@ -1045,7 +1096,7 @@ fun OriginFloatingNavBar(
                             label = "navTabTouchLight_$index",
                         )
                         val contentColor by animateColorAsState(
-                            targetValue = if (selected) IsleColors.Accent else IsleColors.TextSecondary,
+                            targetValue = if (selected) IsleColors.Accent else IsleColors.TextTertiary,
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                             label = "navTabColor_$index",
                         )

@@ -35,7 +35,6 @@ import com.originisle.android.cards.GenericCard
 import com.originisle.android.cards.MediaCard
 import com.originisle.android.cards.MessageCard
 import com.originisle.android.call.ZaloCallDetector
-import com.originisle.android.cards.NavigationCard
 import com.originisle.android.cards.PaymentCard
 import com.originisle.android.cards.ZaloCallCard
 import com.originisle.android.cards.PrivacyCard
@@ -983,7 +982,6 @@ class NotificationCastListener : NotificationListenerService() {
             pollHandler.removeCallbacks(pollRunnable)
             pollHandler.post(pollRunnable)
         }
-        registerBatteryReceiver()
         registerScreenReceiver()
         registerMediaSessionListener()
         startSystemCards()
@@ -1127,10 +1125,10 @@ class NotificationCastListener : NotificationListenerService() {
 
 
 
-    /** Cards fed by the system rather than by notifications: camera/mic, flashlight, earbuds, ringer. */
+    /** Cards fed by the system rather than by notifications: flashlight, earbuds, ringer (charging & camera/mic nhường đảo gốc OriginOS). */
     private fun startSystemCards() {
+        cancelNativeSystemCards()
         runCatching { FlashlightCard.start(this) }.onFailure { Log.e(TAG, "flashlight card failed", it) }
-        runCatching { PrivacyCard.start(this) }.onFailure { Log.e(TAG, "privacy card failed", it) }
         runCatching { EarbudsCard.start(this) }.onFailure { Log.e(TAG, "earbuds card failed", it) }
         runCatching { RingerModeCard.register(this) }.onFailure { Log.e(TAG, "ringer card failed", it) }
     }
@@ -1140,6 +1138,23 @@ class NotificationCastListener : NotificationListenerService() {
         runCatching { FlashlightCard.stop() }
         runCatching { EarbudsCard.stop() }
         runCatching { RingerModeCard.unregister(this) }
+        cancelNativeSystemCards()
+    }
+
+    private fun cancelNativeSystemCards() {
+        val ids = intArrayOf(
+            ChargingCard.ID,
+            PrivacyCard.ID,
+        )
+        for (id in ids) {
+            runCatching {
+                startService(
+                    Intent(this, PlaygroundService::class.java)
+                        .setAction(PlaygroundService.ACTION_CANCEL)
+                        .putExtra("id", id),
+                )
+            }
+        }
     }
 
     /** Feeds [ChargingCard]. Registered while bound — the bound listener is what keeps us alive anyway. */
@@ -1835,10 +1850,21 @@ class NotificationCastListener : NotificationListenerService() {
         val hasProgress = extras.getInt(NotificationCompat.EXTRA_PROGRESS_MAX, 0) > 0
         val isLive = isOngoing || isCall || hasProgress
 
-        // Turn-by-turn navigation -> vivo's own driving card (template 9) instead of the generic one.
+        // Turn-by-turn navigation -> nhường đảo chỉ đường gốc OriginOS 5/6.
         if (isNavigation(sbn, isOngoing)) {
-            log(sbn, "hiển thị — điều hướng", true)
-            NavigationCard.post(applicationContext, sbn)
+            log(sbn, "bỏ qua — nhường đảo chỉ đường gốc", false)
+            return
+        }
+
+        // Timer / Stopwatch / Alarm -> nhường đảo đồng hồ gốc OriginOS 5/6.
+        if (isTimer(sbn)) {
+            log(sbn, "bỏ qua — nhường đảo đồng hồ gốc", false)
+            return
+        }
+
+        // System Phone Call (đã qua bước xử lý ZaloCallCard và lọc Messenger call ở trên) -> nhường đảo cuộc gọi gốc.
+        if (isCall) {
+            log(sbn, "bỏ qua — nhường đảo cuộc gọi gốc", false)
             return
         }
 

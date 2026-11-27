@@ -91,23 +91,6 @@ object IslandSamples {
             TikTokStreakCard.postSample(ctx)
         },
         OriginSample(
-            "Điều hướng", "Chỉ đường lái xe · Quãng đường & Thời gian",
-            IslandPreview(R.drawable.ic_navigation, "350 m", IslandPreview.Right.Capsule("12 phút")),
-        ) { ctx ->
-            start(ctx, 40011) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_DRIVING_NAVI)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_CAPSULE_TEXT)
-                putExtra("title", "350 m")
-                putExtra("text", "Đường Nguyễn Huệ")
-                putExtra("oi_nav_msg", "12 phút · 4,5 km · 14:32")
-                putExtra("oi_nav_assist", "Đi làn bên trái")
-                putExtra("oi_left_content", "350 m")
-                putExtra("status_chip_text", "12 phút")
-                putExtra("icon_res", R.drawable.ic_navigation)
-            }
-        },
-        OriginSample(
             "Tải xuống", "Thanh tiến trình tải tệp · 75%",
             IslandPreview(R.drawable.ic_download, "", IslandPreview.Right.Progress(0.75f)),
         ) { ctx ->
@@ -129,26 +112,6 @@ object IslandSamples {
             }
         },
         OriginSample(
-            "Hẹn giờ", "Đồng hồ đếm ngược · 40%",
-            IslandPreview(R.drawable.ic_timer, "", IslandPreview.Right.Progress(0.4f)),
-        ) { ctx ->
-            start(ctx, 40006) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BASE)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_PROGRESS)
-                putExtra("title", "Hẹn giờ")
-                putExtra("text", "Còn lại 6:00")
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "6:00")
-                putExtra("show_progress", true)
-                putExtra("progress", 40)
-                putExtra("progress_max", 100)
-                putExtra("status_chip_text", "6:00")
-                putExtra("oi_card_ring", 40)
-                putExtra("icon_res", R.mipmap.ic_launcher_round)
-            }
-        },
-        OriginSample(
             "Trình phát nhạc", "Thẻ âm nhạc · Sóng âm thanh đảo",
             IslandPreview(R.drawable.ic_media_play, "Tiến Quân Ca", IslandPreview.Right.Wave),
         ) { ctx ->
@@ -162,24 +125,6 @@ object IslandSamples {
                 putExtra("oi_wave_state", 1)
                 putExtra("status_chip_text", "♪")
                 putExtra("icon_res", R.drawable.ic_media_play)
-            }
-        },
-        OriginSample(
-            "Cuộc gọi đến", "Cuộc gọi thoại · Nút Từ chối / Trả lời",
-            IslandPreview(R.drawable.ic_call, "", IslandPreview.Right.Text("Minh Tuấn")),
-        ) { ctx ->
-            start(ctx, 40009) {
-                putExtra("oi_scene", "NAVIGATION")
-                putExtra("oi_template", OriginIslandConstants.TEMPLATE_BUTTONS)
-                putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
-                putExtra("oi_show_right_icon", false)
-                putExtra("title", "Minh Tuấn")
-                putExtra("text", "Cuộc gọi đến")
-                putExtra("oi_left_content", "")
-                putExtra("oi_right_content", "Minh Tuấn")
-                putStringArrayListExtra("oi_button_titles", arrayListOf("Từ chối", "Trả lời"))
-                putExtra("click_resp", openApp(ctx))
-                putExtra("icon_res", R.drawable.ic_call)
             }
         },
         OriginSample(

@@ -117,10 +117,10 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .widthIn(max = 760.dp),
-                contentPadding = ScreenPadding,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
             ) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 14.dp)) {
                         ScreenHeader("Nhật ký hoạt động", onBack) {
                             CircleIconButton(IsleIcons.Trash, "Xóa nhật ký", onClick = { CastLog.clear(context) }, iconSize = 19.dp)
                         }
@@ -146,7 +146,7 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
 
                 if (entries.isEmpty()) {
                     item {
-                        val emptyShape = RoundedCornerShape(26.dp)
+                        val emptyShape = RoundedCornerShape(24.dp)
                         Box(
                             Modifier
                                 .clip(emptyShape)
@@ -186,7 +186,7 @@ private fun VivoDiagnosticAlertCard(
     isBound: Boolean,
     onReconnect: () -> Unit,
 ) {
-    val alertShape = RoundedCornerShape(26.dp)
+    val alertShape = RoundedCornerShape(12.dp)
     Column(
         Modifier
             .fillMaxWidth()
@@ -293,7 +293,7 @@ private fun VivoDiagnosticAlertCard(
 
 @Composable
 private fun ListenerCard(connected: Boolean, now: Long, onReconnect: () -> Unit) {
-    val cardShape = RoundedCornerShape(26.dp)
+    val cardShape = RoundedCornerShape(24.dp)
     Row(
         Modifier
             .fillMaxWidth()
@@ -363,7 +363,7 @@ private fun LogRow(e: CastLog.Entry) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 e.title.ifBlank { e.app },
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = if (e.cast) IsleColors.Text else IsleColors.TextTertiary,
                 maxLines = 1,
@@ -381,7 +381,7 @@ private fun LogRow(e: CastLog.Entry) {
             outcomeTag(e.outcome),
             modifier = Modifier
                 .widthIn(max = 116.dp)
-                .clip(RoundedCornerShape(13.dp))
+                .clip(RoundedCornerShape(18.dp))
                 .background(if (e.cast) IsleColors.CastTagBg else IsleColors.SurfaceHigh)
                 .padding(horizontal = 10.dp, vertical = 5.dp),
             fontSize = 11.sp,

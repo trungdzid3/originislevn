@@ -93,12 +93,12 @@ fun UpdateDialog(
                 .widthIn(max = 460.dp)
                 .clip(dialogShape)
                 .border(
-                    width = 0.9.dp,
+                    width = 0.5.dp,
                     brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
                     shape = dialogShape,
                 ),
             shape = dialogShape,
-            color = IsleColors.FloatingGlassBg,
+            color = IsleColors.Surface,
             tonalElevation = 0.dp,
         ) {
             Column(
@@ -109,8 +109,9 @@ fun UpdateDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = "Cập nhật phiên bản mới",
-                        fontSize = 19.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.3).sp,
                         color = IsleColors.Text,
                     )
                     Row(
@@ -122,8 +123,8 @@ fun UpdateDialog(
                                 .clip(badgeShape)
                                 .background(IsleColors.SurfaceHigh)
                                 .border(
-                                    width = 0.7.dp,
-                                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                    width = 0.5.dp,
+                                    color = IsleColors.Divider,
                                     shape = badgeShape,
                                 )
                                 .padding(horizontal = 8.dp, vertical = 3.dp),
@@ -161,8 +162,8 @@ fun UpdateDialog(
                             .clip(changelogShape)
                             .background(IsleColors.SurfaceHigh)
                             .border(
-                                width = 0.8.dp,
-                                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                width = 0.5.dp,
+                                color = IsleColors.Divider,
                                 shape = changelogShape,
                             )
                             .padding(14.dp)
@@ -243,7 +244,12 @@ fun UpdateDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(0.5.dp)
+                        .background(IsleColors.Divider),
+                )
 
                 // 4. Hai nút bấm bo tròn chuẩn OriginOS
                 Row(
@@ -251,7 +257,7 @@ fun UpdateDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Nút phụ: "Để sau"
+                    // Nút phụ: "Để sau" (AlphaGray)
                     PillButton(
                         text = "Để sau",
                         onClick = onDismiss,
@@ -259,10 +265,10 @@ fun UpdateDialog(
                         modifier = Modifier.weight(1f),
                         container = IsleColors.SurfaceHigh,
                         content = if (isDownloading) IsleColors.TextTertiary else IsleColors.Text,
-                        height = 46.dp,
+                        height = 50.dp,
                     )
 
-                    // Nút chính: "Cập nhật ngay" / "Đang tải..." / "Cài đặt lại"
+                    // Nút chính: "Cập nhật ngay" / "Đang tải..." / "Cài đặt lại" (Primary)
                     val primaryButtonText = when (downloadState) {
                         is DownloadState.Idle -> "Cập nhật ngay"
                         is DownloadState.Downloading -> "Đang tải..."
@@ -298,7 +304,7 @@ fun UpdateDialog(
                         modifier = Modifier.weight(1.3f),
                         container = if (isDownloading) IsleColors.SurfaceHigher else IsleColors.Accent,
                         content = if (isDownloading) IsleColors.TextTertiary else MaterialTheme.colorScheme.onPrimary,
-                        height = 46.dp,
+                        height = 50.dp,
                     )
                 }
             }

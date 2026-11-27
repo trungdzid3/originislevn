@@ -152,14 +152,14 @@ fun BluetoothPopupSheet(
         modifier = Modifier.statusBarsPadding(),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = sheetShape,
-        containerColor = IsleColors.Background,
+        containerColor = IsleColors.Surface,
         contentColor = IsleColors.Text,
         dragHandle = {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .border(
-                        width = 0.8.dp,
+                        width = 0.5.dp,
                         brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
                         shape = sheetShape,
                     ),
@@ -178,7 +178,7 @@ fun BluetoothPopupSheet(
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp)
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -189,16 +189,16 @@ fun BluetoothPopupSheet(
             ) {
                 Text(
                     "Ảnh thiết bị Bluetooth",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.5).sp,
                     color = IsleColors.Text,
                 )
                 Text(
                     "Chỉ hỗ trợ tai nghe Bluetooth (đã lược bỏ loa, đồng hồ và thiết bị khác). Hỗ trợ model 3D động (Lenovo LE208, Redmi Buds 6 Play), ảnh tĩnh và GIF động cho thẻ popup kết nối nhanh.",
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     color = IsleColors.TextSecondary,
-                    lineHeight = 18.sp,
+                    lineHeight = 19.sp,
                 )
             }
 
@@ -256,7 +256,9 @@ fun BluetoothPopupSheet(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            height = 46.dp,
+                            container = IsleColors.Accent,
+                            content = Color.White,
+                            height = 50.dp,
                         )
                     }
                 }
@@ -396,6 +398,8 @@ fun BluetoothPopupSheet(
                                 )
                             }
 
+                            GroupDivider(inset = 0.dp)
+
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 val presets = BluetoothDevicePreset.entries
                                 val rows = presets.chunked(2)
@@ -445,25 +449,14 @@ fun BluetoothPopupSheet(
                                                     .clip(CircleShape)
                                                     .background(
                                                         if (selected) {
-                                                            MaterialTheme.colorScheme.secondaryContainer
+                                                            IsleColors.Accent.copy(alpha = 0.12f)
                                                         } else {
                                                             IsleColors.SurfaceHigh
                                                         },
                                                     )
                                                     .border(
-                                                        width = if (selected) 1.5.dp else 0.7.dp,
-                                                        brush = if (selected) {
-                                                            Brush.verticalGradient(
-                                                                listOf(
-                                                                    MaterialTheme.colorScheme.primary,
-                                                                    MaterialTheme.colorScheme.primary,
-                                                                ),
-                                                            )
-                                                        } else {
-                                                            Brush.verticalGradient(
-                                                                listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom),
-                                                            )
-                                                        },
+                                                        width = if (selected) 1.2.dp else 0.5.dp,
+                                                        color = if (selected) IsleColors.Accent else IsleColors.BorderHairline,
                                                         shape = CircleShape,
                                                     )
                                                     .clickable(role = Role.RadioButton) {
@@ -487,7 +480,7 @@ fun BluetoothPopupSheet(
                                                     fontSize = 12.sp,
                                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                                     color = if (selected) {
-                                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                                        IsleColors.Accent
                                                     } else {
                                                         IsleColors.Text
                                                     },
@@ -511,7 +504,7 @@ fun BluetoothPopupSheet(
                                     modifier = Modifier.weight(1f),
                                     container = IsleColors.SurfaceHigh,
                                     content = IsleColors.Text,
-                                    height = 42.dp,
+                                    height = 50.dp,
                                 )
                                 PillButton(
                                     text = "Xem thử",
@@ -534,7 +527,9 @@ fun BluetoothPopupSheet(
                                         }
                                     },
                                     modifier = Modifier.weight(1f),
-                                    height = 42.dp,
+                                    container = IsleColors.Accent,
+                                    content = Color.White,
+                                    height = 50.dp,
                                 )
                             }
                         }

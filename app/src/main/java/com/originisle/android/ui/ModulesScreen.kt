@@ -38,10 +38,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.originisle.android.cards.ChargingCard
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
-import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.service.NotificationCastListener
 
 /**
@@ -68,7 +66,6 @@ fun ModulesScreen(
     }
     var downloadOn by remember { mutableStateOf(prefs.getBoolean("cast_downloads", true)) }
     var castCalendarEvents by remember { mutableStateOf(prefs.getBoolean("cast_calendar_events", true)) }
-    var callsOn by remember { mutableStateOf(prefs.getBoolean("cast_calls", true)) }
 
     // Nhóm 2: Hệ thống & Phần cứng
     var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
@@ -77,11 +74,8 @@ fun ModulesScreen(
     }
     var btConnectPopup by remember { mutableStateOf(prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)) }
     var btPopupSheetOpen by remember { mutableStateOf(false) }
-    var chargingOn by remember { mutableStateOf(prefs.getBoolean("cast_charging", true)) }
-    var chargingKeep by remember { mutableStateOf(prefs.getBoolean("cast_charging_keep", false)) }
     var ringerModeOn by remember { mutableStateOf(prefs.getBoolean("cast_ringer_mode", true)) }
     var flashlightOn by remember { mutableStateOf(prefs.getBoolean("cast_flashlight", true)) }
-    var privacyDotOn by remember { mutableStateOf(prefs.getBoolean("cast_privacy_dot", true)) }
 
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
@@ -98,14 +92,10 @@ fun ModulesScreen(
                 }
                 "cast_downloads" -> downloadOn = sp.getBoolean("cast_downloads", true)
                 "cast_calendar_events" -> castCalendarEvents = sp.getBoolean("cast_calendar_events", true)
-                "cast_calls" -> callsOn = sp.getBoolean("cast_calls", true)
                 "cast_media_sessions" -> mediaOn = sp.getBoolean("cast_media_sessions", true)
                 PREF_BT_CONNECT_POPUP -> btConnectPopup = sp.getBoolean(PREF_BT_CONNECT_POPUP, false)
-                "cast_charging" -> chargingOn = sp.getBoolean("cast_charging", true)
-                "cast_charging_keep" -> chargingKeep = sp.getBoolean("cast_charging_keep", false)
                 "cast_ringer_mode" -> ringerModeOn = sp.getBoolean("cast_ringer_mode", true)
                 "cast_flashlight" -> flashlightOn = sp.getBoolean("cast_flashlight", true)
-                "cast_privacy_dot" -> privacyDotOn = sp.getBoolean("cast_privacy_dot", true)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -141,8 +131,8 @@ fun ModulesScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             MainScreenHeader(title = "Tính năng Đảo")
@@ -212,11 +202,11 @@ fun ModulesScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(18.dp))
                                 .background(IsleColors.Surface)
-                                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(12.dp))
-                                .padding(horizontal = 12.dp),
+                                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(18.dp))
+                                .padding(horizontal = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             BasicTextField(
@@ -255,18 +245,6 @@ fun ModulesScreen(
                     ) {
                         castCalendarEvents = it
                         prefs.edit().putBoolean("cast_calendar_events", it).apply()
-                    }
-
-                    GroupDivider()
-
-                    ToggleRow(
-                        icon = IsleIcons.Pulse,
-                        tileColor = IsleColors.Accent,
-                        title = "Cuộc gọi & Đàm thoại",
-                        checked = callsOn,
-                    ) {
-                        callsOn = it
-                        prefs.edit().putBoolean("cast_calls", it).apply()
                     }
                 }
             }
@@ -334,36 +312,6 @@ fun ModulesScreen(
                     GroupDivider()
 
                     ToggleRow(
-                        icon = IsleIcons.Battery,
-                        tileColor = IsleColors.Accent,
-                        title = "Pin & Sạc",
-                        checked = chargingOn,
-                    ) {
-                        chargingOn = it
-                        prefs.edit().putBoolean("cast_charging", it).apply()
-                        ChargingCard.onSettingsChanged(context)
-                    }
-
-                    NestedSettingContainer(visible = chargingOn) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(false to "5 giây", true to "Khi đang sạc").forEach { (keep, label) ->
-                                ChoiceChip(
-                                    label = label,
-                                    selected = chargingKeep == keep,
-                                    onClick = {
-                                        chargingKeep = keep
-                                        prefs.edit().putBoolean("cast_charging_keep", keep).apply()
-                                        ChargingCard.onSettingsChanged(context)
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                    }
-
-                    GroupDivider()
-
-                    ToggleRow(
                         icon = IsleIcons.Bell,
                         tileColor = IsleColors.Accent,
                         title = "Chế độ Âm thanh",
@@ -384,19 +332,6 @@ fun ModulesScreen(
                         flashlightOn = it
                         prefs.edit().putBoolean("cast_flashlight", it).apply()
                         FlashlightCard.refresh()
-                    }
-
-                    GroupDivider()
-
-                    ToggleRow(
-                        icon = IsleIcons.Camera,
-                        tileColor = IsleColors.Accent,
-                        title = "Chỉ báo Camera & Micro",
-                        checked = privacyDotOn,
-                    ) {
-                        privacyDotOn = it
-                        prefs.edit().putBoolean("cast_privacy_dot", it).apply()
-                        PrivacyCard.refresh()
                     }
                 }
             }

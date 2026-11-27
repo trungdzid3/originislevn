@@ -83,14 +83,14 @@ fun PermissionsSheet(
         modifier = Modifier.statusBarsPadding(),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = sheetShape,
-        containerColor = IsleColors.Background,
+        containerColor = IsleColors.Surface,
         contentColor = IsleColors.Text,
         dragHandle = {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .border(
-                        width = 0.8.dp,
+                        width = 0.5.dp,
                         brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
                         shape = sheetShape,
                     ),
@@ -109,17 +109,18 @@ fun PermissionsSheet(
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp)
                 .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "Quyền ứng dụng",
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                 fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.5).sp,
+                color = IsleColors.Text,
             )
             GroupCard {
                 PermissionRow(
@@ -181,6 +182,9 @@ fun PermissionsSheet(
                 onClick = onRedoSetup,
                 modifier = Modifier.fillMaxWidth(),
                 icon = IsleIcons.Refresh,
+                container = IsleColors.Accent.copy(alpha = 0.12f),
+                content = IsleColors.Accent,
+                height = 50.dp,
             )
         }
     }
@@ -234,14 +238,14 @@ private fun PermissionRow(
 /** The one-line banner Home shows while notification access or battery is broken. */
 @Composable
 fun SetupAttentionBanner(onClick: () -> Unit) {
-    val bannerShape = RoundedCornerShape(26.dp)
+    val bannerShape = RoundedCornerShape(24.dp)
     Row(
         Modifier
             .fillMaxWidth()
             .clip(bannerShape)
             .background(IsleColors.WarnBg)
             .border(
-                width = 0.8.dp,
+                width = 0.5.dp,
                 brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
                 shape = bannerShape,
             )

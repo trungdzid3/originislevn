@@ -119,10 +119,10 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .widthIn(max = 760.dp),
-                contentPadding = ScreenPadding,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
             ) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 8.dp)) {
                         ScreenHeader("Ứng dụng", onBack) {
                             if (!loading && filtered.isNotEmpty()) {
                                 PillButton(
@@ -132,8 +132,8 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
                                         else filtered.forEach { if (it.pkg !in ignored) ignored.add(it.pkg) }
                                         prefs.edit().putStringSet("cast_ignored_apps", ignored.toSet()).apply()
                                     },
-                                    container = IsleColors.SurfaceHigh,
-                                    content = IsleColors.AccentText,
+                                    container = IsleColors.Accent.copy(alpha = if (IsleColors.isDark) 0.20f else 0.12f),
+                                    content = IsleColors.Accent,
                                     height = 44.dp,
                                 )
                             }
@@ -215,25 +215,25 @@ fun AppsScreen(context: Context, prefs: SharedPreferences, onBack: () -> Unit) {
 
 @Composable
 private fun SearchField(query: String, onChange: (String) -> Unit) {
-    val searchShape = RoundedCornerShape(24.dp)
+    val searchShape = RoundedCornerShape(20.dp)
+    val searchBg = if (IsleColors.isDark) {
+        androidx.compose.ui.graphics.Color(0x14FFFFFF)
+    } else {
+        androidx.compose.ui.graphics.Color(0x0D000000)
+    }
     Row(
         Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(46.dp)
             .clip(searchShape)
-            .background(IsleColors.Surface)
-            .border(
-                width = 0.8.dp,
-                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                shape = searchShape,
-            )
-            .padding(start = 16.dp, end = 2.dp),
+            .background(searchBg)
+            .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(IsleIcons.Search, null, Modifier.size(18.dp), tint = IsleColors.TextSecondary)
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) Text("Tìm kiếm ứng dụng", fontSize = 16.sp, color = IsleColors.TextSecondary)
+            if (query.isEmpty()) Text("Tìm kiếm ứng dụng", fontSize = 16.sp, color = IsleColors.TextTertiary)
             BasicTextField(
                 value = query,
                 onValueChange = onChange,
@@ -246,7 +246,9 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
         if (query.isNotEmpty()) {
             CircleIconButton(
                 IsleIcons.Close, "Xóa tìm kiếm", onClick = { onChange("") },
-                background = IsleColors.Surface, tint = IsleColors.TextSecondary, iconSize = 18.dp,
+                background = androidx.compose.ui.graphics.Color.Transparent,
+                tint = IsleColors.TextSecondary,
+                iconSize = 18.dp,
             )
         }
     }

@@ -177,6 +177,14 @@
             android:taskAffinity="" />
 
         <receiver
+            android:name=".service.MediaIslandLaunchReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.originisle.android.ACTION_LAUNCH_MEDIA_OVERLAY" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".service.BootKeepAliveReceiver"
             android:exported="true">
             <intent-filter>

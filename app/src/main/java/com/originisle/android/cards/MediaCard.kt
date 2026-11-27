@@ -1,6 +1,7 @@
 package com.originisle.android.cards
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -30,6 +31,7 @@ import com.originisle.android.log.CastLog
 import com.originisle.android.service.IconCache
 import com.originisle.android.service.MediaControlReceiver
 import com.originisle.android.service.MediaIslandLaunchActivity
+import com.originisle.android.service.MediaIslandLaunchReceiver
 import com.originisle.android.service.MediaIslandOverlay
 import com.originisle.android.service.MediaSnapshot
 import com.originisle.android.service.NotificationCastListener
@@ -66,12 +68,16 @@ object MediaCard {
         overlaySuppressed = suppressed
         val appCtx = context.applicationContext
         if (suppressed) {
-            val cancelIntent = Intent(appCtx, PlaygroundService::class.java).apply {
-                action = PlaygroundService.ACTION_CANCEL
+            // Cancel the SuperX notification synchronously so OriginOS removes the capsule
+            // immediately without waiting for PlaygroundService's delayed endOrigin/cancel flow.
+            val nm = appCtx.getSystemService(NotificationManager::class.java)
+            nm?.cancel(OriginIslandConstants.SUPERX_TAG, ID)
+            nm?.cancel(ID)
+            val goneIntent = Intent(appCtx, PlaygroundService::class.java).apply {
+                action = PlaygroundService.ACTION_GONE
                 putExtra("id", ID)
-                putExtra("oi_scene", "NAVIGATION")
             }
-            appCtx.startService(cancelIntent)
+            appCtx.startService(goneIntent)
         } else if (lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)) {
             dispatchMediaCard(
                 context = appCtx,
@@ -497,11 +503,11 @@ object MediaCard {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val useHybridOverlay = MediaIslandOverlay.canShow(context) &&
             prefs.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true)
-        val overlayActivityPi = PendingIntent.getActivity(
+        val overlayBroadcastPi = PendingIntent.getBroadcast(
             context,
             ID + 99,
-            Intent(context, MediaIslandLaunchActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            Intent(context, MediaIslandLaunchReceiver::class.java).apply {
+                action = MediaIslandLaunchReceiver.ACTION_LAUNCH_MEDIA_OVERLAY
                 putExtra(MediaIslandLaunchActivity.EXTRA_FALLBACK_INTENT, contentClickIntent)
                 putExtra(MediaIslandLaunchActivity.EXTRA_SOURCE_PKG, pkg)
             },
@@ -548,7 +554,7 @@ object MediaCard {
             putParcelableArrayListExtra("actions", actions)
             putExtra(
                 "source_content_intent",
-                if (useHybridOverlay) overlayActivityPi else contentClickIntent,
+                if (useHybridOverlay) overlayBroadcastPi else contentClickIntent,
             )
         }
         if (!overlaySuppressed) {

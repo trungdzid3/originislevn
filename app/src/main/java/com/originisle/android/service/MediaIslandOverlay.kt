@@ -176,7 +176,7 @@ object MediaIslandOverlay {
             resetAutoHideTimer()
             return true
         }
-        removeWindowImmediate()
+        removeWindowImmediate(restoreSuppression = false)
 
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return false
         val density = appContext.resources.displayMetrics.density
@@ -562,12 +562,12 @@ object MediaIslandOverlay {
         }
 
         return runCatching {
+            MediaCard.setOverlaySuppression(appContext, true)
             wm.addView(root, windowParams)
             rootView = root
             cardView = card
             windowManager = wm
             isDismissing = false
-            MediaCard.setOverlaySuppression(appContext, true)
 
             albumArtView = albumArt
             trackView = trackTv
@@ -596,7 +596,8 @@ object MediaIslandOverlay {
             true
         }.onFailure {
             Log.e(TAG, "Failed to show MediaIslandOverlay", it)
-            removeWindowImmediate()
+            removeWindowImmediate(restoreSuppression = false)
+            MediaCard.setOverlaySuppression(appContext, false)
         }.getOrDefault(false)
     }
 
@@ -772,7 +773,7 @@ object MediaIslandOverlay {
             .start()
     }
 
-    private fun removeWindowImmediate() {
+    private fun removeWindowImmediate(restoreSuppression: Boolean = true) {
         mainHandler.removeCallbacks(autoHideRunnable)
         mainHandler.removeCallbacks(progressRunnable)
 
@@ -802,7 +803,7 @@ object MediaIslandOverlay {
             }
             root.removeAllViews()
         }
-        if (appCtx != null) {
+        if (restoreSuppression && appCtx != null) {
             MediaCard.setOverlaySuppression(appCtx, false)
         }
     }

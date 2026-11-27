@@ -74,7 +74,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.originisle.android.BuildConfig
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
-import com.originisle.android.cards.PrivacyCard
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.log.CastLog
 import com.originisle.android.service.NotificationCastListener
@@ -180,6 +179,7 @@ fun HomeScreen(
             onDismissRequest = { testerSheetOpen = false },
             modifier = Modifier.statusBarsPadding(),
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
             containerColor = IsleColors.Menu,
             contentColor = IsleColors.Text,
         ) {
@@ -187,7 +187,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
                     .padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -205,7 +205,10 @@ fun HomeScreen(
                         onClick = { recastAll(context) },
                         modifier = Modifier.weight(1f),
                         icon = IsleIcons.Refresh,
+                        container = IsleColors.Accent.copy(alpha = if (IsleColors.isDark) 0.20f else 0.12f),
+                        content = IsleColors.Accent,
                         enabled = castOn || mediaOn,
+                        height = 50.dp,
                     )
                     PillButton(
                         text = "Đóng tất cả",
@@ -218,6 +221,7 @@ fun HomeScreen(
                         iconSize = 16.dp,
                         container = MaterialTheme.colorScheme.errorContainer,
                         content = MaterialTheme.colorScheme.onErrorContainer,
+                        height = 50.dp,
                     )
                 }
             }
@@ -234,8 +238,8 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // Header + menu 3 chấm
         item {
@@ -293,7 +297,6 @@ fun HomeScreen(
                     castOn = enabled
                     prefs.edit().putBoolean("cast_notifications", enabled).apply()
                     if (enabled) PlaygroundService.keepAlive(context)
-                    PrivacyCard.refresh()
                     FlashlightCard.refresh()
                     EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
                 },
@@ -313,7 +316,7 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = "Giao diện",
-                            fontSize = 15.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = IsleColors.Text,
                         )
@@ -593,14 +596,14 @@ private fun CompactStatusCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(IsleColors.SurfaceHigh.copy(alpha = 0.65f))
                     .border(
                         width = 0.6.dp,
                         brush = Brush.verticalGradient(
                             listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom),
                         ),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(18.dp),
                     )
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -665,7 +668,7 @@ private fun AtomicShortcutTile(
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
         label = "atomicTouchLight",
     )
-    val outerShape = RoundedCornerShape(26.dp)
+    val outerShape = RoundedCornerShape(24.dp)
     val innerIconShape = RoundedCornerShape(14.dp)
 
     Box(
@@ -769,9 +772,9 @@ private fun VivoOriginAttentionBanner(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(bg)
-            .border(0.8.dp, borderCol, RoundedCornerShape(20.dp))
+            .border(0.8.dp, borderCol, RoundedCornerShape(12.dp))
             .clickable(role = Role.Button, onClick = onOpenPermissions)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -821,9 +824,9 @@ private fun SampleTester(context: Context) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(IsleColors.Surface)
-            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(22.dp))
+            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(24.dp))
             .padding(vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -832,9 +835,9 @@ private fun SampleTester(context: Context) {
                 .padding(horizontal = 14.dp)
                 .fillMaxWidth()
                 .heightIn(min = 96.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(18.dp))
                 .background(IsleColors.PreviewBg)
-                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(16.dp))
+                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(18.dp))
                 .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
@@ -877,7 +880,7 @@ private fun SampleTester(context: Context) {
             icon = IsleIcons.Send,
             container = IsleColors.Accent,
             content = Color.White,
-            height = 46.dp,
+            height = 50.dp,
         )
     }
 }
