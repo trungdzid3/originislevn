@@ -35,10 +35,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -71,8 +69,8 @@ import com.originisle.android.bluetooth.BluetoothPopupTheme
 import com.originisle.android.bluetooth.RedmiCaseColor
 
 /**
- * Bottom sheet Material 3 cho phép tùy chỉnh giao diện thẻ popup, ảnh / GIF và preset hiển thị
- * cho từng thiết bị Bluetooth đã ghép đôi.
+ * Bottom sheet OriginUI ROM 16.0 cho phép tùy chỉnh giao diện thẻ popup, ảnh / GIF và preset
+ * hiển thị cho từng thiết bị Bluetooth đã ghép đôi.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -146,7 +144,9 @@ fun BluetoothPopupSheet(
         }
     }
 
-    val sheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+    val sheetShape = G2RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomEnd = 0.dp, bottomStart = 0.dp)
+    val isDark = IsleColors.isDark
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.statusBarsPadding(),
@@ -154,14 +154,21 @@ fun BluetoothPopupSheet(
         shape = sheetShape,
         containerColor = IsleColors.Surface,
         contentColor = IsleColors.Text,
+        tonalElevation = 0.dp,
         dragHandle = {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .border(
-                        width = 0.5.dp,
-                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
-                        shape = sheetShape,
+                    .then(
+                        if (isDark) {
+                            Modifier.border(
+                                width = 0.6.dp,
+                                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
+                                shape = sheetShape,
+                            )
+                        } else {
+                            Modifier
+                        },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -197,7 +204,7 @@ fun BluetoothPopupSheet(
                 Text(
                     "Chỉ hỗ trợ tai nghe Bluetooth (đã lược bỏ loa, đồng hồ và thiết bị khác). Hỗ trợ model 3D động (Lenovo LE208, Redmi Buds 6 Play), ảnh tĩnh và GIF động cho thẻ popup kết nối nhanh.",
                     fontSize = 14.sp,
-                    color = IsleColors.TextSecondary,
+                    color = IsleColors.TextSub,
                     lineHeight = 19.sp,
                 )
             }
@@ -255,9 +262,8 @@ fun BluetoothPopupSheet(
                                     btPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                                 }
                             },
+                            variant = PillButtonVariant.PRIMARY,
                             modifier = Modifier.fillMaxWidth(),
-                            container = IsleColors.Accent,
-                            content = Color.White,
                             height = 50.dp,
                         )
                     }
@@ -277,7 +283,7 @@ fun BluetoothPopupSheet(
                         Text(
                             "Chỉ hỗ trợ tai nghe Bluetooth (đã lược bỏ loa, đồng hồ và thiết bị khác). Hãy ghép đôi tai nghe trong Cài đặt Bluetooth rồi quay lại tùy chỉnh.",
                             fontSize = 13.sp,
-                            color = IsleColors.TextSecondary,
+                            color = IsleColors.TextSub,
                             lineHeight = 18.sp,
                         )
                     }
@@ -294,29 +300,27 @@ fun BluetoothPopupSheet(
                         BluetoothPopupStore.getDeviceConfig(context, key, deviceName)
                     }
 
-                    GroupCard {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Thẻ HeroCard (30.dp G2) preview thiết bị & bật/tắt popup
+                        HeroCard(containerColor = IsleColors.SurfaceHigh) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 val customBitmap = remember(config.customImagePath) {
                                     config.customImagePath?.let { path ->
                                         runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
                                     }
                                 }
-                                val previewShape = RoundedCornerShape(14.dp)
+                                val previewShape = G2RoundedCornerShape(18.dp)
                                 Box(
                                     modifier = Modifier
-                                        .size(52.dp)
+                                        .size(64.dp)
                                         .clip(previewShape)
-                                        .background(IsleColors.SurfaceHigh)
+                                        .background(IsleColors.Surface)
                                         .border(
                                             width = 0.8.dp,
                                             brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
@@ -338,18 +342,18 @@ fun BluetoothPopupSheet(
                                             contentScale = ContentScale.Fit,
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .padding(4.dp),
+                                                .padding(6.dp),
                                         )
                                     }
                                 }
                                 Column(
                                     modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
                                 ) {
                                     Text(
                                         text = deviceName,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
                                         color = IsleColors.Text,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -369,24 +373,24 @@ fun BluetoothPopupSheet(
                                         Text(
                                             text = if (hasCustom) "Ảnh tùy chỉnh" else config.preset.label,
                                             fontSize = 12.sp,
-                                            fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Normal,
-                                            color = if (hasCustom) IsleColors.Good else IsleColors.TextSecondary,
+                                            fontWeight = if (hasCustom) FontWeight.SemiBold else FontWeight.Medium,
+                                            color = if (hasCustom) IsleColors.GoodText else IsleColors.TextSub,
                                         )
-                                        if (hasCustom) {
-                                            Text(
-                                                text = "Xóa ảnh",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = IsleColors.Bad,
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .clickable(role = Role.Button) {
-                                                        BluetoothPopupStore.clearCustomImage(context, key)
-                                                        refreshVersion++
-                                                    }
-                                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                            )
-                                        }
+                                    }
+                                    if (!config.customImagePath.isNullOrBlank()) {
+                                        Text(
+                                            text = "Xóa ảnh tùy chỉnh",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = IsleColors.BadText,
+                                            modifier = Modifier
+                                                .clip(G2RoundedCornerShape(8.dp))
+                                                .clickable(role = Role.Button) {
+                                                    BluetoothPopupStore.clearCustomImage(context, key)
+                                                    refreshVersion++
+                                                }
+                                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                                        )
                                     }
                                 }
                                 IsleSwitch(
@@ -397,140 +401,154 @@ fun BluetoothPopupSheet(
                                     },
                                 )
                             }
+                        }
 
-                            GroupDivider(inset = 0.dp)
+                        // Thẻ GroupCard (24.dp G2) chứa tùy chọn preset 3D, màu vỏ & nút chọn ảnh/GIF/xem thử
+                        GroupCard {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    text = "Model 3D & Preset hiển thị",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = IsleColors.Text,
+                                )
 
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val presets = BluetoothDevicePreset.entries
-                                val rows = presets.chunked(2)
-                                rows.forEach { rowItems ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        rowItems.forEach { preset ->
-                                            ChoiceChip(
-                                                label = preset.label,
-                                                selected = config.preset == preset,
-                                                onClick = {
-                                                    BluetoothPopupStore.setDevicePreset(context, key, preset)
-                                                    refreshVersion++
-                                                },
-                                                modifier = Modifier.weight(1f),
-                                                height = 38.dp,
-                                                horizontalPadding = 8.dp,
-                                            )
-                                        }
-                                        if (rowItems.size == 1) {
-                                            Spacer(Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (config.preset == BluetoothDevicePreset.REDMI_BUDS_6_PLAY) {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(
-                                        text = "Màu vỏ hộp 3D",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = IsleColors.TextSecondary,
-                                    )
-                                    FlowRow(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        RedmiCaseColor.entries.forEach { caseColor ->
-                                            val selected = redmiCaseColor == caseColor
-                                            Row(
-                                                modifier = Modifier
-                                                    .heightIn(min = 38.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (selected) {
-                                                            IsleColors.Accent.copy(alpha = 0.12f)
-                                                        } else {
-                                                            IsleColors.SurfaceHigh
-                                                        },
-                                                    )
-                                                    .border(
-                                                        width = if (selected) 1.2.dp else 0.5.dp,
-                                                        color = if (selected) IsleColors.Accent else IsleColors.BorderHairline,
-                                                        shape = CircleShape,
-                                                    )
-                                                    .clickable(role = Role.RadioButton) {
-                                                        redmiCaseColor = caseColor
-                                                        BluetoothPopupStore.setRedmiCaseColor(context, caseColor)
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    val presets = BluetoothDevicePreset.entries
+                                    val rows = presets.chunked(2)
+                                    rows.forEach { rowItems ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            rowItems.forEach { preset ->
+                                                ChoiceChip(
+                                                    label = preset.label,
+                                                    selected = config.preset == preset,
+                                                    onClick = {
+                                                        BluetoothPopupStore.setDevicePreset(context, key, preset)
                                                         refreshVersion++
-                                                    }
-                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(14.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(caseColor.swatchHex))
-                                                        .border(0.5.dp, IsleColors.BorderHairline, CircleShape),
-                                                )
-                                                Text(
-                                                    text = caseColor.label,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                                    color = if (selected) {
-                                                        IsleColors.Accent
-                                                    } else {
-                                                        IsleColors.Text
                                                     },
+                                                    modifier = Modifier.weight(1f),
+                                                    height = 38.dp,
+                                                    horizontalPadding = 8.dp,
                                                 )
+                                            }
+                                            if (rowItems.size == 1) {
+                                                Spacer(Modifier.weight(1f))
                                             }
                                         }
                                     }
                                 }
-                            }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                PillButton(
-                                    text = "Chọn ảnh / GIF",
-                                    onClick = {
-                                        pickingForKey = key
-                                        imagePicker.launch("image/*")
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    container = IsleColors.SurfaceHigh,
-                                    content = IsleColors.Text,
-                                    height = 50.dp,
-                                )
-                                PillButton(
-                                    text = "Xem thử",
-                                    onClick = {
-                                        if (!isOverlayPermissionGranted(context)) {
-                                            openOverlayPermissionSettings(context)
-                                        } else {
-                                            BluetoothPopupOverlay.showOrUpdate(
-                                                context,
-                                                key,
-                                                deviceName,
-                                                BluetoothPopupBattery(
-                                                    main = 85,
-                                                    left = 90,
-                                                    right = 85,
-                                                    caseBattery = 70,
-                                                ),
-                                                forcePreview = true,
-                                            )
+                                if (config.preset == BluetoothDevicePreset.REDMI_BUDS_6_PLAY) {
+                                    GroupDivider(inset = 0.dp)
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = "Màu vỏ hộp 3D",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = IsleColors.TextSub,
+                                        )
+                                        FlowRow(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            RedmiCaseColor.entries.forEach { caseColor ->
+                                                val selected = redmiCaseColor == caseColor
+                                                Row(
+                                                    modifier = Modifier
+                                                        .heightIn(min = 38.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (selected) {
+                                                                IsleColors.AccentSoft
+                                                            } else {
+                                                                IsleColors.SurfaceHigher
+                                                            },
+                                                        )
+                                                        .border(
+                                                            width = if (selected) 1.2.dp else 0.5.dp,
+                                                            color = if (selected) IsleColors.Accent else IsleColors.BorderHairline,
+                                                            shape = CircleShape,
+                                                        )
+                                                        .clickable(role = Role.RadioButton) {
+                                                            redmiCaseColor = caseColor
+                                                            BluetoothPopupStore.setRedmiCaseColor(context, caseColor)
+                                                            refreshVersion++
+                                                        }
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(14.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color(caseColor.swatchHex))
+                                                            .border(0.5.dp, IsleColors.BorderHairline, CircleShape),
+                                                    )
+                                                    Text(
+                                                        text = caseColor.label,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                        color = if (selected) {
+                                                            IsleColors.Accent
+                                                        } else {
+                                                            IsleColors.Text
+                                                        },
+                                                    )
+                                                }
+                                            }
                                         }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    container = IsleColors.Accent,
-                                    content = Color.White,
-                                    height = 50.dp,
-                                )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    PillButton(
+                                        text = "Chọn ảnh / GIF",
+                                        onClick = {
+                                            pickingForKey = key
+                                            imagePicker.launch("image/*")
+                                        },
+                                        variant = PillButtonVariant.ALPHA_GRAY,
+                                        modifier = Modifier.weight(1f),
+                                        height = 50.dp,
+                                    )
+                                    PillButton(
+                                        text = "Xem thử",
+                                        onClick = {
+                                            if (!isOverlayPermissionGranted(context)) {
+                                                openOverlayPermissionSettings(context)
+                                            } else {
+                                                BluetoothPopupOverlay.showOrUpdate(
+                                                    context,
+                                                    key,
+                                                    deviceName,
+                                                    BluetoothPopupBattery(
+                                                        main = 85,
+                                                        left = 90,
+                                                        right = 85,
+                                                        caseBattery = 70,
+                                                    ),
+                                                    forcePreview = true,
+                                                )
+                                            }
+                                        },
+                                        variant = PillButtonVariant.PRIMARY,
+                                        modifier = Modifier.weight(1f),
+                                        height = 50.dp,
+                                    )
+                                }
                             }
                         }
                     }

@@ -6,13 +6,11 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -36,9 +34,10 @@ import com.originisle.android.service.ShizukuKeepAliveHelper
 import kotlinx.coroutines.launch
 
 /**
- * Tab 3 — Cài đặt:
- * 1. Quy tắc & Riêng tư
- * 2. Hệ thống & Cập nhật
+ * Tab 3 — Cài đặt theo chuẩn OriginUI ROM 16.0:
+ * 1. Giao diện (Sáng/Tối/Hệ thống & Bảng màu)
+ * 2. Hành vi Đảo & Quy tắc (Chặn popup, Thời lượng đảo, Trả lời nhanh nổi, Lọc thông báo, Màn hình khóa, Giờ yên tĩnh)
+ * 3. Hệ thống & Cập nhật (Quyền hệ thống, Giữ sống Shizuku, Kiểm tra cập nhật)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,12 +48,25 @@ fun SettingsScreen(
 ) {
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
 
-    // Nhóm 1: Quy tắc & Riêng tư
-    var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
-    var autoDismissSec by remember { mutableIntStateOf(prefs.getInt("cast_auto_dismiss_seconds", 5)) }
+    // Nhóm Giao diện
+    var themePref by remember { mutableStateOf(prefs.getString(PREF_APP_THEME, "SYSTEM") ?: "SYSTEM") }
+    var themeColorPref by remember {
+        mutableStateOf(prefs.getString(PREF_APP_THEME_COLOR, AppThemeColor.DYNAMIC.key) ?: AppThemeColor.DYNAMIC.key)
+    }
+
+    // Nhóm Hành vi Đảo & Quy tắc
+    var suppressHeadsUp by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)) }
+    var suppressMode by remember {
+        mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
+    }
     var islandDurationSec by remember {
         mutableIntStateOf(prefs.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC))
     }
+    var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
+    var quickReplyOverlay by remember { mutableStateOf(prefs.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)) }
+    var actionsOn by remember { mutableStateOf(prefs.getBoolean("cast_show_actions", true)) }
+    var includeMessages by remember { mutableStateOf(prefs.getBoolean("cast_include_messages", false)) }
+    var autoDismissSec by remember { mutableIntStateOf(prefs.getInt("cast_auto_dismiss_seconds", 5)) }
     var ignoreSilent by remember { mutableStateOf(prefs.getBoolean("cast_ignore_silent", true)) }
     var lockscreenLiveCard by remember { mutableStateOf(prefs.getBoolean("cast_lockscreen_live_card", false)) }
     var lockscreenRedactSensitive by remember {
@@ -64,18 +76,28 @@ fun SettingsScreen(
     var quietSchedule by remember { mutableStateOf(prefs.getBoolean("cast_quiet_schedule", false)) }
     var quietStart by remember { mutableIntStateOf(prefs.getInt("cast_quiet_start", QuietHours.DEFAULT_START)) }
     var quietEnd by remember { mutableIntStateOf(prefs.getInt("cast_quiet_end", QuietHours.DEFAULT_END)) }
-    var actionsOn by remember { mutableStateOf(prefs.getBoolean("cast_show_actions", true)) }
 
-    // Nhóm 2: Shizuku
+    // Nhóm Hệ thống & Shizuku
     var shizukuAutoKeepAlive by remember { mutableStateOf(prefs.getBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, false)) }
 
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             when (key) {
                 "cast_notifications" -> castOn = sp.getBoolean("cast_notifications", true)
+                PREF_APP_THEME -> themePref = sp.getString(PREF_APP_THEME, "SYSTEM") ?: "SYSTEM"
+                PREF_APP_THEME_COLOR -> {
+                    themeColorPref = sp.getString(PREF_APP_THEME_COLOR, AppThemeColor.DYNAMIC.key)
+                        ?: AppThemeColor.DYNAMIC.key
+                }
+                PREF_CAST_SUPPRESS_HEADS_UP -> suppressHeadsUp = sp.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)
+                PREF_CAST_SUPPRESS_MODE -> {
+                    suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
+                }
                 PREF_CAST_ISLAND_DURATION_SEC -> {
                     islandDurationSec = sp.getInt(PREF_CAST_ISLAND_DURATION_SEC, DEFAULT_ISLAND_DURATION_SEC)
                 }
+                PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
+                PREF_QUICK_REPLY_OVERLAY -> quickReplyOverlay = sp.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)
                 PREF_SHIZUKU_AUTO_KEEPALIVE -> {
                     shizukuAutoKeepAlive = sp.getBoolean(PREF_SHIZUKU_AUTO_KEEPALIVE, false)
                 }
@@ -109,7 +131,7 @@ fun SettingsScreen(
         ModalBottomSheet(
             onDismissRequest = { shizukuSheetOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+            shape = G2RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
             containerColor = IsleColors.Menu,
             contentColor = IsleColors.Text,
         ) {
@@ -121,7 +143,7 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
-                    text = "Giữ nền (Shizuku)",
+                    text = "Giữ sống Shizuku",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = IsleColors.Text,
@@ -160,8 +182,9 @@ fun SettingsScreen(
                                     }
                                 }
                             },
+                            variant = PillButtonVariant.PRIMARY,
                             enabled = canTap,
-                            height = 36.dp,
+                            height = 38.dp,
                         )
                     }
 
@@ -192,7 +215,7 @@ fun SettingsScreen(
 
     val checkForUpdates: () -> Unit = {
         coroutineScope.launch {
-            updateStatus = "Đang kiểm tra…"
+            updateStatus = "Đang kiểm tra..."
             when (val result = UpdateChecker.check(context)) {
                 is UpdateChecker.Result.UpdateAvailable -> {
                     updateStatus = "Có v${result.release.versionName}"
@@ -214,59 +237,109 @@ fun SettingsScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    OriginCollapsingScaffold(
+        title = "Cài đặt",
+        hasBottomNav = true,
     ) {
-        item {
-            MainScreenHeader(title = "Cài đặt")
-        }
-
-        // Nhóm 1 — Quy tắc & Riêng tư
-        item {
-            Column(
-                modifier = Modifier.alpha(if (castOn) 1f else 0.45f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SectionLabel("Quy tắc & Riêng tư")
+        // Nhóm 1: Giao diện
+        item(key = "settings_group_appearance") {
+            Column {
+                SettingsGroupHeader("Giao diện")
                 GroupCard {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Text(
-                            "Mức lọc thông báo",
+                            text = "Chế độ hiển thị",
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Medium,
                             color = IsleColors.Text,
                         )
+                        val themeIndex = when (themePref) {
+                            "LIGHT" -> 0
+                            "DARK" -> 2
+                            else -> 1
+                        }
                         SegmentedControl(
-                            options = listOf("Quan trọng", "Tất cả"),
-                            selected = if (includeMessages) 1 else 0,
+                            options = listOf("Sáng", "Hệ thống", "Tối"),
+                            selected = themeIndex,
                             onSelect = { idx ->
-                                includeMessages = idx == 1
-                                prefs.edit().putBoolean("cast_include_messages", includeMessages).apply()
+                                val selectedTheme = when (idx) {
+                                    0 -> "LIGHT"
+                                    2 -> "DARK"
+                                    else -> "SYSTEM"
+                                }
+                                themePref = selectedTheme
+                                prefs.edit().putString(PREF_APP_THEME, selectedTheme).apply()
                             },
                         )
                     }
 
-                    NestedSettingContainer(visible = includeMessages) {
+                    GroupDivider(inset = 16.dp)
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         Text(
-                            "Tự ẩn sau:",
-                            fontSize = 13.sp,
-                            color = IsleColors.TextSecondary,
+                            text = "Bảng màu chủ đề",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = IsleColors.Text,
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(0 to "Không", 5 to "5s", 10 to "10s", 15 to "15s", 30 to "30s").forEach { (sec, label) ->
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(AppThemeColor.entries) { option ->
+                                ColorSwatchPill(
+                                    label = option.label,
+                                    swatchColor = option.swatch,
+                                    selected = themeColorPref == option.key,
+                                    isAuto = option == AppThemeColor.DYNAMIC,
+                                    onClick = {
+                                        themeColorPref = option.key
+                                        prefs.edit().putString(PREF_APP_THEME_COLOR, option.key).apply()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Nhóm 2: Hành vi Đảo & Quy tắc
+        item(key = "settings_group_behavior") {
+            Column(modifier = Modifier.alpha(if (castOn) 1f else 0.45f)) {
+                SettingsGroupHeader("Hành vi Đảo & Hệ thống")
+                GroupCard {
+                    ToggleRow(
+                        icon = IsleIcons.Shield,
+                        tileColor = IsleColors.Accent,
+                        title = "Chặn popup thông báo",
+                        checked = suppressHeadsUp,
+                    ) {
+                        suppressHeadsUp = it
+                        prefs.edit().putBoolean(PREF_CAST_SUPPRESS_HEADS_UP, it).apply()
+                    }
+
+                    NestedSettingContainer(visible = suppressHeadsUp) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                SUPPRESS_MODE_SNOOZE to "Giữ trong khay",
+                                SUPPRESS_MODE_ISLAND_ONLY to "Chỉ hiện trên Đảo",
+                            ).forEach { (mode, label) ->
                                 ChoiceChip(
                                     label = label,
-                                    selected = autoDismissSec == sec,
+                                    selected = suppressMode == mode,
                                     onClick = {
-                                        autoDismissSec = sec
-                                        prefs.edit().putInt("cast_auto_dismiss_seconds", sec).apply()
+                                        suppressMode = mode
+                                        prefs.edit().putString(PREF_CAST_SUPPRESS_MODE, mode).apply()
                                     },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -283,9 +356,9 @@ fun SettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            "Thời lượng viên thuốc",
+                            text = "Thời lượng đảo",
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Medium,
                             color = IsleColors.Text,
                         )
                         val durationValues = listOf(3, 5, 7, 10)
@@ -299,6 +372,90 @@ fun SettingsScreen(
                                 prefs.edit().putInt(PREF_CAST_ISLAND_DURATION_SEC, sec).apply()
                             },
                         )
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        icon = IsleIcons.Send,
+                        tileColor = IsleColors.Accent,
+                        title = "Trả lời nhanh nổi",
+                        checked = quickReplyOverlay,
+                    ) {
+                        quickReplyOverlay = it
+                        prefs.edit().putBoolean(PREF_QUICK_REPLY_OVERLAY, it).apply()
+                        if (it && !isOverlayPermissionGranted(context)) {
+                            openOverlayPermissionSettings(context)
+                        }
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        icon = IsleIcons.Buttons,
+                        tileColor = IsleColors.Accent,
+                        title = "Chạm viên thuốc mở rộng",
+                        checked = tapExpandCard,
+                    ) {
+                        tapExpandCard = it
+                        prefs.edit().putBoolean(PREF_CAST_TAP_EXPAND_CARD, it).apply()
+                    }
+
+                    GroupDivider()
+
+                    ToggleRow(
+                        icon = IsleIcons.Buttons,
+                        tileColor = IsleColors.Accent,
+                        title = "Nút thao tác trên thẻ",
+                        checked = actionsOn,
+                    ) {
+                        actionsOn = it
+                        prefs.edit().putBoolean("cast_show_actions", it).apply()
+                    }
+
+                    GroupDivider()
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Mức lọc thông báo",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = IsleColors.Text,
+                        )
+                        SegmentedControl(
+                            options = listOf("Quan trọng", "Tất cả"),
+                            selected = if (includeMessages) 1 else 0,
+                            onSelect = { idx ->
+                                includeMessages = idx == 1
+                                prefs.edit().putBoolean("cast_include_messages", includeMessages).apply()
+                            },
+                        )
+                    }
+
+                    NestedSettingContainer(visible = includeMessages) {
+                        Text(
+                            text = "Tự ẩn sau:",
+                            fontSize = 13.sp,
+                            color = IsleColors.TextSecondary,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(0 to "Không", 5 to "5s", 10 to "10s", 15 to "15s", 30 to "30s").forEach { (sec, label) ->
+                                ChoiceChip(
+                                    label = label,
+                                    selected = autoDismissSec == sec,
+                                    onClick = {
+                                        autoDismissSec = sec
+                                        prefs.edit().putInt("cast_auto_dismiss_seconds", sec).apply()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
                     }
 
                     GroupDivider()
@@ -392,26 +549,14 @@ fun SettingsScreen(
                             )
                         }
                     }
-
-                    GroupDivider()
-
-                    ToggleRow(
-                        icon = IsleIcons.Buttons,
-                        tileColor = IsleColors.Accent,
-                        title = "Nút thao tác trên thẻ",
-                        checked = actionsOn,
-                    ) {
-                        actionsOn = it
-                        prefs.edit().putBoolean("cast_show_actions", it).apply()
-                    }
                 }
             }
         }
 
-        // Nhóm 2 — Hệ thống & Cập nhật
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionLabel("Hệ thống & Cập nhật")
+        // Nhóm 3: Hệ thống & Cập nhật
+        item(key = "settings_group_system") {
+            Column {
+                SettingsGroupHeader("Hệ thống & Cập nhật")
                 GroupCard {
                     val allPermsOk = listenerOk && batteryOk && a11yOk && overlayOk
                     NavRow(
@@ -427,7 +572,7 @@ fun SettingsScreen(
                     NavRow(
                         icon = IsleIcons.Bolt,
                         tileColor = IsleColors.Accent,
-                        title = "Giữ nền (Shizuku)",
+                        title = "Giữ sống Shizuku",
                         value = if (shizukuSummary.isNotBlank()) "Đã tối ưu" else ShizukuKeepAliveHelper.getStateLabel(context),
                         onClick = { shizukuSheetOpen = true },
                     )
@@ -444,15 +589,18 @@ fun SettingsScreen(
                 }
             }
         }
-
-        item {
-            Spacer(
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .height(112.dp),
-            )
-        }
     }
+}
+
+@Composable
+private fun SettingsGroupHeader(title: String) {
+    Text(
+        text = title,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        color = IsleColors.TextSub,
+        modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
+    )
 }
 
 private fun pickTime(context: Context, initial: Int, onPicked: (Int) -> Unit) {

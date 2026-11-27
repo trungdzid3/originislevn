@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -77,7 +76,10 @@ fun PermissionsSheet(
     // screen — the same ack flag the onboarding row writes.
     var autoStartAck by remember { mutableStateOf(prefs.getBoolean("onboarding_autostart_ack", false)) }
 
-    val sheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+    val hasMissingCorePermission = !listenerOk || !postGranted || !batteryOk || !autoStartAck
+    val sheetShape = G2RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomEnd = 0.dp, bottomStart = 0.dp)
+    val isDark = IsleColors.isDark
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.statusBarsPadding(),
@@ -85,14 +87,21 @@ fun PermissionsSheet(
         shape = sheetShape,
         containerColor = IsleColors.Surface,
         contentColor = IsleColors.Text,
+        tonalElevation = 0.dp,
         dragHandle = {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .border(
-                        width = 0.5.dp,
-                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
-                        shape = sheetShape,
+                    .then(
+                        if (isDark) {
+                            Modifier.border(
+                                width = 0.6.dp,
+                                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
+                                shape = sheetShape,
+                            )
+                        } else {
+                            Modifier
+                        },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -114,14 +123,35 @@ fun PermissionsSheet(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                "Quyền ứng dụng",
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp,
-                color = IsleColors.Text,
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "Quyền ứng dụng",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
+                    color = IsleColors.Text,
+                )
+                Text(
+                    "Quản lý các quyền hệ thống giúp Đảo Động hoạt động ổn định và không bị tắt ngầm trên OriginOS.",
+                    fontSize = 14.sp,
+                    lineHeight = 19.sp,
+                    color = IsleColors.TextSub,
+                )
+            }
+
+            if (hasMissingCorePermission) {
+                VTipCard(
+                    title = "Một số quyền quan trọng chưa được cấp đủ",
+                    body = "Hãy cấp quyền Truy cập thông báo, Không hạn chế pin và Tự khởi chạy để Đảo không bị ngắt khi dọn đa nhiệm.",
+                    icon = IsleIcons.Shield,
+                    iconTint = IsleColors.Warn,
+                    containerColor = IsleColors.WarnBg,
+                )
+            }
+
             GroupCard {
                 PermissionRow(
                     IsleIcons.Bell, IsleColors.TileBlue, "Truy cập thông báo",
@@ -177,15 +207,27 @@ fun PermissionsSheet(
                     openOverlayPermissionSettings(context)
                 }
             }
-            PillButton(
-                "Thiết lập lại từ đầu",
-                onClick = onRedoSetup,
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                icon = IsleIcons.Refresh,
-                container = IsleColors.Accent.copy(alpha = 0.12f),
-                content = IsleColors.Accent,
-                height = 50.dp,
-            )
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PillButton(
+                    text = "Thiết lập lại",
+                    onClick = onRedoSetup,
+                    variant = PillButtonVariant.ALPHA_BLUE,
+                    modifier = Modifier.weight(1f),
+                    icon = IsleIcons.Refresh,
+                    height = 50.dp,
+                )
+                PillButton(
+                    text = "Xong",
+                    onClick = onDismiss,
+                    variant = PillButtonVariant.PRIMARY,
+                    modifier = Modifier.weight(1f),
+                    height = 50.dp,
+                )
+            }
         }
     }
 }
@@ -212,7 +254,7 @@ private fun PermissionRow(
     ) {
         IconTile(icon, tile)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
             Text(
                 status,
                 fontSize = 13.sp,
@@ -221,7 +263,7 @@ private fun PermissionRow(
                 color = if (ok) IsleColors.GoodText else IsleColors.Warn,
             )
             if (note != null) {
-                Text(note, fontSize = 12.sp, lineHeight = 16.sp, color = IsleColors.TextSecondary)
+                Text(note, fontSize = 12.sp, lineHeight = 16.sp, color = IsleColors.TextSub)
             }
         }
         if (ok) {
@@ -238,7 +280,7 @@ private fun PermissionRow(
 /** The one-line banner Home shows while notification access or battery is broken. */
 @Composable
 fun SetupAttentionBanner(onClick: () -> Unit) {
-    val bannerShape = RoundedCornerShape(24.dp)
+    val bannerShape = G2RoundedCornerShape(24.dp)
     Row(
         Modifier
             .fillMaxWidth()
@@ -257,7 +299,7 @@ fun SetupAttentionBanner(onClick: () -> Unit) {
     ) {
         IconTile(IsleIcons.Shield, IsleColors.TileOrange)
         Column(Modifier.weight(1f)) {
-            Text("Cài đặt cần lưu ý", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Cài đặt cần lưu ý", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = IsleColors.Text)
             Text("Đảo có thể không hoạt động ổn định", fontSize = 13.sp, color = IsleColors.Warn)
         }
         Icon(IsleIcons.ChevronRight, null, Modifier.size(18.dp), tint = IsleColors.Warn)

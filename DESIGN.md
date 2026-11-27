@@ -52,12 +52,15 @@
 
 ## 3. Fillet / Border Radius & Layout Tokens (ROM 16.0)
 - **Horizontal Screen / Card Margin**: `14.dp` (`ScreenPadding`) cho khoảng cách lề tiêu chuẩn của thẻ nhóm `VListItem` / `GroupCard`.
-- **Corner Radii (Fillet System)**:
+- **Corner Radii (Fillet System + G2 Squircle)**:
+  - Áp dụng **`G2RoundedCornerShape`** (đường cong liên tục G2 bậc 4 / superellipse `|x|^4 + |y|^4 = r^4`) cho mọi thẻ, nút, thanh tìm kiếm và hộp thoại.
   - `S = 12.dp`: `VTipCard` (`WarningBanner`), thumbnail, tile nhỏ.
-  - `M = 18.dp`: Thẻ phụ lồng trong, `VSearchView2` (chuẩn `18.dp`–`22.dp`).
-  - `L = 24.dp`: `GroupCard` chính (`GroupRadius`), `Button` chuẩn (`24.dp`).
-  - `XL = 30.dp`–`32.dp`: `VDialog`, `ModalBottomSheet` (`30.dp`), `Button` lớn (`32.dp` / `CircleShape`).
-- **Hairline Divider**: `0.5.dp` (tương đương `0.33dp` phone / `0.5dp` tablet ROM 16.0), thụt lề trái đồng bộ nội dung khi nằm trong `GroupCard`.
+  - `M = 18.dp`–`20.dp`: Thẻ phụ lồng trong, `VSearchView2` (`20.dp`).
+  - `L = 24.dp`: `GroupCard` chính (`GroupRadius`), `Button` chuẩn (`24.dp`), `BentoTile`.
+  - `XL = 30.dp`–`32.dp`: `VDialog`, `ModalBottomSheet` (`30.dp`), `HeroCard` (`30.dp`), `Button` lớn (`32.dp` / `CircleShape`).
+- **Collapsing Toolbar (OriginOS Settings Style)**:
+  - Tiêu đề trang mở rộng `28.sp` (SemiBold/Bold, tracking `-0.5.sp`), tự động thu gọn mượt thành `18.sp` trên thanh tiêu đề ghim đỉnh khi người dùng cuộn danh sách (`OriginCollapsingScaffold`).
+- **Hairline Divider**: `0.5.dp` (`divider`), thụt lề trái `16.dp` (hoặc thẳng hàng với text khi có icon) bên trong `GroupCard`.
 
 ---
 

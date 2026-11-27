@@ -12,18 +12,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,12 +52,10 @@ import java.util.Locale
 /** Listener health plus the live log of what was cast or skipped, and why. */
 @Composable
 fun ActivityScreen(context: Context, onBack: () -> Unit) {
-    // Ensure persisted logs are loaded into memory
     LaunchedEffect(Unit) {
         CastLog.ensureLoaded(context)
     }
 
-    // Poll every 3s only while the screen is at least STARTED, updating states only on change.
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var hasAccess by remember {
         mutableStateOf(
@@ -105,73 +98,92 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
         }
     }
 
-    OriginSpaceBackground {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 760.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
+    OriginCollapsingScaffold(
+        title = "Nhật ký hoạt động",
+        onBack = onBack,
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        trailing = {
+            PillButton(
+                text = "Xóa",
+                onClick = { CastLog.clear(context) },
+                variant = PillButtonVariant.ALPHA_GRAY,
+                icon = IsleIcons.Trash,
+                iconSize = 16.dp,
+                height = 38.dp,
+            )
+        },
+    ) {
+        item(key = "activity_header_cards") {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(top = 6.dp, bottom = 14.dp),
             ) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 14.dp)) {
-                        ScreenHeader("Nhật ký hoạt động", onBack) {
-                            CircleIconButton(IsleIcons.Trash, "Xóa nhật ký", onClick = { CastLog.clear(context) }, iconSize = 19.dp)
-                        }
+                if (!connected) {
+                    VivoDiagnosticAlertCard(
+                        context = context,
+                        hasAccess = hasAccess,
+                        onReconnect = { reconnectListener(context) },
+                    )
+                }
 
-                        // Cảnh báo nếu dịch vụ bị ngắt hoặc chưa cấp quyền trên Vivo OriginOS
-                        if (!connected) {
-                            VivoDiagnosticAlertCard(
-                                context = context,
-                                hasAccess = hasAccess,
-                                isBound = isBound,
-                                onReconnect = { reconnectListener(context) },
-                            )
-                        }
+                ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
 
-                        ListenerCard(connected, now, onReconnect = { reconnectListener(context) })
-
-                        SegmentedControl(
-                            listOf("Tất cả", "Đã hiện", "Bỏ qua"), filter, { filter = it },
-                            track = IsleColors.Surface, height = 40.dp,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf("Tất cả", "Đã hiện", "Bỏ qua").forEachIndexed { index, label ->
+                        ChoiceChip(
+                            label = label,
+                            selected = filter == index,
+                            onClick = { filter = index },
+                            selectedContainer = IsleColors.AccentSoft,
+                            selectedContent = IsleColors.Accent,
+                            shape = G2RoundedCornerShape(18.dp),
+                            height = 38.dp,
+                            horizontalPadding = 14.dp,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
+            }
+        }
 
-                if (entries.isEmpty()) {
-                    item {
-                        val emptyShape = RoundedCornerShape(24.dp)
-                        Box(
-                            Modifier
-                                .clip(emptyShape)
-                                .background(IsleColors.Surface)
-                                .border(
+        if (entries.isEmpty()) {
+            item(key = "activity_empty") {
+                GroupCard {
+                    EmptyMessage(
+                        if (CastLog.entries.isEmpty()) {
+                            "Chưa có hoạt động nào được ghi nhận."
+                        } else {
+                            "Không có dữ liệu phù hợp với bộ lọc."
+                        },
+                    )
+                }
+            }
+        } else {
+            itemsIndexed(entries) { i, e ->
+                val shape = groupItemShape(i, entries.size)
+                val isDark = IsleColors.isDark
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .background(IsleColors.Surface)
+                        .then(
+                            if (isDark) {
+                                Modifier.border(
                                     width = 0.8.dp,
                                     brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                                    shape = emptyShape,
-                                ),
-                        ) {
-                            EmptyMessage(
-                                if (CastLog.entries.isEmpty()) {
-                                    "Chưa có hoạt động nào được ghi nhận."
-                                } else {
-                                    "Không có dữ liệu phù hợp với bộ lọc."
-                                },
-                            )
-                        }
-                    }
-                }
-                itemsIndexed(entries) { i, e ->
-                    Column(Modifier.clip(groupItemShape(i, entries.size)).background(IsleColors.Surface)) {
-                        if (i > 0) GroupDivider(inset = 0.dp)
-                        LogRow(e)
-                    }
+                                    shape = shape,
+                                )
+                            } else {
+                                Modifier
+                            },
+                        ),
+                ) {
+                    if (i > 0) GroupDivider(inset = 60.dp)
+                    LogRow(e)
                 }
             }
         }
@@ -183,17 +195,16 @@ fun ActivityScreen(context: Context, onBack: () -> Unit) {
 private fun VivoDiagnosticAlertCard(
     context: Context,
     hasAccess: Boolean,
-    isBound: Boolean,
     onReconnect: () -> Unit,
 ) {
-    val alertShape = RoundedCornerShape(12.dp)
+    val alertShape = G2RoundedCornerShape(16.dp)
     Column(
         Modifier
             .fillMaxWidth()
             .clip(alertShape)
             .background(IsleColors.BadBg)
             .border(1.0.dp, IsleColors.Bad.copy(alpha = 0.4f), alertShape)
-            .padding(18.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
@@ -293,7 +304,7 @@ private fun VivoDiagnosticAlertCard(
 
 @Composable
 private fun ListenerCard(connected: Boolean, now: Long, onReconnect: () -> Unit) {
-    val cardShape = RoundedCornerShape(24.dp)
+    val cardShape = G2RoundedCornerShape(24.dp)
     Row(
         Modifier
             .fillMaxWidth()
@@ -323,15 +334,19 @@ private fun ListenerCard(connected: Boolean, now: Long, onReconnect: () -> Unit)
             val subtle = if (connected) IsleColors.GoodSubtle else IsleColors.BadSubtle
             Text(
                 "Đã kết nối ${agoText(NotificationCastListener.connectedAt, now)}",
-                fontSize = 13.sp, color = subtle,
+                fontSize = 13.sp,
+                color = subtle,
             )
             Text(
                 "Sự kiện gần nhất: ${agoText(NotificationCastListener.lastEventAt, now)}",
-                fontSize = 13.sp, color = subtle,
+                fontSize = 13.sp,
+                color = subtle,
             )
         }
         CircleIconButton(
-            IsleIcons.Refresh, "Kết nối lại", onReconnect,
+            IsleIcons.Refresh,
+            "Kết nối lại",
+            onReconnect,
             background = if (connected) IsleColors.GoodButton else IsleColors.BadButton,
             tint = if (connected) IsleColors.GoodText else IsleColors.BadText,
             iconSize = 18.dp,
@@ -342,7 +357,7 @@ private fun ListenerCard(connected: Boolean, now: Long, onReconnect: () -> Unit)
 @Composable
 private fun LogRow(e: CastLog.Entry) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 68.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 66.dp).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -350,14 +365,14 @@ private fun LogRow(e: CastLog.Entry) {
             Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(if (e.cast) IsleColors.GoodIconBg else IsleColors.SurfaceHigh),
+                .background(if (e.cast) IsleColors.Good.copy(alpha = 0.14f) else IsleColors.SurfaceHigh),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 if (e.cast) IsleIcons.Check else IsleIcons.Dash,
                 if (e.cast) "Đã hiện" else "Bỏ qua",
                 Modifier.size(16.dp),
-                tint = if (e.cast) IsleColors.GoodText else IsleColors.TextSecondary,
+                tint = if (e.cast) IsleColors.Good else IsleColors.TextSub,
             )
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -365,29 +380,30 @@ private fun LogRow(e: CastLog.Entry) {
                 e.title.ifBlank { e.app },
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (e.cast) IsleColors.Text else IsleColors.TextTertiary,
+                color = if (e.cast) IsleColors.Text else IsleColors.TextSub,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 "${e.app} · ${clockText(e.time)}",
                 fontSize = 12.sp,
-                color = IsleColors.TextSecondary,
+                color = IsleColors.TextSub,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        val badgeShape = G2RoundedCornerShape(18.dp)
         Text(
             outcomeTag(e.outcome),
             modifier = Modifier
                 .widthIn(max = 116.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(if (e.cast) IsleColors.CastTagBg else IsleColors.SurfaceHigh)
+                .clip(badgeShape)
+                .background(if (e.cast) IsleColors.Good.copy(alpha = 0.14f) else IsleColors.SurfaceHigher)
                 .padding(horizontal = 10.dp, vertical = 5.dp),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             lineHeight = 14.sp,
-            color = if (e.cast) IsleColors.CastTagFg else IsleColors.TextTertiary,
+            color = if (e.cast) IsleColors.Good else IsleColors.TextSub,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -403,7 +419,7 @@ private fun reconnectListener(context: Context) {
     PlaygroundService.keepAlive(context)
     val message = when (NotificationCastListener.forceRebind(context)) {
         NotificationCastListener.RebindResult.REBINDING ->
-            "Đang kết nối lại bộ lắng nghe… vui lòng chờ vài giây."
+            "Đang kết nối lại bộ lắng nghe... vui lòng chờ vài giây."
         NotificationCastListener.RebindResult.ALREADY_CONNECTED ->
             "Bộ lắng nghe thông báo đã được kết nối."
         NotificationCastListener.RebindResult.NO_ACCESS ->

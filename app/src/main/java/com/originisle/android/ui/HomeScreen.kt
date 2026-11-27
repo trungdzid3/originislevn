@@ -3,7 +3,6 @@ package com.originisle.android.ui
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.core.Spring
@@ -15,14 +14,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -31,12 +28,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -81,12 +74,12 @@ import com.originisle.android.ui.samples.IslandSamples
 import kotlinx.coroutines.delay
 
 /**
- * Tab 1 — Trang chủ Đảo Origin:
- * Bố cục tối giản chuẩn Material Design 3 (~1.5 màn hình), gồm:
- * - CompactStatusCard (trạng thái + tên máy + công tắc tổng)
- * - Banner cảnh báo quyền (tự ẩn khi đủ quyền)
- * - Nhóm 1: Giao diện & Tương tác
- * - Lối tắt nhanh: Ứng dụng được phép & Nhật ký hoạt động
+ * Tab 1 — Trang chủ Đảo Origin theo chuẩn OriginUI ROM 16.0:
+ * - OriginCollapsingScaffold (28.sp -> 18.sp, hasBottomNav = true)
+ * - HeroCard (30.dp G2) hiển thị trạng thái Đảo & nút PillButton
+ * - VTipCard (12.dp G2) khi thiếu quyền quan trọng
+ * - Lưới Bento 2 cột (24.dp G2) cho lối tắt điều khiển nhanh
+ * - Khối thử nghiệm mẫu Đảo (IslandSamples) trong GroupCard (24.dp G2)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,34 +91,17 @@ fun HomeScreen(
     onOpenActivity: () -> Unit,
 ) {
     var castOn by remember { mutableStateOf(prefs.getBoolean("cast_notifications", true)) }
-    var themePref by remember { mutableStateOf(prefs.getString(PREF_APP_THEME, "SYSTEM") ?: "SYSTEM") }
-    var themeColorPref by remember {
-        mutableStateOf(prefs.getString(PREF_APP_THEME_COLOR, AppThemeColor.DYNAMIC.key) ?: AppThemeColor.DYNAMIC.key)
-    }
-    var suppressHeadsUp by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)) }
-    var suppressMode by remember {
-        mutableStateOf(prefs.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE)
-    }
-    var tapExpandCard by remember { mutableStateOf(prefs.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)) }
-    var quickReplyOverlay by remember { mutableStateOf(prefs.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)) }
     var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
+    var flashlightOn by remember { mutableStateOf(prefs.getBoolean("cast_flashlight", true)) }
+    var btConnectPopup by remember { mutableStateOf(prefs.getBoolean(PREF_BT_CONNECT_POPUP, false)) }
 
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             when (key) {
                 "cast_notifications" -> castOn = sp.getBoolean("cast_notifications", true)
-                PREF_APP_THEME -> themePref = sp.getString(PREF_APP_THEME, "SYSTEM") ?: "SYSTEM"
-                PREF_APP_THEME_COLOR -> {
-                    themeColorPref = sp.getString(PREF_APP_THEME_COLOR, AppThemeColor.DYNAMIC.key)
-                        ?: AppThemeColor.DYNAMIC.key
-                }
-                PREF_CAST_SUPPRESS_HEADS_UP -> suppressHeadsUp = sp.getBoolean(PREF_CAST_SUPPRESS_HEADS_UP, false)
-                PREF_CAST_SUPPRESS_MODE -> {
-                    suppressMode = sp.getString(PREF_CAST_SUPPRESS_MODE, SUPPRESS_MODE_SNOOZE) ?: SUPPRESS_MODE_SNOOZE
-                }
-                PREF_CAST_TAP_EXPAND_CARD -> tapExpandCard = sp.getBoolean(PREF_CAST_TAP_EXPAND_CARD, true)
-                PREF_QUICK_REPLY_OVERLAY -> quickReplyOverlay = sp.getBoolean(PREF_QUICK_REPLY_OVERLAY, false)
                 "cast_media_sessions" -> mediaOn = sp.getBoolean("cast_media_sessions", true)
+                "cast_flashlight" -> flashlightOn = sp.getBoolean("cast_flashlight", true)
+                PREF_BT_CONNECT_POPUP -> btConnectPopup = sp.getBoolean(PREF_BT_CONNECT_POPUP, false)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -144,6 +120,7 @@ fun HomeScreen(
     var connected by remember { mutableStateOf(NotificationCastListener.instance != null) }
     var deviceSnapshot by remember { mutableStateOf(DeviceInfoHelper.collect(context)) }
     var permissionsOpen by remember { mutableStateOf(false) }
+    var btPopupSheetOpen by remember { mutableStateOf(false) }
     var testerSheetOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -174,12 +151,16 @@ fun HomeScreen(
         PermissionsSheet(context, prefs, onDismiss = { permissionsOpen = false }, onRedoSetup = onRedoSetup)
     }
 
+    if (btPopupSheetOpen) {
+        BluetoothPopupSheet(context = context, onDismiss = { btPopupSheetOpen = false })
+    }
+
     if (testerSheetOpen) {
         ModalBottomSheet(
             onDismissRequest = { testerSheetOpen = false },
             modifier = Modifier.statusBarsPadding(),
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+            shape = G2RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomEnd = 0.dp, bottomStart = 0.dp),
             containerColor = IsleColors.Menu,
             contentColor = IsleColors.Text,
         ) {
@@ -198,15 +179,14 @@ fun HomeScreen(
                     color = IsleColors.Text,
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
-                SampleTester(context)
+                SampleTesterCard(context)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PillButton(
                         text = "Hiện lại tất cả",
                         onClick = { recastAll(context) },
+                        variant = PillButtonVariant.ALPHA_BLUE,
                         modifier = Modifier.weight(1f),
                         icon = IsleIcons.Refresh,
-                        container = IsleColors.Accent.copy(alpha = if (IsleColors.isDark) 0.20f else 0.12f),
-                        content = IsleColors.Accent,
                         enabled = castOn || mediaOn,
                         height = 50.dp,
                     )
@@ -236,567 +216,349 @@ fun HomeScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        // Header + menu 3 chấm
-        item {
-            MainScreenHeader(title = "Đảo Origin") {
-                Box {
-                    CircleIconButton(IsleIcons.More, "Tùy chọn khác", onClick = { menuOpen = true })
-                    DropdownMenu(
-                        expanded = menuOpen,
-                        onDismissRequest = { menuOpen = false },
-                        offset = DpOffset(0.dp, 8.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        containerColor = IsleColors.Menu,
-                    ) {
-                        MenuItem("Thử nghiệm mẫu Đảo") {
-                            menuOpen = false
-                            testerSheetOpen = true
-                        }
-                        MenuItem("Đóng tất cả thẻ đang hiện") {
-                            menuOpen = false
-                            stopAll(context)
-                            Toast.makeText(context, "Đã đóng tất cả thẻ Đảo", Toast.LENGTH_SHORT).show()
-                        }
-                        MenuItem("Chạy lại hướng dẫn") {
-                            menuOpen = false
-                            onRedoSetup()
-                        }
+    val missingPermissions = !listenerOk || !a11yOk || !overlayOk || !connected || !batteryOk
+    val permissionReason = when {
+        !listenerOk -> "Chưa cấp quyền Truy cập thông báo để Đảo đọc thông báo."
+        !connected -> "Dịch vụ lắng nghe chưa liên kết — kiểm tra lại quyền nền."
+        !a11yOk -> "Chưa bật Hỗ trợ tiếp cận cho tiến trình tải xuống."
+        !overlayOk -> "Chưa cấp quyền Hiển thị trên ứng dụng khác."
+        !batteryOk -> "Cần tắt hạn chế pin để dịch vụ Đảo chạy ổn định."
+        else -> ""
+    }
+
+    val toggleCast: (Boolean) -> Unit = { enabled ->
+        castOn = enabled
+        prefs.edit().putBoolean("cast_notifications", enabled).apply()
+        if (enabled) PlaygroundService.keepAlive(context)
+        FlashlightCard.refresh()
+        EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
+    }
+
+    OriginCollapsingScaffold(
+        title = "Đảo Origin",
+        hasBottomNav = true,
+        trailing = {
+            Box {
+                CircleIconButton(IsleIcons.More, "Tùy chọn khác", onClick = { menuOpen = true })
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    offset = DpOffset(0.dp, 8.dp),
+                    shape = G2RoundedCornerShape(18.dp),
+                    containerColor = IsleColors.Menu,
+                ) {
+                    MenuItem("Thử nghiệm mẫu Đảo") {
+                        menuOpen = false
+                        testerSheetOpen = true
+                    }
+                    MenuItem("Đóng tất cả thẻ đang hiện") {
+                        menuOpen = false
+                        stopAll(context)
+                        Toast.makeText(context, "Đã đóng tất cả thẻ Đảo", Toast.LENGTH_SHORT).show()
+                    }
+                    MenuItem("Chạy lại hướng dẫn") {
+                        menuOpen = false
+                        onRedoSetup()
                     }
                 }
             }
-        }
-
-        // Banner cảnh báo quyền — tự ẩn hoàn toàn khi đã cấp đủ
-        val missingPermissions = !listenerOk || !a11yOk || !overlayOk || !connected || !batteryOk
-        if (missingPermissions) {
-            item {
-                VivoOriginAttentionBanner(
-                    connected = connected,
-                    listenerOk = listenerOk,
-                    batteryOk = batteryOk,
-                    a11yOk = a11yOk,
-                    overlayOk = overlayOk,
-                    onOpenPermissions = { permissionsOpen = true },
-                )
-            }
-        }
-
-        // Thẻ trạng thái nguyên tử Lưới Hoa Dung (Huarong Grid Atomic Status Widget)
-        item {
-            CompactStatusCard(
+        },
+    ) {
+        item(key = "home_hero_card") {
+            HomeHeroCard(
                 castOn = castOn,
                 connected = connected,
+                missingPermissions = missingPermissions,
                 deviceName = displayModel,
                 islandCount = CastLog.entries.size,
-                onToggle = { enabled ->
-                    castOn = enabled
-                    prefs.edit().putBoolean("cast_notifications", enabled).apply()
-                    if (enabled) PlaygroundService.keepAlive(context)
-                    FlashlightCard.refresh()
-                    EarbudsCard.onSettingsChanged(context, NotificationCastListener.instance != null)
-                },
+                onToggleCast = { toggleCast(!castOn) },
+                onOpenPermissions = { permissionsOpen = true },
             )
         }
 
-        // Nhóm 1 — Giao diện & Tương tác
-        item {
+        if (missingPermissions) {
+            item(key = "home_permissions_tip") {
+                VTipCard(
+                    title = "Thiếu quyền hệ thống quan trọng",
+                    body = permissionReason,
+                    icon = IsleIcons.Shield,
+                    iconTint = if (!connected || !listenerOk) IsleColors.Bad else IsleColors.Warn,
+                    actionLabel = "Mở bảng quyền",
+                    actionColor = IsleColors.Link,
+                    onAction = { permissionsOpen = true },
+                )
+            }
+        }
+
+        item(key = "home_bento_section") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionLabel("Giao diện & Tương tác")
-                GroupCard {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                Text(
+                    text = "Điều khiển nhanh",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = IsleColors.TextSub,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 2.dp),
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Text(
-                            text = "Giao diện",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IsleColors.Text,
-                        )
-                        val themeIndex = when (themePref) {
-                            "LIGHT" -> 0
-                            "DARK" -> 2
-                            else -> 1
-                        }
-                        SegmentedControl(
-                            options = listOf("Sáng", "Hệ thống", "Tối"),
-                            selected = themeIndex,
-                            onSelect = { idx ->
-                                val selectedTheme = when (idx) {
-                                    0 -> "LIGHT"
-                                    2 -> "DARK"
-                                    else -> "SYSTEM"
-                                }
-                                themePref = selectedTheme
-                                prefs.edit().putString(PREF_APP_THEME, selectedTheme).apply()
+                        BentoShortcutCard(
+                            icon = IsleIcons.Sun,
+                            title = "Đèn pin",
+                            subtitle = if (flashlightOn) "Đang bật trên Đảo" else "Đang tắt",
+                            isActive = flashlightOn,
+                            onClick = {
+                                val next = !flashlightOn
+                                flashlightOn = next
+                                prefs.edit().putBoolean("cast_flashlight", next).apply()
+                                FlashlightCard.refresh()
                             },
+                            modifier = Modifier.weight(1f),
                         )
-
-                        Text(
-                            text = "Màu chủ đề",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = IsleColors.TextSecondary,
-                            modifier = Modifier.padding(top = 4.dp),
+                        BentoShortcutCard(
+                            icon = IsleIcons.Headphones,
+                            title = "Popup Bluetooth",
+                            subtitle = if (btConnectPopup) "Đang bật popup" else "Tùy chỉnh tai nghe",
+                            isActive = btConnectPopup,
+                            onClick = { btPopupSheetOpen = true },
+                            modifier = Modifier.weight(1f),
                         )
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(AppThemeColor.entries) { option ->
-                                val selected = themeColorPref == option.key
-                                Row(
-                                    modifier = Modifier
-                                        .heightIn(min = 40.dp)
-                                        .clip(RoundedCornerShape(50))
-                                        .background(
-                                            if (selected) {
-                                                MaterialTheme.colorScheme.primaryContainer
-                                            } else {
-                                                IsleColors.SurfaceHigh
-                                            },
-                                        )
-                                        .border(
-                                            width = if (selected) 1.5.dp else 0.5.dp,
-                                            color = if (selected) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                IsleColors.BorderHairline
-                                            },
-                                            shape = RoundedCornerShape(50),
-                                        )
-                                        .selectable(
-                                            selected = selected,
-                                            role = Role.RadioButton,
-                                            onClick = {
-                                                themeColorPref = option.key
-                                                prefs.edit().putString(PREF_APP_THEME_COLOR, option.key).apply()
-                                            },
-                                        )
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .clip(CircleShape)
-                                            .background(option.swatch),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        if (selected) {
-                                            Icon(
-                                                imageVector = IsleIcons.Check,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(10.dp),
-                                                tint = Color.White,
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = option.label,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                                        color = if (selected) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                        } else {
-                                            IsleColors.Text
-                                        },
-                                    )
-                                }
-                            }
-                        }
                     }
-
-                    GroupDivider()
-
-                    Column(modifier = Modifier.alpha(if (castOn) 1f else 0.45f)) {
-                        ToggleRow(
-                            icon = IsleIcons.Shield,
-                            tileColor = IsleColors.Accent,
-                            title = "Chặn Pop-up nổi",
-                            checked = suppressHeadsUp,
-                        ) {
-                            suppressHeadsUp = it
-                            prefs.edit().putBoolean(PREF_CAST_SUPPRESS_HEADS_UP, it).apply()
-                        }
-
-                        NestedSettingContainer(visible = suppressHeadsUp) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(
-                                    SUPPRESS_MODE_SNOOZE to "Giữ trong khay",
-                                    SUPPRESS_MODE_ISLAND_ONLY to "Chỉ hiện trên Đảo",
-                                ).forEach { (mode, label) ->
-                                    ChoiceChip(
-                                        label = label,
-                                        selected = suppressMode == mode,
-                                        onClick = {
-                                            suppressMode = mode
-                                            prefs.edit().putString(PREF_CAST_SUPPRESS_MODE, mode).apply()
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                            }
-                        }
-
-                        GroupDivider()
-
-                        ToggleRow(
-                            icon = IsleIcons.Buttons,
-                            tileColor = IsleColors.Accent,
-                            title = "Chạm viên thuốc mở rộng",
-                            checked = tapExpandCard,
-                        ) {
-                            tapExpandCard = it
-                            prefs.edit().putBoolean(PREF_CAST_TAP_EXPAND_CARD, it).apply()
-                        }
-
-                        GroupDivider()
-
-                        ToggleRow(
-                            icon = IsleIcons.Send,
-                            tileColor = IsleColors.Accent,
-                            title = "Trả lời nhanh nổi",
-                            checked = quickReplyOverlay,
-                        ) {
-                            quickReplyOverlay = it
-                            prefs.edit().putBoolean(PREF_QUICK_REPLY_OVERLAY, it).apply()
-                            if (it && !isOverlayPermissionGranted(context)) {
-                                openOverlayPermissionSettings(context)
-                            }
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        BentoShortcutCard(
+                            icon = IsleIcons.Grid,
+                            title = "Ứng dụng",
+                            subtitle = if (appsOff == 0) "Tất cả đang bật" else "Đang tắt $appsOff",
+                            isActive = true,
+                            onClick = onOpenApps,
+                            modifier = Modifier.weight(1f),
+                        )
+                        BentoShortcutCard(
+                            icon = IsleIcons.Pulse,
+                            title = "Nhật ký Hoạt động",
+                            subtitle = "${CastLog.entries.size} lượt Đảo",
+                            isActive = connected,
+                            onClick = onOpenActivity,
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
         }
 
-        // Lối tắt nhanh: 2 ô lưới Atomic Grid 1x2 cân đối
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                AtomicShortcutTile(
-                    icon = IsleIcons.Grid,
-                    title = "Ứng dụng",
-                    subtitle = if (appsOff == 0) "Tất cả đang bật" else "Đang tắt $appsOff",
-                    onClick = onOpenApps,
-                    modifier = Modifier.weight(1f),
+        item(key = "home_samples_section") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Thử nghiệm mẫu Đảo",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = IsleColors.TextSub,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 2.dp),
                 )
-                AtomicShortcutTile(
-                    icon = IsleIcons.Pulse,
-                    title = "Nhật ký",
-                    subtitle = "${CastLog.entries.size} hoạt động Đảo",
-                    onClick = onOpenActivity,
-                    modifier = Modifier.weight(1f),
-                )
+                SampleTesterCard(context)
             }
-        }
-
-        item {
-            Spacer(
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .height(112.dp),
-            )
         }
     }
 }
 
 @Composable
-private fun CompactStatusCard(
+private fun HomeHeroCard(
     castOn: Boolean,
     connected: Boolean,
+    missingPermissions: Boolean,
     deviceName: String,
     islandCount: Int,
-    onToggle: (Boolean) -> Unit,
+    onToggleCast: () -> Unit,
+    onOpenPermissions: () -> Unit,
 ) {
     val statusColor = when {
         !castOn -> IsleColors.TextTertiary
         connected -> IsleColors.Good
         else -> IsleColors.Warn
     }
-    val statusTitle = when {
-        !castOn -> "Đã tắt"
-        connected -> "Đang hoạt động"
-        else -> "Chờ kết nối"
+    val statusLabel = when {
+        !castOn -> "Origin Island đang tắt"
+        connected -> "Origin Island đang hoạt động"
+        else -> "Đang chờ kết nối dịch vụ"
     }
-    val connectionSummary = when {
-        !castOn -> "Chế độ tạm nghỉ"
-        connected -> "Dịch vụ đã liên kết"
-        else -> "Đang chờ liên kết"
+    val summaryText = when {
+        !castOn -> "Chế độ tạm nghỉ · $deviceName"
+        missingPermissions -> "Cần hoàn tất quyền · $islandCount lượt hôm nay"
+        else -> "Sẵn sàng kết nối · $islandCount lượt hôm nay"
     }
 
-    GroupCard {
+    HeroCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    // Connection status pill (OriginOS Atomic zero-tier badge)
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(statusColor.copy(alpha = 0.14f))
-                            .border(0.6.dp, statusColor.copy(alpha = 0.28f), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(statusColor),
-                        )
-                        Text(
-                            text = statusTitle,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = statusColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-
-                    Text(
-                        text = "$deviceName · v${BuildConfig.VERSION_NAME}",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IsleColors.Text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                IsleSwitch(
-                    checked = castOn,
-                    onCheckedChange = onToggle,
-                )
-            }
-
-            // Huarong Grid zero-tier metric strip
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(IsleColors.SurfaceHigh.copy(alpha = 0.65f))
-                    .border(
-                        width = 0.6.dp,
-                        brush = Brush.verticalGradient(
-                            listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom),
-                        ),
-                        shape = RoundedCornerShape(18.dp),
-                    )
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        text = "Thẻ Đảo hôm nay",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = IsleColors.TextSecondary,
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(statusColor.copy(alpha = 0.14f))
+                        .border(0.6.dp, statusColor.copy(alpha = 0.28f), CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(statusColor),
                     )
                     Text(
-                        text = "$islandCount lượt",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IsleColors.Text,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFeatureSettings = "tnum",
-                        ),
+                        text = if (!castOn) "Đã tắt" else if (connected) "Đã kết nối" else "Chờ liên kết",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = statusColor,
                     )
                 }
 
                 Text(
-                    text = connectionSummary,
+                    text = "v${BuildConfig.VERSION_NAME}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
+                    color = IsleColors.TextSub,
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = statusLabel,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IsleColors.Text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = summaryText,
+                    fontSize = 13.sp,
                     color = IsleColors.TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PillButton(
+                    text = if (castOn) "Tắt Đảo" else "Bật Origin Island",
+                    onClick = onToggleCast,
+                    variant = if (castOn) PillButtonVariant.ALPHA_BLUE else PillButtonVariant.PRIMARY,
+                    icon = IsleIcons.Power,
+                    modifier = Modifier.weight(1f),
+                    height = 50.dp,
+                )
+                PillButton(
+                    text = if (missingPermissions) "Cấp quyền" else "Quyền & Kết nối",
+                    onClick = onOpenPermissions,
+                    variant = if (missingPermissions) PillButtonVariant.PRIMARY else PillButtonVariant.ALPHA_BLUE,
+                    icon = IsleIcons.Shield,
+                    modifier = Modifier.weight(1f),
+                    height = 50.dp,
                 )
             }
         }
     }
 }
 
-/**
- * OriginOS Huarong Grid 1x2 Atomic Shortcut Tile with concentric squircle radii
- * (26.dp outer card, 14.dp inner icon tile) and Touch Light spring feedback.
- */
 @Composable
-private fun AtomicShortcutTile(
+private fun BentoShortcutCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    isActive: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    tileColor: Color = IsleColors.Accent,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.96f else 1f,
+        targetValue = if (pressed) 0.97f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
         ),
-        label = "atomicTileScale",
+        label = "bentoScale",
     )
-    val touchLightAlpha by animateFloatAsState(
-        targetValue = if (pressed) 0.08f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        label = "atomicTouchLight",
-    )
-    val outerShape = RoundedCornerShape(24.dp)
-    val innerIconShape = RoundedCornerShape(14.dp)
+    val cardShape = G2RoundedCornerShape(24.dp)
+    val isDark = IsleColors.isDark
+    val iconBg = if (isActive) IsleColors.AccentSoft else IsleColors.SurfaceHigher
+    val iconTint = if (isActive) IsleColors.Accent else IsleColors.TextSecondary
 
-    Box(
+    Column(
         modifier = modifier
             .scale(scale)
-            .heightIn(min = 114.dp)
-            .clip(outerShape)
+            .heightIn(min = 108.dp)
+            .clip(cardShape)
             .background(IsleColors.Surface)
-            .border(
-                width = 0.8.dp,
-                brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
-                shape = outerShape,
+            .then(
+                if (isDark) {
+                    Modifier.border(
+                        width = 0.8.dp,
+                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                        shape = cardShape,
+                    )
+                } else {
+                    Modifier
+                },
             )
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
                 role = Role.Button,
                 onClick = onClick,
-            ),
-    ) {
-        if (touchLightAlpha > 0f) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.White.copy(alpha = touchLightAlpha)),
             )
-        }
-        Column(
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(iconBg),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(innerIconShape)
-                    .background(tileColor.copy(alpha = 0.14f))
-                    .border(
-                        width = 0.6.dp,
-                        brush = Brush.verticalGradient(
-                            listOf(tileColor.copy(alpha = 0.28f), tileColor.copy(alpha = 0.06f)),
-                        ),
-                        shape = innerIconShape,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = tileColor,
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = IsleColors.Text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = IsleColors.TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(20.dp),
+            )
         }
-    }
-}
-
-@Composable
-private fun VivoOriginAttentionBanner(
-    connected: Boolean,
-    listenerOk: Boolean,
-    batteryOk: Boolean,
-    a11yOk: Boolean,
-    overlayOk: Boolean,
-    onOpenPermissions: () -> Unit,
-) {
-    val isRed = !connected || !listenerOk
-    val bg = if (isRed) IsleColors.BadBg else IsleColors.WarnBg
-    val borderCol = if (isRed) IsleColors.Bad.copy(alpha = 0.45f) else IsleColors.Warn.copy(alpha = 0.45f)
-    val textCol = if (isRed) IsleColors.BadText else IsleColors.Warn
-    val iconCol = if (isRed) IsleColors.Bad else IsleColors.Warn
-
-    val reason = when {
-        !listenerOk -> "Chưa cấp quyền Truy cập thông báo"
-        !connected -> "Dịch vụ chưa liên kết — chạm để kiểm tra quyền"
-        !a11yOk -> "Chưa bật Hỗ trợ tiếp cận cho tiến trình tải"
-        !overlayOk -> "Chưa cấp quyền Hiển thị trên ứng dụng khác"
-        !batteryOk -> "Cần tắt hạn chế pin để chạy nền ổn định"
-        else -> "Chạm để hoàn tất quyền hệ thống"
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .border(0.8.dp, borderCol, RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button, onClick = onOpenPermissions)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        IconTile(IsleIcons.Shield, color = iconCol, size = 36.dp)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = "Thiếu quyền hệ thống",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = IsleColors.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = reason,
+                text = subtitle,
                 fontSize = 12.sp,
-                color = textCol,
-                maxLines = 2,
+                color = IsleColors.TextSub,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Icon(IsleIcons.ChevronRight, null, Modifier.size(18.dp), tint = textCol)
     }
 }
 
@@ -810,7 +572,7 @@ private fun MenuItem(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SampleTester(context: Context) {
+private fun SampleTesterCard(context: Context) {
     var selected by remember { mutableIntStateOf(0) }
     val sample = IslandSamples.all[selected]
     var sentAt by remember { mutableLongStateOf(0L) }
@@ -821,67 +583,80 @@ private fun SampleTester(context: Context) {
         }
     }
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(IsleColors.Surface)
-            .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(24.dp))
-            .padding(vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    GroupCard {
         Column(
-            Modifier
-                .padding(horizontal = 14.dp)
+            modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 96.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(IsleColors.PreviewBg)
-                .border(0.8.dp, IsleColors.BorderHairline, RoundedCornerShape(18.dp))
-                .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 10.dp),
+                .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            IslandPreviewView(sample.preview)
-            Text(
-                sample.summary,
-                modifier = Modifier.padding(top = 10.dp),
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = IsleColors.PreviewLabel,
-                textAlign = TextAlign.Center,
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 88.dp)
+                    .clip(G2RoundedCornerShape(18.dp))
+                    .background(IsleColors.PreviewBg)
+                    .border(0.5.dp, IsleColors.Divider, G2RoundedCornerShape(18.dp))
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    IslandPreviewView(sample.preview)
+                    Text(
+                        text = sample.summary,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = IsleColors.PreviewLabel,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
+
+        GroupDivider(inset = 0.dp)
+
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 14.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             itemsIndexed(IslandSamples.all) { i, s ->
                 ChoiceChip(
-                    s.name,
+                    label = s.name,
                     selected = i == selected,
                     onClick = { selected = i },
                     selectedContainer = IsleColors.Accent,
                     selectedContent = Color.White,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = G2RoundedCornerShape(18.dp),
                     height = 36.dp,
                     horizontalPadding = 14.dp,
                 )
             }
         }
-        PillButton(
-            if (sentAt != 0L) "Đã gửi lên đảo" else "Thử trên đảo",
-            onClick = {
-                sample.post(context)
-                sentAt = System.currentTimeMillis()
-            },
-            modifier = Modifier.padding(horizontal = 14.dp).fillMaxWidth(),
-            icon = IsleIcons.Send,
-            container = IsleColors.Accent,
-            content = Color.White,
-            height = 50.dp,
-        )
+
+        GroupDivider(inset = 0.dp)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            PillButton(
+                text = if (sentAt != 0L) "Đã gửi lên đảo" else "Thử trên đảo",
+                onClick = {
+                    sample.post(context)
+                    sentAt = System.currentTimeMillis()
+                },
+                variant = PillButtonVariant.PRIMARY,
+                modifier = Modifier.fillMaxWidth(),
+                icon = IsleIcons.Send,
+                height = 50.dp,
+            )
+        }
     }
 }
 

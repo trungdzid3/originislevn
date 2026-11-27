@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -59,6 +58,9 @@ data class IsleColorPalette(
     val accent: Color,
     val glowAccent: Color,
     val accentText: Color,
+    val accentSoft: Color = Color(0x1A0F77FF),
+    val link: Color = Color(0xFF456FFF),
+    val textSub: Color = Color(0x78000000),
     val switchOff: Color,
     val divider: Color,
     val danger: Color,
@@ -110,6 +112,7 @@ object IsleColors {
 
     val Text: Color @Composable get() = LocalIsleColors.current.text
     val TextSecondary: Color @Composable get() = LocalIsleColors.current.textSecondary
+    val TextSub: Color @Composable get() = LocalIsleColors.current.textSub
     val TextTertiary: Color @Composable get() = LocalIsleColors.current.textTertiary
     val TextChip: Color @Composable get() = LocalIsleColors.current.textChip
     val Chevron: Color @Composable get() = LocalIsleColors.current.chevron
@@ -117,7 +120,9 @@ object IsleColors {
     // OriginUI ROM 16.0 Accent (#0F77FF mặc định)
     val Accent: Color @Composable get() = LocalIsleColors.current.accent
     val GlowAccent: Color @Composable get() = LocalIsleColors.current.glowAccent
+    val AccentSoft: Color @Composable get() = LocalIsleColors.current.accentSoft
     val AccentText: Color @Composable get() = LocalIsleColors.current.accentText
+    val Link: Color @Composable get() = LocalIsleColors.current.link
     val SwitchOff: Color @Composable get() = LocalIsleColors.current.switchOff
     val Divider: Color @Composable get() = LocalIsleColors.current.divider
     val Danger: Color @Composable get() = LocalIsleColors.current.danger
@@ -587,8 +592,8 @@ private val AmberLightColorScheme = lightColorScheme(
     outlineVariant = Color(0xFFD3C4B4),
 )
 
-private val FallbackDarkColorScheme = TealDarkColorScheme
-private val FallbackLightColorScheme = TealLightColorScheme
+private val FallbackDarkColorScheme = BlueDarkColorScheme
+private val FallbackLightColorScheme = BlueLightColorScheme
 
 fun resolveAppIsDarkTheme(context: Context): Boolean {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -636,6 +641,9 @@ private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = 
     accent = primary,
     glowAccent = primary.copy(alpha = if (isDark) 0.15f else 0.10f),
     accentText = primary,
+    accentSoft = primary.copy(alpha = if (isDark) 0.15f else 0.10f),
+    link = if (isDark) Color(0xFF6EA3FF) else Color(0xFF456FFF),
+    textSub = if (isDark) Color(0x99F2F4F8) else Color(0x78000000),
     switchOff = if (isDark) Color(0x75464646) else Color(0x59CCCCCC),
     divider = if (isDark) Color(0x1FFFFFFF) else Color(0x14000000),
     danger = if (isDark) error else Color(0xFFFF3636),
@@ -670,11 +678,11 @@ private fun ColorScheme.toIsleColorPalette(isDark: Boolean): IsleColorPalette = 
 )
 
 val IsleShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(30.dp),
+    extraSmall = G2RoundedCornerShape(8.dp),
+    small = G2RoundedCornerShape(12.dp),
+    medium = G2RoundedCornerShape(18.dp),
+    large = G2RoundedCornerShape(24.dp),
+    extraLarge = G2RoundedCornerShape(30.dp),
 )
 
 @Composable
@@ -720,6 +728,9 @@ fun OriginIsleTheme(content: @Composable () -> Unit) {
             window.statusBarColor = android.graphics.Color.TRANSPARENT
             @Suppress("DEPRECATION")
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !isDark
             controller.isAppearanceLightNavigationBars = !isDark

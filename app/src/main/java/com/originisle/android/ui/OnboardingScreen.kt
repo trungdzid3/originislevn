@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,101 +83,123 @@ fun OnboardingScreen(context: Context, prefs: SharedPreferences, onDone: () -> U
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-        item {
-            Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Chào mừng đến với Origin Isle",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp,
-                    lineHeight = 34.sp,
-                    color = IsleColors.Text,
-                )
-                Text(
-                    "Cần cấp một số quyền để có thể chuyển tiếp thông báo lên đảo linh hoạt.",
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    color = IsleColors.TextSecondary,
-                )
-            }
-        }
-        item {
-            GroupCard {
-                OnboardingRow(
-                    icon = IsleIcons.Bell,
-                    tile = IsleColors.TileBlue,
-                    title = "Truy cập thông báo",
-                    description = "Bắt buộc — cho phép Origin Isle đọc thông báo để hiển thị lên đảo.",
-                    granted = notifGranted,
-                    mandatory = true,
-                ) { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-                GroupDivider()
-                OnboardingRow(
-                    icon = IsleIcons.Bell,
-                    tile = IsleColors.TilePurple,
-                    title = "Cho phép thông báo",
-                    description = "Cho phép hiển thị thông báo trạng thái của ứng dụng.",
-                    granted = postGranted,
-                    mandatory = false,
-                ) {
-                    if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-                GroupDivider()
-                OnboardingRow(
-                    icon = IsleIcons.Battery,
-                    tile = IsleColors.TileGreen,
-                    title = "Không hạn chế pin",
-                    description = "Ngăn OriginOS tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
-                    granted = batteryOk,
-                    mandatory = false,
-                ) { requestIgnoreBattery(context) }
-                GroupDivider()
-                OnboardingRow(
-                    icon = IsleIcons.Power,
-                    tile = IsleColors.TileAmber,
-                    title = "Tự khởi chạy & Chạy nền",
-                    description = "Bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết trên OriginOS — không có mục này, vuốt đóng app sẽ không thể tự khôi phục.",
-                    granted = autoStartAck,
-                    mandatory = false,
-                ) {
-                    // Only ack if a screen actually opened — a ✓ the user never saw is worse than
-                    // no ✓ for the one setting that decides whether casting survives a swipe-away.
-                    if (openAutoStartSettings(context)) {
-                        autoStartAck = true
-                        prefs.edit().putBoolean("onboarding_autostart_ack", true).apply()
-                    }
-                }
-                GroupDivider()
-                OnboardingRow(
-                    icon = IsleIcons.Shield,
-                    tile = IsleColors.TileTeal,
-                    title = "Hỗ trợ tiếp cận",
-                    description = "Nhận diện lúc thoát Chrome, Edge, Play Store để tiến trình tải xuống tự chui vào Đảo.",
-                    granted = a11yOk,
-                    mandatory = false,
-                ) {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
+            item {
+                HeroCard {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(G2RoundedCornerShape(16.dp))
+                                .background(IsleColors.AccentSoft),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = IsleIcons.Pulse,
+                                contentDescription = null,
+                                tint = IsleColors.Accent,
+                                modifier = Modifier.size(28.dp),
+                            )
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Chào mừng đến với Origin Isle",
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.5).sp,
+                                lineHeight = 34.sp,
+                                color = IsleColors.Text,
+                            )
+                            Text(
+                                "Cần cấp một số quyền để có thể chuyển tiếp thông báo lên đảo linh hoạt và giữ dịch vụ chạy ổn định trên OriginOS.",
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp,
+                                color = IsleColors.TextSub,
+                            )
+                        }
                     }
                 }
             }
-        }
-        item {
-            PillButton(
-                if (notifGranted) "Tiếp tục" else "Vui lòng cấp quyền thông báo để tiếp tục",
-                onClick = {
-                    prefs.edit().putBoolean("onboarding_done", true).apply()
-                    onDone()
-                },
-                enabled = notifGranted,
-                modifier = Modifier.fillMaxWidth(),
-                container = IsleColors.Accent,
-                content = Color.White,
-                height = 50.dp,
-            )
-        }
+            item {
+                GroupCard {
+                    OnboardingRow(
+                        icon = IsleIcons.Bell,
+                        tile = IsleColors.TileBlue,
+                        title = "Truy cập thông báo",
+                        description = "Bắt buộc — cho phép Origin Isle đọc thông báo để hiển thị lên đảo.",
+                        granted = notifGranted,
+                        mandatory = true,
+                    ) { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                    GroupDivider()
+                    OnboardingRow(
+                        icon = IsleIcons.Bell,
+                        tile = IsleColors.TilePurple,
+                        title = "Cho phép thông báo",
+                        description = "Cho phép hiển thị thông báo trạng thái của ứng dụng.",
+                        granted = postGranted,
+                        mandatory = false,
+                    ) {
+                        if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    GroupDivider()
+                    OnboardingRow(
+                        icon = IsleIcons.Battery,
+                        tile = IsleColors.TileGreen,
+                        title = "Không hạn chế pin",
+                        description = "Ngăn OriginOS tự ý tắt ứng dụng chạy ngầm để tiết kiệm pin.",
+                        granted = batteryOk,
+                        mandatory = false,
+                    ) { requestIgnoreBattery(context) }
+                    GroupDivider()
+                    OnboardingRow(
+                        icon = IsleIcons.Power,
+                        tile = IsleColors.TileAmber,
+                        title = "Tự khởi chạy & Chạy nền",
+                        description = "Bật CẢ HAI mục Tự khởi chạy & Khởi chạy liên kết trên OriginOS — không có mục này, vuốt đóng app sẽ không thể tự khôi phục.",
+                        granted = autoStartAck,
+                        mandatory = false,
+                    ) {
+                        // Only ack if a screen actually opened — a ✓ the user never saw is worse than
+                        // no ✓ for the one setting that decides whether casting survives a swipe-away.
+                        if (openAutoStartSettings(context)) {
+                            autoStartAck = true
+                            prefs.edit().putBoolean("onboarding_autostart_ack", true).apply()
+                        }
+                    }
+                    GroupDivider()
+                    OnboardingRow(
+                        icon = IsleIcons.Shield,
+                        tile = IsleColors.TileTeal,
+                        title = "Hỗ trợ tiếp cận",
+                        description = "Nhận diện lúc thoát Chrome, Edge, Play Store để tiến trình tải xuống tự chui vào Đảo.",
+                        granted = a11yOk,
+                        mandatory = false,
+                    ) {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                PillButton(
+                    text = if (notifGranted) "Tiếp tục" else "Vui lòng cấp quyền thông báo để tiếp tục",
+                    onClick = {
+                        prefs.edit().putBoolean("onboarding_done", true).apply()
+                        onDone()
+                    },
+                    variant = PillButtonVariant.PRIMARY,
+                    enabled = notifGranted,
+                    modifier = Modifier.fillMaxWidth(),
+                    height = 50.dp,
+                )
+            }
         }
     }
 }
@@ -212,7 +233,7 @@ private fun OnboardingRow(
                     Text(
                         "Bắt buộc",
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(G2RoundedCornerShape(10.dp))
                             .background(IsleColors.CastTagBg)
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                         fontSize = 11.sp,
@@ -221,14 +242,13 @@ private fun OnboardingRow(
                     )
                 }
             }
-            Text(description, fontSize = 13.sp, lineHeight = 18.sp, color = IsleColors.TextSecondary)
+            Text(description, fontSize = 13.sp, lineHeight = 18.sp, color = IsleColors.TextSub)
             if (!granted) {
                 PillButton(
-                    "Mở cài đặt",
+                    text = "Mở cài đặt",
                     onClick = onAction,
+                    variant = PillButtonVariant.ALPHA_BLUE,
                     modifier = Modifier.padding(top = 8.dp),
-                    container = IsleColors.Accent.copy(alpha = 0.12f),
-                    content = IsleColors.Accent,
                     height = 50.dp,
                 )
             }
