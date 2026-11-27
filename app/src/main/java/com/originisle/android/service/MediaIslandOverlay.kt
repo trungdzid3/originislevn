@@ -558,10 +558,6 @@ object MediaIslandOverlay {
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             y = statusBarTop + dp(8f)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && wm.isCrossWindowBlurEnabled) {
-                flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-                blurBehindRadius = 36
-            }
         }
 
         return runCatching {
