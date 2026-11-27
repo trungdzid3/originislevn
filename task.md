@@ -1,6 +1,6 @@
 # DANH SÁCH CÔNG VIỆC (TASK MATRIX)
 
-## Đợt v2.10.25 — Chạm Đảo Mở Thẳng Bảng Điều Khiển Kính Mờ `MediaIslandOverlay` (Không `FLAG_BLUR_BEHIND`)
-- [x] Kết nối `MediaIslandLaunchActivity` (`source_content_intent`) với `oi_island_click_expand = !useHybridOverlay` trong `MediaCard.kt` (giữ nguyên `oi_show_notify = false`, cơ chế chống kẹt `" "` vs `"  "` và 5 cột sóng / 5 chấm tròn) | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
-- [x] Gỡ `FLAG_BLUR_BEHIND` / `blurBehindRadius` khỏi `MediaIslandOverlay.kt` để tránh OriginOS 6 ẩn overlay | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/service/MediaIslandOverlay.kt]
-- [x] Build `v2.10.25`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.25` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]
+## Đợt v2.10.26 — Bảng Nhạc Đen Tuyền OLED, Media Output Switcher, Ẩn Đảo Nhỏ Khi Mở & Phóng To Sóng Nhạc
+- [x] Đổi `CARD_BG_COLOR = 0xFF000000` (đen tuyền OLED), nâng cấp `openAudioOutputPicker` ưu tiên hộp thoại Media Output Switcher, và gọi `MediaCard.setOverlaySuppression` để ẩn Đảo nhỏ khi mở `MediaIslandOverlay` / hiện lại khi đóng | [Agent: Lead-Orchestrator] | [Skill: originos-design] | [Locked Files: app/src/main/java/com/originisle/android/service/MediaIslandOverlay.kt, app/src/main/java/com/originisle/android/cards/MediaCard.kt]
+- [x] Phóng to icon 5 cột sóng nhạc (`createMusicWaveIcon`) & 5 chấm tròn sóng dừng (`createPausedWaveIcon`) trong `MediaCard.kt` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/cards/MediaCard.kt]
+- [x] Build `v2.10.26`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.26` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]

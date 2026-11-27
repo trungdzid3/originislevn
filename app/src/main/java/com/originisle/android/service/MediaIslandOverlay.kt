@@ -41,6 +41,7 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import com.originisle.android.R
+import com.originisle.android.cards.MediaCard
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -68,9 +69,9 @@ object MediaIslandOverlay {
     private const val PROGRESS_TICK_MS = 1_000L
     private const val ANIM_DURATION_MS = 200L
 
-    private const val CARD_BG_COLOR = 0xF0101014.toInt()
-    private const val CARD_EDGE_LIGHT_TOP = 0x42FFFFFF
-    private const val CARD_EDGE_LIGHT_BOTTOM = 0x0FFFFFFF
+    private const val CARD_BG_COLOR = 0xFF000000.toInt()
+    private const val CARD_EDGE_LIGHT_TOP = 0x38FFFFFF
+    private const val CARD_EDGE_LIGHT_BOTTOM = 0x0DFFFFFF
     private const val OUTPUT_BTN_BG_COLOR = 0x1FFFFFFF
     private const val TEXT_PRIMARY = Color.WHITE
     private const val TEXT_SECONDARY = 0xB3FFFFFF.toInt()
@@ -566,6 +567,7 @@ object MediaIslandOverlay {
             cardView = card
             windowManager = wm
             isDismissing = false
+            MediaCard.setOverlaySuppression(appContext, true)
 
             albumArtView = albumArt
             trackView = trackTv
@@ -697,24 +699,43 @@ object MediaIslandOverlay {
     }
 
     private fun openAudioOutputPicker(appContext: Context) {
-        val panelIntent = Intent("com.android.settings.panel.action.VOLUME").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val snapshot = latestSnapshot
+        val pkg = snapshot?.pkg.orEmpty()
+        val token = snapshot?.controller?.sessionToken
+
+        val outputIntents = listOf(
+            Intent("com.android.settings.panel.action.MEDIA_OUTPUT").apply {
+                if (pkg.isNotBlank()) putExtra("com.android.settings.panel.extra.PACKAGE_NAME", pkg)
+                if (token != null) putExtra("android.media.extra.MEDIA_SESSION_TOKEN", token)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent("com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG").apply {
+                setPackage("com.android.systemui")
+                if (pkg.isNotBlank()) putExtra("package_name", pkg)
+                if (token != null) putExtra("android.media.extra.MEDIA_SESSION_TOKEN", token)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent("android.settings.MEDIA_OUTPUT_SETTINGS").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent("com.android.settings.panel.action.VOLUME").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent(Settings.ACTION_SOUND_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+        )
+        for (intent in outputIntents) {
+            val launched = runCatching {
+                appContext.startActivity(intent)
+                true
+            }.getOrDefault(false)
+            if (launched) return
         }
-        try {
-            appContext.startActivity(panelIntent)
-        } catch (_: ActivityNotFoundException) {
-            runCatching {
-                appContext.startActivity(
-                    Intent(Settings.ACTION_SOUND_SETTINGS).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    },
-                )
-            }.onFailure {
-                Log.w(TAG, "Failed to open sound settings", it)
-            }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to open volume panel", t)
-        }
+        Log.w(TAG, "Failed to open any audio output picker")
     }
 
     private fun resetAutoHideTimer() {
@@ -770,6 +791,7 @@ object MediaIslandOverlay {
         isUserSeeking = false
         isDismissing = false
 
+        val appCtx = root?.context?.applicationContext
         if (root != null) {
             if (wm != null) {
                 try {
@@ -779,6 +801,9 @@ object MediaIslandOverlay {
                 }
             }
             root.removeAllViews()
+        }
+        if (appCtx != null) {
+            MediaCard.setOverlaySuppression(appCtx, false)
         }
     }
 }

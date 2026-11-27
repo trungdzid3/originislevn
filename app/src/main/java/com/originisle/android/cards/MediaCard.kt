@@ -53,6 +53,43 @@ object MediaCard {
     @Volatile private var lastArtSignature: String = ""
     @Volatile private var lastDispatchTimeMs: Long = 0L
 
+    @Volatile private var overlaySuppressed: Boolean = false
+    @Volatile private var lastController: MediaController? = null
+    @Volatile private var lastRawAlbumArt: Bitmap? = null
+    @Volatile private var lastDurationMs: Long = 0L
+    @Volatile private var lastPositionMs: Long = 0L
+    @Volatile private var lastSourceActions: Array<Notification.Action>? = null
+    @Volatile private var lastContentIntent: PendingIntent? = null
+
+    fun setOverlaySuppression(context: Context, suppressed: Boolean) {
+        if (overlaySuppressed == suppressed) return
+        overlaySuppressed = suppressed
+        val appCtx = context.applicationContext
+        if (suppressed) {
+            val cancelIntent = Intent(appCtx, PlaygroundService::class.java).apply {
+                action = PlaygroundService.ACTION_CANCEL
+                putExtra("id", ID)
+                putExtra("oi_scene", "NAVIGATION")
+            }
+            appCtx.startService(cancelIntent)
+        } else if (lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)) {
+            dispatchMediaCard(
+                context = appCtx,
+                pkg = lastPkg,
+                controller = lastController ?: IconCache.activeControllers[ID],
+                track = lastTrack,
+                artist = lastArtist,
+                playing = lastPlaying == true,
+                rawAlbumArt = lastRawAlbumArt,
+                durationMs = lastDurationMs,
+                positionMs = lastPositionMs,
+                sourceActions = lastSourceActions,
+                contentIntent = lastContentIntent,
+                forceRefresh = true,
+            )
+        }
+    }
+
     fun isCurrentlyPlaying(): Boolean = lastPlaying == true
 
     /** Các gói dịch vụ điều khiển đảo nhạc gốc trên OriginOS 6 (Vivo / iQOO) */
@@ -372,6 +409,12 @@ object MediaCard {
         lastUiNightMode = isNightMode
         lastArtSignature = artSignature
         lastDispatchTimeMs = now
+        lastController = controller
+        lastRawAlbumArt = rawAlbumArt
+        lastDurationMs = durationMs
+        lastPositionMs = positionMs
+        lastSourceActions = sourceActions
+        lastContentIntent = contentIntent
 
         val durSec = if (durationMs > 0L) durationMs / 1000L else 0L
         val posSec = if (positionMs > 0L) positionMs / 1000L else 0L
@@ -508,8 +551,10 @@ object MediaCard {
                 if (useHybridOverlay) overlayActivityPi else contentClickIntent,
             )
         }
-        context.startService(intent)
-        CastLog.add("Nhạc", track, "hiển thị — $track ($artist)", true)
+        if (!overlaySuppressed) {
+            context.startService(intent)
+            CastLog.add("Nhạc", track, "hiển thị — $track ($artist)", true)
+        }
     }
 
     fun clearAll(context: Context) {
@@ -530,6 +575,13 @@ object MediaCard {
             lastUiNightMode = null
             lastArtSignature = ""
             lastDispatchTimeMs = 0L
+            overlaySuppressed = false
+            lastController = null
+            lastRawAlbumArt = null
+            lastDurationMs = 0L
+            lastPositionMs = 0L
+            lastSourceActions = null
+            lastContentIntent = null
         }
         activeMediaCastIds.remove(id)
         pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
@@ -691,12 +743,12 @@ object MediaCard {
         }.ifEmpty {
             fallbackHex.map { Color.parseColor(it) }
         }
-        val ratios = floatArrayOf(0.36f, 0.72f, 0.52f, 0.88f, 0.44f)
-        val padX = size * 0.14f
+        val ratios = floatArrayOf(0.40f, 0.78f, 0.56f, 0.94f, 0.48f)
+        val padX = size * 0.05f
         val usableW = size - padX * 2
-        val gap = usableW * 0.095f
+        val gap = usableW * 0.085f
         val barW = (usableW - gap * 4) / 5f
-        val maxBarH = size * 0.64f
+        val maxBarH = size * 0.80f
         val cy = size / 2f
         val rx = barW / 2f
         for (i in ratios.indices) {
@@ -724,9 +776,9 @@ object MediaCard {
         }.ifEmpty {
             fallbackHex.map { Color.parseColor(it) }
         }
-        val padX = size * 0.14f
+        val padX = size * 0.05f
         val usableW = size - padX * 2
-        val gap = usableW * 0.095f
+        val gap = usableW * 0.085f
         val dotSize = (usableW - gap * 4) / 5f
         val cy = size / 2f
         val r = dotSize / 2f
