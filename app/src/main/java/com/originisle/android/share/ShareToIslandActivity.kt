@@ -42,10 +42,18 @@ class ShareToIslandActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         val incoming = intent
-        val mimeType = incoming?.type.orEmpty()
+        val mimeType = incoming?.type.orEmpty().lowercase()
         val imageUri = extractImageUri(incoming)
+        val resolvedUriType = imageUri?.let { runCatching { contentResolver.getType(it) }.getOrNull() }.orEmpty().lowercase()
 
-        if (mimeType.startsWith("image/") || (mimeType.isEmpty() && imageUri != null)) {
+        val isImagePayload = imageUri != null && (
+            mimeType.startsWith("image/") ||
+                resolvedUriType.startsWith("image/") ||
+                mimeType == "*/*" ||
+                mimeType.isEmpty()
+            )
+
+        if (isImagePayload) {
             handleImageShare(imageUri)
         } else {
             handleTextShare(incoming)
@@ -86,10 +94,15 @@ class ShareToIslandActivity : Activity() {
     }
 
     private fun handleTextShare(incoming: Intent?) {
+        val clipText = incoming?.clipData?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
         val text = listOfNotNull(
             incoming?.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
             incoming?.getStringExtra(Intent.EXTRA_SUBJECT),
-        ).joinToString("\n")
+            clipText,
+        ).distinct().joinToString("\n")
 
         val shared = FlashscoreShare.parse(text)
         if (shared != null) {
@@ -171,6 +184,15 @@ class ShareToIslandActivity : Activity() {
             incoming.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
         }
         if (streamUri != null) return streamUri
+        val streamList: ArrayList<Uri>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            incoming.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            incoming.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+        }
+        val firstInList = streamList?.firstOrNull()
+        if (firstInList != null) return firstInList
+        if (incoming.data != null) return incoming.data
         val clip = incoming.clipData ?: return null
         if (clip.itemCount > 0) {
             return clip.getItemAt(0)?.uri
