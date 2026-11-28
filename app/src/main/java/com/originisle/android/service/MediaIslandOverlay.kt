@@ -8,9 +8,7 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.PixelFormat
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -106,11 +104,8 @@ object MediaIslandOverlay {
     private var totalTimeView: TextView? = null
     private var seekBarView: SeekBar? = null
     private var playPauseButton: ImageButton? = null
-    private var cardInnerSurface: GradientDrawable? = null
-    private var cardEdgeBorder: GradientDrawable? = null
-    private var ambientGlowColor: Int = Color.argb(185, 15, 119, 255)
-    private var outputIconView: ImageView? = null
-    private var outputLabelView: TextView? = null
+    private var ambientRadialLayer: GradientDrawable? = null
+    private var outputButtonView: ImageButton? = null
 
     private var isUserSeeking = false
 
@@ -198,37 +193,7 @@ object MediaIslandOverlay {
             .getInsetsIgnoringVisibility(WindowInsets.Type.statusBars())
             .top
 
-        val glowPad = dp(14f)
-        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            color = Color.BLACK
-        }
-        val glowRect = RectF()
-
         val root = object : FrameLayout(appContext) {
-            override fun dispatchDraw(canvas: android.graphics.Canvas) {
-                val c = cardView
-                if (c != null && c.width > 0 && c.height > 0 && c.alpha > 0.01f) {
-                    val left = c.left + c.translationX + (c.width * (1f - c.scaleX)) * 0.5f
-                    val top = c.top + c.translationY
-                    val right = left + c.width * c.scaleX
-                    val bottom = top + c.height * c.scaleY
-                    glowRect.set(left, top, right, bottom)
-                    val glowAlpha = (Color.alpha(ambientGlowColor) * c.alpha).roundToInt().coerceIn(0, 255)
-                    val dynamicGlow = Color.argb(
-                        glowAlpha,
-                        Color.red(ambientGlowColor),
-                        Color.green(ambientGlowColor),
-                        Color.blue(ambientGlowColor),
-                    )
-                    glowPaint.color = Color.argb((255 * c.alpha).roundToInt().coerceIn(0, 255), 0, 0, 0)
-                    glowPaint.setShadowLayer(dp(15f).toFloat(), 0f, dp(2f).toFloat(), dynamicGlow)
-                    val radius = dp(30f).toFloat() * c.scaleX
-                    canvas.drawRoundRect(glowRect, radius, radius, glowPaint)
-                }
-                super.dispatchDraw(canvas)
-            }
-
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 if (event.action == MotionEvent.ACTION_OUTSIDE) {
                     dismiss()
@@ -236,10 +201,6 @@ object MediaIslandOverlay {
                 }
                 return super.onTouchEvent(event)
             }
-        }.apply {
-            setPadding(glowPad, glowPad, glowPad, glowPad)
-            clipChildren = false
-            clipToPadding = false
         }
 
         val touchSlop = ViewConfiguration.get(appContext).scaledTouchSlop
@@ -280,17 +241,23 @@ object MediaIslandOverlay {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = outerCorner
             }
-            cardEdgeBorder = edgeLightBorder
-            val innerSurface = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(CARD_BG_COLOR, CARD_BG_COLOR),
-            ).apply {
+            val pureBlackBase = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = innerCorner
+                setColor(CARD_BG_COLOR)
             }
-            cardInnerSurface = innerSurface
-            background = LayerDrawable(arrayOf(edgeLightBorder, innerSurface)).apply {
+            val radialAmbient = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = innerCorner
+                gradientType = GradientDrawable.RADIAL_GRADIENT
+                setGradientCenter(0.76f, 1.08f)
+                gradientRadius = overlayWidth * 0.88f
+                colors = intArrayOf(0x00000000, 0x00000000, 0x00000000)
+            }
+            ambientRadialLayer = radialAmbient
+            background = LayerDrawable(arrayOf(edgeLightBorder, pureBlackBase, radialAmbient)).apply {
                 setLayerInset(1, strokePx, strokePx, strokePx, strokePx)
+                setLayerInset(2, strokePx, strokePx, strokePx, strokePx)
             }
             outlineProvider = ViewOutlineProvider.BACKGROUND
             clipToOutline = true
@@ -446,8 +413,7 @@ object MediaIslandOverlay {
         textColumn.addView(artistTv)
 
         val outputBg = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(16f).toFloat()
+            shape = GradientDrawable.OVAL
             setColor(OUTPUT_BTN_BG_COLOR)
         }
         val outputRipple = RippleDrawable(
@@ -455,47 +421,21 @@ object MediaIslandOverlay {
             outputBg,
             outputBg,
         )
-        val outputIcon = ImageView(appContext).apply {
-            setImageResource(R.drawable.ic_media_bluetooth)
+        val outputBtn = ImageButton(appContext).apply {
+            setImageResource(R.drawable.ic_media_speaker)
             imageTintList = ColorStateList.valueOf(TEXT_PRIMARY)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            layoutParams = LinearLayout.LayoutParams(dp(15f), dp(15f))
-        }
-        val outputLabel = TextView(appContext).apply {
-            setTextColor(TEXT_PRIMARY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            isSingleLine = true
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            maxWidth = dp(76f)
-            text = "Loa ngoài"
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                marginStart = dp(5f)
-            }
-        }
-        val outputBtn = LinearLayout(appContext).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10f), dp(7f), dp(10f), dp(7f))
+            val iconPad = dp(8f)
+            setPadding(iconPad, iconPad, iconPad, iconPad)
             background = outputRipple
             contentDescription = "Thiết bị âm thanh"
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(32f),
-            )
-            addView(outputIcon)
-            addView(outputLabel)
+            layoutParams = LinearLayout.LayoutParams(dp(36f), dp(36f))
             setOnClickListener {
                 openBluetoothDevices(appContext)
                 dismiss()
             }
         }
-        outputIconView = outputIcon
-        outputLabelView = outputLabel
+        outputButtonView = outputBtn
 
         topRow.addView(albumArt)
         topRow.addView(textColumn)
@@ -677,7 +617,7 @@ object MediaIslandOverlay {
         )
 
         val windowParams = WindowManager.LayoutParams(
-            overlayWidth + glowPad * 2,
+            overlayWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -686,7 +626,7 @@ object MediaIslandOverlay {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = (statusBarTop + dp(8f) - glowPad).coerceAtLeast(0)
+            y = statusBarTop + dp(8f)
         }
 
         return runCatching {
@@ -758,27 +698,27 @@ object MediaIslandOverlay {
         val r = Color.red(vividRgb)
         val g = Color.green(vividRgb)
         val b = Color.blue(vividRgb)
-        ambientGlowColor = Color.argb(190, r, g, b)
-        // Keep the inner surface 100% opaque (no transparency): pure OLED black blending subtly
-        // into a deep, saturated album-tinted black at the bottom edge like OriginOS Ambient Lighting.
-        val deepBottomBlack = Color.rgb(
-            (r * 0.14f).roundToInt(),
-            (g * 0.14f).roundToInt(),
-            (b * 0.14f).roundToInt(),
+        // Origin Island Ambient Lighting: opaque pure black top fading into a rich, saturated
+        // radial ambient pool at the bottom-right corner like the native OriginOS 6 music card.
+        val centerGlow = Color.argb(
+            132,
+            (r * 0.72f).roundToInt(),
+            (g * 0.72f).roundToInt(),
+            (b * 0.72f).roundToInt(),
         )
-        cardInnerSurface?.colors = intArrayOf(CARD_BG_COLOR, deepBottomBlack)
-        cardEdgeBorder?.colors = intArrayOf(
-            Color.argb(135, (r * 0.45f + 255 * 0.55f).roundToInt(), (g * 0.45f + 255 * 0.55f).roundToInt(), (b * 0.45f + 255 * 0.55f).roundToInt()),
-            Color.argb(48, r, g, b),
+        val midGlow = Color.argb(
+            54,
+            (r * 0.55f).roundToInt(),
+            (g * 0.55f).roundToInt(),
+            (b * 0.55f).roundToInt(),
         )
-        rootView?.invalidate()
+        ambientRadialLayer?.colors = intArrayOf(centerGlow, midGlow, 0x00000000)
 
         if (ctx != null) {
-            val (outputName, isBluetooth) = resolveActiveAudioOutput(ctx)
-            outputLabelView?.text = outputName
-            outputIconView?.setImageResource(
+            val isBluetooth = isBluetoothAudioActive(ctx)
+            outputButtonView?.setImageResource(
                 if (isBluetooth) R.drawable.ic_media_bluetooth
-                else android.R.drawable.ic_lock_silent_mode_off,
+                else R.drawable.ic_media_speaker,
             )
         }
 
@@ -901,30 +841,17 @@ object MediaIslandOverlay {
         }
     }
 
-    private fun resolveActiveAudioOutput(context: Context): Pair<String, Boolean> {
-        val am = context.getSystemService(AudioManager::class.java) ?: return "Loa ngoài" to false
+    private fun isBluetoothAudioActive(context: Context): Boolean {
+        val am = context.getSystemService(AudioManager::class.java) ?: return false
         val devices = runCatching { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }.getOrNull()
-            ?: return "Loa ngoài" to false
-        val btDevice = devices.firstOrNull { dev ->
+            ?: return false
+        return devices.any { dev ->
             dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                 (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                     (dev.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
                         dev.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
                         dev.type == AudioDeviceInfo.TYPE_BLE_BROADCAST))
         }
-        if (btDevice != null) {
-            val name = btDevice.productName?.toString()?.trim().orEmpty().ifBlank { "Bluetooth" }
-            return name to true
-        }
-        val wired = devices.firstOrNull { dev ->
-            dev.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                dev.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                dev.type == AudioDeviceInfo.TYPE_USB_HEADSET
-        }
-        if (wired != null) {
-            return "Tai nghe" to false
-        }
-        return "Loa ngoài" to false
     }
 
     private fun extractAmbientGlowColor(bitmap: Bitmap?): Int {
@@ -1026,10 +953,8 @@ object MediaIslandOverlay {
         totalTimeView = null
         seekBarView = null
         playPauseButton = null
-        cardInnerSurface = null
-        cardEdgeBorder = null
-        outputIconView = null
-        outputLabelView = null
+        ambientRadialLayer = null
+        outputButtonView = null
         isUserSeeking = false
         isDismissing = false
 

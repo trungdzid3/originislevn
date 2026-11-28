@@ -881,6 +881,18 @@ class NotificationCastListener : NotificationListenerService() {
                                 }
                             }
                         }
+                        if (!handledMediaInPoll && PlaygroundService.activeCardIds.contains(MediaCard.ID)) {
+                            val hasAnyMediaNotif = active.any { sbn ->
+                                val pLower = sbn.packageName.lowercase()
+                                pLower != packageName.lowercase() &&
+                                    pLower !in MediaCard.ORIGIN_NATIVE_MUSIC_PACKAGES &&
+                                    pLower !in MediaCard.ORIGIN_SUPPORTED_MUSIC_PACKAGES &&
+                                    isActualMediaPlaybackNotification(sbn, extractMediaSessionToken(sbn.notification.extras))
+                            }
+                            if (!hasAnyMediaNotif) {
+                                MediaCard.clearAll(applicationContext)
+                            }
+                        }
                     }
                 }
                 ScoreCard.tick(applicationContext)
@@ -1040,6 +1052,18 @@ class NotificationCastListener : NotificationListenerService() {
             if (!trackedMediaCallbacks.containsKey(token)) {
                 val cb = object : MediaController.Callback() {
                     override fun onPlaybackStateChanged(state: PlaybackState?) {
+                        val s = state?.state
+                        if (s == PlaybackState.STATE_STOPPED || s == PlaybackState.STATE_NONE || s == PlaybackState.STATE_ERROR) {
+                            val activeStillPresent = runCatching { activeNotifications }.getOrNull()?.any {
+                                it.packageName.equals(controller.packageName, ignoreCase = true) &&
+                                    isActualMediaPlaybackNotification(it, extractMediaSessionToken(it.notification.extras))
+                            } == true
+                            if (!activeStillPresent) {
+                                IconCache.activeControllers.remove(MediaCard.ID)
+                                MediaCard.clear(applicationContext, MediaCard.ID)
+                                return
+                            }
+                        }
                         dispatchControllerSession(controller)
                     }
 
@@ -1049,6 +1073,11 @@ class NotificationCastListener : NotificationListenerService() {
 
                     override fun onSessionDestroyed() {
                         trackedMediaCallbacks.remove(token)
+                        val activeController = IconCache.activeControllers[MediaCard.ID]
+                        if (activeController == null || activeController.sessionToken == token) {
+                            IconCache.activeControllers.remove(MediaCard.ID)
+                            MediaCard.clear(applicationContext, MediaCard.ID)
+                        }
                     }
                 }
                 runCatching {
@@ -1082,7 +1111,15 @@ class NotificationCastListener : NotificationListenerService() {
             state == PlaybackState.STATE_SKIPPING_TO_PREVIOUS ||
             state == PlaybackState.STATE_CONNECTING
         val hasMeta = controller.metadata != null
-        return isPlaying || (state == PlaybackState.STATE_PAUSED && hasMeta)
+        if (isPlaying) return true
+        if (state == PlaybackState.STATE_PAUSED && hasMeta) {
+            val hasNotif = runCatching { activeNotifications }.getOrNull()?.any { sbn ->
+                sbn.packageName.equals(pkg, ignoreCase = true) &&
+                    !isAuxiliaryMusicDownloadNotif(sbn, extractMediaSessionToken(sbn.notification.extras))
+            } == true
+            return hasNotif
+        }
+        return false
     }
 
     private fun dispatchControllerSession(controller: MediaController) {
@@ -1117,9 +1154,15 @@ class NotificationCastListener : NotificationListenerService() {
         if (matchingSbn != null) {
             MediaCard.post(applicationContext, matchingSbn, controller, forceRefresh = false)
             schedulePollIfNeeded(immediate = isPlaying)
-        } else if (isPlaying || isThirdPartyMusic) {
+        } else if (isPlaying) {
             MediaCard.postFromController(applicationContext, pkg, controller, forceRefresh = false)
             schedulePollIfNeeded(immediate = isPlaying)
+        } else {
+            val activeController = IconCache.activeControllers[MediaCard.ID]
+            if (activeController == null || activeController.packageName.equals(pkg, ignoreCase = true)) {
+                IconCache.activeControllers.remove(MediaCard.ID)
+                MediaCard.clear(applicationContext, MediaCard.ID)
+            }
         }
     }
 
@@ -2310,7 +2353,15 @@ class NotificationCastListener : NotificationListenerService() {
                 val fallbackActive = runCatching {
                     val msm = getSystemService(MediaSessionManager::class.java)
                     msm?.getActiveSessions(ComponentName(this, NotificationCastListener::class.java))
-                        ?.firstOrNull { isEligibleMediaController(it) }
+                        ?.firstOrNull { ctrl ->
+                            if (ctrl.packageName.equals(sbn.packageName, ignoreCase = true)) {
+                                val st = ctrl.playbackState?.state
+                                val playingNow = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
+                                playingNow && isEligibleMediaController(ctrl)
+                            } else {
+                                isEligibleMediaController(ctrl)
+                            }
+                        }
                 }.getOrNull()
                 if (fallbackActive != null) {
                     dispatchControllerSession(fallbackActive)
