@@ -32,14 +32,45 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             val lower = name.trim().lowercase(Locale.ROOT)
             if (lower.isEmpty()) return TWS_EARBUDS
 
-            if (isLenovoLe208Name(lower)) {
-                return LENOVO_LE208
-            }
             if (isRedmiBuds6PlayName(lower)) {
                 return REDMI_BUDS_6_PLAY
             }
+            if (isLenovoLe208Name(lower)) {
+                return LENOVO_LE208
+            }
             if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
                 return OVER_EAR
+            }
+            if (AIRPODS_KEYWORDS.any { lower.contains(it) }) {
+                return TWS_WHITE
+            }
+            if (VIVO_TWS_KEYWORDS.any { lower.contains(it) }) {
+                return if (VIVO_DARK_KEYWORDS.any { lower.contains(it) }) {
+                    TWS_EARBUDS
+                } else {
+                    TWS_WHITE
+                }
+            }
+            if (OPPO_ENCO_KEYWORDS.any { lower.contains(it) }) {
+                return if (OPPO_DARK_KEYWORDS.any { lower.contains(it) }) {
+                    TWS_EARBUDS
+                } else {
+                    TWS_WHITE
+                }
+            }
+            if (XIAOMI_BUDS_KEYWORDS.any { lower.contains(it) }) {
+                return if (XIAOMI_WHITE_KEYWORDS.any { lower.contains(it) }) {
+                    TWS_WHITE
+                } else {
+                    TWS_EARBUDS
+                }
+            }
+            if (SAMSUNG_BUDS_KEYWORDS.any { lower.contains(it) }) {
+                return if (SAMSUNG_WHITE_KEYWORDS.any { lower.contains(it) }) {
+                    TWS_WHITE
+                } else {
+                    TWS_EARBUDS
+                }
             }
             if (TWS_WHITE_KEYWORDS.any { lower.contains(it) }) {
                 return TWS_WHITE
@@ -62,7 +93,8 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
         private fun isRedmiBuds6PlayName(lower: String): Boolean {
             return lower.contains("buds 6 play") ||
                 lower.contains("buds6 play") ||
-                lower.contains("redmi buds 6")
+                lower.contains("redmi buds 6") ||
+                lower.contains("m2401e1")
         }
 
         private val OVER_EAR_KEYWORDS = listOf(
@@ -84,6 +116,84 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             "chup tai",
             "arctis",
             "hyperx",
+        )
+
+        private val AIRPODS_KEYWORDS = listOf(
+            "airpods",
+            "airpod",
+            "air pods",
+        )
+
+        private val SAMSUNG_BUDS_KEYWORDS = listOf(
+            "galaxy buds",
+            "samsung buds",
+            "buds2",
+            "buds 2",
+            "buds3",
+            "buds 3",
+            "buds fe",
+            "buds live",
+            "buds pro",
+            "buds+",
+            "sm-r",
+        )
+
+        private val SAMSUNG_WHITE_KEYWORDS = listOf(
+            "white",
+            "trắng",
+            "trang",
+            "silver",
+            "cream",
+            "pearl",
+        )
+
+        private val VIVO_TWS_KEYWORDS = listOf(
+            "vivo tws",
+            "vivo earbuds",
+            "iqoo tws",
+            "iqoo buds",
+        )
+
+        private val VIVO_DARK_KEYWORDS = listOf(
+            "black",
+            "đen",
+            "den",
+            "dark",
+            "blue",
+            "xanh",
+        )
+
+        private val OPPO_ENCO_KEYWORDS = listOf(
+            "oppo enco",
+            "enco air",
+            "enco buds",
+            "enco free",
+            "enco x",
+            "enco w",
+        )
+
+        private val OPPO_DARK_KEYWORDS = listOf(
+            "black",
+            "đen",
+            "den",
+            "dark",
+        )
+
+        private val XIAOMI_BUDS_KEYWORDS = listOf(
+            "xiaomi buds",
+            "mi buds",
+            "redmi buds",
+            "redmi airdots",
+            "mi true wireless",
+            "flipbuds",
+        )
+
+        private val XIAOMI_WHITE_KEYWORDS = listOf(
+            "white",
+            "trắng",
+            "trang",
+            "silver",
+            "pearl",
         )
 
         private val TWS_WHITE_KEYWORDS = listOf(

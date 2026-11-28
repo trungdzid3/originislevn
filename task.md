@@ -1,5 +1,6 @@
 # DANH SÁCH CÔNG VIỆC (TASK MATRIX)
 
-## Đợt v2.10.27 — Đồng Nhất Chạm Toàn Bộ Viên Thuốc Đảo Mở Thẳng `MediaIslandOverlay` (`ISLAND_CLICK_LANDING`)
-- [x] Đặt `BUNDLE_KEY_ISLAND_CLICK = ISLAND_CLICK_LANDING (1)` khi `!islandClickExpand && clickResp != null` trong `OriginIslandBuilder.kt` để chạm vào bất kỳ vùng nào trên viên thuốc Đảo Âm Nhạc (kể cả bên trái) đều mở thẳng `MediaIslandOverlay`, không mở nhầm thẻ mặc định SuperX | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/island/OriginIslandBuilder.kt]
-- [x] Build `v2.10.27`, cập nhật `PROJECT_CONTEXT.md`, commit/push và phát hành GitHub Release `v2.10.27` | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: app/build.gradle.kts, PROJECT_CONTEXT.md, task.md]
+## Đợt hiện tại — Tự Động Nhận Diện Tai Nghe Popup & Gỡ Tùy Biến Thủ Công
+- [x] Nâng cấp `BluetoothDevicePreset.inferFromName` nhận diện AirPods, Samsung Buds, Vivo Earbuds/TWS, Oppo Enco, Xiaomi, Redmi (giữ 3D cho Redmi Buds 6 Play & Lenovo LE208, còn lại dùng ảnh 2D mặc định) và bỏ áp dụng cấu hình tùy chỉnh trong `getDeviceConfig` | [Agent: Subagent-1] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/bluetooth/BluetoothPopupStore.kt, app/src/test/java/com/originisle/android/bluetooth/BluetoothPopupStoreTest.kt]
+- [x] Gỡ bỏ đọc `customImagePath` trong `BluetoothPopupOverlay.kt` (chỉ dùng 3D hiện tại và ảnh 2D preset) và gỡ mục `Tùy chỉnh tai nghe Bluetooth` / `BluetoothPopupSheet` khỏi `ModulesScreen.kt` | [Agent: Subagent-2] | [Skill: N/A] | [Locked Files: app/src/main/java/com/originisle/android/bluetooth/BluetoothPopupOverlay.kt, app/src/main/java/com/originisle/android/ui/ModulesScreen.kt]
+- [x] Chạy `.\gradlew.bat testDebugUnitTest --console=plain` kiểm tra toàn bộ unit test và biên dịch | [Agent: Lead-Orchestrator] | [Skill: N/A] | [Locked Files: N/A]

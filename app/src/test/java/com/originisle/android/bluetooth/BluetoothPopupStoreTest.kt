@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.content.SharedPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -42,10 +43,56 @@ class BluetoothPopupStoreTest {
 
     @Test
     fun inferFromName_detectsTwsDefault() {
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("AirPods Pro"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Sony WF-1000XM5"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Galaxy Buds2 Pro"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Unknown BT Device"))
+    }
+
+    @Test
+    fun inferFromName_detectsAirPods() {
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("AirPods Pro"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("AirPod 3rd Gen"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Air Pods"))
+        assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.inferFromName("AirPods Max"))
+    }
+
+    @Test
+    fun inferFromName_detectsSamsungBuds() {
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Galaxy Buds2 Pro"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Samsung Buds FE"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Buds3 Pro"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("SM-R510"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Galaxy Buds2 White"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Galaxy Buds3 Silver"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Samsung Buds Cream"))
+    }
+
+    @Test
+    fun inferFromName_detectsVivoAndIqooTws() {
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo TWS 4"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo Earbuds 2"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("iQOO TWS 1e"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Vivo TWS 4 Black"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Vivo Earbuds Xanh"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("iQOO Buds Dark"))
+    }
+
+    @Test
+    fun inferFromName_detectsOppoEnco() {
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Oppo Enco Air 3"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Enco Buds 2"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Enco Free3"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Oppo Enco X2 Black"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Enco W31 Đen"))
+    }
+
+    @Test
+    fun inferFromName_detectsXiaomiAndRedmiBuds() {
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Xiaomi Buds 4 Pro"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Redmi Buds 5"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Redmi AirDots 3"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Xiaomi Buds 4 White"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Redmi Buds 5 Trắng"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Mi True Wireless Silver"))
     }
 
     @Test
@@ -61,9 +108,26 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.inferFromName("Lenovo LivePods TWS"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds 6 Play"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds6 Play"))
+        assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("M2401E1"))
         assertTrue(BluetoothDevicePreset.LENOVO_LE208.isInteractive3D)
         assertTrue(BluetoothDevicePreset.REDMI_BUDS_6_PLAY.isInteractive3D)
         assertFalse(BluetoothDevicePreset.TWS_EARBUDS.isInteractive3D)
+    }
+
+    @Test
+    fun getDeviceConfig_usesAutoDetectByDefaultAndRespectsManualPreset() {
+        val context = createInMemoryPrefsContext()
+        val address = "AA:BB:CC:11:22:33"
+
+        val autoConfig = BluetoothPopupStore.getDeviceConfig(context, address, "AirPods Pro")
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, autoConfig.preset)
+        assertNull(autoConfig.customImagePath)
+        assertNull(autoConfig.customName)
+        assertTrue(autoConfig.enabled)
+
+        BluetoothPopupStore.setDevicePreset(context, address, BluetoothDevicePreset.OVER_EAR)
+        val manualConfig = BluetoothPopupStore.getDeviceConfig(context, address, "AirPods Pro")
+        assertEquals(BluetoothDevicePreset.OVER_EAR, manualConfig.preset)
     }
 
     @Test

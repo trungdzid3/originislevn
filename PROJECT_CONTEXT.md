@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.2.5 — Tự Động Nhận Diện Tai Nghe Popup (AirPods, Samsung Buds, Vivo, Oppo, Xiaomi, Redmi)**:
+  - `BluetoothPopupStore.kt` (`BluetoothDevicePreset.inferFromName`): Nâng cấp nhận diện tự động cho AirPods (`TWS_WHITE`, `airpods max` -> `OVER_EAR`), Samsung Buds (`galaxy buds`, `buds2/3/fe/live/pro/+`, `sm-r`), Vivo/iQOO TWS, Oppo Enco, Xiaomi/Redmi Buds (ưu tiên giữ 3D cho `REDMI_BUDS_6_PLAY`/`m2401e1` và `LENOVO_LE208`, các mẫu khác dùng ảnh 2D mặc định); giữ nguyên khả năng tùy chỉnh popup trong `BluetoothPopupSheet` & `BluetoothPopupOverlay`.
+  - `BluetoothPopupStoreTest.kt`: Bổ sung unit test cho 6 nhóm tai nghe và hành vi `getDeviceConfig`.
 - **Origin Isle VN v3.0.16 — Tối Ưu Code, Dọn Deprecated API & Vá Bảo Mật**:
   - `MediaCard.kt`: Thêm `ArtCacheEntry` cache bìa album/màu sóng theo `"$pkg|$artSignature"`, xóa `subtext` và `createMusicWaveIcon` thừa, chuyển `EXTRA_LARGE_ICON` sang `getParcelable(..., Bitmap::class.java)`.
   - `EarbudsCard.kt` & `ScoreCard.kt`: Dọn toàn bộ API deprecated (`BluetoothAdapter.getDefaultAdapter`, `getSerializableExtra`, `getParcelableArrayExtra`, `Bundle.get`) sang API type-safe Android 13+.
