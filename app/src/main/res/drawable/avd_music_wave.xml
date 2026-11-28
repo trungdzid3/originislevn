@@ -11,7 +11,7 @@
                 android:name="bar1"
                 android:pivotX="3.6"
                 android:pivotY="12"
-                android:scaleY="0.36">
+                android:scaleY="0.02">
                 <path
                     android:pathData="M3.6,4.5 L3.6,19.5"
                     android:strokeWidth="2.0"
@@ -22,7 +22,7 @@
                 android:name="bar2"
                 android:pivotX="7.8"
                 android:pivotY="12"
-                android:scaleY="0.74">
+                android:scaleY="0.72">
                 <path
                     android:pathData="M7.8,4.5 L7.8,19.5"
                     android:strokeWidth="2.0"
@@ -33,7 +33,7 @@
                 android:name="bar3"
                 android:pivotX="12"
                 android:pivotY="12"
-                android:scaleY="0.46">
+                android:scaleY="0.30">
                 <path
                     android:pathData="M12,4.5 L12,19.5"
                     android:strokeWidth="2.0"
@@ -55,7 +55,7 @@
                 android:name="bar5"
                 android:pivotX="20.4"
                 android:pivotY="12"
-                android:scaleY="0.40">
+                android:scaleY="0.28">
                 <path
                     android:pathData="M20.4,4.5 L20.4,19.5"
                     android:strokeWidth="2.0"
@@ -75,11 +75,11 @@
                 <propertyValuesHolder
                     android:propertyName="scaleY"
                     android:valueType="floatType">
-                    <keyframe android:fraction="0.0" android:value="0.36" />
-                    <keyframe android:fraction="0.25" android:value="0.84" />
-                    <keyframe android:fraction="0.52" android:value="0.46" />
-                    <keyframe android:fraction="0.76" android:value="0.72" />
-                    <keyframe android:fraction="1.0" android:value="0.36" />
+                    <keyframe android:fraction="0.0" android:value="0.02" />
+                    <keyframe android:fraction="0.25" android:value="0.82" />
+                    <keyframe android:fraction="0.52" android:value="0.32" />
+                    <keyframe android:fraction="0.76" android:value="0.70" />
+                    <keyframe android:fraction="1.0" android:value="0.02" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
@@ -95,11 +95,11 @@
                 <propertyValuesHolder
                     android:propertyName="scaleY"
                     android:valueType="floatType">
-                    <keyframe android:fraction="0.0" android:value="0.74" />
-                    <keyframe android:fraction="0.26" android:value="0.34" />
+                    <keyframe android:fraction="0.0" android:value="0.72" />
+                    <keyframe android:fraction="0.26" android:value="0.02" />
                     <keyframe android:fraction="0.54" android:value="0.90" />
-                    <keyframe android:fraction="0.78" android:value="0.48" />
-                    <keyframe android:fraction="1.0" android:value="0.74" />
+                    <keyframe android:fraction="0.78" android:value="0.36" />
+                    <keyframe android:fraction="1.0" android:value="0.72" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
@@ -115,11 +115,11 @@
                 <propertyValuesHolder
                     android:propertyName="scaleY"
                     android:valueType="floatType">
-                    <keyframe android:fraction="0.0" android:value="0.46" />
-                    <keyframe android:fraction="0.24" android:value="0.92" />
-                    <keyframe android:fraction="0.50" android:value="0.36" />
+                    <keyframe android:fraction="0.0" android:value="0.30" />
+                    <keyframe android:fraction="0.24" android:value="0.94" />
+                    <keyframe android:fraction="0.50" android:value="0.02" />
                     <keyframe android:fraction="0.75" android:value="0.78" />
-                    <keyframe android:fraction="1.0" android:value="0.46" />
+                    <keyframe android:fraction="1.0" android:value="0.30" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
@@ -136,9 +136,9 @@
                     android:propertyName="scaleY"
                     android:valueType="floatType">
                     <keyframe android:fraction="0.0" android:value="0.84" />
-                    <keyframe android:fraction="0.28" android:value="0.38" />
-                    <keyframe android:fraction="0.52" android:value="0.70" />
-                    <keyframe android:fraction="0.78" android:value="0.34" />
+                    <keyframe android:fraction="0.28" android:value="0.24" />
+                    <keyframe android:fraction="0.52" android:value="0.68" />
+                    <keyframe android:fraction="0.78" android:value="0.02" />
                     <keyframe android:fraction="1.0" android:value="0.84" />
                 </propertyValuesHolder>
             </objectAnimator>
@@ -155,11 +155,11 @@
                 <propertyValuesHolder
                     android:propertyName="scaleY"
                     android:valueType="floatType">
-                    <keyframe android:fraction="0.0" android:value="0.40" />
+                    <keyframe android:fraction="0.0" android:value="0.28" />
                     <keyframe android:fraction="0.26" android:value="0.76" />
-                    <keyframe android:fraction="0.52" android:value="0.42" />
+                    <keyframe android:fraction="0.52" android:value="0.02" />
                     <keyframe android:fraction="0.76" android:value="0.86" />
-                    <keyframe android:fraction="1.0" android:value="0.40" />
+                    <keyframe android:fraction="1.0" android:value="0.28" />
                 </propertyValuesHolder>
             </objectAnimator>
         </aapt:attr>
