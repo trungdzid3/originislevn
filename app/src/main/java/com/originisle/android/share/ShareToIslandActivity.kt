@@ -20,6 +20,7 @@ import com.google.zxing.qrcode.QRCodeReader
 import com.originisle.android.bank.BankTextParser
 import com.originisle.android.bank.ParsedBankTransfer
 import com.originisle.android.bank.TransferAssistOverlay
+import com.originisle.android.bank.TransferNotificationHelper
 import com.originisle.android.bank.VietQrParser
 import com.originisle.android.bank.VietnamBankDetector
 import com.originisle.android.cards.ScoreCard
@@ -222,11 +223,14 @@ object ShareToIslandHandler {
         }
         val targetPkg = resolveTargetBankPackage(context)
         if (targetPkg != null) {
-            val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPkg)?.apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            if (launchIntent != null) {
-                runCatching { context.startActivity(launchIntent) }
+            val forwardedQr = qrImageUri != null && trySendQrToBankApp(context, qrImageUri, targetPkg)
+            if (!forwardedQr) {
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPkg)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (launchIntent != null) {
+                    runCatching { context.startActivity(launchIntent) }
+                }
             }
         } else {
             Toast.makeText(
@@ -242,13 +246,34 @@ object ShareToIslandHandler {
             qrImageUri = qrImageUri,
             defaultBankPkg = targetPkg,
         )
-        if (!shown && targetPkg != null) {
+        TransferNotificationHelper.show(context, transfer)
+        if (!shown && targetPkg != null && transfer.accountNumber.isNotBlank()) {
             Toast.makeText(
                 context,
                 "Đã sao chép STK ${transfer.accountNumber}",
                 Toast.LENGTH_SHORT,
             ).show()
         }
+    }
+
+    private fun trySendQrToBankApp(context: Context, qrImageUri: Uri, targetPkg: String): Boolean {
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_STREAM, qrImageUri)
+            clipData = ClipData.newUri(context.contentResolver, "QR", qrImageUri)
+            setPackage(targetPkg)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (context.packageManager.resolveActivity(sendIntent, 0) == null) {
+            return false
+        }
+        runCatching {
+            context.grantUriPermission(targetPkg, qrImageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        return runCatching {
+            context.startActivity(sendIntent)
+            true
+        }.getOrDefault(false)
     }
 
     private fun resolveTargetBankPackage(context: Context): String? {

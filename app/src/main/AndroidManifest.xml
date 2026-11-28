@@ -205,6 +205,10 @@
             android:taskAffinity="" />
 
         <receiver
+            android:name=".bank.TransferCopyReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".service.MediaIslandLaunchReceiver"
             android:exported="false">
             <intent-filter>
