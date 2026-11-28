@@ -3,6 +3,7 @@ package com.originisle.android
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.originisle.android.island.OriginIslandBuilder
 import com.originisle.android.island.PlaygroundService
 import com.originisle.android.service.NotificationCastListener
+import com.originisle.android.share.ShareToIslandHandler
 import com.originisle.android.ui.ActivityScreen
 import com.originisle.android.ui.AppsScreen
 import com.originisle.android.ui.HomeScreen
@@ -70,6 +72,36 @@ class MainActivity : ComponentActivity() {
         runCatching { getSharedPreferences("crash_log", 0).edit().clear().apply() }
 
         initComposeUI()
+
+        window?.decorView?.setOnDragListener { _, event ->
+            when (event.action) {
+                android.view.DragEvent.ACTION_DRAG_STARTED -> true
+                android.view.DragEvent.ACTION_DROP -> {
+                    val perms = runCatching { requestDragAndDropPermissions(event) }.getOrNull()
+                    try {
+                        ShareToIslandHandler.handleClipData(this, event.clipData)
+                    } finally {
+                        runCatching { perms?.release() }
+                    }
+                    true
+                }
+                else -> true
+            }
+        }
+
+        if (ShareToIslandHandler.isIncomingShareIntent(intent)) {
+            ShareToIslandHandler.handleIntent(this, intent)
+            intent?.action = Intent.ACTION_MAIN
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (ShareToIslandHandler.isIncomingShareIntent(intent)) {
+            ShareToIslandHandler.handleIntent(this, intent)
+            intent.action = Intent.ACTION_MAIN
+        }
     }
 
     private fun showCrashScreen(trace: String) {

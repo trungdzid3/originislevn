@@ -29,10 +29,9 @@ import com.originisle.android.ui.PREF_DEFAULT_BANK_PKG
 import kotlin.math.max
 
 /**
- * "Show on island" in the share sheet.
- * Handles:
+ * Receives shares and OriginOS Super Drag & Drop payloads:
  * - Image shares: decodes QR code (VietQR -> transfer assist overlay + launch bank app,
- *   or generic QR text/URL -> copy to clipboard).
+ *   including `ACTION_SEND`, `ACTION_SEND_MULTIPLE`, `ACTION_VIEW`).
  * - `text/plain` shares: Flashscore match shares (prioritized first) or bank transfer text
  *   (parsed via [BankTextParser] -> transfer assist overlay + launch bank app).
  */
@@ -40,75 +39,164 @@ class ShareToIslandActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val incoming = intent
-        val mimeType = incoming?.type.orEmpty().lowercase()
-        val imageUri = extractImageUri(incoming)
-        val resolvedUriType = imageUri?.let { runCatching { contentResolver.getType(it) }.getOrNull() }.orEmpty().lowercase()
-
-        val isImagePayload = imageUri != null && (
-            mimeType.startsWith("image/") ||
-                resolvedUriType.startsWith("image/") ||
-                mimeType == "*/*" ||
-                mimeType.isEmpty()
-            )
-
-        if (isImagePayload) {
-            handleImageShare(imageUri)
-        } else {
-            handleTextShare(incoming)
-        }
-
+        ShareToIslandHandler.handleIntent(this, intent)
         finish()
     }
+}
 
-    private fun handleImageShare(imageUri: Uri?) {
-        if (imageUri == null) {
-            Toast.makeText(applicationContext, "Không đọc được ảnh được chia sẻ", Toast.LENGTH_SHORT).show()
-            return
+object ShareToIslandHandler {
+
+    private const val MAX_QR_IMAGE_PX = 1280
+
+    fun isIncomingShareIntent(intent: Intent?): Boolean {
+        val action = intent?.action ?: return false
+        return when (action) {
+            Intent.ACTION_SEND,
+            Intent.ACTION_SEND_MULTIPLE -> true
+            Intent.ACTION_VIEW -> {
+                val type = intent.type.orEmpty()
+                type.startsWith("image/") ||
+                    intent.data != null ||
+                    extractImageUri(intent) != null ||
+                    !extractText(null, intent).isNullOrBlank()
+            }
+            else -> false
         }
-        val bitmap = decodeScaledBitmap(imageUri, MAX_QR_IMAGE_PX)
-        if (bitmap == null) {
-            Toast.makeText(applicationContext, "Không thể giải mã ảnh QR", Toast.LENGTH_SHORT).show()
-            return
+    }
+
+    fun handleIntent(activity: Activity, incoming: Intent?): Boolean {
+        if (!isIncomingShareIntent(incoming)) return false
+
+        val action = incoming?.action
+        val type = incoming?.type.orEmpty()
+        val imageUri = extractImageUri(incoming)
+        val text = extractText(activity, incoming)
+
+        val handled = when {
+            type.startsWith("image/") -> {
+                handleImageShare(activity, imageUri)
+                true
+            }
+            imageUri != null && (text.isNullOrBlank() || action == Intent.ACTION_VIEW) -> {
+                handleImageShare(activity, imageUri)
+                true
+            }
+            !text.isNullOrBlank() -> {
+                handleTextShare(activity, text)
+                true
+            }
+            imageUri != null -> {
+                handleImageShare(activity, imageUri)
+                true
+            }
+            else -> {
+                Toast.makeText(
+                    activity,
+                    "Chỉ hỗ trợ trận đấu Flashscore hoặc thông tin chuyển khoản / mã QR",
+                    Toast.LENGTH_SHORT,
+                ).show()
+                false
+            }
         }
 
+        // Prevent re-handling on Activity recreation if routed through MainActivity.
+        incoming?.action = Intent.ACTION_MAIN
+        return handled
+    }
+
+    fun handleClipData(activity: Activity, clip: ClipData?): Boolean {
+        if (clip == null || clip.itemCount == 0) return false
+
+        for (i in 0 until clip.itemCount) {
+            val item = clip.getItemAt(i) ?: continue
+            val uri = item.uri
+            if (uri != null) {
+                val mime = runCatching { activity.contentResolver.getType(uri) }.getOrNull().orEmpty()
+                if (mime.startsWith("image/") || mime.isBlank()) {
+                    if (tryHandleImageUri(activity, uri)) {
+                        return true
+                    }
+                }
+            }
+            val text = item.text?.toString()
+                ?: runCatching { item.coerceToText(activity)?.toString() }.getOrNull()
+            if (!text.isNullOrBlank()) {
+                handleTextShare(activity, text)
+                return true
+            }
+        }
+
+        Toast.makeText(
+            activity,
+            "Không nhận diện được mã QR hoặc thông tin chuyển khoản",
+            Toast.LENGTH_SHORT,
+        ).show()
+        return false
+    }
+
+    private fun tryHandleImageUri(context: Context, imageUri: Uri): Boolean {
+        val bitmap = decodeScaledBitmap(context, imageUri, MAX_QR_IMAGE_PX) ?: return false
         val qrText = try {
             decodeQrFromBitmap(bitmap)
         } finally {
             bitmap.recycle()
         }
-
         if (qrText.isNullOrBlank()) {
-            Toast.makeText(applicationContext, "Không tìm thấy mã QR trong ảnh", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Không tìm thấy mã QR trong ảnh", Toast.LENGTH_SHORT).show()
+            return true
+        }
+        val transfer = VietQrParser.parse(qrText)
+        if (transfer == null) {
+            Toast.makeText(context, "Mã QR không phải VietQR chuyển khoản hợp lệ", Toast.LENGTH_SHORT).show()
+            return true
+        }
+        launchTransferFlow(context, transfer, imageUri)
+        return true
+    }
+
+    private fun handleImageShare(context: Context, imageUri: Uri?) {
+        if (imageUri == null) {
+            Toast.makeText(context, "Không đọc được ảnh mã QR", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val bitmap = decodeScaledBitmap(context, imageUri, MAX_QR_IMAGE_PX)
+        if (bitmap == null) {
+            Toast.makeText(context, "Không thể giải mã ảnh được chia sẻ", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val qrText = try {
+            decodeQrFromBitmap(bitmap)
+        } finally {
+            bitmap.recycle()
+        }
+        if (qrText.isNullOrBlank()) {
+            Toast.makeText(context, "Không tìm thấy mã QR trong ảnh", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val transfer = VietQrParser.parse(qrText)
+        if (transfer == null) {
+            Toast.makeText(context, "Mã QR không phải VietQR chuyển khoản hợp lệ", Toast.LENGTH_SHORT).show()
+            return
+        }
+        launchTransferFlow(context, transfer, imageUri)
+    }
+
+    private fun handleTextShare(context: Context, rawText: String) {
+        val text = rawText.trim()
+        if (text.isEmpty()) {
+            Toast.makeText(
+                context,
+                "Chỉ hỗ trợ trận đấu Flashscore hoặc thông tin chuyển khoản / mã QR",
+                Toast.LENGTH_SHORT,
+            ).show()
             return
         }
 
-        val transfer = VietQrParser.parse(qrText)
-        if (transfer != null) {
-            launchTransferFlow(transfer, qrImageUri = imageUri)
-        } else {
-            copyToClipboard("QR", qrText)
-            Toast.makeText(applicationContext, "Đã sao chép nội dung QR", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun handleTextShare(incoming: Intent?) {
-        val clipText = incoming?.clipData?.takeIf { it.itemCount > 0 }
-            ?.getItemAt(0)
-            ?.coerceToText(this)
-            ?.toString()
-        val text = listOfNotNull(
-            incoming?.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
-            incoming?.getStringExtra(Intent.EXTRA_SUBJECT),
-            clipText,
-        ).distinct().joinToString("\n")
-
         val shared = FlashscoreShare.parse(text)
         if (shared != null) {
-            ScoreCard.fromShare(applicationContext, shared)
+            ScoreCard.fromShare(context, shared)
             Toast.makeText(
-                applicationContext,
+                context,
                 "${shared.home} - ${shared.away} is on the island. Follow it in Flashscore to get its updates.",
                 Toast.LENGTH_LONG,
             ).show()
@@ -117,62 +205,87 @@ class ShareToIslandActivity : Activity() {
 
         val transfer = BankTextParser.parse(text)
         if (transfer != null) {
-            launchTransferFlow(transfer, qrImageUri = null)
+            launchTransferFlow(context, transfer, qrImageUri = null)
             return
         }
 
         Toast.makeText(
-            applicationContext,
+            context,
             "Chỉ hỗ trợ trận đấu Flashscore hoặc thông tin chuyển khoản / mã QR",
             Toast.LENGTH_SHORT,
         ).show()
     }
 
-    private fun launchTransferFlow(transfer: ParsedBankTransfer, qrImageUri: Uri?) {
+    private fun launchTransferFlow(context: Context, transfer: ParsedBankTransfer, qrImageUri: Uri?) {
         if (transfer.accountNumber.isNotBlank()) {
-            copyToClipboard("STK", transfer.accountNumber)
+            copyToClipboard(context, "STK", transfer.accountNumber)
         }
-
-        val targetBankPkg = resolveTargetBankPackage()
-        if (!targetBankPkg.isNullOrBlank()) {
-            runCatching {
-                packageManager.getLaunchIntentForPackage(targetBankPkg)?.apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-                }?.let { startActivity(it) }
+        val targetPkg = resolveTargetBankPackage(context)
+        if (targetPkg != null) {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPkg)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            if (launchIntent != null) {
+                runCatching { context.startActivity(launchIntent) }
+            }
+        } else {
+            Toast.makeText(
+                context,
+                "Đã sao chép STK ${transfer.accountNumber}. Chưa tìm thấy app ngân hàng mặc định.",
+                Toast.LENGTH_SHORT,
+            ).show()
         }
 
         val shown = TransferAssistOverlay.show(
-            context = applicationContext,
+            context = context,
             transfer = transfer,
             qrImageUri = qrImageUri,
-            defaultBankPkg = targetBankPkg,
+            defaultBankPkg = targetPkg,
         )
-        if (!shown) {
+        if (!shown && targetPkg != null) {
             Toast.makeText(
-                applicationContext,
-                "Đã sao chép STK ${transfer.accountNumber} (${transfer.bankName}). Cấp quyền hiển thị trên ứng dụng khác để hiện bảng hỗ trợ.",
-                Toast.LENGTH_LONG,
-            ).show()
-        } else {
-            Toast.makeText(
-                applicationContext,
-                "Đã sao chép STK ${transfer.accountNumber} (${transfer.bankName})",
+                context,
+                "Đã sao chép STK ${transfer.accountNumber}",
                 Toast.LENGTH_SHORT,
             ).show()
         }
     }
 
-    private fun resolveTargetBankPackage(): String? {
-        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+    private fun resolveTargetBankPackage(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (prefs.contains(PREF_DEFAULT_BANK_PKG)) {
             val saved = prefs.getString(PREF_DEFAULT_BANK_PKG, "").orEmpty()
-            if (saved.isBlank()) return null
-            return if (packageManager.getLaunchIntentForPackage(saved) != null) saved else null
+            if (saved.isNotBlank() && context.packageManager.getLaunchIntentForPackage(saved) != null) {
+                return saved
+            }
         }
         return VietnamBankDetector.BANK_PACKAGES.keys.firstOrNull { pkg ->
-            packageManager.getLaunchIntentForPackage(pkg) != null
+            context.packageManager.getLaunchIntentForPackage(pkg) != null
         }
+    }
+
+    private fun extractText(context: Context?, incoming: Intent?): String? {
+        if (incoming == null) return null
+        val extraText = incoming.getStringExtra(Intent.EXTRA_TEXT)
+            ?: incoming.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+        if (!extraText.isNullOrBlank()) return extraText
+
+        val htmlText = incoming.getStringExtra(Intent.EXTRA_HTML_TEXT)
+        if (!htmlText.isNullOrBlank()) return htmlText
+
+        val clip = incoming.clipData
+        if (clip != null && clip.itemCount > 0) {
+            for (i in 0 until clip.itemCount) {
+                val item = clip.getItemAt(i) ?: continue
+                val direct = item.text?.toString()
+                if (!direct.isNullOrBlank()) return direct
+                if (context != null) {
+                    val coerced = runCatching { item.coerceToText(context)?.toString() }.getOrNull()
+                    if (!coerced.isNullOrBlank()) return coerced
+                }
+            }
+        }
+        return null
     }
 
     private fun extractImageUri(incoming: Intent?): Uri? {
@@ -200,10 +313,10 @@ class ShareToIslandActivity : Activity() {
         return null
     }
 
-    private fun decodeScaledBitmap(uri: Uri, maxDimPx: Int): Bitmap? {
+    private fun decodeScaledBitmap(context: Context, uri: Uri, maxDimPx: Int): Bitmap? {
         return runCatching {
             val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            contentResolver.openInputStream(uri)?.use { input ->
+            context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, boundsOpts)
             }
             val srcW = boundsOpts.outWidth
@@ -219,7 +332,7 @@ class ShareToIslandActivity : Activity() {
                 inSampleSize = sampleSize
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            val decoded = contentResolver.openInputStream(uri)?.use { input ->
+            val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, decodeOpts)
             } ?: return@runCatching null
 
@@ -258,12 +371,8 @@ class ShareToIslandActivity : Activity() {
         }.getOrNull()
     }
 
-    private fun copyToClipboard(label: String, text: String) {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+    private fun copyToClipboard(context: Context, label: String, text: String) {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
         cm.setPrimaryClip(ClipData.newPlainText(label, text))
-    }
-
-    private companion object {
-        const val MAX_QR_IMAGE_PX = 1280
     }
 }
