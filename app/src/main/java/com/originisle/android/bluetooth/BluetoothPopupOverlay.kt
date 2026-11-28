@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.toArgb
 import com.originisle.android.R
 import com.originisle.android.ui.resolveAppIsDarkTheme
 import com.originisle.android.ui.resolveMaterialColorScheme
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
@@ -852,12 +853,26 @@ object BluetoothPopupOverlay {
                 }
 
                 webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                    ): Boolean = true
+
                     override fun shouldInterceptRequest(
                         view: WebView?,
                         request: WebResourceRequest?,
                     ): WebResourceResponse? {
-                        val url = request?.url ?: return null
-                        if (url.host != "bt3d.local") return super.shouldInterceptRequest(view, request)
+                        val url = request?.url
+                        if (url?.scheme != "https" || url.host != "bt3d.local") {
+                            return WebResourceResponse(
+                                "text/plain",
+                                "utf-8",
+                                403,
+                                "Forbidden",
+                                emptyMap(),
+                                ByteArrayInputStream(ByteArray(0)),
+                            )
+                        }
                         val assetName = url.lastPathSegment?.takeIf { it.isNotBlank() } ?: "viewer.html"
                         val mimeType = when {
                             assetName.endsWith(".html", ignoreCase = true) -> "text/html"
@@ -873,7 +888,7 @@ object BluetoothPopupOverlay {
                             "UTF-8",
                             200,
                             "OK",
-                            mapOf("Access-Control-Allow-Origin" to "*"),
+                            emptyMap(),
                             stream,
                         )
                     }

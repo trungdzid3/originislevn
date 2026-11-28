@@ -70,4 +70,21 @@ class FlashscoreShareTest {
         assertNull(FlashscoreShare.parse("Look at this https://example.com/r/?id=W6twRmA4"))
         assertNull(FlashscoreShare.parse("Mbappé signs! https://www.flashscore.com/news/abc/"))
     }
+
+    @Test fun rejectsSpoofedAndUntrustedUrls() {
+        assertNull(FlashscoreShare.parse("Arsenal - Chelsea 1:0\nMore info: https://evil.com/flashscore.com?id=12345678"))
+        assertNull(FlashscoreShare.parse("Arsenal - Chelsea 1:0\nMore info: https://flashscore.com.evil.com/r/?id=12345678"))
+        assertNull(FlashscoreShare.parse("Arsenal - Chelsea 1:0\nMore info: https://user@www.flashscore.com/r/?id=12345678"))
+        assertNull(FlashscoreShare.parse("Arsenal - Chelsea 1:0\nMore info: http://www.flashscore.com/r/?id=12345678"))
+        assertNull(FlashscoreShare.parse("Arsenal - Chelsea 1:0\nMore info: https://www.news24.com/r/?id=12345678"))
+    }
+
+    @Test fun allowsLegitimateRegionalDomains() {
+        val vn = FlashscoreShare.parse("Arsenal - Chelsea 2:1\nMore info: https://www.flashscore.vn/r/?t=1&id=W6twRmA4")!!
+        assertEquals("W6twRmA4", vn.matchId)
+        val it = FlashscoreShare.parse("Milan - Inter 1:1\nMore info: https://diretta.it/r/?t=1&id=W6twRmA4")!!
+        assertEquals("W6twRmA4", it.matchId)
+        val cz = FlashscoreShare.parse("Sparta - Slavia 0:0\nMore info: https://www.livesport.cz/r/?t=1&id=W6twRmA4")!!
+        assertEquals("W6twRmA4", cz.matchId)
+    }
 }

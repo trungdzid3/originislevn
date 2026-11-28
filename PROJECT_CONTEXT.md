@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.15` (mã bản dựng `versionCode = 30015`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.16` (mã bản dựng `versionCode = 30016`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,12 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.16 — Tối Ưu Code, Dọn Deprecated API & Vá Bảo Mật**:
+  - `MediaCard.kt`: Thêm `ArtCacheEntry` cache bìa album/màu sóng theo `"$pkg|$artSignature"`, xóa `subtext` và `createMusicWaveIcon` thừa, chuyển `EXTRA_LARGE_ICON` sang `getParcelable(..., Bitmap::class.java)`.
+  - `EarbudsCard.kt` & `ScoreCard.kt`: Dọn toàn bộ API deprecated (`BluetoothAdapter.getDefaultAdapter`, `getSerializableExtra`, `getParcelableArrayExtra`, `Bundle.get`) sang API type-safe Android 13+.
+  - `gradle.properties` & `app/build.gradle.kts`: Tách `appVersionCode` và `appVersionName` sang `gradle.properties`.
+  - `FlashscoreShare.kt` & `FlashscoreShareTest.kt`: Bổ sung `isAllowedLink` kiểm tra `https`, `userInfo == null`, `host` theo allowlist `ALLOWED_DOMAINS` (vá lỗ hổng URL spoofing/Open Redirect).
+  - `AndroidManifest.xml` & `BluetoothPopupOverlay.kt`: Thêm `RECEIVE_BOOT_COMPLETED` cho `BootKeepAliveReceiver`; chặn request ngoài `https://bt3d.local` trả về 403, bỏ CORS `*` và chặn điều hướng ngoài trong WebView.
 - **Origin Isle VN v3.0.15 — Chống Dừng Hoạt Ảnh Sóng Nhạc Giữa Chừng (`MediaCard`)**:
   - `MediaCard.kt` (`dispatchMediaCard`): Khi `stateUnchanged && !forceRefresh && PlaygroundService.activeCardIds.contains(ID)`, chỉ cập nhật `MediaIslandOverlay.updateSnapshot(...)` rồi `return` thay vì gửi lại Notification trùng lặp mỗi 3 giây lên SystemUI làm reset `AnimatedVectorDrawable` thành ảnh tĩnh.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.15.apk`: Nâng `versionCode = 30015`, `versionName = "3.0.15"`, `testDebugUnitTest` & `assembleRelease` PASS.

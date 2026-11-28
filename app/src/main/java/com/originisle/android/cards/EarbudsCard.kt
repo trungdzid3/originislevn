@@ -32,6 +32,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Parcelable
 import android.provider.Settings
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -242,7 +243,7 @@ object EarbudsCard {
         val target = nameOrAddress.trim().lowercase()
         return runCatching {
             val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return@runCatching false
-            val adapter = btManager.adapter ?: BluetoothAdapter.getDefaultAdapter() ?: return@runCatching false
+            val adapter = btManager.adapter ?: return@runCatching false
             if (!adapter.isEnabled) return@runCatching false
 
             fun matchesDevice(dev: BluetoothDevice): Boolean {
@@ -314,7 +315,7 @@ object EarbudsCard {
         if (!hasPermission(context)) return null
         return runCatching {
             val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-            val adapter = btManager?.adapter ?: BluetoothAdapter.getDefaultAdapter() ?: return@runCatching null
+            val adapter = btManager?.adapter ?: return@runCatching null
             if (!adapter.isEnabled) return@runCatching null
             val bonded = adapter.bondedDevices ?: return@runCatching null
             val target = name.trim().lowercase()
@@ -1048,7 +1049,7 @@ object EarbudsCard {
 
         if (device == null && !rawAddress.isNullOrBlank()) {
             device = runCatching {
-                val adapter = BluetoothAdapter.getDefaultAdapter()
+                val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
                 adapter?.getRemoteDevice(rawAddress)
             }.getOrNull()
         }
@@ -1282,8 +1283,14 @@ object EarbudsCard {
                 disconnectDebounce.remove(address)?.let(handler::removeCallbacks)
                 val cmd = intent.getStringExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD)
                 if (cmd == "+IPHONEACCEV") {
-                    val rawArgs = intent.getSerializableExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*>
-                        ?: (intent.getParcelableArrayExtra(EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*>)
+                    val rawArgs = intent.getSerializableExtra(
+                        EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS,
+                        java.io.Serializable::class.java,
+                    ) as? Array<*>
+                        ?: intent.getParcelableArrayExtra(
+                            EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS,
+                            Parcelable::class.java,
+                        )
                     val parsed = parseIPhoneAccEv(rawArgs)
                     if (parsed != null) {
                         val wasAlreadyConnected = isConnected(address) || isConnected(devName)
@@ -1430,16 +1437,40 @@ object EarbudsCard {
         return bytes[0].toInt() != 0
     }
 
+    private fun readBatteryNumber(bundle: Bundle, key: String, allowPercentStrip: Boolean = false): Int? {
+        val str = bundle.getString(key)
+        if (str != null) {
+            val cleaned = if (allowPercentStrip) str.trim().replace("%", "") else str.trim()
+            return cleaned.toIntOrNull()
+        }
+        bundle.getByteArray(key)?.let { return parseMetadataInt(it) }
+        val serializable = bundle.getSerializable(key, java.io.Serializable::class.java)
+        if (serializable is Number) return serializable.toInt()
+        return null
+    }
+
+    private fun readChargingFlag(bundle: Bundle, key: String): Boolean {
+        if (bundle.getBoolean(key, false)) return true
+        bundle.getString(key)?.trim()?.lowercase()?.let { s ->
+            if (s == "true" || s == "1" || s == "charging") return true
+        }
+        bundle.getByteArray(key)?.let { if (parseMetadataBoolean(it)) return true }
+        val serializable = bundle.getSerializable(key, java.io.Serializable::class.java)
+        if (serializable is Number && serializable.toInt() == 1) return true
+        return false
+    }
+
+    private fun readSamsungInfoObj(extras: Bundle, key: String): Any? =
+        extras.getBundle(key)
+            ?: extras.getParcelableArray(key, Bundle::class.java)
+            ?: extras.getParcelableArrayList(key, Bundle::class.java)
+            ?: extras.getParcelable(key, Parcelable::class.java)
+            ?: extras.getSerializable(key, java.io.Serializable::class.java)
+
     private fun extractBattery(bundle: android.os.Bundle?, vararg keys: String): Int {
         if (bundle == null) return -1
         for (k in keys) {
-            val v = bundle.get(k) ?: continue
-            val num = when (v) {
-                is Number -> v.toInt()
-                is String -> v.trim().toIntOrNull()
-                is ByteArray -> parseMetadataInt(v)
-                else -> null
-            }
+            val num = readBatteryNumber(bundle, k)
             if (num != null && num in 0..100) return num
         }
         return -1
@@ -1459,13 +1490,7 @@ object EarbudsCard {
                 if (lowerKey.contains("charg") || lowerKey.contains("state") || lowerKey.contains("status")) {
                     if (!lowerKey.contains("battery") && !lowerKey.contains("level")) continue
                 }
-                val v = bundle.get(key)
-                val num = when (v) {
-                    is Number -> v.toInt()
-                    is String -> v.trim().toIntOrNull()
-                    is ByteArray -> parseMetadataInt(v)
-                    else -> null
-                }
+                val num = readBatteryNumber(bundle, key)
                 if (num != null && num in 0..100) return num
             }
         }
@@ -1475,16 +1500,7 @@ object EarbudsCard {
     private fun extractCharging(bundle: android.os.Bundle?, vararg keys: String): Boolean {
         if (bundle == null) return false
         for (k in keys) {
-            val v = bundle.get(k) ?: continue
-            when (v) {
-                is Boolean -> if (v) return true
-                is Number -> if (v.toInt() == 1) return true
-                is String -> {
-                    val s = v.trim().lowercase()
-                    if (s == "true" || s == "1" || s == "charging") return true
-                }
-                is ByteArray -> if (parseMetadataBoolean(v)) return true
-            }
+            if (readChargingFlag(bundle, k)) return true
         }
         return false
     }
@@ -1501,16 +1517,7 @@ object EarbudsCard {
             if (excludeWords.any { lowerKey.contains(it) }) continue
             if (matchWords.any { lowerKey.contains(it) }) {
                 if (lowerKey.contains("charg") || lowerKey.contains("charging")) {
-                    val v = bundle.get(key)
-                    when (v) {
-                        is Boolean -> if (v) return true
-                        is Number -> if (v.toInt() == 1) return true
-                        is String -> {
-                            val s = v.trim().lowercase()
-                            if (s == "true" || s == "1" || s == "charging") return true
-                        }
-                        is ByteArray -> if (parseMetadataBoolean(v)) return true
-                    }
+                    if (readChargingFlag(bundle, key)) return true
                 }
             }
         }
@@ -1520,22 +1527,17 @@ object EarbudsCard {
     private fun extractSamsungBattery(intent: Intent): Int {
         val extras = intent.extras ?: return -1
         for (key in listOf("LEVEL", "level", "battery", "battery_level", "capacity", "EXTRA_BATTERY_LEVEL", "percentage", "batteryPct", "batteryLevel")) {
-            val v = extras.get(key)
-            val num = when (v) {
-                is Number -> v.toInt()
-                is String -> v.trim().replace("%", "").toIntOrNull()
-                else -> null
-            }
+            val num = readBatteryNumber(extras, key, allowPercentStrip = true)
             if (num != null && num in 0..100) return num
         }
 
-        val infoObj = extras.get("com.samsung.battery.EXTRA_BATTERY_INFO")
-            ?: extras.get("EXTRA_BATTERY_INFO")
-            ?: extras.get("battery_info")
-            ?: extras.get("response_data")
-            ?: extras.get("data")
-            ?: extras.get("result")
-            ?: extras.get("bundle")
+        val infoObj = readSamsungInfoObj(extras, "com.samsung.battery.EXTRA_BATTERY_INFO")
+            ?: readSamsungInfoObj(extras, "EXTRA_BATTERY_INFO")
+            ?: readSamsungInfoObj(extras, "battery_info")
+            ?: readSamsungInfoObj(extras, "response_data")
+            ?: readSamsungInfoObj(extras, "data")
+            ?: readSamsungInfoObj(extras, "result")
+            ?: readSamsungInfoObj(extras, "bundle")
         if (infoObj != null) {
             when (infoObj) {
                 is Number -> if (infoObj.toInt() in 0..100) return infoObj.toInt()
@@ -1577,8 +1579,8 @@ object EarbudsCard {
             val v = extras.getString(key)
             if (!v.isNullOrBlank()) return v
         }
-        val infoObj = extras.get("com.samsung.battery.EXTRA_BATTERY_INFO") ?: extras.get("EXTRA_BATTERY_INFO")
-        if (infoObj is android.os.Bundle) {
+        val infoObj = extras.getBundle("com.samsung.battery.EXTRA_BATTERY_INFO") ?: extras.getBundle("EXTRA_BATTERY_INFO")
+        if (infoObj != null) {
             for (key in listOf("name", "device_name", "deviceName", "device_title")) {
                 val v = infoObj.getString(key)
                 if (!v.isNullOrBlank()) return v
@@ -1593,8 +1595,8 @@ object EarbudsCard {
             val v = extras.getString(key)
             if (!v.isNullOrBlank()) return v
         }
-        val infoObj = extras.get("com.samsung.battery.EXTRA_BATTERY_INFO") ?: extras.get("EXTRA_BATTERY_INFO")
-        if (infoObj is android.os.Bundle) {
+        val infoObj = extras.getBundle("com.samsung.battery.EXTRA_BATTERY_INFO") ?: extras.getBundle("EXTRA_BATTERY_INFO")
+        if (infoObj != null) {
             for (key in listOf("address", "device_address", "mac")) {
                 val v = infoObj.getString(key)
                 if (!v.isNullOrBlank()) return v
@@ -1892,14 +1894,18 @@ object EarbudsCard {
             runCatching {
                 for (key in extras.keySet()) {
                     if (key in stdKeys || key == Notification.EXTRA_TEXT_LINES) continue
-                    when (val v = extras.get(key)) {
-                        is CharSequence -> if (v.isNotBlank()) sb.append(v).append(" | ")
-                        is Array<*> -> v.forEach { item ->
-                            if (item is CharSequence && item.isNotBlank()) sb.append(item).append(" | ")
-                        }
-                        is Iterable<*> -> v.forEach { item ->
-                            if (item is CharSequence && item.isNotBlank()) sb.append(item).append(" | ")
-                        }
+                    extras.getCharSequence(key)?.takeIf { it.isNotBlank() }?.let { sb.append(it).append(" | ") }
+                    extras.getCharSequenceArray(key)?.forEach { item ->
+                        if (!item.isNullOrBlank()) sb.append(item).append(" | ")
+                    }
+                    extras.getStringArray(key)?.forEach { item ->
+                        if (!item.isNullOrBlank()) sb.append(item).append(" | ")
+                    }
+                    extras.getCharSequenceArrayList(key)?.forEach { item ->
+                        if (!item.isNullOrBlank()) sb.append(item).append(" | ")
+                    }
+                    extras.getStringArrayList(key)?.forEach { item ->
+                        if (!item.isNullOrBlank()) sb.append(item).append(" | ")
                     }
                 }
             }

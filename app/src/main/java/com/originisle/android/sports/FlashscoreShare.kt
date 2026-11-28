@@ -1,5 +1,7 @@
 package com.originisle.android.sports
 
+import java.net.URI
+
 /**
  * Reads what Flashscore puts in a match share (its Share button on a match page), e.g.
  *
@@ -25,8 +27,57 @@ object FlashscoreShare {
         val awayText: String? = null,
     )
 
+    private val ALLOWED_DOMAINS = setOf(
+        "flashscore.com",
+        "flashscore.vn",
+        "flashscore.co.uk",
+        "flashscore.fr",
+        "flashscore.de",
+        "flashscore.es",
+        "flashscore.it",
+        "flashscore.pt",
+        "flashscore.nl",
+        "flashscore.pl",
+        "flashscore.ro",
+        "flashscore.tr",
+        "flashscore.com.br",
+        "flashscore.com.tr",
+        "flashscore.com.au",
+        "flashscore.com.ng",
+        "flashscore.com.ua",
+        "flashscore.ca",
+        "flashscore.in",
+        "flashscore.jp",
+        "flashscore.kr",
+        "flashscore.ru",
+        "flashscore.ua",
+        "flashscore.kz",
+        "flashscore.gr",
+        "flashscore.dk",
+        "flashscore.se",
+        "flashscore.no",
+        "flashscore.fi",
+        "flashscore.hu",
+        "flashscore.bg",
+        "flashscore.hr",
+        "flashscore.rs",
+        "flashscore.sk",
+        "flashscore.si",
+        "flashscore.cl",
+        "flashscore.co",
+        "flashscore.mx",
+        "flashscore.pe",
+        "flashscore.ar",
+        "flashscore.mobi",
+        "livesport.com",
+        "livesport.cz",
+        "diretta.it",
+        "soccer24.com",
+        "tennis24.com",
+    )
+
     private val LINK = Regex(
-        """https?://[^\s]*(?:flashscore|livesport|diretta|soccer24|tennis24|\w+24)\.[^\s]*""",
+        """https?://[^\s]*(?:flashscore|livesport|diretta|soccer24|tennis24)\.[^\s]*""",
         RegexOption.IGNORE_CASE,
     )
     /** `?id=W6twRmA4` / `&mid=…` in a short link, or `/match/W6twRmA4/` in a full one. */
@@ -43,6 +94,7 @@ object FlashscoreShare {
 
     fun parse(text: String): Shared? {
         val link = LINK.find(text)?.value?.trimEnd('.', ',', ')') ?: return null
+        if (!isAllowedLink(link)) return null
         val m = ID.find(link) ?: return null
         val id = m.groupValues[1].ifEmpty { m.groupValues[2] }
         // The match line: what comes before the link, without its "More info:" lead-in (some apps
@@ -71,5 +123,19 @@ object FlashscoreShare {
         val a = aws?.toIntOrNull()
         if (h != null && a != null) return Shared(id, home, away, h, a, link)
         return Shared(id, home, away, null, null, link, hs, aws)
+    }
+
+    private fun isAllowedLink(link: String): Boolean {
+        val uri = try {
+            URI(link)
+        } catch (_: Exception) {
+            return false
+        }
+        if (uri.scheme?.lowercase() != "https") return false
+        if (!uri.userInfo.isNullOrEmpty()) return false
+        val host = uri.host?.takeIf { it.isNotBlank() }?.lowercase() ?: return false
+        return ALLOWED_DOMAINS.any { domain ->
+            host == domain || host.endsWith(".$domain")
+        }
     }
 }

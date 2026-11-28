@@ -602,11 +602,9 @@ object ScoreCard {
 
     private fun pictureOf(sbn: StatusBarNotification): Icon? =
         sbn.notification.getLargeIcon()
-            ?: when (val large = sbn.notification.extras.get(NotificationCompat.EXTRA_LARGE_ICON)) {
-                is Icon -> large
-                is Bitmap -> Icon.createWithBitmap(large)
-                else -> null
-            }
+            ?: sbn.notification.extras.getParcelable(NotificationCompat.EXTRA_LARGE_ICON, Icon::class.java)
+            ?: sbn.notification.extras.getParcelable(NotificationCompat.EXTRA_LARGE_ICON, Bitmap::class.java)
+                ?.let { Icon.createWithBitmap(it) }
 
     private fun sportName(m: LiveMatch): String = when {
         m.emoji == "⚽" || m.isFootball -> "Football"

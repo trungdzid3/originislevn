@@ -63,6 +63,16 @@ object MediaCard {
     @Volatile private var lastSourceActions: Array<Notification.Action>? = null
     @Volatile private var lastContentIntent: PendingIntent? = null
 
+    private data class ArtCacheEntry(
+        val key: String,
+        val pillLeftIcon: Icon,
+        val badgedAlbumIcon: Icon,
+        val expandedArtBmp: Bitmap,
+        val waveColors: ArrayList<String>,
+    )
+
+    @Volatile private var artCache: ArtCacheEntry? = null
+
     fun setOverlaySuppression(context: Context, suppressed: Boolean) {
         if (overlaySuppressed == suppressed) return
         overlaySuppressed = suppressed
@@ -282,17 +292,17 @@ object MediaCard {
         }
 
         val notifLargeIcon = n.getLargeIcon()
-        val notifLargeBitmap = when (val large = n.extras.get(NotificationCompat.EXTRA_LARGE_ICON)) {
-            is Bitmap -> large
-            else -> notifLargeIcon?.loadDrawable(context)?.let { d ->
-                val w = if (d.intrinsicWidth > 0) d.intrinsicWidth.coerceIn(48, 200) else 120
-                val h = if (d.intrinsicHeight > 0) d.intrinsicHeight.coerceIn(48, 200) else 120
-                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                val cv = Canvas(bmp)
-                d.setBounds(0, 0, w, h)
-                d.draw(cv)
-                bmp
-            }
+        val extraLargeBitmap = runCatching {
+            n.extras?.getParcelable(NotificationCompat.EXTRA_LARGE_ICON, Bitmap::class.java)
+        }.getOrNull()
+        val notifLargeBitmap = extraLargeBitmap ?: notifLargeIcon?.loadDrawable(context)?.let { d ->
+            val w = if (d.intrinsicWidth > 0) d.intrinsicWidth.coerceIn(48, 200) else 120
+            val h = if (d.intrinsicHeight > 0) d.intrinsicHeight.coerceIn(48, 200) else 120
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val cv = Canvas(bmp)
+            d.setBounds(0, 0, w, h)
+            d.draw(cv)
+            bmp
         }
         val rawAlbumArt: Bitmap? = (md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
@@ -463,25 +473,30 @@ object MediaCard {
         lastSourceActions = sourceActions
         lastContentIntent = contentIntent
 
-        val durSec = if (durationMs > 0L) durationMs / 1000L else 0L
-        val posSec = if (positionMs > 0L) positionMs / 1000L else 0L
-        val subtext = if (durationMs > 0L) {
-            "${formatElapsed(posSec)} / ${formatElapsed(durSec)}"
-        } else {
-            appLabel(context, pkg)
+        val artCacheKey = "$pkg|$artSignature"
+        val artEntry = artCache?.takeIf { it.key == artCacheKey } ?: run {
+            val baseAlbumBitmap: Bitmap = rawAlbumArt ?: createDefaultAlbumBitmap(context, pkg)
+            val artBmp: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
+            val expandedArtBmp: Bitmap = composeAlbumArtWithAppBadge(context, artBmp, pkg)
+            val pillLeftIcon: Icon = Icon.createWithBitmap(artBmp)
+            val badgedAlbumIcon: Icon = Icon.createWithBitmap(expandedArtBmp)
+            val waveColors = ArrayList(waveColorsFrom(rawAlbumArt ?: baseAlbumBitmap))
+            ArtCacheEntry(
+                key = artCacheKey,
+                pillLeftIcon = pillLeftIcon,
+                badgedAlbumIcon = badgedAlbumIcon,
+                expandedArtBmp = expandedArtBmp,
+                waveColors = waveColors,
+            ).also { artCache = it }
         }
 
-        val baseAlbumBitmap: Bitmap = rawAlbumArt ?: createDefaultAlbumBitmap(context, pkg)
-        val artBmp: Bitmap = roundCorners(baseAlbumBitmap, 0.20f)
-        val expandedArtBmp: Bitmap = composeAlbumArtWithAppBadge(context, artBmp, pkg)
-
-        val pillLeftIcon: Icon = Icon.createWithBitmap(artBmp)
-        val badgedAlbumIcon: Icon = Icon.createWithBitmap(expandedArtBmp)
+        val expandedArtBmp = artEntry.expandedArtBmp
+        val pillLeftIcon = artEntry.pillLeftIcon
+        val badgedAlbumIcon = artEntry.badgedAlbumIcon
+        val waveColors = artEntry.waveColors
 
         IconCache.activeSmallIcons[ID] = pillLeftIcon
         IconCache.activeLargeBitmaps[ID] = expandedArtBmp
-
-        val waveColors = ArrayList(waveColorsFrom(rawAlbumArt ?: baseAlbumBitmap))
 
         fun mediaAction(action: String) = PendingIntent.getBroadcast(
             context, (ID.toString() + action).hashCode(),
@@ -629,6 +644,7 @@ object MediaCard {
             lastPositionMs = 0L
             lastSourceActions = null
             lastContentIntent = null
+            artCache = null
         }
         activeMediaCastIds.remove(id)
         pendingDismissTasks.remove(id)?.let { handler.removeCallbacks(it) }
@@ -773,39 +789,6 @@ object MediaCard {
 
             output
         }.getOrDefault(albumBitmap)
-    }
-
-    /**
-     * Vẽ icon 5 cột sóng nhạc bo tròn viên thuốc từ bảng màu bìa album để hiển thị ổn định trên SuperX pill bên phải
-     */
-    private fun createMusicWaveIcon(waveColors: List<String>, size: Int = 96): Icon {
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-        }
-        val fallbackHex = listOf("#FF5376", "#00E5FF", "#7C4DFF")
-        val parsedColors = (if (waveColors.isNotEmpty()) waveColors else fallbackHex).mapNotNull { hex ->
-            runCatching { Color.parseColor(hex) }.getOrNull()
-        }.ifEmpty {
-            fallbackHex.map { Color.parseColor(it) }
-        }
-        val ratios = floatArrayOf(0.40f, 0.78f, 0.56f, 0.94f, 0.48f)
-        val padX = size * 0.05f
-        val usableW = size - padX * 2
-        val gap = usableW * 0.085f
-        val barW = (usableW - gap * 4) / 5f
-        val maxBarH = size * 0.80f
-        val cy = size / 2f
-        val rx = barW / 2f
-        for (i in ratios.indices) {
-            val barH = maxBarH * ratios[i]
-            val left = padX + i * (barW + gap)
-            val top = cy - barH / 2f
-            paint.color = parsedColors[i % parsedColors.size]
-            canvas.drawRoundRect(RectF(left, top, left + barW, top + barH), rx, rx, paint)
-        }
-        return Icon.createWithBitmap(bmp)
     }
 
     private fun primaryWaveColor(waveColors: List<String>): Int {
