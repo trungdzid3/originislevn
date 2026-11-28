@@ -768,7 +768,7 @@ object MediaCard {
     }
 
     private fun primaryWaveColor(waveColors: List<String>): Int {
-        val hex = waveColors.getOrNull(1) ?: waveColors.firstOrNull() ?: "#68A4FF"
+        val hex = waveColors.firstOrNull() ?: "#68A4FF"
         return runCatching { Color.parseColor(hex) }.getOrElse { Color.parseColor("#68A4FF") }
     }
 
@@ -809,10 +809,10 @@ object MediaCard {
     }
 
     /**
-     * Trích xuất dải màu sắc trực tiếp từ ảnh bìa album để phục vụ sóng âm visualiser (island.superx.rightInfo.waveColor)
+     * Trích xuất màu chủ đạo thực tế từ toàn bộ ảnh bìa album (lưới 16x16 theo Hue bucket)
      */
     private fun waveColorsFrom(bitmap: Bitmap?): List<String> {
-        val fallback = listOf("#FF5376", "#00E5FF", "#7C4DFF")
+        val fallback = listOf("#68A4FF", "#8FB6D9", "#B89CC7")
         if (bitmap == null || bitmap.width == 0 || bitmap.height == 0) return fallback
         return runCatching {
             val src = if (bitmap.config == Bitmap.Config.HARDWARE) {
@@ -820,26 +820,51 @@ object MediaCard {
             } else {
                 bitmap
             }
+            val thumb = Bitmap.createScaledBitmap(src, 16, 16, true)
             try {
-                val w = src.width
-                val h = src.height
+                val bucketCount = 24
+                val weights = FloatArray(bucketCount)
+                val sumR = FloatArray(bucketCount)
+                val sumG = FloatArray(bucketCount)
+                val sumB = FloatArray(bucketCount)
                 val hsv = FloatArray(3)
-                val samplePoints = listOf(0.25f to 0.5f, 0.5f to 0.35f, 0.75f to 0.5f)
-                val colors = samplePoints.map { (fx, fy) ->
-                    val x = (fx * (w - 1)).toInt().coerceIn(0, w - 1)
-                    val y = (fy * (h - 1)).toInt().coerceIn(0, h - 1)
-                    val pixel = src.getPixel(x, y)
-                    Color.colorToHSV(pixel, hsv)
-                    if (hsv[1] < 0.45f) hsv[1] = 0.65f
-                    if (hsv[2] < 0.65f) hsv[2] = 0.90f
+                for (y in 0 until thumb.height) {
+                    for (x in 0 until thumb.width) {
+                        val pixel = thumb.getPixel(x, y)
+                        if (Color.alpha(pixel) < 128) continue
+                        Color.colorToHSV(pixel, hsv)
+                        // Bỏ qua vùng quá tối hoặc quá xám trắng trừ khi không có màu nào khác
+                        val sat = hsv[1]
+                        val valB = hsv[2]
+                        if (valB < 0.14f) continue
+                        val weight = (0.25f + sat * 1.5f) * (0.4f + valB * 0.6f)
+                        val bucket = ((hsv[0] / 360f) * bucketCount).toInt().coerceIn(0, bucketCount - 1)
+                        weights[bucket] += weight
+                        sumR[bucket] += Color.red(pixel) * weight
+                        sumG[bucket] += Color.green(pixel) * weight
+                        sumB[bucket] += Color.blue(pixel) * weight
+                    }
+                }
+                val ranked = (0 until bucketCount)
+                    .filter { weights[it] > 0f }
+                    .sortedByDescending { weights[it] }
+                if (ranked.isEmpty()) return fallback
+                val result = ranked.take(3).map { b ->
+                    val w = weights[b]
+                    val r = (sumR[b] / w).toInt().coerceIn(0, 255)
+                    val g = (sumG[b] / w).toInt().coerceIn(0, 255)
+                    val bl = (sumB[b] / w).toInt().coerceIn(0, 255)
+                    Color.RGBToHSV(r, g, bl, hsv)
+                    // Giữ đúng tông màu bìa nhưng đảm bảo đủ sáng để nổi rõ trên nền pill tối
+                    if (hsv[2] < 0.72f) hsv[2] = 0.85f
+                    if (hsv[1] in 0.08f..0.35f) hsv[1] = 0.45f
                     val adjusted = Color.HSVToColor(hsv)
                     String.format("#%06X", 0xFFFFFF and adjusted)
                 }
-                if (colors.size >= 3) colors.take(3) else fallback
+                if (result.isNotEmpty()) result else fallback
             } finally {
-                if (src != bitmap) {
-                    src.recycle()
-                }
+                if (thumb != src) thumb.recycle()
+                if (src != bitmap) src.recycle()
             }
         }.getOrDefault(fallback)
     }

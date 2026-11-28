@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.5` (mã bản dựng `versionCode = 30005`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.6` (mã bản dựng `versionCode = 30006`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.6 — Làm Chậm Sóng Nhạc & Trích Xuất Màu Chủ Đạo Toàn Ảnh Bìa (`16x16`)**:
+  - `res/drawable/avd_music_wave.xml`: Kéo giãn chu kỳ sóng lên `3200ms–4000ms` (5 keyframe, ~0.9–1.0s mỗi nhịp) cho chuyển động chậm rãi, nhịp nhàng.
+  - `MediaCard.kt` (`waveColorsFrom`, `primaryWaveColor`): Nâng cấp trích xuất màu từ chấm 3 điểm sang quét lưới `16x16` gom nhóm theo 24 dải Hue để lấy đúng màu chủ đạo bìa album cho `Icon.setTint(...)` và `createPausedWaveIcon`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.6.apk`: Nâng `versionCode = 30006`, `versionName = "3.0.6"`, `testDebugUnitTest` & `assembleRelease` PASS.
 - **Origin Isle VN v3.0.5 — Sóng Nhạc Nhẹ Nhàng Đúng Màu Bài Hát & Nút Bluetooth Chọn Thiết Bị**:
   - `res/drawable/avd_music_wave.xml` & `MediaCard.kt`: Làm chậm chu kỳ sóng về mức nhẹ nhàng (`2450ms–3100ms`, `accelerate_decelerate_interpolator`), đổi 5 cột sang trắng giảm dần độ mờ (`100% -> 40%`) và dùng `Icon.setTint(primaryWaveColor(waveColors))` nhuộm đúng màu chủ đạo từ bìa album (đồng bộ màu cho `createPausedWaveIcon`).
   - `res/drawable/ic_media_bluetooth.xml` & `MediaIslandOverlay.kt`: Đổi nút góc trên sang biểu tượng Bluetooth, ấn vào mở thẳng phần chọn thiết bị Bluetooth (`Settings.ACTION_BLUETOOTH_SETTINGS`).
