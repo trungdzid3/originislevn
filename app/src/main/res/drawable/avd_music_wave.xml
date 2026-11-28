@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="24dp"
+            android:height="24dp"
+            android:viewportWidth="24"
+            android:viewportHeight="24">
+            <group
+                android:name="bar1"
+                android:pivotX="3.2"
+                android:pivotY="12"
+                android:scaleY="0.4">
+                <path
+                    android:pathData="M3.2,5 L3.2,19"
+                    android:strokeWidth="2.4"
+                    android:strokeColor="#FF5376"
+                    android:strokeLineCap="round" />
+            </group>
+            <group
+                android:name="bar2"
+                android:pivotX="7.6"
+                android:pivotY="12"
+                android:scaleY="0.85">
+                <path
+                    android:pathData="M7.6,5 L7.6,19"
+                    android:strokeWidth="2.4"
+                    android:strokeColor="#00E5FF"
+                    android:strokeLineCap="round" />
+            </group>
+            <group
+                android:name="bar3"
+                android:pivotX="12"
+                android:pivotY="12"
+                android:scaleY="0.55">
+                <path
+                    android:pathData="M12,5 L12,19"
+                    android:strokeWidth="2.4"
+                    android:strokeColor="#7C4DFF"
+                    android:strokeLineCap="round" />
+            </group>
+            <group
+                android:name="bar4"
+                android:pivotX="16.4"
+                android:pivotY="12"
+                android:scaleY="0.95">
+                <path
+                    android:pathData="M16.4,5 L16.4,19"
+                    android:strokeWidth="2.4"
+                    android:strokeColor="#FF5376"
+                    android:strokeLineCap="round" />
+            </group>
+            <group
+                android:name="bar5"
+                android:pivotX="20.8"
+                android:pivotY="12"
+                android:scaleY="0.45">
+                <path
+                    android:pathData="M20.8,5 L20.8,19"
+                    android:strokeWidth="2.4"
+                    android:strokeColor="#00E5FF"
+                    android:strokeLineCap="round" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="bar1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="480"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="scaleY"
+                android:repeatCount="-1"
+                android:repeatMode="reverse"
+                android:valueFrom="0.35"
+                android:valueTo="0.95"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="bar2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="560"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="scaleY"
+                android:repeatCount="-1"
+                android:repeatMode="reverse"
+                android:startOffset="80"
+                android:valueFrom="0.90"
+                android:valueTo="0.30"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="bar3">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="scaleY"
+                android:repeatCount="-1"
+                android:repeatMode="reverse"
+                android:startOffset="160"
+                android:valueFrom="0.45"
+                android:valueTo="1.00"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="bar4">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="520"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="scaleY"
+                android:repeatCount="-1"
+                android:repeatMode="reverse"
+                android:startOffset="40"
+                android:valueFrom="0.85"
+                android:valueTo="0.35"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="bar5">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="500"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="scaleY"
+                android:repeatCount="-1"
+                android:repeatMode="reverse"
+                android:startOffset="220"
+                android:valueFrom="0.30"
+                android:valueTo="0.85"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

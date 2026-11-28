@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.2` (mã bản dựng `versionCode = 30002`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.3` (mã bản dựng `versionCode = 30003`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.3 — Thử Nghiệm Sóng Nhạc Động `AnimatedVectorDrawable` (`avd_music_wave`)**:
+  - `res/drawable/avd_music_wave.xml` & `MediaCard.kt`: Bổ sung `AnimatedVectorDrawable` 5 cột sóng co giãn `scaleY` lệch pha lặp vô hạn (`repeatCount="-1"`, `repeatMode="reverse"`) và truyền `Icon.createWithResource(context, R.drawable.avd_music_wave)` vào `oi_right_icon` khi đang phát (`playing == true`), giữ `createPausedWaveIcon(waveColors)` khi tạm dừng.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.3.apk`: Nâng `versionCode = 30003`, `versionName = "3.0.3"`, `testDebugUnitTest` & `assembleRelease` PASS.
 - **Origin Isle VN v2.10.22 — Nút Kính Mờ Thích Ứng Sáng/Tối & Chặn Video Trình Duyệt Khỏi Đảo Nhạc**:
   - `OriginIslandBuilder.kt`: Khi `btnTransparent` là `true`, tự thích ứng màu chữ/icon và nền theo `UI_MODE_NIGHT_MASK` (Tối: `#FFFFFF` / `#26FFFFFF`; Sáng: `#333333` / `#1F000000`), giữ nguyên nhánh `btnTransparent == false`.
   - `MediaCard.kt` & `DownloadDetector.kt` & `NotificationCastListener.kt`: Mở rộng `DownloadDetector.isBrowserPackage(pkg)` (chuẩn hóa lowercase, phủ thêm Samsung Internet, Opera/Mini, Vivaldi, DuckDuckGo, Cốc Cốc, UC, Kiwi, Cromite) và loại trừ trình duyệt tại `MediaCard.kt` (`post`, `postFromController`) cùng `NotificationCastListener.kt` (`syncMediaSessions`, `isEligibleMediaController`, `dispatchControllerSession`, `pollRunnable`, `onNotificationPosted`); bật lại `oi_btn_transparent = true` trong `dispatchMediaCard(...)` và giữ nguyên contract chống kẹt trạng thái `v2.10.21`.

@@ -545,7 +545,7 @@ object MediaCard {
             }
             putExtra(
                 "oi_right_icon",
-                if (playing) createMusicWaveIcon(waveColors)
+                if (playing) Icon.createWithResource(context, R.drawable.avd_music_wave)
                 else createPausedWaveIcon(waveColors),
             )
             putExtra("oi_show_right_icon", true)
