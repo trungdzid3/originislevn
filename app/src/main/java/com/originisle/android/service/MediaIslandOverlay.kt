@@ -246,13 +246,12 @@ object MediaIslandOverlay {
                 cornerRadius = innerCorner
                 setColor(CARD_BG_COLOR)
             }
-            val radialAmbient = GradientDrawable().apply {
+            val radialAmbient = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x00000000, 0x00000000, 0x00000000, 0x00000000),
+            ).apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = innerCorner
-                gradientType = GradientDrawable.RADIAL_GRADIENT
-                setGradientCenter(0.75f, 1.15f)
-                gradientRadius = dp(130f).toFloat()
-                colors = intArrayOf(0x00000000, 0x00000000, 0x00000000)
             }
             ambientRadialLayer = radialAmbient
             background = LayerDrawable(arrayOf(edgeLightBorder, pureBlackBase, radialAmbient)).apply {
@@ -698,22 +697,22 @@ object MediaIslandOverlay {
         val r = Color.red(vividRgb)
         val g = Color.green(vividRgb)
         val b = Color.blue(vividRgb)
-        // Origin Island Ambient Lighting: keep top pure black and restrict subtle album-colored
-        // ambient pool to the lower half of the card.
-        val centerGlow = Color.argb(
-            92,
-            (r * 0.68f).roundToInt(),
-            (g * 0.68f).roundToInt(),
-            (b * 0.68f).roundToInt(),
-        )
+        // Origin Island Ambient Lighting: pure OLED black on the upper half, transitioning evenly
+        // across both sides into a rich album-colored ambient wash in the lower half.
         val midGlow = Color.argb(
-            28,
-            (r * 0.50f).roundToInt(),
-            (g * 0.50f).roundToInt(),
-            (b * 0.50f).roundToInt(),
+            56,
+            (r * 0.65f).roundToInt(),
+            (g * 0.65f).roundToInt(),
+            (b * 0.65f).roundToInt(),
+        )
+        val bottomGlow = Color.argb(
+            124,
+            (r * 0.72f).roundToInt(),
+            (g * 0.72f).roundToInt(),
+            (b * 0.72f).roundToInt(),
         )
         ambientRadialLayer?.apply {
-            colors = intArrayOf(centerGlow, midGlow, 0x00000000)
+            colors = intArrayOf(0x00000000, 0x00000000, midGlow, bottomGlow)
             invalidateSelf()
         }
         cardView?.invalidate()
