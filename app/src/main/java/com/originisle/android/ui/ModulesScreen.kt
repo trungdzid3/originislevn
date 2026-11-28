@@ -10,7 +10,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,10 +21,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -34,10 +45,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.originisle.android.bank.VietnamBankDetector
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
 import com.originisle.android.cards.MediaCard
@@ -61,6 +77,10 @@ fun ModulesScreen(
     var paymentOn by remember {
         mutableStateOf(prefs.getBoolean("cast_payment", prefs.getBoolean("cast_vietnam_banks", true)))
     }
+    var defaultBankPkg by remember {
+        mutableStateOf(prefs.getString(PREF_DEFAULT_BANK_PKG, null))
+    }
+    var bankPickerSheetOpen by remember { mutableStateOf(false) }
     var zaloCallOn by remember { mutableStateOf(prefs.getBoolean("cast_zalo_call", true)) }
     var tiktokStreakOn by remember { mutableStateOf(prefs.getBoolean("cast_tiktok_streak", true)) }
     var tiktokStreakMessage by remember {
@@ -89,6 +109,9 @@ fun ModulesScreen(
                 "cast_rides" -> ridesOn = sp.getBoolean("cast_rides", true)
                 "cast_payment", "cast_vietnam_banks" -> {
                     paymentOn = sp.getBoolean("cast_payment", sp.getBoolean("cast_vietnam_banks", true))
+                }
+                PREF_DEFAULT_BANK_PKG -> {
+                    defaultBankPkg = sp.getString(PREF_DEFAULT_BANK_PKG, null)
                 }
                 "cast_zalo_call" -> zaloCallOn = sp.getBoolean("cast_zalo_call", true)
                 "cast_tiktok_streak" -> tiktokStreakOn = sp.getBoolean("cast_tiktok_streak", true)
@@ -137,6 +160,19 @@ fun ModulesScreen(
         BluetoothPopupSheet(context = context, onDismiss = { btPopupSheetOpen = false })
     }
 
+    if (bankPickerSheetOpen) {
+        DefaultBankPickerSheet(
+            context = context,
+            prefs = prefs,
+            currentPkg = defaultBankPkg,
+            onSelected = { selected ->
+                defaultBankPkg = selected
+                bankPickerSheetOpen = false
+            },
+            onDismiss = { bankPickerSheetOpen = false },
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = ScreenPadding,
@@ -175,6 +211,22 @@ fun ModulesScreen(
                     ) {
                         paymentOn = it
                         prefs.edit().putBoolean("cast_payment", it).putBoolean("cast_vietnam_banks", it).apply()
+                    }
+
+                    NestedSettingContainer(visible = paymentOn) {
+                        val bankDisplay = when {
+                            defaultBankPkg == null -> "Chưa chọn — chạm để chọn"
+                            defaultBankPkg.isNullOrBlank() -> "Chỉ hiện bảng hỗ trợ"
+                            else -> VietnamBankDetector.BANK_PACKAGES[defaultBankPkg]
+                                ?: "Chưa chọn — chạm để chọn"
+                        }
+                        NavRow(
+                            icon = IsleIcons.CreditCard,
+                            tileColor = IsleColors.Accent,
+                            title = "Ngân hàng mặc định (Kéo thả QR)",
+                            value = bankDisplay,
+                            onClick = { bankPickerSheetOpen = true },
+                        )
                     }
 
                     GroupDivider()
@@ -367,6 +419,162 @@ fun ModulesScreen(
                 modifier = Modifier
                     .navigationBarsPadding()
                     .height(112.dp),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DefaultBankPickerSheet(
+    context: Context,
+    prefs: SharedPreferences,
+    currentPkg: String?,
+    onSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val installedBanks = remember(context) {
+        val pm = context.packageManager
+        VietnamBankDetector.BANK_PACKAGES.entries
+            .filter { (pkg, _) -> pm.getLaunchIntentForPackage(pkg) != null }
+            .sortedBy { it.value.lowercase() }
+    }
+
+    val sheetShape = G2RoundedCornerShape(30.dp)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.statusBarsPadding(),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = sheetShape,
+        containerColor = IsleColors.Background,
+        contentColor = IsleColors.Text,
+        dragHandle = {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 0.8.dp,
+                        brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, Color.Transparent)),
+                        shape = sheetShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .padding(top = 10.dp, bottom = 6.dp)
+                        .size(width = 38.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(IsleColors.SurfaceHigher),
+                )
+            }
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "Ngân hàng mặc định",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.5).sp,
+                    color = IsleColors.Text,
+                )
+                Text(
+                    text = "Chọn ứng dụng ngân hàng hoặc ví điện tử tự động mở khi chia sẻ ảnh QR hoặc nội dung chuyển khoản lên Đảo.",
+                    fontSize = 13.sp,
+                    color = IsleColors.TextSecondary,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            GroupCard {
+                BankPickerOptionRow(
+                    title = "Chỉ hiện bảng hỗ trợ (không tự mở app)",
+                    subtitle = "Sao chép STK và giữ nguyên màn hình hiện tại",
+                    selected = currentPkg != null && currentPkg.isBlank(),
+                    onClick = {
+                        prefs.edit().putString(PREF_DEFAULT_BANK_PKG, "").apply()
+                        onSelected("")
+                    },
+                )
+
+                if (installedBanks.isEmpty()) {
+                    GroupDivider()
+                    Text(
+                        text = "Không tìm thấy ứng dụng ngân hàng VN nào được cài đặt trên thiết bị.",
+                        fontSize = 13.sp,
+                        color = IsleColors.TextSecondary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    )
+                } else {
+                    installedBanks.forEach { (pkg, displayName) ->
+                        GroupDivider()
+                        BankPickerOptionRow(
+                            title = displayName,
+                            subtitle = pkg,
+                            selected = currentPkg == pkg,
+                            onClick = {
+                                prefs.edit().putString(PREF_DEFAULT_BANK_PKG, pkg).apply()
+                                onSelected(pkg)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BankPickerOptionRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IsleColors.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                fontSize = 12.sp,
+                color = IsleColors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (selected) {
+            Icon(
+                imageVector = IsleIcons.Check,
+                contentDescription = "Đã chọn",
+                tint = IsleColors.Accent,
+                modifier = Modifier.size(20.dp),
             )
         }
     }

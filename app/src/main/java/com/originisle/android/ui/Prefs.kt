@@ -29,3 +29,6 @@ const val PREF_APP_THEME_COLOR = "app_theme_color"
 
 /** Hybrid Media Island overlay preference (v2.8.5, default true). */
 const val PREF_MEDIA_OVERLAY_EXPAND = "cast_media_overlay_expand"
+
+/** Default banking/wallet app package launched when dragging & dropping QR or transfer info. */
+const val PREF_DEFAULT_BANK_PKG = "default_bank_pkg"
