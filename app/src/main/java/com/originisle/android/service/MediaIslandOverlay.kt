@@ -8,7 +8,9 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -105,6 +107,8 @@ object MediaIslandOverlay {
     private var seekBarView: SeekBar? = null
     private var playPauseButton: ImageButton? = null
     private var cardInnerSurface: GradientDrawable? = null
+    private var cardEdgeBorder: GradientDrawable? = null
+    private var ambientGlowColor: Int = Color.argb(185, 15, 119, 255)
     private var outputIconView: ImageView? = null
     private var outputLabelView: TextView? = null
 
@@ -194,7 +198,37 @@ object MediaIslandOverlay {
             .getInsetsIgnoringVisibility(WindowInsets.Type.statusBars())
             .top
 
+        val glowPad = dp(14f)
+        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.BLACK
+        }
+        val glowRect = RectF()
+
         val root = object : FrameLayout(appContext) {
+            override fun dispatchDraw(canvas: android.graphics.Canvas) {
+                val c = cardView
+                if (c != null && c.width > 0 && c.height > 0 && c.alpha > 0.01f) {
+                    val left = c.left + c.translationX + (c.width * (1f - c.scaleX)) * 0.5f
+                    val top = c.top + c.translationY
+                    val right = left + c.width * c.scaleX
+                    val bottom = top + c.height * c.scaleY
+                    glowRect.set(left, top, right, bottom)
+                    val glowAlpha = (Color.alpha(ambientGlowColor) * c.alpha).roundToInt().coerceIn(0, 255)
+                    val dynamicGlow = Color.argb(
+                        glowAlpha,
+                        Color.red(ambientGlowColor),
+                        Color.green(ambientGlowColor),
+                        Color.blue(ambientGlowColor),
+                    )
+                    glowPaint.color = Color.argb((255 * c.alpha).roundToInt().coerceIn(0, 255), 0, 0, 0)
+                    glowPaint.setShadowLayer(dp(15f).toFloat(), 0f, dp(2f).toFloat(), dynamicGlow)
+                    val radius = dp(30f).toFloat() * c.scaleX
+                    canvas.drawRoundRect(glowRect, radius, radius, glowPaint)
+                }
+                super.dispatchDraw(canvas)
+            }
+
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 if (event.action == MotionEvent.ACTION_OUTSIDE) {
                     dismiss()
@@ -202,6 +236,10 @@ object MediaIslandOverlay {
                 }
                 return super.onTouchEvent(event)
             }
+        }.apply {
+            setPadding(glowPad, glowPad, glowPad, glowPad)
+            clipChildren = false
+            clipToPadding = false
         }
 
         val touchSlop = ViewConfiguration.get(appContext).scaledTouchSlop
@@ -242,9 +280,10 @@ object MediaIslandOverlay {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = outerCorner
             }
+            cardEdgeBorder = edgeLightBorder
             val innerSurface = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(CARD_BG_COLOR, CARD_BG_COLOR, CARD_BG_COLOR),
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(CARD_BG_COLOR, CARD_BG_COLOR),
             ).apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = innerCorner
@@ -638,7 +677,7 @@ object MediaIslandOverlay {
         )
 
         val windowParams = WindowManager.LayoutParams(
-            overlayWidth,
+            overlayWidth + glowPad * 2,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -647,7 +686,7 @@ object MediaIslandOverlay {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = statusBarTop + dp(8f)
+            y = (statusBarTop + dp(8f) - glowPad).coerceAtLeast(0)
         }
 
         return runCatching {
@@ -715,8 +754,24 @@ object MediaIslandOverlay {
             if (snapshot.playing) R.drawable.ic_media_pause else R.drawable.ic_media_play,
         )
 
-        val glowColor = extractAmbientGlowColor(snapshot.badgedAlbumArt)
-        cardInnerSurface?.colors = intArrayOf(glowColor, CARD_BG_COLOR, CARD_BG_COLOR)
+        val vividRgb = extractAmbientGlowColor(snapshot.badgedAlbumArt)
+        val r = Color.red(vividRgb)
+        val g = Color.green(vividRgb)
+        val b = Color.blue(vividRgb)
+        ambientGlowColor = Color.argb(190, r, g, b)
+        // Keep the inner surface 100% opaque (no transparency): pure OLED black blending subtly
+        // into a deep, saturated album-tinted black at the bottom edge like OriginOS Ambient Lighting.
+        val deepBottomBlack = Color.rgb(
+            (r * 0.14f).roundToInt(),
+            (g * 0.14f).roundToInt(),
+            (b * 0.14f).roundToInt(),
+        )
+        cardInnerSurface?.colors = intArrayOf(CARD_BG_COLOR, deepBottomBlack)
+        cardEdgeBorder?.colors = intArrayOf(
+            Color.argb(135, (r * 0.45f + 255 * 0.55f).roundToInt(), (g * 0.45f + 255 * 0.55f).roundToInt(), (b * 0.45f + 255 * 0.55f).roundToInt()),
+            Color.argb(48, r, g, b),
+        )
+        rootView?.invalidate()
 
         if (ctx != null) {
             val (outputName, isBluetooth) = resolveActiveAudioOutput(ctx)
@@ -905,9 +960,9 @@ object MediaIslandOverlay {
                     Color.blue(bestColor),
                     hsv,
                 )
-                if (hsv[2] < 0.65f) hsv[2] = 0.78f
-                val vivid = Color.HSVToColor(hsv)
-                Color.argb(38, Color.red(vivid), Color.green(vivid), Color.blue(vivid))
+                if (hsv[2] < 0.72f) hsv[2] = 0.85f
+                if (hsv[1] in 0.10f..0.45f) hsv[1] = 0.58f
+                Color.HSVToColor(hsv)
             } finally {
                 if (scaled != soft) scaled.recycle()
                 if (soft != bitmap) soft.recycle()
@@ -972,6 +1027,7 @@ object MediaIslandOverlay {
         seekBarView = null
         playPauseButton = null
         cardInnerSurface = null
+        cardEdgeBorder = null
         outputIconView = null
         outputLabelView = null
         isUserSeeking = false
