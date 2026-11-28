@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.originisle.android.cards.EarbudsCard
 import com.originisle.android.cards.FlashlightCard
+import com.originisle.android.cards.MediaCard
+import com.originisle.android.service.MediaIslandOverlay
 import com.originisle.android.service.NotificationCastListener
 
 /**
@@ -69,6 +71,9 @@ fun ModulesScreen(
 
     // Nhóm 2: Hệ thống & Phần cứng
     var mediaOn by remember { mutableStateOf(prefs.getBoolean("cast_media_sessions", true)) }
+    var mediaOverlayExpand by remember {
+        mutableStateOf(prefs.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true))
+    }
     var earbudsOn by remember {
         mutableStateOf(prefs.getBoolean("cast_earbuds", true) && EarbudsCard.hasPermission(context))
     }
@@ -93,6 +98,9 @@ fun ModulesScreen(
                 "cast_downloads" -> downloadOn = sp.getBoolean("cast_downloads", true)
                 "cast_calendar_events" -> castCalendarEvents = sp.getBoolean("cast_calendar_events", true)
                 "cast_media_sessions" -> mediaOn = sp.getBoolean("cast_media_sessions", true)
+                PREF_MEDIA_OVERLAY_EXPAND -> {
+                    mediaOverlayExpand = sp.getBoolean(PREF_MEDIA_OVERLAY_EXPAND, true)
+                }
                 PREF_BT_CONNECT_POPUP -> btConnectPopup = sp.getBoolean(PREF_BT_CONNECT_POPUP, false)
                 "cast_ringer_mode" -> ringerModeOn = sp.getBoolean("cast_ringer_mode", true)
                 "cast_flashlight" -> flashlightOn = sp.getBoolean("cast_flashlight", true)
@@ -266,6 +274,23 @@ fun ModulesScreen(
                     ) {
                         mediaOn = it
                         prefs.edit().putBoolean("cast_media_sessions", it).apply()
+                    }
+
+                    NestedSettingContainer(visible = mediaOn) {
+                        ToggleRow(
+                            icon = IsleIcons.Music,
+                            tileColor = IsleColors.Accent,
+                            title = "Bảng điều khiển nhạc tùy biến",
+                            subtitle = "Bật để mở bảng điều khiển nổi; tắt để dùng đảo mở rộng mặc định",
+                            checked = mediaOverlayExpand,
+                        ) {
+                            mediaOverlayExpand = it
+                            prefs.edit().putBoolean(PREF_MEDIA_OVERLAY_EXPAND, it).apply()
+                            if (!it) {
+                                MediaIslandOverlay.dismiss()
+                            }
+                            MediaCard.refreshPresentation(context)
+                        }
                     }
 
                     GroupDivider()

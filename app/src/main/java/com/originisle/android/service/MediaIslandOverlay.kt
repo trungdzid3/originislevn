@@ -315,6 +315,10 @@ object MediaIslandOverlay {
                 marginStart = dp(12f)
                 marginEnd = dp(10f)
             }
+            setOnClickListener {
+                openSourceApp(appContext)
+                dismiss()
+            }
         }
 
         val trackTv = TextView(appContext).apply {
@@ -685,15 +689,28 @@ object MediaIslandOverlay {
         val pending = snapshot.contentIntent
         if (pending != null) {
             val sent = runCatching {
-                pending.send()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    val opts = android.app.ActivityOptions.makeBasic()
+                        .setPendingIntentBackgroundActivityStartMode(
+                            android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED,
+                        )
+                        .toBundle()
+                    pending.send(appContext, 0, null, null, null, null, opts)
+                } else {
+                    pending.send()
+                }
                 true
             }.getOrDefault(false)
             if (sent) return
         }
         runCatching {
-            appContext.packageManager.getLaunchIntentForPackage(snapshot.pkg)?.apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }?.let { appContext.startActivity(it) }
+            val launchIntent = appContext.packageManager.getLaunchIntentForPackage(snapshot.pkg)
+            if (launchIntent != null) {
+                launchIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED,
+                )
+                appContext.startActivity(launchIntent)
+            }
         }.onFailure {
             Log.w(TAG, "Failed to launch ${snapshot.pkg}", it)
         }

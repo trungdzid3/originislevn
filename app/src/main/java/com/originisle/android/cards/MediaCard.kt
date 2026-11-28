@@ -96,6 +96,26 @@ object MediaCard {
         }
     }
 
+    fun refreshPresentation(context: Context) {
+        val appCtx = context.applicationContext
+        if (!overlaySuppressed && lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)) {
+            dispatchMediaCard(
+                context = appCtx,
+                pkg = lastPkg,
+                controller = lastController ?: IconCache.activeControllers[ID],
+                track = lastTrack,
+                artist = lastArtist,
+                playing = lastPlaying == true,
+                rawAlbumArt = lastRawAlbumArt,
+                durationMs = lastDurationMs,
+                positionMs = lastPositionMs,
+                sourceActions = lastSourceActions,
+                contentIntent = lastContentIntent,
+                forceRefresh = true,
+            )
+        }
+    }
+
     fun isCurrentlyPlaying(): Boolean = lastPlaying == true
 
     /** Các gói dịch vụ điều khiển đảo nhạc gốc trên OriginOS 6 (Vivo / iQOO) */
