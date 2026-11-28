@@ -1,8 +1,10 @@
 package com.originisle.android.service
 
 import android.accessibilityservice.AccessibilityService
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -11,6 +13,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.originisle.android.cards.DownloadCard
 import com.originisle.android.cards.EarbudsCard
+import com.originisle.android.cards.MediaCard
 import com.originisle.android.download.DownloadDetector
 import com.originisle.android.island.OriginIslandBuilder
 
@@ -26,6 +29,49 @@ class KeepAliveAccessibilityService : AccessibilityService() {
     private var lastScannedLevel = -1
     private var lastScanTime = 0L
     private val handler = Handler(Looper.getMainLooper())
+    private val shadeCheckRunnable = Runnable {
+        updateMediaShadeSuppression()
+    }
+
+    private fun updateMediaShadeSuppression() {
+        if (!MediaCard.hasActiveMediaSession()) {
+            MediaCard.setShadeSuppression(applicationContext, false)
+            return
+        }
+        val shadeOpen = isSystemNotificationShadeOpen()
+        MediaCard.setShadeSuppression(applicationContext, shadeOpen)
+    }
+
+    private fun scheduleDelayedShadeCheck() {
+        handler.removeCallbacks(shadeCheckRunnable)
+        handler.postDelayed(shadeCheckRunnable, 120L)
+        handler.postDelayed(shadeCheckRunnable, 320L)
+    }
+
+    private fun isSystemNotificationShadeOpen(): Boolean {
+        val km = getSystemService(KeyguardManager::class.java)
+        if (km?.isKeyguardLocked == true) return false
+        val metrics = resources.displayMetrics
+        val minWidth = (metrics.widthPixels * 0.70f).toInt()
+        val minHeight = (metrics.heightPixels * 0.42f).toInt()
+        val rect = Rect()
+        val currentWindows = runCatching { windows }.getOrNull().orEmpty()
+        for (w in currentWindows) {
+            val root = w.root ?: continue
+            val winPkg = try {
+                root.packageName?.toString().orEmpty()
+            } finally {
+                runCatching { root.recycle() }
+            }
+            if (winPkg == "com.android.systemui") {
+                w.getBoundsInScreen(rect)
+                if (rect.width() >= minWidth && rect.height() >= minHeight) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
     private val delayedForegroundCheck = Runnable {
         val prevFg = currentForegroundPackage
         val resolved = resolveLiveForegroundPackage()
@@ -56,6 +102,8 @@ class KeepAliveAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         handler.removeCallbacks(delayedForegroundCheck)
+        handler.removeCallbacks(shadeCheckRunnable)
+        runCatching { MediaCard.setShadeSuppression(applicationContext, false) }
         if (instance === this) {
             instance = null
             currentForegroundPackage = ""
@@ -65,6 +113,8 @@ class KeepAliveAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(delayedForegroundCheck)
+        handler.removeCallbacks(shadeCheckRunnable)
+        runCatching { MediaCard.setShadeSuppression(applicationContext, false) }
         if (instance === this) {
             instance = null
             currentForegroundPackage = ""
@@ -76,6 +126,15 @@ class KeepAliveAccessibilityService : AccessibilityService() {
         if (event == null) return
         val pkg = event.packageName?.toString().orEmpty()
         val eventType = event.eventType
+
+        if (MediaCard.hasActiveMediaSession() &&
+            (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
+                pkg == "com.android.systemui")
+        ) {
+            updateMediaShadeSuppression()
+            scheduleDelayedShadeCheck()
+        }
 
         if (!DownloadCard.hasDeferredDownloads()) {
             if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&

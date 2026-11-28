@@ -56,6 +56,7 @@ object MediaCard {
     @Volatile private var lastDispatchTimeMs: Long = 0L
 
     @Volatile private var overlaySuppressed: Boolean = false
+    @Volatile private var shadeSuppressed: Boolean = false
     @Volatile private var lastController: MediaController? = null
     @Volatile private var lastRawAlbumArt: Bitmap? = null
     @Volatile private var lastDurationMs: Long = 0L
@@ -73,22 +74,23 @@ object MediaCard {
 
     @Volatile private var artCache: ArtCacheEntry? = null
 
-    fun setOverlaySuppression(context: Context, suppressed: Boolean) {
-        if (overlaySuppressed == suppressed) return
-        overlaySuppressed = suppressed
-        val appCtx = context.applicationContext
-        if (suppressed) {
-            // Cancel the SuperX notification synchronously so OriginOS removes the capsule
-            // immediately without waiting for PlaygroundService's delayed endOrigin/cancel flow.
-            val nm = appCtx.getSystemService(NotificationManager::class.java)
-            nm?.cancel(OriginIslandConstants.SUPERX_TAG, ID)
-            nm?.cancel(ID)
-            val goneIntent = Intent(appCtx, PlaygroundService::class.java).apply {
-                action = PlaygroundService.ACTION_GONE
-                putExtra("id", ID)
-            }
-            appCtx.startService(goneIntent)
-        } else if (lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)) {
+    fun hasActiveMediaSession(): Boolean = lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)
+
+    private fun cancelSuperXImmediate(appCtx: Context) {
+        // Cancel the SuperX notification synchronously so OriginOS removes the capsule/shade
+        // entry immediately without waiting for PlaygroundService's delayed endOrigin/cancel flow.
+        val nm = appCtx.getSystemService(NotificationManager::class.java)
+        nm?.cancel(OriginIslandConstants.SUPERX_TAG, ID)
+        nm?.cancel(ID)
+        val goneIntent = Intent(appCtx, PlaygroundService::class.java).apply {
+            action = PlaygroundService.ACTION_GONE
+            putExtra("id", ID)
+        }
+        appCtx.startService(goneIntent)
+    }
+
+    private fun restoreIfUnsuppressed(appCtx: Context) {
+        if (!overlaySuppressed && !shadeSuppressed && lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)) {
             dispatchMediaCard(
                 context = appCtx,
                 pkg = lastPkg,
@@ -106,24 +108,33 @@ object MediaCard {
         }
     }
 
+    fun setOverlaySuppression(context: Context, suppressed: Boolean) {
+        if (overlaySuppressed == suppressed) return
+        overlaySuppressed = suppressed
+        val appCtx = context.applicationContext
+        if (suppressed) {
+            cancelSuperXImmediate(appCtx)
+        } else {
+            restoreIfUnsuppressed(appCtx)
+        }
+    }
+
+    fun setShadeSuppression(context: Context, suppressed: Boolean) {
+        if (shadeSuppressed == suppressed) return
+        shadeSuppressed = suppressed
+        val appCtx = context.applicationContext
+        if (suppressed) {
+            if (activeMediaCastIds.contains(ID)) {
+                cancelSuperXImmediate(appCtx)
+            }
+        } else {
+            restoreIfUnsuppressed(appCtx)
+        }
+    }
+
     fun refreshPresentation(context: Context) {
         val appCtx = context.applicationContext
-        if (!overlaySuppressed && lastPkg.isNotBlank() && activeMediaCastIds.contains(ID)) {
-            dispatchMediaCard(
-                context = appCtx,
-                pkg = lastPkg,
-                controller = lastController ?: IconCache.activeControllers[ID],
-                track = lastTrack,
-                artist = lastArtist,
-                playing = lastPlaying == true,
-                rawAlbumArt = lastRawAlbumArt,
-                durationMs = lastDurationMs,
-                positionMs = lastPositionMs,
-                sourceActions = lastSourceActions,
-                contentIntent = lastContentIntent,
-                forceRefresh = true,
-            )
-        }
+        restoreIfUnsuppressed(appCtx)
     }
 
     fun isCurrentlyPlaying(): Boolean = lastPlaying == true
@@ -593,6 +604,7 @@ object MediaCard {
             putExtra("oi_fg_color", "#FFFFFFFF")
             putExtra("oi_island_click_expand", !useHybridOverlay)
             putExtra("oi_show_notify", false)
+            putExtra("oi_island_notify", true)
 
             putExtra("oi_right_template", OriginIslandConstants.TEMPLATE_RIGHT_ISLAND_TEXT_ICON)
             putExtra("oi_wave_state", if (playing) 1 else 0)
@@ -613,7 +625,7 @@ object MediaCard {
                 if (useHybridOverlay) overlayBroadcastPi else contentClickIntent,
             )
         }
-        if (!overlaySuppressed) {
+        if (!overlaySuppressed && !shadeSuppressed) {
             context.startService(intent)
             CastLog.add("Nhạc", track, "hiển thị — $track ($artist)", true)
         }
@@ -638,6 +650,7 @@ object MediaCard {
             lastArtSignature = ""
             lastDispatchTimeMs = 0L
             overlaySuppressed = false
+            shadeSuppressed = false
             lastController = null
             lastRawAlbumArt = null
             lastDurationMs = 0L
