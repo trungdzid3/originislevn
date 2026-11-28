@@ -749,15 +749,21 @@ object MediaIslandOverlay {
             return
         }
 
+        // Restore the compact capsule immediately as the collapse animation starts so SystemUI
+        // brings back the small island seamlessly right as the expanded card finishes shrinking.
+        MediaCard.setOverlaySuppression(root.context.applicationContext, false)
+
         val density = root.resources.displayMetrics.density
         card.animate().cancel()
+        card.pivotX = card.width / 2f
+        card.pivotY = 0f
         card.animate()
             .alpha(0f)
-            .scaleX(0.92f)
-            .scaleY(0.92f)
-            .translationY(-10f * density)
-            .setDuration(ANIM_DURATION_MS)
-            .setInterpolator(AccelerateInterpolator())
+            .scaleX(0.72f)
+            .scaleY(0.72f)
+            .translationY(-14f * density)
+            .setDuration(170L)
+            .setInterpolator(android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f))
             .withEndAction { removeWindowImmediate() }
             .start()
     }
