@@ -938,15 +938,7 @@ object BluetoothPopupOverlay {
                 }
             }
         }
-        imageView.setImageResource(presetDrawableRes(config.preset))
-    }
-
-    private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset) {
-        BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
-        BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
-        BluetoothDevicePreset.LENOVO_LE208 -> R.drawable.bt_preset_lenovo_le208_3d
-        BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> R.drawable.bt_preset_redmi_buds_6_play_3d
-        BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
+        imageView.setImageResource(config.preset.drawableRes)
     }
 
     private fun renderBatterySection(

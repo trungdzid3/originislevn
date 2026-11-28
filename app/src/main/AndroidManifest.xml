@@ -41,30 +41,10 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTask">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="text/plain" />
-                <data android:mimeType="text/*" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
 
@@ -80,16 +60,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
                 <data android:mimeType="text/plain" />
-                <data android:mimeType="text/*" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
 
@@ -203,10 +174,6 @@
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:taskAffinity="" />
-
-        <receiver
-            android:name=".bank.TransferCopyReceiver"
-            android:exported="false" />
 
         <receiver
             android:name=".service.MediaIslandLaunchReceiver"

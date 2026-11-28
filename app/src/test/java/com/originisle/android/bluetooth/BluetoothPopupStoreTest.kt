@@ -20,13 +20,28 @@ class BluetoothPopupStoreTest {
     }
 
     @Test
-    fun presetFromId_resolvesFiveHeadphonePresetsAndFallback() {
-        assertEquals(5, BluetoothDevicePreset.entries.size)
+    fun presetFromId_resolvesAllTwentyHeadphonePresetsAndFallback() {
+        assertEquals(20, BluetoothDevicePreset.entries.size)
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("tws"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.fromId("tws_white"))
         assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.fromId("lenovo_le208"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.fromId("redmi_buds_6_play"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.fromId("over_ear"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_CLASSIC, BluetoothDevicePreset.fromId("airpods_1_2"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_3_4, BluetoothDevicePreset.fromId("airpods_3_4"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_PRO, BluetoothDevicePreset.fromId("airpods_pro"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_PLUS, BluetoothDevicePreset.fromId("galaxy_buds_plus"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_LIVE, BluetoothDevicePreset.fromId("galaxy_buds_live"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_2_PRO, BluetoothDevicePreset.fromId("galaxy_buds_2_pro"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_3, BluetoothDevicePreset.fromId("galaxy_buds_3"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_CLASSIC, BluetoothDevicePreset.fromId("vivo_tws_2_3"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_4, BluetoothDevicePreset.fromId("vivo_tws_4"))
+        assertEquals(BluetoothDevicePreset.IQOO_TWS, BluetoothDevicePreset.fromId("iqoo_tws"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_AIR, BluetoothDevicePreset.fromId("oppo_enco_air"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_BUDS, BluetoothDevicePreset.fromId("oppo_enco_buds"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_X, BluetoothDevicePreset.fromId("oppo_enco_x"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_3, BluetoothDevicePreset.fromId("xiaomi_buds_3"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_4_5, BluetoothDevicePreset.fromId("xiaomi_buds_4_5"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("speaker"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId("watch"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.fromId(null))
@@ -49,55 +64,67 @@ class BluetoothPopupStoreTest {
 
     @Test
     fun inferFromName_detectsAirPods() {
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("AirPods Pro"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("AirPod 3rd Gen"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Air Pods"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_PRO, BluetoothDevicePreset.inferFromName("AirPods Pro"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_PRO, BluetoothDevicePreset.inferFromName("AirPod Pro 2"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_3_4, BluetoothDevicePreset.inferFromName("AirPods 3"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_3_4, BluetoothDevicePreset.inferFromName("AirPod 3rd Gen"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_3_4, BluetoothDevicePreset.inferFromName("AirPods 4 (ANC)"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_CLASSIC, BluetoothDevicePreset.inferFromName("Air Pods"))
+        assertEquals(BluetoothDevicePreset.AIRPODS_CLASSIC, BluetoothDevicePreset.inferFromName("AirPods 2"))
         assertEquals(BluetoothDevicePreset.OVER_EAR, BluetoothDevicePreset.inferFromName("AirPods Max"))
     }
 
     @Test
     fun inferFromName_detectsSamsungBuds() {
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Galaxy Buds2 Pro"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Samsung Buds FE"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Buds3 Pro"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("SM-R510"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Galaxy Buds2 White"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Galaxy Buds3 Silver"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Samsung Buds Cream"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_PLUS, BluetoothDevicePreset.inferFromName("Galaxy Buds+"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_PLUS, BluetoothDevicePreset.inferFromName("Samsung Buds Plus"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_PLUS, BluetoothDevicePreset.inferFromName("SM-R175"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_LIVE, BluetoothDevicePreset.inferFromName("Galaxy Buds Live"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_LIVE, BluetoothDevicePreset.inferFromName("SM-R180"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_2_PRO, BluetoothDevicePreset.inferFromName("Galaxy Buds2 Pro"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_2_PRO, BluetoothDevicePreset.inferFromName("Samsung Buds FE"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_2_PRO, BluetoothDevicePreset.inferFromName("SM-R510"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_3, BluetoothDevicePreset.inferFromName("Buds3 Pro"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_3, BluetoothDevicePreset.inferFromName("Galaxy Buds 3"))
+        assertEquals(BluetoothDevicePreset.GALAXY_BUDS_3, BluetoothDevicePreset.inferFromName("SM-R630"))
     }
 
     @Test
     fun inferFromName_detectsVivoAndIqooTws() {
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo TWS 4"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo Earbuds 2"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("iQOO TWS 1e"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Vivo TWS 4 Black"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Vivo Earbuds Xanh"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("iQOO Buds Dark"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_CLASSIC, BluetoothDevicePreset.inferFromName("Vivo TWS 2"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_CLASSIC, BluetoothDevicePreset.inferFromName("Vivo TWS 3 Pro"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_4, BluetoothDevicePreset.inferFromName("Vivo TWS 4"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_4, BluetoothDevicePreset.inferFromName("Vivo TWS Air 2"))
+        assertEquals(BluetoothDevicePreset.VIVO_TWS_4, BluetoothDevicePreset.inferFromName("Vivo Earbuds 2"))
+        assertEquals(BluetoothDevicePreset.IQOO_TWS, BluetoothDevicePreset.inferFromName("iQOO TWS 1e"))
+        assertEquals(BluetoothDevicePreset.IQOO_TWS, BluetoothDevicePreset.inferFromName("iQOO Buds Dark"))
     }
 
     @Test
     fun inferFromName_detectsOppoEnco() {
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Oppo Enco Air 3"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Enco Buds 2"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Enco Free3"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Oppo Enco X2 Black"))
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Enco W31 Đen"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_AIR, BluetoothDevicePreset.inferFromName("Oppo Enco Air 3"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_BUDS, BluetoothDevicePreset.inferFromName("Enco Buds 2"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_BUDS, BluetoothDevicePreset.inferFromName("Enco W31 Đen"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_X, BluetoothDevicePreset.inferFromName("Enco Free3"))
+        assertEquals(BluetoothDevicePreset.OPPO_ENCO_X, BluetoothDevicePreset.inferFromName("Oppo Enco X2 Black"))
     }
 
     @Test
     fun inferFromName_detectsXiaomiAndRedmiBuds() {
-        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Xiaomi Buds 4 Pro"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_4_5, BluetoothDevicePreset.inferFromName("Xiaomi Buds 4 Pro"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_4_5, BluetoothDevicePreset.inferFromName("Xiaomi Buds 5"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_3, BluetoothDevicePreset.inferFromName("Xiaomi Buds 3T Pro"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_3, BluetoothDevicePreset.inferFromName("Mi True Wireless Silver"))
+        assertEquals(BluetoothDevicePreset.XIAOMI_BUDS_3, BluetoothDevicePreset.inferFromName("Mi Air 2S"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Redmi Buds 5"))
         assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Redmi AirDots 3"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Xiaomi Buds 4 White"))
+        assertEquals(BluetoothDevicePreset.TWS_EARBUDS, BluetoothDevicePreset.inferFromName("Redmi Buds 6 Pro"))
+        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Redmi Buds 6 Lite White"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Redmi Buds 5 Trắng"))
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Mi True Wireless Silver"))
     }
 
     @Test
     fun inferFromName_detectsTwsWhite() {
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Vivo TWS 4 White"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Tai nghe trắng"))
         assertEquals(BluetoothDevicePreset.TWS_WHITE, BluetoothDevicePreset.inferFromName("Earbuds Pearl Edition"))
     }
@@ -108,10 +135,12 @@ class BluetoothPopupStoreTest {
         assertEquals(BluetoothDevicePreset.LENOVO_LE208, BluetoothDevicePreset.inferFromName("Lenovo LivePods TWS"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds 6 Play"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds6 Play"))
+        assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("Redmi Buds 6"))
         assertEquals(BluetoothDevicePreset.REDMI_BUDS_6_PLAY, BluetoothDevicePreset.inferFromName("M2401E1"))
         assertTrue(BluetoothDevicePreset.LENOVO_LE208.isInteractive3D)
         assertTrue(BluetoothDevicePreset.REDMI_BUDS_6_PLAY.isInteractive3D)
         assertFalse(BluetoothDevicePreset.TWS_EARBUDS.isInteractive3D)
+        assertFalse(BluetoothDevicePreset.AIRPODS_PRO.isInteractive3D)
     }
 
     @Test
@@ -120,7 +149,7 @@ class BluetoothPopupStoreTest {
         val address = "AA:BB:CC:11:22:33"
 
         val autoConfig = BluetoothPopupStore.getDeviceConfig(context, address, "AirPods Pro")
-        assertEquals(BluetoothDevicePreset.TWS_WHITE, autoConfig.preset)
+        assertEquals(BluetoothDevicePreset.AIRPODS_PRO, autoConfig.preset)
         assertNull(autoConfig.customImagePath)
         assertNull(autoConfig.customName)
         assertTrue(autoConfig.enabled)

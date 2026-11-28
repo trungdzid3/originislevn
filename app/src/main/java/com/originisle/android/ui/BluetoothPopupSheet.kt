@@ -13,7 +13,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,7 +60,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.originisle.android.R
 import com.originisle.android.bluetooth.BluetoothDevicePreset
 import com.originisle.android.bluetooth.BluetoothPopupBattery
 import com.originisle.android.bluetooth.BluetoothPopupOverlay
@@ -87,6 +85,9 @@ fun BluetoothPopupSheet(
     }
     var redmiCaseColor by remember(refreshVersion) {
         mutableStateOf(BluetoothPopupStore.getRedmiCaseColor(context))
+    }
+    var selectedPreviewPreset by remember {
+        mutableStateOf(BluetoothDevicePreset.entries.first())
     }
 
     val btPermissionLauncher = rememberLauncherForActivityResult(
@@ -235,6 +236,141 @@ fun BluetoothPopupSheet(
                 }
             }
 
+            GroupCard {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = "Xem thử nhanh theo mẫu",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = IsleColors.Text,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        val previewShape = G2RoundedCornerShape(14.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(previewShape)
+                                .background(IsleColors.SurfaceHigh)
+                                .border(
+                                    width = 0.8.dp,
+                                    brush = Brush.verticalGradient(listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom)),
+                                    shape = previewShape,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                painter = painterResource(selectedPreviewPreset.drawableRes),
+                                contentDescription = selectedPreviewPreset.label,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(4.dp),
+                            )
+                        }
+                        Text(
+                            text = selectedPreviewPreset.label,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IsleColors.Text,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        PillButton(
+                            text = "Xem thử mẫu",
+                            onClick = {
+                                if (!isOverlayPermissionGranted(context)) {
+                                    openOverlayPermissionSettings(context)
+                                } else {
+                                    BluetoothPopupOverlay.showOrUpdate(
+                                        context,
+                                        "preview_${selectedPreviewPreset.id}",
+                                        selectedPreviewPreset.label,
+                                        BluetoothPopupBattery(
+                                            main = 85,
+                                            left = 90,
+                                            right = 85,
+                                            caseBattery = 70,
+                                        ),
+                                        forcePreview = true,
+                                    )
+                                }
+                            },
+                            height = 40.dp,
+                        )
+                    }
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        BluetoothDevicePreset.entries.forEach { preset ->
+                            val selected = selectedPreviewPreset == preset
+                            Row(
+                                modifier = Modifier
+                                    .heightIn(min = 36.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (selected) {
+                                            MaterialTheme.colorScheme.secondaryContainer
+                                        } else {
+                                            IsleColors.SurfaceHigh
+                                        },
+                                    )
+                                    .border(
+                                        width = if (selected) 1.5.dp else 0.7.dp,
+                                        brush = if (selected) {
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    MaterialTheme.colorScheme.primary,
+                                                    MaterialTheme.colorScheme.primary,
+                                                ),
+                                            )
+                                        } else {
+                                            Brush.verticalGradient(
+                                                listOf(IsleColors.EdgeLightTop, IsleColors.EdgeLightBottom),
+                                            )
+                                        },
+                                        shape = CircleShape,
+                                    )
+                                    .clickable(role = Role.RadioButton) {
+                                        selectedPreviewPreset = preset
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Image(
+                                    painter = painterResource(preset.drawableRes),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = preset.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                    } else {
+                                        IsleColors.Text
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (!hasBtPermission) {
                 GroupCard {
                     Column(
@@ -330,7 +466,7 @@ fun BluetoothPopupSheet(
                                         )
                                     } else {
                                         Image(
-                                            painter = painterResource(presetDrawableRes(config.preset)),
+                                            painter = painterResource(config.preset.drawableRes),
                                             contentDescription = config.preset.label,
                                             contentScale = ContentScale.Fit,
                                             modifier = Modifier
@@ -544,13 +680,4 @@ fun BluetoothPopupSheet(
             Spacer(Modifier.height(4.dp))
         }
     }
-}
-
-@DrawableRes
-private fun presetDrawableRes(preset: BluetoothDevicePreset): Int = when (preset) {
-    BluetoothDevicePreset.LENOVO_LE208 -> R.drawable.bt_preset_lenovo_le208_3d
-    BluetoothDevicePreset.REDMI_BUDS_6_PLAY -> R.drawable.bt_preset_redmi_buds_6_play_3d
-    BluetoothDevicePreset.TWS_EARBUDS -> R.drawable.bt_preset_tws_dark_3d
-    BluetoothDevicePreset.TWS_WHITE -> R.drawable.bt_preset_tws_white_3d
-    BluetoothDevicePreset.OVER_EAR -> R.drawable.bt_preset_over_ear_3d
 }

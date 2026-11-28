@@ -7,18 +7,39 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
+import androidx.annotation.DrawableRes
+import com.originisle.android.R
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-enum class BluetoothDevicePreset(val id: String, val label: String) {
-    TWS_EARBUDS("tws", "Tai nghe TWS (Đen)"),
-    TWS_WHITE("tws_white", "Tai nghe TWS (Trắng)"),
-    LENOVO_LE208("lenovo_le208", "Lenovo LE208 (3D)"),
-    REDMI_BUDS_6_PLAY("redmi_buds_6_play", "Redmi Buds 6 Play (3D)"),
-    OVER_EAR("over_ear", "Tai nghe chụp tai");
+enum class BluetoothDevicePreset(
+    val id: String,
+    val label: String,
+    @DrawableRes val drawableRes: Int,
+) {
+    TWS_EARBUDS("tws", "Tai nghe TWS (Đen)", R.drawable.bt_preset_tws_dark_3d),
+    TWS_WHITE("tws_white", "Tai nghe TWS (Trắng)", R.drawable.bt_preset_tws_white_3d),
+    LENOVO_LE208("lenovo_le208", "Lenovo LE208 (3D)", R.drawable.bt_preset_lenovo_le208_3d),
+    REDMI_BUDS_6_PLAY("redmi_buds_6_play", "Redmi Buds 6 Play (3D)", R.drawable.bt_preset_redmi_buds_6_play_3d),
+    OVER_EAR("over_ear", "Tai nghe chụp tai", R.drawable.bt_preset_over_ear_3d),
+    AIRPODS_CLASSIC("airpods_1_2", "AirPods 1 / 2", R.drawable.bt_airpods_1_2),
+    AIRPODS_3_4("airpods_3_4", "AirPods 3 / 4", R.drawable.bt_airpods_3_4),
+    AIRPODS_PRO("airpods_pro", "AirPods Pro 1 / 2 / 3", R.drawable.bt_airpods_pro),
+    GALAXY_BUDS_PLUS("galaxy_buds_plus", "Galaxy Buds / Buds+", R.drawable.bt_galaxy_buds_plus),
+    GALAXY_BUDS_LIVE("galaxy_buds_live", "Galaxy Buds Live", R.drawable.bt_galaxy_buds_live),
+    GALAXY_BUDS_2_PRO("galaxy_buds_2_pro", "Galaxy Buds2 / Pro / FE", R.drawable.bt_galaxy_buds_2_pro),
+    GALAXY_BUDS_3("galaxy_buds_3", "Galaxy Buds3 / 3 Pro", R.drawable.bt_preset_tws_white_3d),
+    VIVO_TWS_CLASSIC("vivo_tws_2_3", "Vivo TWS Neo / 2 / 3", R.drawable.bt_vivo_tws_2_3),
+    VIVO_TWS_4("vivo_tws_4", "Vivo TWS 4 / Air", R.drawable.bt_vivo_tws_4),
+    IQOO_TWS("iqoo_tws", "iQOO TWS 1 / 2", R.drawable.bt_iqoo_tws),
+    OPPO_ENCO_AIR("oppo_enco_air", "OPPO Enco Air 1–4", R.drawable.bt_oppo_enco_air),
+    OPPO_ENCO_BUDS("oppo_enco_buds", "OPPO Enco Buds / W", R.drawable.bt_oppo_enco_buds),
+    OPPO_ENCO_X("oppo_enco_x", "OPPO Enco X / Free", R.drawable.bt_oppo_enco_x),
+    XIAOMI_BUDS_3("xiaomi_buds_3", "Xiaomi Buds 3 / Mi Air", R.drawable.bt_xiaomi_buds_3),
+    XIAOMI_BUDS_4_5("xiaomi_buds_4_5", "Xiaomi Buds 4 / 5 / Pro", R.drawable.bt_xiaomi_buds_4_5);
 
     val isInteractive3D: Boolean
         get() = this == LENOVO_LE208 || this == REDMI_BUDS_6_PLAY
@@ -41,36 +62,57 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             if (OVER_EAR_KEYWORDS.any { lower.contains(it) }) {
                 return OVER_EAR
             }
-            if (AIRPODS_KEYWORDS.any { lower.contains(it) }) {
-                return TWS_WHITE
+            if (AIRPODS_PRO_KEYWORDS.any { lower.contains(it) }) {
+                return AIRPODS_PRO
             }
-            if (VIVO_TWS_KEYWORDS.any { lower.contains(it) }) {
-                return if (VIVO_DARK_KEYWORDS.any { lower.contains(it) }) {
-                    TWS_EARBUDS
-                } else {
+            if (AIRPODS_3_4_KEYWORDS.any { lower.contains(it) }) {
+                return AIRPODS_3_4
+            }
+            if (AIRPODS_CLASSIC_KEYWORDS.any { lower.contains(it) }) {
+                return AIRPODS_CLASSIC
+            }
+            if (IQOO_TWS_KEYWORDS.any { lower.contains(it) }) {
+                return IQOO_TWS
+            }
+            if (VIVO_TWS_4_KEYWORDS.any { lower.contains(it) }) {
+                return VIVO_TWS_4
+            }
+            if (VIVO_TWS_CLASSIC_KEYWORDS.any { lower.contains(it) }) {
+                return VIVO_TWS_CLASSIC
+            }
+            if (OPPO_ENCO_AIR_KEYWORDS.any { lower.contains(it) }) {
+                return OPPO_ENCO_AIR
+            }
+            if (OPPO_ENCO_X_KEYWORDS.any { lower.contains(it) }) {
+                return OPPO_ENCO_X
+            }
+            if (OPPO_ENCO_BUDS_KEYWORDS.any { lower.contains(it) }) {
+                return OPPO_ENCO_BUDS
+            }
+            if (REDMI_OTHER_KEYWORDS.any { lower.contains(it) }) {
+                return if (REDMI_WHITE_KEYWORDS.any { lower.contains(it) }) {
                     TWS_WHITE
+                } else {
+                    TWS_EARBUDS
                 }
             }
-            if (OPPO_ENCO_KEYWORDS.any { lower.contains(it) }) {
-                return if (OPPO_DARK_KEYWORDS.any { lower.contains(it) }) {
-                    TWS_EARBUDS
-                } else {
-                    TWS_WHITE
-                }
+            if (XIAOMI_BUDS_4_5_KEYWORDS.any { lower.contains(it) }) {
+                return XIAOMI_BUDS_4_5
             }
-            if (XIAOMI_BUDS_KEYWORDS.any { lower.contains(it) }) {
-                return if (XIAOMI_WHITE_KEYWORDS.any { lower.contains(it) }) {
-                    TWS_WHITE
-                } else {
-                    TWS_EARBUDS
-                }
+            if (XIAOMI_BUDS_3_KEYWORDS.any { lower.contains(it) }) {
+                return XIAOMI_BUDS_3
             }
-            if (SAMSUNG_BUDS_KEYWORDS.any { lower.contains(it) }) {
-                return if (SAMSUNG_WHITE_KEYWORDS.any { lower.contains(it) }) {
-                    TWS_WHITE
-                } else {
-                    TWS_EARBUDS
-                }
+            if (GALAXY_BUDS_3_KEYWORDS.any { lower.contains(it) }) {
+                return GALAXY_BUDS_3
+            }
+            if (GALAXY_BUDS_LIVE_KEYWORDS.any { lower.contains(it) }) {
+                return GALAXY_BUDS_LIVE
+            }
+            if (GALAXY_BUDS_2_PRO_KEYWORDS.any { lower.contains(it) }) {
+                return GALAXY_BUDS_2_PRO
+            }
+            if (GALAXY_BUDS_PLUS_KEYWORDS.any { lower.contains(it) }) {
+                return GALAXY_BUDS_PLUS
             }
             if (TWS_WHITE_KEYWORDS.any { lower.contains(it) }) {
                 return TWS_WHITE
@@ -91,10 +133,17 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
         }
 
         private fun isRedmiBuds6PlayName(lower: String): Boolean {
-            return lower.contains("buds 6 play") ||
+            if (lower.contains("buds 6 play") ||
                 lower.contains("buds6 play") ||
-                lower.contains("redmi buds 6") ||
                 lower.contains("m2401e1")
+            ) {
+                return true
+            }
+            return lower.contains("redmi buds 6") &&
+                !lower.contains("pro") &&
+                !lower.contains("lite") &&
+                !lower.contains("active") &&
+                !lower.contains("redmi buds 6s")
         }
 
         private val OVER_EAR_KEYWORDS = listOf(
@@ -118,77 +167,118 @@ enum class BluetoothDevicePreset(val id: String, val label: String) {
             "hyperx",
         )
 
-        private val AIRPODS_KEYWORDS = listOf(
+        private val AIRPODS_PRO_KEYWORDS = listOf(
+            "airpods pro",
+            "airpod pro",
+            "air pods pro",
+        )
+
+        private val AIRPODS_3_4_KEYWORDS = listOf(
+            "airpods 3",
+            "airpods (3",
+            "airpods 3rd",
+            "airpod 3",
+            "airpod (3",
+            "airpod 3rd",
+            "airpods 4",
+            "airpods (4",
+            "airpods 4th",
+            "airpod 4",
+            "airpod (4",
+            "airpod 4th",
+        )
+
+        private val AIRPODS_CLASSIC_KEYWORDS = listOf(
             "airpods",
             "airpod",
             "air pods",
         )
 
-        private val SAMSUNG_BUDS_KEYWORDS = listOf(
-            "galaxy buds",
-            "samsung buds",
-            "buds2",
-            "buds 2",
+        private val GALAXY_BUDS_3_KEYWORDS = listOf(
             "buds3",
             "buds 3",
-            "buds fe",
+            "sm-r530",
+            "sm-r630",
+        )
+
+        private val GALAXY_BUDS_LIVE_KEYWORDS = listOf(
             "buds live",
+            "sm-r180",
+        )
+
+        private val GALAXY_BUDS_2_PRO_KEYWORDS = listOf(
+            "buds2",
+            "buds 2",
             "buds pro",
+            "buds fe",
+            "sm-r177",
+            "sm-r190",
+            "sm-r400",
+            "sm-r510",
+        )
+
+        private val GALAXY_BUDS_PLUS_KEYWORDS = listOf(
+            "galaxy buds",
+            "samsung buds",
             "buds+",
+            "buds plus",
+            "sm-r170",
+            "sm-r175",
             "sm-r",
         )
 
-        private val SAMSUNG_WHITE_KEYWORDS = listOf(
-            "white",
-            "trắng",
-            "trang",
-            "silver",
-            "cream",
-            "pearl",
-        )
-
-        private val VIVO_TWS_KEYWORDS = listOf(
-            "vivo tws",
-            "vivo earbuds",
+        private val IQOO_TWS_KEYWORDS = listOf(
             "iqoo tws",
             "iqoo buds",
         )
 
-        private val VIVO_DARK_KEYWORDS = listOf(
-            "black",
-            "đen",
-            "den",
-            "dark",
-            "blue",
-            "xanh",
+        private val VIVO_TWS_4_KEYWORDS = listOf(
+            "vivo tws 4",
+            "vivo tws air",
+            "vivo earbuds",
         )
 
-        private val OPPO_ENCO_KEYWORDS = listOf(
-            "oppo enco",
+        private val VIVO_TWS_CLASSIC_KEYWORDS = listOf(
+            "vivo tws",
+        )
+
+        private val OPPO_ENCO_AIR_KEYWORDS = listOf(
             "enco air",
-            "enco buds",
-            "enco free",
+        )
+
+        private val OPPO_ENCO_X_KEYWORDS = listOf(
             "enco x",
+            "enco free",
+        )
+
+        private val OPPO_ENCO_BUDS_KEYWORDS = listOf(
+            "oppo enco",
+            "enco buds",
+            "enco w11",
+            "enco w31",
+            "enco w51",
             "enco w",
         )
 
-        private val OPPO_DARK_KEYWORDS = listOf(
-            "black",
-            "đen",
-            "den",
-            "dark",
+        private val XIAOMI_BUDS_4_5_KEYWORDS = listOf(
+            "xiaomi buds 4",
+            "xiaomi buds 5",
         )
 
-        private val XIAOMI_BUDS_KEYWORDS = listOf(
+        private val XIAOMI_BUDS_3_KEYWORDS = listOf(
             "xiaomi buds",
             "mi buds",
-            "redmi buds",
-            "redmi airdots",
+            "mi air",
             "mi true wireless",
             "flipbuds",
         )
 
-        private val XIAOMI_WHITE_KEYWORDS = listOf(
+        private val REDMI_OTHER_KEYWORDS = listOf(
+            "redmi buds",
+            "redmi airdots",
+        )
+
+        private val REDMI_WHITE_KEYWORDS = listOf(
             "white",
             "trắng",
             "trang",
