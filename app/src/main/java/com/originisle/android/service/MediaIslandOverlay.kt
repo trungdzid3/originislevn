@@ -13,6 +13,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.RippleDrawable
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.Build
@@ -102,6 +104,9 @@ object MediaIslandOverlay {
     private var totalTimeView: TextView? = null
     private var seekBarView: SeekBar? = null
     private var playPauseButton: ImageButton? = null
+    private var cardInnerSurface: GradientDrawable? = null
+    private var outputIconView: ImageView? = null
+    private var outputLabelView: TextView? = null
 
     private var isUserSeeking = false
 
@@ -237,11 +242,14 @@ object MediaIslandOverlay {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = outerCorner
             }
-            val innerSurface = GradientDrawable().apply {
+            val innerSurface = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(CARD_BG_COLOR, CARD_BG_COLOR, CARD_BG_COLOR),
+            ).apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = innerCorner
-                setColor(CARD_BG_COLOR)
             }
+            cardInnerSurface = innerSurface
             background = LayerDrawable(arrayOf(edgeLightBorder, innerSurface)).apply {
                 setLayerInset(1, strokePx, strokePx, strokePx, strokePx)
             }
@@ -309,15 +317,64 @@ object MediaIslandOverlay {
             }
         }
 
+        var textDownX = 0f
+        var textDownY = 0f
+        var textSwiped = false
         val textColumn = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginStart = dp(12f)
                 marginEnd = dp(10f)
             }
-            setOnClickListener {
-                openSourceApp(appContext)
-                dismiss()
+            setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        textDownX = event.rawX
+                        textDownY = event.rawY
+                        textSwiped = false
+                        resetAutoHideTimer()
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - textDownX
+                        val dy = event.rawY - textDownY
+                        if (abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.2f) {
+                            textSwiped = true
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                            v.translationX = (dx * 0.35f).coerceIn(-dp(28f).toFloat(), dp(28f).toFloat())
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val dx = event.rawX - textDownX
+                        val dy = event.rawY - textDownY
+                        if (textSwiped) {
+                            v.animate()
+                                .translationX(0f)
+                                .setDuration(180L)
+                                .setInterpolator(OvershootInterpolator(1.2f))
+                                .start()
+                            if (abs(dx) >= dp(36f)) {
+                                if (dx < 0f) {
+                                    latestSnapshot?.controller?.transportControls?.skipToNext()
+                                } else {
+                                    latestSnapshot?.controller?.transportControls?.skipToPrevious()
+                                }
+                            }
+                        } else if (abs(dx) < touchSlop && abs(dy) < touchSlop) {
+                            openSourceApp(appContext)
+                            dismiss()
+                        }
+                        textSwiped = false
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        v.animate().translationX(0f).setDuration(150L).start()
+                        textSwiped = false
+                        true
+                    }
+                    else -> false
+                }
             }
         }
 
@@ -350,7 +407,8 @@ object MediaIslandOverlay {
         textColumn.addView(artistTv)
 
         val outputBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(16f).toFloat()
             setColor(OUTPUT_BTN_BG_COLOR)
         }
         val outputRipple = RippleDrawable(
@@ -358,20 +416,47 @@ object MediaIslandOverlay {
             outputBg,
             outputBg,
         )
-        val outputBtn = ImageButton(appContext).apply {
+        val outputIcon = ImageView(appContext).apply {
             setImageResource(R.drawable.ic_media_bluetooth)
             imageTintList = ColorStateList.valueOf(TEXT_PRIMARY)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            val iconPad = dp(8f)
-            setPadding(iconPad, iconPad, iconPad, iconPad)
+            layoutParams = LinearLayout.LayoutParams(dp(15f), dp(15f))
+        }
+        val outputLabel = TextView(appContext).apply {
+            setTextColor(TEXT_PRIMARY)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            isSingleLine = true
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            maxWidth = dp(76f)
+            text = "Loa ngoài"
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginStart = dp(5f)
+            }
+        }
+        val outputBtn = LinearLayout(appContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10f), dp(7f), dp(10f), dp(7f))
             background = outputRipple
-            contentDescription = "Thiết bị Bluetooth"
-            layoutParams = LinearLayout.LayoutParams(dp(36f), dp(36f))
+            contentDescription = "Thiết bị âm thanh"
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(32f),
+            )
+            addView(outputIcon)
+            addView(outputLabel)
             setOnClickListener {
                 openBluetoothDevices(appContext)
                 dismiss()
             }
         }
+        outputIconView = outputIcon
+        outputLabelView = outputLabel
 
         topRow.addView(albumArt)
         topRow.addView(textColumn)
@@ -630,6 +715,18 @@ object MediaIslandOverlay {
             if (snapshot.playing) R.drawable.ic_media_pause else R.drawable.ic_media_play,
         )
 
+        val glowColor = extractAmbientGlowColor(snapshot.badgedAlbumArt)
+        cardInnerSurface?.colors = intArrayOf(glowColor, CARD_BG_COLOR, CARD_BG_COLOR)
+
+        if (ctx != null) {
+            val (outputName, isBluetooth) = resolveActiveAudioOutput(ctx)
+            outputLabelView?.text = outputName
+            outputIconView?.setImageResource(
+                if (isBluetooth) R.drawable.ic_media_bluetooth
+                else android.R.drawable.ic_lock_silent_mode_off,
+            )
+        }
+
         if (!isUserSeeking) {
             val pos = computeInterpolatedPosition(snapshot)
             bindProgress(pos, snapshot.durationMs)
@@ -717,6 +814,27 @@ object MediaIslandOverlay {
     }
 
     private fun openBluetoothDevices(appContext: Context) {
+        val pkg = latestSnapshot?.pkg.orEmpty()
+        val outputDialogIntent = Intent("com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG").apply {
+            setPackage("com.android.systemui")
+            if (pkg.isNotBlank()) putExtra("package_name", pkg)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val startedOutput = runCatching {
+            appContext.startActivity(outputDialogIntent)
+            true
+        }.getOrDefault(false)
+        if (startedOutput) return
+
+        val volumePanelIntent = Intent(Settings.Panel.ACTION_VOLUME).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val startedPanel = runCatching {
+            appContext.startActivity(volumePanelIntent)
+            true
+        }.getOrDefault(false)
+        if (startedPanel) return
+
         runCatching {
             appContext.startActivity(
                 Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
@@ -724,8 +842,77 @@ object MediaIslandOverlay {
                 },
             )
         }.onFailure {
-            Log.w(TAG, "Failed to open Bluetooth settings", it)
+            Log.w(TAG, "Failed to open audio output or Bluetooth settings", it)
         }
+    }
+
+    private fun resolveActiveAudioOutput(context: Context): Pair<String, Boolean> {
+        val am = context.getSystemService(AudioManager::class.java) ?: return "Loa ngoài" to false
+        val devices = runCatching { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }.getOrNull()
+            ?: return "Loa ngoài" to false
+        val btDevice = devices.firstOrNull { dev ->
+            dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    (dev.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        dev.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                        dev.type == AudioDeviceInfo.TYPE_BLE_BROADCAST))
+        }
+        if (btDevice != null) {
+            val name = btDevice.productName?.toString()?.trim().orEmpty().ifBlank { "Bluetooth" }
+            return name to true
+        }
+        val wired = devices.firstOrNull { dev ->
+            dev.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                dev.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                dev.type == AudioDeviceInfo.TYPE_USB_HEADSET
+        }
+        if (wired != null) {
+            return "Tai nghe" to false
+        }
+        return "Loa ngoài" to false
+    }
+
+    private fun extractAmbientGlowColor(bitmap: Bitmap?): Int {
+        val fallback = Color.argb(34, 15, 119, 255)
+        if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return fallback
+        return runCatching {
+            val soft = if (bitmap.config == Bitmap.Config.HARDWARE) {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return fallback
+            } else {
+                bitmap
+            }
+            val scaled = Bitmap.createScaledBitmap(soft, 8, 8, true)
+            try {
+                var bestColor = Color.rgb(15, 119, 255)
+                var bestScore = -1f
+                val hsv = FloatArray(3)
+                for (y in 0 until scaled.height) {
+                    for (x in 0 until scaled.width) {
+                        val px = scaled.getPixel(x, y)
+                        if (Color.alpha(px) < 128) continue
+                        Color.colorToHSV(px, hsv)
+                        if (hsv[2] < 0.16f) continue
+                        val score = (0.3f + hsv[1] * 1.6f) * (0.4f + hsv[2] * 0.6f)
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestColor = px
+                        }
+                    }
+                }
+                Color.RGBToHSV(
+                    Color.red(bestColor),
+                    Color.green(bestColor),
+                    Color.blue(bestColor),
+                    hsv,
+                )
+                if (hsv[2] < 0.65f) hsv[2] = 0.78f
+                val vivid = Color.HSVToColor(hsv)
+                Color.argb(38, Color.red(vivid), Color.green(vivid), Color.blue(vivid))
+            } finally {
+                if (scaled != soft) scaled.recycle()
+                if (soft != bitmap) soft.recycle()
+            }
+        }.getOrDefault(fallback)
     }
 
     private fun resetAutoHideTimer() {
@@ -784,6 +971,9 @@ object MediaIslandOverlay {
         totalTimeView = null
         seekBarView = null
         playPauseButton = null
+        cardInnerSurface = null
+        outputIconView = null
+        outputLabelView = null
         isUserSeeking = false
         isDismissing = false
 
