@@ -21,6 +21,7 @@ import com.originisle.android.bank.BankTextParser
 import com.originisle.android.bank.ParsedBankTransfer
 import com.originisle.android.bank.TransferAssistOverlay
 import com.originisle.android.bank.TransferNotificationHelper
+import com.originisle.android.bank.VietQrDeeplink
 import com.originisle.android.bank.VietQrParser
 import com.originisle.android.bank.VietnamBankDetector
 import com.originisle.android.cards.ScoreCard
@@ -223,8 +224,9 @@ object ShareToIslandHandler {
         }
         val targetPkg = resolveTargetBankPackage(context)
         if (targetPkg != null) {
-            val forwardedQr = qrImageUri != null && trySendQrToBankApp(context, qrImageUri, targetPkg)
-            if (!forwardedQr) {
+            val openedDeeplink = tryOpenVietQrDeeplink(context, transfer, targetPkg)
+            val forwardedQr = !openedDeeplink && qrImageUri != null && trySendQrToBankApp(context, qrImageUri, targetPkg)
+            if (!openedDeeplink && !forwardedQr) {
                 val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPkg)?.apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
@@ -254,6 +256,21 @@ object ShareToIslandHandler {
                 Toast.LENGTH_SHORT,
             ).show()
         }
+    }
+
+    private fun tryOpenVietQrDeeplink(
+        context: Context,
+        transfer: ParsedBankTransfer,
+        targetPkg: String,
+    ): Boolean {
+        val payUri = VietQrDeeplink.buildPayUri(transfer, targetPkg) ?: return false
+        val viewIntent = Intent(Intent.ACTION_VIEW, payUri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return runCatching {
+            context.startActivity(viewIntent)
+            true
+        }.getOrDefault(false)
     }
 
     private fun trySendQrToBankApp(context: Context, qrImageUri: Uri, targetPkg: String): Boolean {
