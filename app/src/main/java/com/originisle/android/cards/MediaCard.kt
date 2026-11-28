@@ -425,7 +425,28 @@ object MediaCard {
                 isNightMode == lastUiNightMode &&
                 artSignature == lastArtSignature
             )
-        if (stateUnchanged && !forceRefresh && PlaygroundService.activeCardIds.contains(ID) && (now - lastDispatchTimeMs) < 3000L) {
+        if (stateUnchanged && !forceRefresh && PlaygroundService.activeCardIds.contains(ID)) {
+            lastController = controller
+            lastDurationMs = durationMs
+            lastPositionMs = positionMs
+            lastSourceActions = sourceActions
+            lastContentIntent = contentIntent
+            IconCache.activeLargeBitmaps[ID]?.let { cachedArt ->
+                val clickIntent = contentIntent ?: fallbackClickIntent(context, pkg)
+                MediaIslandOverlay.updateSnapshot(
+                    MediaSnapshot(
+                        pkg = pkg,
+                        track = track,
+                        artist = artist,
+                        playing = playing,
+                        badgedAlbumArt = cachedArt,
+                        durationMs = durationMs,
+                        positionMs = positionMs,
+                        controller = controller,
+                        contentIntent = clickIntent,
+                    ),
+                )
+            }
             return
         }
         lastTrack = track

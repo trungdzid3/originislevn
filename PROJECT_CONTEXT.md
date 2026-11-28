@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.14` (mã bản dựng `versionCode = 30014`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.15` (mã bản dựng `versionCode = 30015`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.15 — Chống Dừng Hoạt Ảnh Sóng Nhạc Giữa Chừng (`MediaCard`)**:
+  - `MediaCard.kt` (`dispatchMediaCard`): Khi `stateUnchanged && !forceRefresh && PlaygroundService.activeCardIds.contains(ID)`, chỉ cập nhật `MediaIslandOverlay.updateSnapshot(...)` rồi `return` thay vì gửi lại Notification trùng lặp mỗi 3 giây lên SystemUI làm reset `AnimatedVectorDrawable` thành ảnh tĩnh.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.15.apk`: Nâng `versionCode = 30015`, `versionName = "3.0.15"`, `testDebugUnitTest` & `assembleRelease` PASS.
 - **Origin Isle VN v3.0.13 — Khôi Phục Sóng Nhạc `scaleY` Ổn Định & Tăng Độ Dày Cột (`2.6`)**:
   - `res/drawable/avd_music_wave.xml`: Quay về cơ chế `scaleY` ổn định của `v3.0.6` (`0.34–0.92`, chu kỳ `3200ms–4000ms`), tăng `strokeWidth` từ `2.0` lên `2.6` (`x = 3.0, 7.5, 12.0, 16.5, 21.0`).
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.13.apk`: Nâng `versionCode = 30013`, `versionName = "3.0.13"`, `testDebugUnitTest` & `assembleRelease` PASS.
