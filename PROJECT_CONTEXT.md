@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.8` (mã bản dựng `versionCode = 30008`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.9` (mã bản dựng `versionCode = 30009`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,9 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.9 — Sóng Nhạc Viên Thuốc Fill Path Bezier (`r = 1.25`)**:
+  - `res/drawable/avd_music_wave.xml`: Chuyển 5 cột từ `stroke` (`strokeLineCap="round"`) sang `fillColor` Cubic Bezier pill path (`r = 1.25`), đảm bảo bo tròn hoàn hảo ở mọi khung hình kể cả khi co về hình tròn đáy.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.9.apk`: Nâng `versionCode = 30009`, `versionName = "3.0.9"`, `testDebugUnitTest` & `assembleRelease` PASS.
 - **Origin Isle VN v3.0.8 — Sóng Nhạc Co Về Hình Tròn Chuẩn (`pathType` Morphing)**:
   - `res/drawable/avd_music_wave.xml`: Chuyển từ `scaleY` sang animate `pathData` (`valueType="pathType"`, `strokeWidth="2.4"`, `strokeLineCap="round"`) để khi xuống đáy (`M x,11.99 L x,12.01`) giữ nguyên hình tròn đều như lúc tạm dừng, không bị bẹp nét.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.8.apk`: Nâng `versionCode = 30008`, `versionName = "3.0.8"`, `testDebugUnitTest` & `assembleRelease` PASS.
