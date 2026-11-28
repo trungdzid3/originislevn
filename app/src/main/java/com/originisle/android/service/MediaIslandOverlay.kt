@@ -13,8 +13,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.RippleDrawable
-import android.media.AudioManager
-import android.media.MediaRouter2
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.Build
@@ -357,16 +355,16 @@ object MediaIslandOverlay {
             outputBg,
         )
         val outputBtn = ImageButton(appContext).apply {
-            setImageResource(R.drawable.ic_media_output)
+            setImageResource(R.drawable.ic_media_bluetooth)
             imageTintList = ColorStateList.valueOf(TEXT_PRIMARY)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             val iconPad = dp(8f)
             setPadding(iconPad, iconPad, iconPad, iconPad)
             background = outputRipple
-            contentDescription = "Audio output"
+            contentDescription = "Thiết bị Bluetooth"
             layoutParams = LinearLayout.LayoutParams(dp(36f), dp(36f))
             setOnClickListener {
-                openAudioOutputPicker(appContext)
+                openBluetoothDevices(appContext)
                 dismiss()
             }
         }
@@ -701,53 +699,7 @@ object MediaIslandOverlay {
         }
     }
 
-    private fun openAudioOutputPicker(appContext: Context) {
-        val snapshot = latestSnapshot
-        val pkg = snapshot?.pkg.orEmpty()
-        val token = snapshot?.controller?.sessionToken
-
-        // 1. Official Android 14+ (API 34) System Output Switcher dialog
-        val shownDefault = runCatching {
-            MediaRouter2.getInstance(appContext).showSystemOutputSwitcher()
-        }.getOrDefault(false)
-        if (shownDefault) return
-
-        // 2. Fallback to system media output / volume panel intents
-        val outputIntents = listOf(
-            Intent("com.android.settings.panel.action.MEDIA_OUTPUT").apply {
-                if (pkg.isNotBlank()) putExtra("com.android.settings.panel.extra.PACKAGE_NAME", pkg)
-                if (token != null) putExtra("android.media.extra.MEDIA_SESSION_TOKEN", token)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            },
-            Intent("com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG").apply {
-                setPackage("com.android.systemui")
-                if (pkg.isNotBlank()) putExtra("package_name", pkg)
-                if (token != null) putExtra("android.media.extra.MEDIA_SESSION_TOKEN", token)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            },
-            Intent("android.settings.MEDIA_OUTPUT_SETTINGS").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            },
-            Intent("com.android.settings.panel.action.VOLUME").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            },
-        )
-        for (intent in outputIntents) {
-            val launched = runCatching {
-                appContext.startActivity(intent)
-                true
-            }.getOrDefault(false)
-            if (launched) return
-        }
-
-        // 3. Fallback to System Volume UI before Bluetooth settings
-        val volumeUiShown = runCatching {
-            val am = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
-            am != null
-        }.getOrDefault(false)
-        if (volumeUiShown) return
-
+    private fun openBluetoothDevices(appContext: Context) {
         runCatching {
             appContext.startActivity(
                 Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
@@ -755,7 +707,7 @@ object MediaIslandOverlay {
                 },
             )
         }.onFailure {
-            Log.w(TAG, "Failed to open any audio output picker", it)
+            Log.w(TAG, "Failed to open Bluetooth settings", it)
         }
     }
 

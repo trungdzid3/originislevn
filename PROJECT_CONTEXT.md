@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.4` (mã bản dựng `versionCode = 30004`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.5` (mã bản dựng `versionCode = 30005`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.5 — Sóng Nhạc Nhẹ Nhàng Đúng Màu Bài Hát & Nút Bluetooth Chọn Thiết Bị**:
+  - `res/drawable/avd_music_wave.xml` & `MediaCard.kt`: Làm chậm chu kỳ sóng về mức nhẹ nhàng (`2450ms–3100ms`, `accelerate_decelerate_interpolator`), đổi 5 cột sang trắng giảm dần độ mờ (`100% -> 40%`) và dùng `Icon.setTint(primaryWaveColor(waveColors))` nhuộm đúng màu chủ đạo từ bìa album (đồng bộ màu cho `createPausedWaveIcon`).
+  - `res/drawable/ic_media_bluetooth.xml` & `MediaIslandOverlay.kt`: Đổi nút góc trên sang biểu tượng Bluetooth, ấn vào mở thẳng phần chọn thiết bị Bluetooth (`Settings.ACTION_BLUETOOTH_SETTINGS`).
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.5.apk`: Nâng `versionCode = 30005`, `versionName = "3.0.5"`, `testDebugUnitTest` & `assembleRelease` PASS.
 - **Origin Isle VN v3.0.4 — Tinh Chỉnh Sóng Nhạc Gradient Đa Nhịp & Sửa Nút Đầu Ra Âm Thanh**:
   - `res/drawable/avd_music_wave.xml`: Nâng cấp hoạt ảnh sóng 5 cột sang đa nhịp 7 keyframe bất đối xứng (`1050ms–1400ms`, `fast_out_slow_in`) và bảng màu đơn sắc chuyển nhạt dần (`#FF68A4FF` -> `#66CFEAFF`, nét `2.0`).
   - `MediaIslandOverlay.kt` (`openAudioOutputPicker`): Ưu tiên `MediaRouter2.getInstance(appContext).showSystemOutputSwitcher()` (API 34+) mở hộp thoại System Media Output Switcher, fallback panel/Volume UI trước `ACTION_BLUETOOTH_SETTINGS`.

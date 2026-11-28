@@ -545,7 +545,7 @@ object MediaCard {
             }
             putExtra(
                 "oi_right_icon",
-                if (playing) Icon.createWithResource(context, R.drawable.avd_music_wave)
+                if (playing) createAnimatedWaveIcon(context, waveColors)
                 else createPausedWaveIcon(waveColors),
             )
             putExtra("oi_show_right_icon", true)
@@ -767,8 +767,19 @@ object MediaCard {
         return Icon.createWithBitmap(bmp)
     }
 
+    private fun primaryWaveColor(waveColors: List<String>): Int {
+        val hex = waveColors.getOrNull(1) ?: waveColors.firstOrNull() ?: "#68A4FF"
+        return runCatching { Color.parseColor(hex) }.getOrElse { Color.parseColor("#68A4FF") }
+    }
+
+    private fun createAnimatedWaveIcon(context: Context, waveColors: List<String>): Icon {
+        return Icon.createWithResource(context, R.drawable.avd_music_wave).apply {
+            setTint(primaryWaveColor(waveColors))
+        }
+    }
+
     /**
-     * Vẽ 5 chấm tròn nhỏ đồng bộ vị trí 5 cột sóng nhạc (trạng thái sóng dừng lại khi tạm dừng phát)
+     * Vẽ 5 chấm tròn nhỏ đồng bộ vị trí và màu chính nhạt dần (trạng thái sóng dừng lại khi tạm dừng phát)
      */
     private fun createPausedWaveIcon(waveColors: List<String>, size: Int = 96): Icon {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -776,12 +787,8 @@ object MediaCard {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
         }
-        val fallbackHex = listOf("#FF5376", "#00E5FF", "#7C4DFF")
-        val parsedColors = (if (waveColors.isNotEmpty()) waveColors else fallbackHex).mapNotNull { hex ->
-            runCatching { Color.parseColor(hex) }.getOrNull()
-        }.ifEmpty {
-            fallbackHex.map { Color.parseColor(it) }
-        }
+        val baseColor = primaryWaveColor(waveColors)
+        val alphas = intArrayOf(210, 180, 150, 118, 86)
         val padX = size * 0.05f
         val usableW = size - padX * 2
         val gap = usableW * 0.085f
@@ -789,9 +796,8 @@ object MediaCard {
         val cy = size / 2f
         val r = dotSize / 2f
         for (i in 0 until 5) {
-            val baseColor = parsedColors[i % parsedColors.size]
             paint.color = Color.argb(
-                170,
+                alphas[i],
                 Color.red(baseColor),
                 Color.green(baseColor),
                 Color.blue(baseColor),
