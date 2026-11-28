@@ -565,7 +565,7 @@ object MediaCard {
             }
             putExtra(
                 "oi_right_icon",
-                if (playing) createMusicWaveIcon(waveColors)
+                if (playing) createAnimatedWaveIcon(context, waveColors)
                 else createPausedWaveIcon(waveColors),
             )
             putExtra("oi_show_right_icon", true)
