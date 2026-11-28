@@ -250,8 +250,8 @@ object MediaIslandOverlay {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = innerCorner
                 gradientType = GradientDrawable.RADIAL_GRADIENT
-                setGradientCenter(0.76f, 1.08f)
-                gradientRadius = overlayWidth * 0.88f
+                setGradientCenter(0.75f, 1.15f)
+                gradientRadius = dp(130f).toFloat()
                 colors = intArrayOf(0x00000000, 0x00000000, 0x00000000)
             }
             ambientRadialLayer = radialAmbient
@@ -698,21 +698,25 @@ object MediaIslandOverlay {
         val r = Color.red(vividRgb)
         val g = Color.green(vividRgb)
         val b = Color.blue(vividRgb)
-        // Origin Island Ambient Lighting: opaque pure black top fading into a rich, saturated
-        // radial ambient pool at the bottom-right corner like the native OriginOS 6 music card.
+        // Origin Island Ambient Lighting: keep top pure black and restrict subtle album-colored
+        // ambient pool to the lower half of the card.
         val centerGlow = Color.argb(
-            132,
-            (r * 0.72f).roundToInt(),
-            (g * 0.72f).roundToInt(),
-            (b * 0.72f).roundToInt(),
+            92,
+            (r * 0.68f).roundToInt(),
+            (g * 0.68f).roundToInt(),
+            (b * 0.68f).roundToInt(),
         )
         val midGlow = Color.argb(
-            54,
-            (r * 0.55f).roundToInt(),
-            (g * 0.55f).roundToInt(),
-            (b * 0.55f).roundToInt(),
+            28,
+            (r * 0.50f).roundToInt(),
+            (g * 0.50f).roundToInt(),
+            (b * 0.50f).roundToInt(),
         )
-        ambientRadialLayer?.colors = intArrayOf(centerGlow, midGlow, 0x00000000)
+        ambientRadialLayer?.apply {
+            colors = intArrayOf(centerGlow, midGlow, 0x00000000)
+            invalidateSelf()
+        }
+        cardView?.invalidate()
 
         if (ctx != null) {
             val isBluetooth = isBluetoothAudioActive(ctx)
@@ -855,7 +859,7 @@ object MediaIslandOverlay {
     }
 
     private fun extractAmbientGlowColor(bitmap: Bitmap?): Int {
-        val fallback = Color.argb(34, 15, 119, 255)
+        val fallback = Color.rgb(64, 78, 96)
         if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return fallback
         return runCatching {
             val soft = if (bitmap.config == Bitmap.Config.HARDWARE) {
@@ -863,32 +867,39 @@ object MediaIslandOverlay {
             } else {
                 bitmap
             }
-            val scaled = Bitmap.createScaledBitmap(soft, 8, 8, true)
+            val scaled = Bitmap.createScaledBitmap(soft, 16, 16, true)
             try {
-                var bestColor = Color.rgb(15, 119, 255)
-                var bestScore = -1f
+                val bucketCount = 24
+                val weights = FloatArray(bucketCount)
+                val sumR = FloatArray(bucketCount)
+                val sumG = FloatArray(bucketCount)
+                val sumB = FloatArray(bucketCount)
                 val hsv = FloatArray(3)
                 for (y in 0 until scaled.height) {
                     for (x in 0 until scaled.width) {
+                        // Exclude bottom-right corner where the app badge icon sits
+                        if (x >= 10 && y >= 10) continue
                         val px = scaled.getPixel(x, y)
                         if (Color.alpha(px) < 128) continue
                         Color.colorToHSV(px, hsv)
-                        if (hsv[2] < 0.16f) continue
-                        val score = (0.3f + hsv[1] * 1.6f) * (0.4f + hsv[2] * 0.6f)
-                        if (score > bestScore) {
-                            bestScore = score
-                            bestColor = px
-                        }
+                        if (hsv[2] < 0.14f) continue
+                        val weight = (0.35f + hsv[1] * 1.4f) * (0.4f + hsv[2] * 0.6f)
+                        val bucket = ((hsv[0] / 360f) * bucketCount).toInt().coerceIn(0, bucketCount - 1)
+                        weights[bucket] += weight
+                        sumR[bucket] += Color.red(px) * weight
+                        sumG[bucket] += Color.green(px) * weight
+                        sumB[bucket] += Color.blue(px) * weight
                     }
                 }
-                Color.RGBToHSV(
-                    Color.red(bestColor),
-                    Color.green(bestColor),
-                    Color.blue(bestColor),
-                    hsv,
-                )
-                if (hsv[2] < 0.72f) hsv[2] = 0.85f
-                if (hsv[1] in 0.10f..0.45f) hsv[1] = 0.58f
+                val bestBucket = (0 until bucketCount).maxByOrNull { weights[it] } ?: -1
+                if (bestBucket < 0 || weights[bestBucket] <= 0f) return fallback
+                val w = weights[bestBucket]
+                val r = (sumR[bestBucket] / w).toInt().coerceIn(0, 255)
+                val g = (sumG[bestBucket] / w).toInt().coerceIn(0, 255)
+                val b = (sumB[bestBucket] / w).toInt().coerceIn(0, 255)
+                Color.RGBToHSV(r, g, b, hsv)
+                if (hsv[2] < 0.68f) hsv[2] = 0.80f
+                if (hsv[1] in 0.08f..0.40f) hsv[1] = 0.50f
                 Color.HSVToColor(hsv)
             } finally {
                 if (scaled != soft) scaled.recycle()
