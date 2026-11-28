@@ -2,7 +2,7 @@
 
 ## 1. Mục đích và Phạm vi
 Bản fork và hiện đại hóa ứng dụng Origin Isle (Đảo Origin) dành riêng cho hệ điều hành OriginOS 6 (Vivo / iQOO) tại thị trường Việt Nam:
-- **Phiên bản hiện tại**: `3.0.3` (mã bản dựng `versionCode = 30003`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
+- **Phiên bản hiện tại**: `3.0.4` (mã bản dựng `versionCode = 30004`, chuẩn `ThếHệ.NângCấp.VáLỗi` tức `MAJOR.MINOR.PATCH`).
 - **Nguồn gốc Upstream GitHub**: `https://github.com/fvhde/origin-isle` (đồng bộ chọn lọc lên `v3.0.1` / commit `0e9de80`).
 - **Kho lưu trữ GitHub**: `https://github.com/trungdzid3/originislevn.git` (`auto_github_sync: true`).
 
@@ -87,6 +87,10 @@ origin-isle-vn/
 ```
 
 ## 3. Bản Đồ Code (Code Map)
+- **Origin Isle VN v3.0.4 — Tinh Chỉnh Sóng Nhạc Gradient Đa Nhịp & Sửa Nút Đầu Ra Âm Thanh**:
+  - `res/drawable/avd_music_wave.xml`: Nâng cấp hoạt ảnh sóng 5 cột sang đa nhịp 7 keyframe bất đối xứng (`1050ms–1400ms`, `fast_out_slow_in`) và bảng màu đơn sắc chuyển nhạt dần (`#FF68A4FF` -> `#66CFEAFF`, nét `2.0`).
+  - `MediaIslandOverlay.kt` (`openAudioOutputPicker`): Ưu tiên `MediaRouter2.getInstance(appContext).showSystemOutputSwitcher()` (API 34+) mở hộp thoại System Media Output Switcher, fallback panel/Volume UI trước `ACTION_BLUETOOTH_SETTINGS`.
+  - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.4.apk`: Nâng `versionCode = 30004`, `versionName = "3.0.4"`, `testDebugUnitTest` & `assembleRelease` PASS.
 - **Origin Isle VN v3.0.3 — Thử Nghiệm Sóng Nhạc Động `AnimatedVectorDrawable` (`avd_music_wave`)**:
   - `res/drawable/avd_music_wave.xml` & `MediaCard.kt`: Bổ sung `AnimatedVectorDrawable` 5 cột sóng co giãn `scaleY` lệch pha lặp vô hạn (`repeatCount="-1"`, `repeatMode="reverse"`) và truyền `Icon.createWithResource(context, R.drawable.avd_music_wave)` vào `oi_right_icon` khi đang phát (`playing == true`), giữ `createPausedWaveIcon(waveColors)` khi tạm dừng.
   - `app/build.gradle.kts` & `release/OriginIsle-VN-v3.0.3.apk`: Nâng `versionCode = 30003`, `versionName = "3.0.3"`, `testDebugUnitTest` & `assembleRelease` PASS.

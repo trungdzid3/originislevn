@@ -9,57 +9,57 @@
             android:viewportHeight="24">
             <group
                 android:name="bar1"
-                android:pivotX="3.2"
+                android:pivotX="3.6"
                 android:pivotY="12"
-                android:scaleY="0.4">
+                android:scaleY="0.30">
                 <path
-                    android:pathData="M3.2,5 L3.2,19"
-                    android:strokeWidth="2.4"
-                    android:strokeColor="#FF5376"
+                    android:pathData="M3.6,4.5 L3.6,19.5"
+                    android:strokeWidth="2.0"
+                    android:strokeColor="#FF68A4FF"
                     android:strokeLineCap="round" />
             </group>
             <group
                 android:name="bar2"
-                android:pivotX="7.6"
+                android:pivotX="7.8"
                 android:pivotY="12"
-                android:scaleY="0.85">
+                android:scaleY="0.78">
                 <path
-                    android:pathData="M7.6,5 L7.6,19"
-                    android:strokeWidth="2.4"
-                    android:strokeColor="#00E5FF"
+                    android:pathData="M7.8,4.5 L7.8,19.5"
+                    android:strokeWidth="2.0"
+                    android:strokeColor="#DE82B5FF"
                     android:strokeLineCap="round" />
             </group>
             <group
                 android:name="bar3"
                 android:pivotX="12"
                 android:pivotY="12"
-                android:scaleY="0.55">
+                android:scaleY="0.46">
                 <path
-                    android:pathData="M12,5 L12,19"
-                    android:strokeWidth="2.4"
-                    android:strokeColor="#7C4DFF"
+                    android:pathData="M12,4.5 L12,19.5"
+                    android:strokeWidth="2.0"
+                    android:strokeColor="#B89CC7FF"
                     android:strokeLineCap="round" />
             </group>
             <group
                 android:name="bar4"
-                android:pivotX="16.4"
+                android:pivotX="16.2"
                 android:pivotY="12"
-                android:scaleY="0.95">
+                android:scaleY="0.90">
                 <path
-                    android:pathData="M16.4,5 L16.4,19"
-                    android:strokeWidth="2.4"
-                    android:strokeColor="#FF5376"
+                    android:pathData="M16.2,4.5 L16.2,19.5"
+                    android:strokeWidth="2.0"
+                    android:strokeColor="#8FB6D9FF"
                     android:strokeLineCap="round" />
             </group>
             <group
                 android:name="bar5"
-                android:pivotX="20.8"
+                android:pivotX="20.4"
                 android:pivotY="12"
-                android:scaleY="0.45">
+                android:scaleY="0.36">
                 <path
-                    android:pathData="M20.8,5 L20.8,19"
-                    android:strokeWidth="2.4"
-                    android:strokeColor="#00E5FF"
+                    android:pathData="M20.4,4.5 L20.4,19.5"
+                    android:strokeWidth="2.0"
+                    android:strokeColor="#66CFEAFF"
                     android:strokeLineCap="round" />
             </group>
         </vector>
@@ -68,74 +68,110 @@
     <target android:name="bar1">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:duration="480"
-                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
-                android:propertyName="scaleY"
+                android:duration="1250"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
                 android:repeatCount="-1"
-                android:repeatMode="reverse"
-                android:valueFrom="0.35"
-                android:valueTo="0.95"
-                android:valueType="floatType" />
+                android:repeatMode="restart">
+                <propertyValuesHolder
+                    android:propertyName="scaleY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0.0" android:value="0.30" />
+                    <keyframe android:fraction="0.14" android:value="0.86" />
+                    <keyframe android:fraction="0.32" android:value="0.40" />
+                    <keyframe android:fraction="0.48" android:value="0.96" />
+                    <keyframe android:fraction="0.68" android:value="0.34" />
+                    <keyframe android:fraction="0.82" android:value="0.68" />
+                    <keyframe android:fraction="1.0" android:value="0.30" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
 
     <target android:name="bar2">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:duration="560"
-                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
-                android:propertyName="scaleY"
+                android:duration="1050"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
                 android:repeatCount="-1"
-                android:repeatMode="reverse"
-                android:startOffset="80"
-                android:valueFrom="0.90"
-                android:valueTo="0.30"
-                android:valueType="floatType" />
+                android:repeatMode="restart">
+                <propertyValuesHolder
+                    android:propertyName="scaleY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0.0" android:value="0.78" />
+                    <keyframe android:fraction="0.18" android:value="0.32" />
+                    <keyframe android:fraction="0.34" android:value="0.98" />
+                    <keyframe android:fraction="0.54" android:value="0.48" />
+                    <keyframe android:fraction="0.70" android:value="0.26" />
+                    <keyframe android:fraction="0.84" android:value="0.90" />
+                    <keyframe android:fraction="1.0" android:value="0.78" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
 
     <target android:name="bar3">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:duration="440"
-                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
-                android:propertyName="scaleY"
+                android:duration="1400"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
                 android:repeatCount="-1"
-                android:repeatMode="reverse"
-                android:startOffset="160"
-                android:valueFrom="0.45"
-                android:valueTo="1.00"
-                android:valueType="floatType" />
+                android:repeatMode="restart">
+                <propertyValuesHolder
+                    android:propertyName="scaleY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0.0" android:value="0.46" />
+                    <keyframe android:fraction="0.13" android:value="1.00" />
+                    <keyframe android:fraction="0.33" android:value="0.30" />
+                    <keyframe android:fraction="0.49" android:value="0.80" />
+                    <keyframe android:fraction="0.66" android:value="0.50" />
+                    <keyframe android:fraction="0.80" android:value="0.94" />
+                    <keyframe android:fraction="1.0" android:value="0.46" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
 
     <target android:name="bar4">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:duration="520"
-                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
-                android:propertyName="scaleY"
+                android:duration="1150"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
                 android:repeatCount="-1"
-                android:repeatMode="reverse"
-                android:startOffset="40"
-                android:valueFrom="0.85"
-                android:valueTo="0.35"
-                android:valueType="floatType" />
+                android:repeatMode="restart">
+                <propertyValuesHolder
+                    android:propertyName="scaleY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0.0" android:value="0.90" />
+                    <keyframe android:fraction="0.20" android:value="0.36" />
+                    <keyframe android:fraction="0.36" android:value="0.68" />
+                    <keyframe android:fraction="0.56" android:value="0.28" />
+                    <keyframe android:fraction="0.72" android:value="0.96" />
+                    <keyframe android:fraction="0.88" android:value="0.48" />
+                    <keyframe android:fraction="1.0" android:value="0.90" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
 
     <target android:name="bar5">
         <aapt:attr name="android:animation">
             <objectAnimator
-                android:duration="500"
-                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
-                android:propertyName="scaleY"
+                android:duration="1350"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
                 android:repeatCount="-1"
-                android:repeatMode="reverse"
-                android:startOffset="220"
-                android:valueFrom="0.30"
-                android:valueTo="0.85"
-                android:valueType="floatType" />
+                android:repeatMode="restart">
+                <propertyValuesHolder
+                    android:propertyName="scaleY"
+                    android:valueType="floatType">
+                    <keyframe android:fraction="0.0" android:value="0.36" />
+                    <keyframe android:fraction="0.16" android:value="0.74" />
+                    <keyframe android:fraction="0.34" android:value="0.44" />
+                    <keyframe android:fraction="0.50" android:value="0.92" />
+                    <keyframe android:fraction="0.70" android:value="0.28" />
+                    <keyframe android:fraction="0.84" android:value="0.64" />
+                    <keyframe android:fraction="1.0" android:value="0.36" />
+                </propertyValuesHolder>
+            </objectAnimator>
         </aapt:attr>
     </target>
 </animated-vector>
